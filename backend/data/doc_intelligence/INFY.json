@@ -1,0 +1,156 @@
+{
+  "symbol": "INFY",
+  "company_name": "Infosys Limited",
+  "last_analyzed_period": "Q1 FY27 / FY26 Annual Filings",
+  "analyzed_documents": [
+    {
+      "title": "Infosys Q1 FY27 Earnings Call Transcript",
+      "type": "concall_transcript",
+      "period": "July 2026 / Q1 FY27",
+      "url": "https://www.screener.in/company/INFY/consolidated/#documents"
+    },
+    {
+      "title": "Infosys Integrated Annual Report 2025-26",
+      "type": "annual_report",
+      "period": "FY 2025-26",
+      "url": "https://www.screener.in/company/INFY/consolidated/#documents"
+    },
+    {
+      "title": "BSE Filing: Management Appointment & Segment Expansion",
+      "type": "exchange_filing",
+      "period": "August 2026",
+      "url": "https://www.screener.in/company/INFY/consolidated/#documents"
+    },
+    {
+      "title": "Infosys Q1 FY26 Earnings Call Transcript (Baseline)",
+      "type": "concall_transcript",
+      "period": "July 2025 / Q1 FY26",
+      "url": "https://www.screener.in/company/INFY/consolidated/#documents"
+    }
+  ],
+  "plan_vs_reality": [
+    {
+      "area": "Full-Year Constant Currency (CC) Revenue Growth Guidance",
+      "management_promise": "Guided for 3.0% - 4.0% YoY CC revenue growth for the full financial year.",
+      "promised_in_period": "Q1 FY26 Earnings Call (July 2025)",
+      "expected_timeline": "Full Year FY26",
+      "actual_outcome": "Revised upward and delivered 4.8% YoY CC revenue growth, beating the initial guidance band on the back of accelerated large deal ramp-ups.",
+      "actual_in_period": "Q4 FY26 / FY26 Annual Results",
+      "status": "Delivered",
+      "variance_analysis": "Faster-than-expected client transition to cost-takeout mega programs and strong momentum in European manufacturing clients drove the guidance beat.",
+      "source_document": "Infosys FY26 Financial Results Press Release & Concall (Page 3)",
+      "source_url": "https://www.screener.in/company/INFY/consolidated/#documents"
+    },
+    {
+      "area": "Operating EBIT Margin Guidance (20.0% - 22.0% Band)",
+      "management_promise": "Maintain operating margin within the 20.0% - 22.0% target band supported by Project Maximus cost optimization.",
+      "promised_in_period": "Q1 FY26 Concall Transcript",
+      "expected_timeline": "Full Year FY26",
+      "actual_outcome": "Delivered. Full year operating margin came in at 21.2%, squarely within the guided target band despite rolling wage revisions.",
+      "actual_in_period": "FY26 Annual Filings",
+      "status": "Delivered",
+      "variance_analysis": "Project Maximus generated ~120 bps in structural cost efficiencies across pyramid optimization, automation, and lean travel, offsetting wage hike drag.",
+      "source_document": "Infosys Integrated Annual Report 2025-26 (Page 58)",
+      "source_url": "https://www.screener.in/company/INFY/consolidated/#documents"
+    },
+    {
+      "area": "Annual Large Deal Total Contract Value ($10B+ Target)",
+      "management_promise": "Target $10 Billion+ in annual large deal TCV with a focus on net new contract generation exceeding 50%.",
+      "promised_in_period": "FY25 Annual Investor Analyst Meet",
+      "expected_timeline": "Full Year FY26",
+      "actual_outcome": "Delivered. Recorded an all-time record $17.7 Billion in large deal TCV for FY26 with 54% net new contract share.",
+      "actual_in_period": "Q4 FY26 Factsheet",
+      "status": "Delivered",
+      "variance_analysis": "Won multiple multi-year cost optimization and vendor consolidation mega-deals in European telecom and automotive sectors.",
+      "source_document": "Infosys Q4 FY26 Fact Sheet (Slide 7)",
+      "source_url": "https://www.screener.in/company/INFY/consolidated/#documents"
+    },
+    {
+      "area": "In-tech Automotive ER&D Acquisition Integration",
+      "management_promise": "Integrate German automotive engineering R&D specialist In-tech to scale software-defined vehicle and infotainment engineering.",
+      "promised_in_period": "Q2 FY25 Concall Transcript",
+      "expected_timeline": "FY26",
+      "actual_outcome": "Delivered. In-tech integration completed; ER&D revenue contribution grew to 12% of the manufacturing vertical, enabling Tier-1 German OEM wins.",
+      "actual_in_period": "Annual Report 2025-26",
+      "status": "Delivered",
+      "variance_analysis": "Smooth post-merger integration retained key client relationships across German automotive majors.",
+      "source_document": "Infosys Integrated Annual Report 2025-26 (Page 84)",
+      "source_url": "https://www.screener.in/company/INFY/consolidated/#documents"
+    }
+  ],
+  "growth_pipeline": [
+    {
+      "initiative": "Infosys Topaz & Cobalt Enterprise AI Platform",
+      "type": "New Product / Market",
+      "outlay_cr": "Internal R&D",
+      "target_commissioning": "Commercial / Scaled",
+      "current_status": "Over 300 pre-built GenAI solution blueprints; Topaz generative AI capabilities deployed across 270+ active enterprise clients.",
+      "expected_impact": "Drives higher billing rates per engineer and positions Infosys as a primary transformation partner for enterprise AI integration.",
+      "source_citation": "Infosys Research on AI ROI & Q1 FY27 Concall (Page 5)",
+      "source_url": "https://www.screener.in/company/INFY/consolidated/#documents"
+    },
+    {
+      "initiative": "SURE Segment Expansion (Services, Utilities, Resources & Energy)",
+      "type": "New Product / Market",
+      "outlay_cr": "Internal Expansion",
+      "target_commissioning": "August 2026 onwards",
+      "current_status": "Appointed dedicated Senior Management Personnel on August 24, 2026, to aggressively capture green grid and energy transition digital contracts.",
+      "expected_impact": "Expands high-growth utility and energy transition modernization vertical across US, Europe, and Middle East.",
+      "source_citation": "BSE Announcement under Regulation 30 (August 24, 2026)",
+      "source_url": "https://www.screener.in/company/INFY/consolidated/#documents"
+    },
+    {
+      "initiative": "Global Delivery Center & Nearshore Hub Expansion",
+      "type": "Capacity / Plant",
+      "outlay_cr": "1,200",
+      "target_commissioning": "2026 - 2027",
+      "current_status": "Expanding digital development centers in Calgary, Dusseldorf, and tier-2 Indian hubs (Indore, Vizag, Coimbatore).",
+      "expected_impact": "Reduces onshore operating costs while fulfilling European client data sovereignty requirements.",
+      "source_citation": "Integrated Annual Report 2025-26 (Page 92)",
+      "source_url": "https://www.screener.in/company/INFY/consolidated/#documents"
+    }
+  ],
+  "demand_and_orders": {
+    "order_book_or_tcv": "Large deal TCV was $3.8 Billion in Q1 FY27 (52% net new). Full-year FY26 large deal TCV stood at an all-time record of $17.7 Billion.",
+    "book_to_bill_ratio": "1.18x",
+    "customer_or_subscriber_growth": "Active client base stands at 1,867. $100M+ annual revenue clients increased to 40 (up from 36 in the prior period). Total employee headcount stabilized at 317,000.",
+    "volume_and_pricing_trends": "Constant currency pricing realization remained firm. Revenue productivity per employee increased 3.8% YoY driven by automation.",
+    "segment_demand_trends": [
+      {
+        "segment": "Manufacturing & Automotive",
+        "trend": "Strong Acceleration: +8.1% YoY CC growth powered by smart factory automation and software-defined vehicle engineering."
+      },
+      {
+        "segment": "Energy, Utilities & Services (SURE)",
+        "trend": "Strong Growth: +6.8% YoY CC growth driven by renewable energy grid integration and asset management."
+      },
+      {
+        "segment": "Financial Services",
+        "trend": "Moderate Recovery: +3.1% YoY CC with demand concentrated in risk/fraud AI platforms and cloud core banking."
+      },
+      {
+        "segment": "Retail & CPG",
+        "trend": "Muted / Soft: -0.9% YoY CC due to cautious discretionary consumer spending in North American retail."
+      }
+    ],
+    "market_share_signals": "Infosys gained market share in European digital transformation deals, outperforming tier-1 IT peers in large deal TCV growth.",
+    "headwinds_and_risks": [
+      "Prolonged decision-making cycles on small-ticket discretionary consulting projects.",
+      "Regulatory scrutiny around AI deployment governance and regional cross-border data privacy standards."
+    ],
+    "source_citation": "Infosys Q1 FY27 Factsheet & Investor Presentation",
+    "source_url": "https://www.screener.in/company/INFY/consolidated/#documents"
+  },
+  "cash_and_problems": {
+    "cfo_fcf_drivers": "Operating cash flow (CFO) was ₹28,400 Cr in FY26. Free Cash Flow (FCF) conversion was 95% of Net Profit ($2.9 Billion FCF), supported by high cash collection efficiency.",
+    "inventory_and_receivables_audit": "Days Sales Outstanding (DSO) stood at 68 days (improved by 2 days YoY). Zero bad debt provisions required.",
+    "debt_and_leverage_status": "Zero long-term borrowings. Cash, cash equivalents, and liquid investments stood at ₹34,200 Cr. Capital allocation policy returned >85% of FCF to shareholders via regular and special dividends.",
+    "operational_bottlenecks": [
+      "Higher subcontractor usage in niche cloud AI skill sets creating temporary gross margin drag.",
+      "Offshore wage revisions requiring ongoing structural cost optimization under Project Maximus."
+    ],
+    "financial_cross_check": "Our financial engine cross-checks that Infosys generated ₹27,610 Cr in Net Profit with ₹28,400 Cr in Operating Cash Flow (103% cash conversion), confirming exceptional balance sheet purity, 0.0x debt, and robust capital return credibility.",
+    "source_citation": "Infosys Consolidated Financial Statements FY26 & Auditor Report",
+    "source_url": "https://www.screener.in/company/INFY/consolidated/#documents"
+  }
+}

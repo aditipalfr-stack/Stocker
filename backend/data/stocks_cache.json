@@ -1155,7 +1155,7 @@
     "source_name": "Screener.in",
     "source_url": "https://www.screener.in/company/TCS/consolidated/",
     "statement_type": "consolidated",
-    "fetched_at": "2026-08-25T18:19:18.964272+00:00",
+    "fetched_at": "2026-08-25T18:25:32.494258+00:00",
     "ratios": {
       "market_cap_cr": 0.0,
       "current_price": 2296.0,
@@ -2274,7 +2274,7 @@
     "source_name": "Screener.in",
     "source_url": "https://www.screener.in/company/INFY/consolidated/",
     "statement_type": "consolidated",
-    "fetched_at": "2026-08-25T18:19:17.568603+00:00",
+    "fetched_at": "2026-08-25T18:25:31.531919+00:00",
     "ratios": {
       "market_cap_cr": 0.0,
       "current_price": 1144.0,
@@ -8184,6 +8184,4479 @@
         {
           "name": "PPT",
           "url": "https://www.bseindia.com/stockinfo/AnnPdfOpen.aspx?Pname=5cc79501-158a-4991-bc24-5650ba5b4b0b.pdf"
+        }
+      ]
+    }
+  },
+  "HDFCBANK": {
+    "symbol": "HDFCBANK",
+    "name": "HDFC Bank Ltd",
+    "sector": "Banking & Financial Services",
+    "industry": "Private Sector Bank",
+    "about": "HDFC Bank Limited (also known as HDFC) is an Indian banking and financial services company headquartered in Mumbai. It is India's largest private sector bank by assets and the world's tenth-largest bank by market capitalization as of May 2024. As of April 2024, HDFC Bank has a market capitalization of $145 billion, making it the third-largest company on the Indian stock exchanges. [1]",
+    "source_name": "Screener.in",
+    "source_url": "https://www.screener.in/company/HDFCBANK/consolidated/",
+    "statement_type": "consolidated",
+    "fetched_at": "2026-08-25T18:25:30.536824+00:00",
+    "ratios": {
+      "market_cap_cr": 0.0,
+      "current_price": 728.0,
+      "high_low": "\u20b9 1,020 / 715",
+      "stock_pe": 14.2,
+      "book_value": 390.0,
+      "dividend_yield_pct": 1.79,
+      "roce_pct": 7.02,
+      "roe_pct": 13.6,
+      "face_value": 1.0,
+      "industry_pe": null,
+      "debt_to_equity": 0.0,
+      "interest_coverage": 0.0,
+      "fcf_yield_pct": 0.0,
+      "sales_growth_3yr_cagr": 0.0,
+      "profit_growth_3yr_cagr": 0.0
+    },
+    "quarters": {
+      "periods": [
+        "Jun 2023",
+        "Sep 2023",
+        "Dec 2023",
+        "Mar 2024",
+        "Jun 2024",
+        "Sep 2024",
+        "Dec 2024",
+        "Mar 2025",
+        "Jun 2025",
+        "Sep 2025",
+        "Dec 2025",
+        "Mar 2026",
+        "Jun 2026"
+      ],
+      "rows": [
+        {
+          "metric": "Revenue",
+          "values": {
+            "Jun 2023": 51168.0,
+            "Sep 2023": 75039.0,
+            "Dec 2023": 78008.0,
+            "Mar 2024": 79434.0,
+            "Jun 2024": 81546.0,
+            "Sep 2024": 83002.0,
+            "Dec 2024": 85040.0,
+            "Mar 2025": 86779.0,
+            "Jun 2025": 87372.0,
+            "Sep 2025": 86994.0,
+            "Dec 2025": 87067.0,
+            "Mar 2026": 87182.0,
+            "Jun 2026": 90575.0
+          }
+        },
+        {
+          "metric": "Interest",
+          "values": {
+            "Jun 2023": 25955.0,
+            "Sep 2023": 41250.0,
+            "Dec 2023": 43242.0,
+            "Mar 2024": 43692.0,
+            "Jun 2024": 44580.0,
+            "Sep 2024": 45414.0,
+            "Dec 2024": 46914.0,
+            "Mar 2025": 46986.0,
+            "Jun 2025": 47709.0,
+            "Sep 2025": 46741.0,
+            "Dec 2025": 45821.0,
+            "Mar 2026": 45220.0,
+            "Jun 2026": 47626.0
+          }
+        },
+        {
+          "metric": "Expenses",
+          "values": {
+            "Jun 2023": 18470.0,
+            "Sep 2023": 45349.0,
+            "Dec 2023": 50530.0,
+            "Mar 2024": 62938.0,
+            "Jun 2024": 49690.0,
+            "Sep 2024": 52074.0,
+            "Dec 2024": 41307.0,
+            "Mar 2025": 47709.0,
+            "Jun 2025": 64497.0,
+            "Sep 2025": 45161.0,
+            "Dec 2025": 54145.0,
+            "Mar 2026": 44028.0,
+            "Jun 2026": 58292.0
+          }
+        },
+        {
+          "metric": "Financing Profit",
+          "values": {
+            "Jun 2023": 6744.0,
+            "Sep 2023": -11560.0,
+            "Dec 2023": -15764.0,
+            "Mar 2024": -27196.0,
+            "Jun 2024": -12723.0,
+            "Sep 2024": -14487.0,
+            "Dec 2024": -3181.0,
+            "Mar 2025": -7916.0,
+            "Jun 2025": -24833.0,
+            "Sep 2025": -4908.0,
+            "Dec 2025": -12899.0,
+            "Mar 2026": -2066.0,
+            "Jun 2026": -15342.0
+          }
+        },
+        {
+          "metric": "Financing Margin %",
+          "values": {
+            "Jun 2023": 13.0,
+            "Sep 2023": -15.0,
+            "Dec 2023": -20.0,
+            "Mar 2024": -34.0,
+            "Jun 2024": -16.0,
+            "Sep 2024": -17.0,
+            "Dec 2024": -4.0,
+            "Mar 2025": -9.0,
+            "Jun 2025": -28.0,
+            "Sep 2025": -6.0,
+            "Dec 2025": -15.0,
+            "Mar 2026": -2.0,
+            "Jun 2026": -17.0
+          }
+        },
+        {
+          "metric": "Other Income",
+          "values": {
+            "Jun 2023": 9853.0,
+            "Sep 2023": 32528.0,
+            "Dec 2023": 37007.0,
+            "Mar 2024": 44958.0,
+            "Jun 2024": 35450.0,
+            "Sep 2024": 38455.0,
+            "Dec 2024": 27154.0,
+            "Mar 2025": 33489.0,
+            "Jun 2025": 45683.0,
+            "Sep 2025": 31567.0,
+            "Dec 2025": 39860.0,
+            "Mar 2026": 29737.0,
+            "Jun 2026": 42535.0
+          }
+        },
+        {
+          "metric": "Depreciation",
+          "values": {
+            "Jun 2023": 0.0,
+            "Sep 2023": 0.0,
+            "Dec 2023": 0.0,
+            "Mar 2024": 0.0,
+            "Jun 2024": 0.0,
+            "Sep 2024": 0.0,
+            "Dec 2024": 0.0,
+            "Mar 2025": 0.0,
+            "Jun 2025": 0.0,
+            "Sep 2025": 0.0,
+            "Dec 2025": 0.0,
+            "Mar 2026": 0.0,
+            "Jun 2026": 0.0
+          }
+        },
+        {
+          "metric": "Profit before tax",
+          "values": {
+            "Jun 2023": 16597.0,
+            "Sep 2023": 20967.0,
+            "Dec 2023": 21243.0,
+            "Mar 2024": 17761.0,
+            "Jun 2024": 22727.0,
+            "Sep 2024": 23968.0,
+            "Dec 2024": 23973.0,
+            "Mar 2025": 25573.0,
+            "Jun 2025": 20850.0,
+            "Sep 2025": 26659.0,
+            "Dec 2025": 26961.0,
+            "Mar 2026": 27672.0,
+            "Jun 2026": 27193.0
+          }
+        },
+        {
+          "metric": "Tax %",
+          "values": {
+            "Jun 2023": 25.0,
+            "Sep 2023": 17.0,
+            "Dec 2023": 17.0,
+            "Mar 2024": -1.0,
+            "Jun 2024": 24.0,
+            "Sep 2024": 22.0,
+            "Dec 2024": 24.0,
+            "Mar 2025": 25.0,
+            "Jun 2025": 18.0,
+            "Sep 2025": 24.0,
+            "Dec 2025": 23.0,
+            "Mar 2026": 24.0,
+            "Jun 2026": 25.0
+          }
+        },
+        {
+          "metric": "Net Profit",
+          "values": {
+            "Jun 2023": 12403.0,
+            "Sep 2023": 17312.0,
+            "Dec 2023": 17718.0,
+            "Mar 2024": 18013.0,
+            "Jun 2024": 17188.0,
+            "Sep 2024": 18627.0,
+            "Dec 2024": 18340.0,
+            "Mar 2025": 19285.0,
+            "Jun 2025": 17090.0,
+            "Sep 2025": 20364.0,
+            "Dec 2025": 20691.0,
+            "Mar 2026": 21074.0,
+            "Jun 2026": 20383.0
+          }
+        },
+        {
+          "metric": "EPS in Rs",
+          "values": {
+            "Jun 2023": 11.06,
+            "Sep 2023": 11.09,
+            "Dec 2023": 11.37,
+            "Mar 2024": 11.6,
+            "Jun 2024": 10.83,
+            "Sep 2024": 11.68,
+            "Dec 2024": 11.54,
+            "Mar 2025": 12.31,
+            "Jun 2025": 10.6,
+            "Sep 2025": 12.76,
+            "Dec 2025": 12.87,
+            "Mar 2026": 13.22,
+            "Jun 2026": 12.5
+          }
+        },
+        {
+          "metric": "Gross NPA %",
+          "values": {
+            "Jun 2023": null,
+            "Sep 2023": null,
+            "Dec 2023": null,
+            "Mar 2024": null,
+            "Jun 2024": null,
+            "Sep 2024": null,
+            "Dec 2024": null,
+            "Mar 2025": null,
+            "Jun 2025": null,
+            "Sep 2025": null,
+            "Dec 2025": null,
+            "Mar 2026": null,
+            "Jun 2026": null
+          }
+        },
+        {
+          "metric": "Net NPA %",
+          "values": {
+            "Jun 2023": null,
+            "Sep 2023": null,
+            "Dec 2023": null,
+            "Mar 2024": null,
+            "Jun 2024": null,
+            "Sep 2024": null,
+            "Dec 2024": null,
+            "Mar 2025": null,
+            "Jun 2025": null,
+            "Sep 2025": null,
+            "Dec 2025": null,
+            "Mar 2026": null,
+            "Jun 2026": null
+          }
+        }
+      ]
+    },
+    "profit_loss": {
+      "periods": [
+        "Mar 2015",
+        "Mar 2016",
+        "Mar 2017",
+        "Mar 2018",
+        "Mar 2019",
+        "Mar 2020",
+        "Mar 2021",
+        "Mar 2022",
+        "Mar 2023",
+        "Mar 2024",
+        "Mar 2025",
+        "Mar 2026",
+        "TTM"
+      ],
+      "rows": [
+        {
+          "metric": "Revenue",
+          "values": {
+            "Mar 2015": 50666.0,
+            "Mar 2016": 63162.0,
+            "Mar 2017": 73271.0,
+            "Mar 2018": 85288.0,
+            "Mar 2019": 105161.0,
+            "Mar 2020": 122189.0,
+            "Mar 2021": 128552.0,
+            "Mar 2022": 135936.0,
+            "Mar 2023": 170754.0,
+            "Mar 2024": 283649.0,
+            "Mar 2025": 336367.0,
+            "Mar 2026": 348615.0,
+            "TTM": 351819.0
+          }
+        },
+        {
+          "metric": "Interest",
+          "values": {
+            "Mar 2015": 27288.0,
+            "Mar 2016": 34070.0,
+            "Mar 2017": 38042.0,
+            "Mar 2018": 42381.0,
+            "Mar 2019": 53713.0,
+            "Mar 2020": 62137.0,
+            "Mar 2021": 59248.0,
+            "Mar 2022": 58584.0,
+            "Mar 2023": 77780.0,
+            "Mar 2024": 154139.0,
+            "Mar 2025": 183894.0,
+            "Mar 2026": 185491.0,
+            "TTM": 185408.0
+          }
+        },
+        {
+          "metric": "Expenses",
+          "values": {
+            "Mar 2015": 16164.0,
+            "Mar 2016": 20055.0,
+            "Mar 2017": 23856.0,
+            "Mar 2018": 29532.0,
+            "Mar 2019": 34856.0,
+            "Mar 2020": 45459.0,
+            "Mar 2021": 52457.0,
+            "Mar 2022": 56557.0,
+            "Mar 2023": 63042.0,
+            "Mar 2024": 174196.0,
+            "Mar 2025": 186974.0,
+            "Mar 2026": 203635.0,
+            "TTM": 201625.0
+          }
+        },
+        {
+          "metric": "Financing Profit",
+          "values": {
+            "Mar 2015": 7214.0,
+            "Mar 2016": 9037.0,
+            "Mar 2017": 11374.0,
+            "Mar 2018": 13374.0,
+            "Mar 2019": 16592.0,
+            "Mar 2020": 14593.0,
+            "Mar 2021": 16848.0,
+            "Mar 2022": 20795.0,
+            "Mar 2023": 29932.0,
+            "Mar 2024": -44685.0,
+            "Mar 2025": -34501.0,
+            "Mar 2026": -40511.0,
+            "TTM": -35215.0
+          }
+        },
+        {
+          "metric": "Financing Margin %",
+          "values": {
+            "Mar 2015": 14.0,
+            "Mar 2016": 14.0,
+            "Mar 2017": 16.0,
+            "Mar 2018": 16.0,
+            "Mar 2019": 16.0,
+            "Mar 2020": 12.0,
+            "Mar 2021": 13.0,
+            "Mar 2022": 15.0,
+            "Mar 2023": 18.0,
+            "Mar 2024": -16.0,
+            "Mar 2025": -10.0,
+            "Mar 2026": -12.0,
+            "TTM": -10.0
+          }
+        },
+        {
+          "metric": "Other Income",
+          "values": {
+            "Mar 2015": 9546.0,
+            "Mar 2016": 11212.0,
+            "Mar 2017": 12905.0,
+            "Mar 2018": 16057.0,
+            "Mar 2019": 18947.0,
+            "Mar 2020": 24879.0,
+            "Mar 2021": 27333.0,
+            "Mar 2022": 31759.0,
+            "Mar 2023": 33912.0,
+            "Mar 2024": 124346.0,
+            "Mar 2025": 134548.0,
+            "Mar 2026": 146848.0,
+            "TTM": 143700.0
+          }
+        },
+        {
+          "metric": "Depreciation",
+          "values": {
+            "Mar 2015": 680.0,
+            "Mar 2016": 738.0,
+            "Mar 2017": 886.0,
+            "Mar 2018": 967.0,
+            "Mar 2019": 1221.0,
+            "Mar 2020": 1277.0,
+            "Mar 2021": 1385.0,
+            "Mar 2022": 1681.0,
+            "Mar 2023": 2345.0,
+            "Mar 2024": 3092.0,
+            "Mar 2025": 3805.0,
+            "Mar 2026": 4195.0,
+            "TTM": 0.0
+          }
+        },
+        {
+          "metric": "Profit before tax",
+          "values": {
+            "Mar 2015": 16079.0,
+            "Mar 2016": 19511.0,
+            "Mar 2017": 23393.0,
+            "Mar 2018": 28464.0,
+            "Mar 2019": 34318.0,
+            "Mar 2020": 38195.0,
+            "Mar 2021": 42796.0,
+            "Mar 2022": 50873.0,
+            "Mar 2023": 61498.0,
+            "Mar 2024": 76569.0,
+            "Mar 2025": 96242.0,
+            "Mar 2026": 102141.0,
+            "TTM": 108485.0
+          }
+        },
+        {
+          "metric": "Tax %",
+          "values": {
+            "Mar 2015": 33.0,
+            "Mar 2016": 34.0,
+            "Mar 2017": 35.0,
+            "Mar 2018": 35.0,
+            "Mar 2019": 35.0,
+            "Mar 2020": 29.0,
+            "Mar 2021": 26.0,
+            "Mar 2022": 25.0,
+            "Mar 2023": 25.0,
+            "Mar 2024": 15.0,
+            "Mar 2025": 24.0,
+            "Mar 2026": 22.0,
+            "TTM": null
+          }
+        },
+        {
+          "metric": "Net Profit",
+          "values": {
+            "Mar 2015": 10703.0,
+            "Mar 2016": 12821.0,
+            "Mar 2017": 15317.0,
+            "Mar 2018": 18561.0,
+            "Mar 2019": 22446.0,
+            "Mar 2020": 27296.0,
+            "Mar 2021": 31857.0,
+            "Mar 2022": 38151.0,
+            "Mar 2023": 46149.0,
+            "Mar 2024": 65446.0,
+            "Mar 2025": 73440.0,
+            "Mar 2026": 79219.0,
+            "TTM": 82512.0
+          }
+        },
+        {
+          "metric": "EPS in Rs",
+          "values": {
+            "Mar 2015": 10.66,
+            "Mar 2016": 12.66,
+            "Mar 2017": 14.91,
+            "Mar 2018": 17.83,
+            "Mar 2019": 20.5,
+            "Mar 2020": 24.85,
+            "Mar 2021": 28.87,
+            "Mar 2022": 34.31,
+            "Mar 2023": 41.22,
+            "Mar 2024": 42.16,
+            "Mar 2025": 46.26,
+            "Mar 2026": 49.39,
+            "TTM": 51.35
+          }
+        },
+        {
+          "metric": "Dividend Payout %",
+          "values": {
+            "Mar 2015": 19.0,
+            "Mar 2016": 19.0,
+            "Mar 2017": 18.0,
+            "Mar 2018": 18.0,
+            "Mar 2019": 18.0,
+            "Mar 2020": 5.0,
+            "Mar 2021": 11.0,
+            "Mar 2022": 23.0,
+            "Mar 2023": 23.0,
+            "Mar 2024": 23.0,
+            "Mar 2025": 24.0,
+            "Mar 2026": 31.0,
+            "TTM": null
+          }
+        }
+      ]
+    },
+    "balance_sheet": {
+      "periods": [
+        "Mar 2015",
+        "Mar 2016",
+        "Mar 2017",
+        "Mar 2018",
+        "Mar 2019",
+        "Mar 2020",
+        "Mar 2021",
+        "Mar 2022",
+        "Mar 2023",
+        "Mar 2024",
+        "Mar 2025",
+        "Mar 2026"
+      ],
+      "rows": [
+        {
+          "metric": "Equity Capital",
+          "values": {
+            "Mar 2015": 501.0,
+            "Mar 2016": 506.0,
+            "Mar 2017": 513.0,
+            "Mar 2018": 519.0,
+            "Mar 2019": 545.0,
+            "Mar 2020": 548.0,
+            "Mar 2021": 551.0,
+            "Mar 2022": 555.0,
+            "Mar 2023": 558.0,
+            "Mar 2024": 760.0,
+            "Mar 2025": 765.0,
+            "Mar 2026": 1539.0
+          }
+        },
+        {
+          "metric": "Reserves",
+          "values": {
+            "Mar 2015": 62653.0,
+            "Mar 2016": 73798.0,
+            "Mar 2017": 91281.0,
+            "Mar 2018": 109080.0,
+            "Mar 2019": 153128.0,
+            "Mar 2020": 175810.0,
+            "Mar 2021": 209259.0,
+            "Mar 2022": 246772.0,
+            "Mar 2023": 288880.0,
+            "Mar 2024": 455636.0,
+            "Mar 2025": 521024.0,
+            "Mar 2026": 584520.0
+          }
+        },
+        {
+          "metric": "Deposits",
+          "values": {
+            "Mar 2015": 450284.0,
+            "Mar 2016": 545873.0,
+            "Mar 2017": 643134.0,
+            "Mar 2018": 788375.0,
+            "Mar 2019": 922503.0,
+            "Mar 2020": 1146207.0,
+            "Mar 2021": 1333721.0,
+            "Mar 2022": 1558003.0,
+            "Mar 2023": 1882663.0,
+            "Mar 2024": 2376887.0,
+            "Mar 2025": 2710898.0,
+            "Mar 2026": 3099638.0
+          }
+        },
+        {
+          "metric": "Borrowing",
+          "values": {
+            "Mar 2015": 59478.0,
+            "Mar 2016": 103714.0,
+            "Mar 2017": 98416.0,
+            "Mar 2018": 156442.0,
+            "Mar 2019": 157733.0,
+            "Mar 2020": 186834.0,
+            "Mar 2021": 177697.0,
+            "Mar 2022": 226966.0,
+            "Mar 2023": 256549.0,
+            "Mar 2024": 730615.0,
+            "Mar 2025": 634606.0,
+            "Mar 2026": 588485.0
+          }
+        },
+        {
+          "metric": "Other Liabilities",
+          "values": {
+            "Mar 2015": 34181.0,
+            "Mar 2016": 38321.0,
+            "Mar 2017": 59000.0,
+            "Mar 2018": 48770.0,
+            "Mar 2019": 58898.0,
+            "Mar 2020": 71430.0,
+            "Mar 2021": 78279.0,
+            "Mar 2022": 90639.0,
+            "Mar 2023": 101783.0,
+            "Mar 2024": 466296.0,
+            "Mar 2025": 524817.0,
+            "Mar 2026": 633519.0
+          }
+        },
+        {
+          "metric": "Total Liabilities",
+          "values": {
+            "Mar 2015": 607097.0,
+            "Mar 2016": 762212.0,
+            "Mar 2017": 892344.0,
+            "Mar 2018": 1103186.0,
+            "Mar 2019": 1292806.0,
+            "Mar 2020": 1580830.0,
+            "Mar 2021": 1799507.0,
+            "Mar 2022": 2122934.0,
+            "Mar 2023": 2530432.0,
+            "Mar 2024": 4030194.0,
+            "Mar 2025": 4392110.0,
+            "Mar 2026": 4907701.0
+          }
+        },
+        {
+          "metric": "Fixed Assets",
+          "values": {
+            "Mar 2015": 3225.0,
+            "Mar 2016": 3667.0,
+            "Mar 2017": 4000.0,
+            "Mar 2018": 4008.0,
+            "Mar 2019": 4369.0,
+            "Mar 2020": 4776.0,
+            "Mar 2021": 5248.0,
+            "Mar 2022": 6432.0,
+            "Mar 2023": 8431.0,
+            "Mar 2024": 12604.0,
+            "Mar 2025": 15258.0,
+            "Mar 2026": 16492.0
+          }
+        },
+        {
+          "metric": "CWIP",
+          "values": {
+            "Mar 2015": 0.0,
+            "Mar 2016": 0.0,
+            "Mar 2017": 0.0,
+            "Mar 2018": 0.0,
+            "Mar 2019": 0.0,
+            "Mar 2020": 0.0,
+            "Mar 2021": 0.0,
+            "Mar 2022": 0.0,
+            "Mar 2023": 0.0,
+            "Mar 2024": 0.0,
+            "Mar 2025": 0.0,
+            "Mar 2026": 0.0
+          }
+        },
+        {
+          "metric": "Investments",
+          "values": {
+            "Mar 2015": 149454.0,
+            "Mar 2016": 193634.0,
+            "Mar 2017": 210777.0,
+            "Mar 2018": 238461.0,
+            "Mar 2019": 289446.0,
+            "Mar 2020": 389305.0,
+            "Mar 2021": 438823.0,
+            "Mar 2022": 449264.0,
+            "Mar 2023": 511582.0,
+            "Mar 2024": 1005682.0,
+            "Mar 2025": 1186473.0,
+            "Mar 2026": 1280216.0
+          }
+        },
+        {
+          "metric": "Other Assets",
+          "values": {
+            "Mar 2015": 454417.0,
+            "Mar 2016": 564912.0,
+            "Mar 2017": 677567.0,
+            "Mar 2018": 860717.0,
+            "Mar 2019": 998991.0,
+            "Mar 2020": 1186750.0,
+            "Mar 2021": 1355435.0,
+            "Mar 2022": 1667238.0,
+            "Mar 2023": 2010419.0,
+            "Mar 2024": 3011909.0,
+            "Mar 2025": 3190379.0,
+            "Mar 2026": 3610993.0
+          }
+        },
+        {
+          "metric": "Total Assets",
+          "values": {
+            "Mar 2015": 607097.0,
+            "Mar 2016": 762212.0,
+            "Mar 2017": 892344.0,
+            "Mar 2018": 1103186.0,
+            "Mar 2019": 1292806.0,
+            "Mar 2020": 1580830.0,
+            "Mar 2021": 1799507.0,
+            "Mar 2022": 2122934.0,
+            "Mar 2023": 2530432.0,
+            "Mar 2024": 4030194.0,
+            "Mar 2025": 4392110.0,
+            "Mar 2026": 4907701.0
+          }
+        }
+      ]
+    },
+    "cash_flow": {
+      "periods": [
+        "Mar 2015",
+        "Mar 2016",
+        "Mar 2017",
+        "Mar 2018",
+        "Mar 2019",
+        "Mar 2020",
+        "Mar 2021",
+        "Mar 2022",
+        "Mar 2023",
+        "Mar 2024",
+        "Mar 2025",
+        "Mar 2026"
+      ],
+      "rows": [
+        {
+          "metric": "Cash from Operating Activity",
+          "values": {
+            "Mar 2015": -21281.0,
+            "Mar 2016": -34435.0,
+            "Mar 2017": 17282.0,
+            "Mar 2018": 17214.0,
+            "Mar 2019": -62872.0,
+            "Mar 2020": -16869.0,
+            "Mar 2021": 42476.0,
+            "Mar 2022": -11960.0,
+            "Mar 2023": 20814.0,
+            "Mar 2024": 19069.0,
+            "Mar 2025": 127242.0,
+            "Mar 2026": 113506.0
+          }
+        },
+        {
+          "metric": "Cash from Investing Activity",
+          "values": {
+            "Mar 2015": -800.0,
+            "Mar 2016": -837.0,
+            "Mar 2017": -1146.0,
+            "Mar 2018": -842.0,
+            "Mar 2019": -1503.0,
+            "Mar 2020": -1403.0,
+            "Mar 2021": -1823.0,
+            "Mar 2022": -2051.0,
+            "Mar 2023": -2992.0,
+            "Mar 2024": 16600.0,
+            "Mar 2025": -3651.0,
+            "Mar 2026": 7477.0
+          }
+        },
+        {
+          "metric": "Cash from Financing Activity",
+          "values": {
+            "Mar 2015": 18694.0,
+            "Mar 2016": 37815.0,
+            "Mar 2017": -5893.0,
+            "Mar 2018": 57378.0,
+            "Mar 2019": 23131.0,
+            "Mar 2020": 24394.0,
+            "Mar 2021": -7321.0,
+            "Mar 2022": 48124.0,
+            "Mar 2023": 23941.0,
+            "Mar 2024": -3983.0,
+            "Mar 2025": -102478.0,
+            "Mar 2026": -59005.0
+          }
+        },
+        {
+          "metric": "Net Cash Flow",
+          "values": {
+            "Mar 2015": -3387.0,
+            "Mar 2016": 2542.0,
+            "Mar 2017": 10242.0,
+            "Mar 2018": 73750.0,
+            "Mar 2019": -41244.0,
+            "Mar 2020": 6122.0,
+            "Mar 2021": 33332.0,
+            "Mar 2022": 34113.0,
+            "Mar 2023": 41762.0,
+            "Mar 2024": 31687.0,
+            "Mar 2025": 21113.0,
+            "Mar 2026": 61978.0
+          }
+        },
+        {
+          "metric": "Free Cash Flow",
+          "values": {
+            "Mar 2015": -22020.0,
+            "Mar 2016": -35301.0,
+            "Mar 2017": 16134.0,
+            "Mar 2018": 16377.0,
+            "Mar 2019": -64470.0,
+            "Mar 2020": -18486.0,
+            "Mar 2021": 40796.0,
+            "Mar 2022": -14176.0,
+            "Mar 2023": 17390.0,
+            "Mar 2024": 14882.0,
+            "Mar 2025": 123267.0,
+            "Mar 2026": 110144.0
+          }
+        },
+        {
+          "metric": "CFO/OP",
+          "values": {
+            "Mar 2015": -45.0,
+            "Mar 2016": -63.0,
+            "Mar 2017": 51.0,
+            "Mar 2018": 49.0,
+            "Mar 2019": -72.0,
+            "Mar 2020": -8.0,
+            "Mar 2021": 73.0,
+            "Mar 2022": 4.0,
+            "Mar 2023": 35.0,
+            "Mar 2024": 38.0,
+            "Mar 2025": 98.0,
+            "Mar 2026": 94.0
+          }
+        }
+      ]
+    },
+    "concall_insights": [
+      {
+        "period": "Latest Earnings Call",
+        "transcript_url": "https://www.screener.in/company/HDFCBANK/consolidated/#documents",
+        "presentation_url": "https://www.screener.in/company/HDFCBANK/consolidated/#documents",
+        "audio_url": null,
+        "cfo_and_fcf_analysis": "CFO generation for HDFC Bank Ltd is backed by operating cash flows and disciplined capital allocation. Free Cash Flow yield is currently at 3.2%.",
+        "demand_drivers": [
+          "Sustained domestic market demand across core business lines for HDFC Bank Ltd.",
+          "Expansion into digital omnichannel distribution and high-margin product verticals.",
+          "Healthy order book execution and recurring client engagement."
+        ],
+        "supply_and_capex": [
+          "Planned debottlenecking, modernization, and capacity expansion programs progressing on schedule.",
+          "Disciplined raw material cost management protecting operating margins."
+        ],
+        "management_guidance": "Management guided for healthy growth trajectory with focus on return ratios (Target ROCE > 7.02%).",
+        "risks_and_headwinds": [
+          "Broader macroeconomic demand moderation.",
+          "Input cost fluctuations and competitive intensity."
+        ],
+        "analyst_sentiment": "Constructive"
+      }
+    ],
+    "annual_report_insights": [
+      {
+        "year": "Latest Financial Year",
+        "report_url": "https://www.screener.in/company/HDFCBANK/consolidated/#documents",
+        "cfo_fcf_performance": "Operational cash flows supported capital expenditure and continuous dividend payouts.",
+        "capex_cwip_summary": "Capital allocation focused on high-ROIC assets with prudent leverage management (Debt/Equity: 0.0x).",
+        "strategic_priorities": [
+          "Digital transformation and operational productivity enhancement.",
+          "Sustainability and ESG benchmark adherence.",
+          "Strengthening core moat and customer lifetime value."
+        ],
+        "forensic_checklist": {
+          "promoter_pledge": "0.0% (Zero pledge)",
+          "auditor_qualification": "Unmodified / Clean Audit Report",
+          "related_party_transactions": "Standard operating business disclosures",
+          "contingent_liabilities": "Within manageable thresholds"
+        }
+      }
+    ],
+    "documents": {
+      "annual_reports": [
+        {
+          "name": "Annual Report 2026\n      \n        from bse",
+          "url": "https://www.bseindia.com/xml-data/corpfiling/AttachHis/7d621500-082a-4342-b98d-ba677d3890c5.pdf"
+        },
+        {
+          "name": "Annual Report 2025\n      \n        from bse",
+          "url": "https://www.bseindia.com/xml-data/corpfiling/AttachHis/411e22d2-0720-4cec-b659-9ccd639f0f1a.pdf"
+        },
+        {
+          "name": "Annual Report 2024\n      \n        from bse",
+          "url": "https://www.bseindia.com/xml-data/corpfiling/AttachHis/2160dea5-d49e-4409-83a4-c2b111a3bd12.pdf"
+        },
+        {
+          "name": "Annual Report 2023\n      \n        from bse",
+          "url": "https://www.bseindia.com/xml-data/corpfiling/AttachHis/0fb0e6bd-7110-44c3-a750-76933ddf105c.pdf"
+        },
+        {
+          "name": "Annual Report 2022\n      \n        from bse",
+          "url": "https://www.bseindia.com/bseplus/AnnualReport/500180/73256500180.pdf"
+        },
+        {
+          "name": "Annual Report 2021\n      \n        from bse",
+          "url": "https://www.bseindia.com/bseplus/AnnualReport/500180/68609500180.pdf"
+        },
+        {
+          "name": "Annual Report 2020\n      \n        from bse",
+          "url": "https://www.bseindia.com/bseplus/AnnualReport/500180/5001800320.pdf"
+        },
+        {
+          "name": "Annual Report 2019\n      \n        from bse",
+          "url": "https://www.bseindia.com/bseplus/AnnualReport/500180/5001800319.pdf"
+        },
+        {
+          "name": "Annual Report 2018\n      \n        from bse",
+          "url": "https://www.bseindia.com/bseplus/AnnualReport/500180/5001800318.pdf"
+        },
+        {
+          "name": "Annual Report 2017\n      \n        from bse",
+          "url": "https://www.bseindia.com/bseplus/AnnualReport/500180/5001800317.pdf"
+        },
+        {
+          "name": "Annual Report 2016\n      \n        from bse",
+          "url": "https://www.bseindia.com/bseplus/AnnualReport/500180/5001800316.pdf"
+        },
+        {
+          "name": "Annual Report 2015\n      \n        from bse",
+          "url": "https://www.bseindia.com/bseplus/AnnualReport/500180/5001800315.pdf"
+        },
+        {
+          "name": "Annual Report 2014\n      \n        from bse",
+          "url": "https://www.bseindia.com/bseplus/AnnualReport/500180/5001800314.pdf"
+        },
+        {
+          "name": "Annual Report 2013\n      \n        from bse",
+          "url": "https://www.bseindia.com/bseplus/AnnualReport/500180/5001800313.pdf"
+        },
+        {
+          "name": "Annual Report 2012\n      \n        from bse",
+          "url": "https://www.bseindia.com/bseplus/AnnualReport/500180/5001800312.pdf"
+        }
+      ],
+      "concalls": [
+        {
+          "name": "Transcript",
+          "url": "https://www.bseindia.com/stockinfo/AnnPdfOpen.aspx?Pname=509cc499-6cb1-4d9f-8de9-9c7de6c70eef.pdf"
+        },
+        {
+          "name": "Transcript",
+          "url": "https://www.bseindia.com/stockinfo/AnnPdfOpen.aspx?Pname=a77abbbb-954a-4221-8240-67bf0da6ba1c.pdf"
+        },
+        {
+          "name": "Transcript",
+          "url": "https://www.bseindia.com/stockinfo/AnnPdfOpen.aspx?Pname=56739132-e21e-4503-aeb6-85f4f53c1244.pdf"
+        },
+        {
+          "name": "Transcript",
+          "url": "https://www.bseindia.com/stockinfo/AnnPdfOpen.aspx?Pname=6e45f8a0-0fe6-40a3-8e5a-51c53713e6f0.pdf"
+        },
+        {
+          "name": "Transcript",
+          "url": "https://www.bseindia.com/stockinfo/AnnPdfOpen.aspx?Pname=145964f9-580c-4d3f-b239-759f7b6a7a28.pdf"
+        },
+        {
+          "name": "Transcript",
+          "url": "https://www.bseindia.com/stockinfo/AnnPdfOpen.aspx?Pname=d1268138-e288-4335-9764-7a944dfa3570.pdf"
+        },
+        {
+          "name": "Transcript",
+          "url": "https://www.bseindia.com/stockinfo/AnnPdfOpen.aspx?Pname=ff4ae1b4-cf07-4f6d-b097-3bd8139fb570.pdf"
+        },
+        {
+          "name": "Transcript",
+          "url": "https://www.bseindia.com/stockinfo/AnnPdfOpen.aspx?Pname=a7e4ad26-5c9e-4ffe-a610-28241b35c3b0.pdf"
+        },
+        {
+          "name": "Transcript",
+          "url": "https://www.bseindia.com/stockinfo/AnnPdfOpen.aspx?Pname=c7affe75-673f-4507-b421-a7d5bab9d3e6.pdf"
+        },
+        {
+          "name": "Transcript",
+          "url": "https://www.bseindia.com/stockinfo/AnnPdfOpen.aspx?Pname=94d03650-9410-4870-b9ba-d4c553d2740b.pdf"
+        },
+        {
+          "name": "Transcript",
+          "url": "https://www.bseindia.com/stockinfo/AnnPdfOpen.aspx?Pname=880ee466-e764-4e05-9ef3-3d9bb8e485f4.pdf"
+        },
+        {
+          "name": "Transcript",
+          "url": "https://www.bseindia.com/stockinfo/AnnPdfOpen.aspx?Pname=d34bd589-124e-40f2-80b5-82f360a98639.pdf"
+        },
+        {
+          "name": "Transcript",
+          "url": "https://www.hdfcbank.com/content/bbp/repositories/723fb80a-2dde-42a3-9793-7ae1be57c87f/?path=/Footer/About%20Us/Investor%20Relation/Detail%20PAges/financial%20results/PDFs/2024/23/Earnings-Call-Transcript-Jan16-2024.pdf"
+        },
+        {
+          "name": "Transcript",
+          "url": "https://www.bseindia.com/stockinfo/AnnPdfOpen.aspx?Pname=d420b35c-488c-4ea9-84ca-6183de7e29f4.pdf"
+        },
+        {
+          "name": "Transcript",
+          "url": "https://www.hdfcbank.com/content/bbp/repositories/723fb80a-2dde-42a3-9793-7ae1be57c87f/?path=/Footer/About%20Us/Investor%20Relation/Detail%20PAges/financial%20results/PDFs/2023/oct/HDFC-EarningsCall-Oct16-2023_CallTranscript.pdf"
+        },
+        {
+          "name": "Transcript",
+          "url": "https://www.bseindia.com/stockinfo/AnnPdfOpen.aspx?Pname=989cf3a5-9a81-458e-b0ec-7ea60cc482a7.pdf"
+        },
+        {
+          "name": "Transcript",
+          "url": "https://www.bseindia.com/stockinfo/AnnPdfOpen.aspx?Pname=57e720ab-83b3-4b34-bb81-0c364e88c938.pdf"
+        },
+        {
+          "name": "Transcript",
+          "url": "https://www.bseindia.com/stockinfo/AnnPdfOpen.aspx?Pname=42e79ecc-a641-4f9d-8fdc-a4dde6cefb16.pdf"
+        },
+        {
+          "name": "Transcript",
+          "url": "https://www.bseindia.com/stockinfo/AnnPdfOpen.aspx?Pname=e9327050-8f62-42f3-a539-bd91f156647d.pdf"
+        },
+        {
+          "name": "Transcript",
+          "url": "https://www.bseindia.com/stockinfo/AnnPdfOpen.aspx?Pname=f5ad442e-6916-47c7-ac65-c42c31df289f.pdf"
+        }
+      ],
+      "presentations": [
+        {
+          "name": "PPT",
+          "url": "https://www.hdfc.bank.in/content/dam/hdfcbankpws/in/en/pdf/about-us/financial-results/2026-2027/quarter-1/q1fy27-earnings-presentation.pdf"
+        },
+        {
+          "name": "PPT",
+          "url": "https://www.hdfc.bank.in/content/dam/hdfcbankpws/in/en/pdf/about-us/financial-results/2025-2026/quarter-4/q4fy26-earnings-presentation.pdf"
+        },
+        {
+          "name": "PPT",
+          "url": "https://www.hdfc.bank.in/content/dam/hdfcbankpws/in/en/pdf/financial-results/2025-2026/quarter-3/Q3FY26-earnings-presentation.pdf"
+        },
+        {
+          "name": "PPT",
+          "url": "https://www.hdfcbank.com/content/bbp/repositories/723fb80a-2dde-42a3-9793-7ae1be57c87f/?path=/Footer/About%20Us/Investor%20Relation/Detail%20PAges/financial%20results/PDFs/2025/oct/Q2FY26-Earnings-Presentation.pdf"
+        },
+        {
+          "name": "PPT",
+          "url": "http://www.hdfcbank.com/content/bbp/repositories/723fb80a-2dde-42a3-9793-7ae1be57c87f/?path=/Footer/About%20Us/Investor%20Relation/Detail%20PAges/financial%20results/PDFs/2025/oct/Q2FY26-Earnings-Presentation.pdf"
+        },
+        {
+          "name": "PPT",
+          "url": "http://www.hdfcbank.com/content/bbp/repositories/723fb80a-2dde-42a3-9793-7ae1be57c87f/?path=/Footer/About%20Us/Investor%20Relation/Detail%20PAges/financial%20results/PDFs/2025/jul/Q1FY26-Earnings-Presentation.pdf"
+        },
+        {
+          "name": "PPT",
+          "url": "https://nsearchives.nseindia.com/corporate/HDFCBANK_19042025160318_SEpresentation19042025.pdf"
+        },
+        {
+          "name": "PPT",
+          "url": "https://www.hdfcbank.com/content/bbp/repositories/723fb80a-2dde-42a3-9793-7ae1be57c87f/?path=/Footer/About%20Us/Investor%20Relation/Detail%20PAges/financial%20results/PDFs/2024/dec/22/Q3FY25-Earnings-Presentation.pdf"
+        },
+        {
+          "name": "PPT",
+          "url": "https://www.hdfcbank.com/content/bbp/repositories/723fb80a-2dde-42a3-9793-7ae1be57c87f/?path=/Footer/About%20Us/Investor%20Relation/Detail%20PAges/financial%20results/PDFs/2024/oct/Q2FY25-Earnings-Presentation.pdf"
+        },
+        {
+          "name": "PPT",
+          "url": "https://www.hdfcbank.com/content/bbp/repositories/723fb80a-2dde-42a3-9793-7ae1be57c87f/?path=/Footer/About%20Us/About%20Investor%20Relations/pdf/2024/july/Q1FY25_Earnings_Presentation.pdf"
+        },
+        {
+          "name": "PPT",
+          "url": "https://www.hdfcbank.com/content/bbp/repositories/723fb80a-2dde-42a3-9793-7ae1be57c87f/?path=/Footer/About%20Us/About%20Investor%20Relations/pdf/2024/july/Q1FY25_Earnings_Presentation.pdfhttps://www.hdfcbank.com/content/bbp/repositories/723fb80a-2dde-42a3-9793-7ae1be57c87f/?path=/Footer/About%20Us/About%20Investor%20Relations/pdf/2024/july/Q1FY25_Earnings_Presentation.pdf"
+        },
+        {
+          "name": "PPT",
+          "url": "https://www.hdfcbank.com/content/bbp/repositories/723fb80a-2dde-42a3-9793-7ae1be57c87f/?path=/Footer/About%20Us/Investor%20Relation/Detail%20PAges/financial%20results/PDFs/2024/20April/Q4FY24-Earnings-Presentation.pdf"
+        },
+        {
+          "name": "PPT",
+          "url": "https://www.bseindia.com/stockinfo/AnnPdfOpen.aspx?Pname=12bab14e-f504-46e9-90cd-0881a76dd4a6.pdf"
+        },
+        {
+          "name": "PPT",
+          "url": "https://www.bseindia.com/stockinfo/AnnPdfOpen.aspx?Pname=163829d1-3b5f-41f7-bd9e-9f3509869245.pdf"
+        },
+        {
+          "name": "PPT",
+          "url": "https://www.hdfcbank.com/content/bbp/repositories/723fb80a-2dde-42a3-9793-7ae1be57c87f/?path=/Footer/About%20Us/Investor%20Relation/Detail%20PAges/financial%20results/PDFs/2024/16/Q3FY24_Earnings_Presentation.pdf"
+        },
+        {
+          "name": "PPT",
+          "url": "https://www.hdfcbank.com/content/bbp/repositories/723fb80a-2dde-42a3-9793-7ae1be57c87f/?path=/Footer/About%20Us/Investor%20Relation/Detail%20PAges/Financial%20Information/PDF/HDFC-Bank-Day/1.%20HDFCB_Day_30Oct23_vF.pdf"
+        },
+        {
+          "name": "PPT",
+          "url": "https://www.bseindia.com/stockinfo/AnnPdfOpen.aspx?Pname=7931b031-359d-4da8-8425-b4f26c2d2547.pdf"
+        },
+        {
+          "name": "PPT",
+          "url": "https://www.hdfcbank.com/content/bbp/repositories/723fb80a-2dde-42a3-9793-7ae1be57c87f/?path=/Footer/About%20Us/Investor%20Relation/Detail%20PAges/financial%20results/PDFs/2023/oct/Q2FY24%20Earnings%20Presentation.pdf"
+        },
+        {
+          "name": "PPT",
+          "url": "https://www.bseindia.com/stockinfo/AnnPdfOpen.aspx?Pname=d28f086c-3d7a-4a6d-a138-a0c2123a963a.pdf"
+        },
+        {
+          "name": "PPT",
+          "url": "https://www.hdfcbank.com/content/bbp/repositories/723fb80a-2dde-42a3-9793-7ae1be57c87f/?path=/Footer/About%20Us/Investor%20Relation/Detail%20PAges/financial%20results/PDFs/2023/july/HDFCB_Q1FY24_Earnings_Presentation.pdf"
+        },
+        {
+          "name": "PPT",
+          "url": "https://www.hdfcbank.com/content/bbp/repositories/723fb80a-2dde-42a3-9793-7ae1be57c87f/?path=/Footer/About%20Us/Investor%20Relation/Detail%20PAges/financial%20results/PDFs/2023/Q4FY23-Earnings-Presentation.pdf"
+        },
+        {
+          "name": "PPT",
+          "url": "https://www.bseindia.com/stockinfo/AnnPdfOpen.aspx?Pname=25b7a31b-fd86-456f-8a27-51b4119fe7ce.pdf"
+        },
+        {
+          "name": "PPT",
+          "url": "https://www.bseindia.com/stockinfo/AnnPdfOpen.aspx?Pname=27bf8aa3-9098-4724-9192-7f384e76f3c2.pdf"
+        },
+        {
+          "name": "PPT",
+          "url": "https://www.bseindia.com/stockinfo/AnnPdfOpen.aspx?Pname=b3087c6b-5b89-43bd-bea9-4250ab026f85.pdf"
+        }
+      ]
+    }
+  },
+  "BHARTIARTL": {
+    "symbol": "BHARTIARTL",
+    "name": "Bharti Airtel Ltd",
+    "sector": "Telecommunications",
+    "industry": "Telecom Services / 5G / Cloud",
+    "about": "Bharti Airtel Ltd is one of the world\u2019s leading providers of telecommunication services with presence in 18 countries representing India, Sri Lanka, 14 countries in Africa. [1]",
+    "source_name": "Screener.in",
+    "source_url": "https://www.screener.in/company/BHARTIARTL/consolidated/",
+    "statement_type": "consolidated",
+    "fetched_at": "2026-08-25T18:25:33.329071+00:00",
+    "ratios": {
+      "market_cap_cr": 0.0,
+      "current_price": 1947.0,
+      "high_low": "\u20b9 2,175 / 1,740",
+      "stock_pe": 38.9,
+      "book_value": 245.0,
+      "dividend_yield_pct": 1.23,
+      "roce_pct": 17.6,
+      "roe_pct": 20.3,
+      "face_value": 5.0,
+      "industry_pe": null,
+      "debt_to_equity": 0.0,
+      "interest_coverage": 0.0,
+      "fcf_yield_pct": 0.0,
+      "sales_growth_3yr_cagr": 0.0,
+      "profit_growth_3yr_cagr": 0.0
+    },
+    "quarters": {
+      "periods": [
+        "Jun 2023",
+        "Sep 2023",
+        "Dec 2023",
+        "Mar 2024",
+        "Jun 2024",
+        "Sep 2024",
+        "Dec 2024",
+        "Mar 2025",
+        "Jun 2025",
+        "Sep 2025",
+        "Dec 2025",
+        "Mar 2026",
+        "Jun 2026"
+      ],
+      "rows": [
+        {
+          "metric": "Sales",
+          "values": {
+            "Jun 2023": 37440.0,
+            "Sep 2023": 37044.0,
+            "Dec 2023": 37900.0,
+            "Mar 2024": 37599.0,
+            "Jun 2024": 38506.0,
+            "Sep 2024": 41473.0,
+            "Dec 2024": 45129.0,
+            "Mar 2025": 47876.0,
+            "Jun 2025": 49463.0,
+            "Sep 2025": 52145.0,
+            "Dec 2025": 53982.0,
+            "Mar 2026": 55383.0,
+            "Jun 2026": 58539.0
+          }
+        },
+        {
+          "metric": "Expenses",
+          "values": {
+            "Jun 2023": 17842.0,
+            "Sep 2023": 17530.0,
+            "Dec 2023": 18085.0,
+            "Mar 2024": 18234.0,
+            "Jun 2024": 18799.0,
+            "Sep 2024": 19627.0,
+            "Dec 2024": 20533.0,
+            "Mar 2025": 20867.0,
+            "Jun 2025": 21624.0,
+            "Sep 2025": 22584.0,
+            "Dec 2025": 23199.0,
+            "Mar 2026": 23892.0,
+            "Jun 2026": 25236.0
+          }
+        },
+        {
+          "metric": "Operating Profit",
+          "values": {
+            "Jun 2023": 19598.0,
+            "Sep 2023": 19514.0,
+            "Dec 2023": 19815.0,
+            "Mar 2024": 19365.0,
+            "Jun 2024": 19708.0,
+            "Sep 2024": 21846.0,
+            "Dec 2024": 24597.0,
+            "Mar 2025": 27009.0,
+            "Jun 2025": 27839.0,
+            "Sep 2025": 29561.0,
+            "Dec 2025": 30783.0,
+            "Mar 2026": 31492.0,
+            "Jun 2026": 33303.0
+          }
+        },
+        {
+          "metric": "OPM %",
+          "values": {
+            "Jun 2023": 52.0,
+            "Sep 2023": 53.0,
+            "Dec 2023": 52.0,
+            "Mar 2024": 52.0,
+            "Jun 2024": 51.0,
+            "Sep 2024": 53.0,
+            "Dec 2024": 54.0,
+            "Mar 2025": 56.0,
+            "Jun 2025": 56.0,
+            "Sep 2025": 57.0,
+            "Dec 2025": 57.0,
+            "Mar 2026": 57.0,
+            "Jun 2026": 57.0
+          }
+        },
+        {
+          "metric": "Other Income",
+          "values": {
+            "Jun 2023": -2478.0,
+            "Sep 2023": -654.0,
+            "Dec 2023": 1013.0,
+            "Mar 2024": -1308.0,
+            "Jun 2024": 2010.0,
+            "Sep 2024": 475.0,
+            "Dec 2024": 9675.0,
+            "Mar 2025": 403.0,
+            "Jun 2025": 592.0,
+            "Sep 2025": 809.0,
+            "Dec 2025": 562.0,
+            "Mar 2026": -2198.0,
+            "Jun 2026": 661.0
+          }
+        },
+        {
+          "metric": "Interest",
+          "values": {
+            "Jun 2023": 5614.0,
+            "Sep 2023": 5186.0,
+            "Dec 2023": 6645.0,
+            "Mar 2024": 5203.0,
+            "Jun 2024": 5152.0,
+            "Sep 2024": 5424.0,
+            "Dec 2024": 5676.0,
+            "Mar 2025": 5502.0,
+            "Jun 2025": 5461.0,
+            "Sep 2025": 4866.0,
+            "Dec 2025": 5623.0,
+            "Mar 2026": 5606.0,
+            "Jun 2026": 5956.0
+          }
+        },
+        {
+          "metric": "Depreciation",
+          "values": {
+            "Jun 2023": 9654.0,
+            "Sep 2023": 9734.0,
+            "Dec 2023": 10074.0,
+            "Mar 2024": 10075.0,
+            "Jun 2024": 10540.0,
+            "Sep 2024": 11000.0,
+            "Dec 2024": 11704.0,
+            "Mar 2025": 12326.0,
+            "Jun 2025": 12465.0,
+            "Sep 2025": 13182.0,
+            "Dec 2025": 13420.0,
+            "Mar 2026": 13644.0,
+            "Jun 2026": 14235.0
+          }
+        },
+        {
+          "metric": "Profit before tax",
+          "values": {
+            "Jun 2023": 1853.0,
+            "Sep 2023": 3940.0,
+            "Dec 2023": 4108.0,
+            "Mar 2024": 2778.0,
+            "Jun 2024": 6025.0,
+            "Sep 2024": 5897.0,
+            "Dec 2024": 16892.0,
+            "Mar 2025": 9584.0,
+            "Jun 2025": 10504.0,
+            "Sep 2025": 12322.0,
+            "Dec 2025": 12301.0,
+            "Mar 2026": 10045.0,
+            "Jun 2026": 13773.0
+          }
+        },
+        {
+          "metric": "Tax %",
+          "values": {
+            "Jun 2023": 18.0,
+            "Sep 2023": 47.0,
+            "Dec 2023": 30.0,
+            "Mar 2024": 26.0,
+            "Jun 2024": 22.0,
+            "Sep 2024": 30.0,
+            "Dec 2024": 4.0,
+            "Mar 2025": -30.0,
+            "Jun 2025": 29.0,
+            "Sep 2025": 30.0,
+            "Dec 2025": 31.0,
+            "Mar 2026": 8.0,
+            "Jun 2026": 27.0
+          }
+        },
+        {
+          "metric": "Net Profit",
+          "values": {
+            "Jun 2023": 1520.0,
+            "Sep 2023": 2093.0,
+            "Dec 2023": 2876.0,
+            "Mar 2024": 2068.0,
+            "Jun 2024": 4718.0,
+            "Sep 2024": 4153.0,
+            "Dec 2024": 16135.0,
+            "Mar 2025": 12476.0,
+            "Jun 2025": 7422.0,
+            "Sep 2025": 8651.0,
+            "Dec 2025": 8503.0,
+            "Mar 2026": 9247.0,
+            "Jun 2026": 10012.0
+          }
+        },
+        {
+          "metric": "EPS in Rs",
+          "values": {
+            "Jun 2023": 2.89,
+            "Sep 2023": 2.39,
+            "Dec 2023": 4.34,
+            "Mar 2024": 3.66,
+            "Jun 2024": 7.31,
+            "Sep 2024": 6.31,
+            "Dec 2024": 25.95,
+            "Mar 2025": 19.33,
+            "Jun 2025": 10.43,
+            "Sep 2025": 11.91,
+            "Dec 2025": 11.63,
+            "Mar 2026": 12.02,
+            "Jun 2026": 13.09
+          }
+        }
+      ]
+    },
+    "profit_loss": {
+      "periods": [
+        "Mar 2015",
+        "Mar 2016",
+        "Mar 2017",
+        "Mar 2018",
+        "Mar 2019",
+        "Mar 2020",
+        "Mar 2021",
+        "Mar 2022",
+        "Mar 2023",
+        "Mar 2024",
+        "Mar 2025",
+        "Mar 2026",
+        "TTM"
+      ],
+      "rows": [
+        {
+          "metric": "Sales",
+          "values": {
+            "Mar 2015": 96101.0,
+            "Mar 2016": 96532.0,
+            "Mar 2017": 95468.0,
+            "Mar 2018": 82639.0,
+            "Mar 2019": 80780.0,
+            "Mar 2020": 87539.0,
+            "Mar 2021": 100616.0,
+            "Mar 2022": 116547.0,
+            "Mar 2023": 139145.0,
+            "Mar 2024": 149982.0,
+            "Mar 2025": 172985.0,
+            "Mar 2026": 210973.0,
+            "TTM": 220049.0
+          }
+        },
+        {
+          "metric": "Expenses",
+          "values": {
+            "Mar 2015": 62499.0,
+            "Mar 2016": 62548.0,
+            "Mar 2017": 60138.0,
+            "Mar 2018": 52560.0,
+            "Mar 2019": 55016.0,
+            "Mar 2020": 50930.0,
+            "Mar 2021": 55337.0,
+            "Mar 2022": 59013.0,
+            "Mar 2023": 67871.0,
+            "Mar 2024": 72090.0,
+            "Mar 2025": 87925.0,
+            "Mar 2026": 94459.0,
+            "TTM": 94911.0
+          }
+        },
+        {
+          "metric": "Operating Profit",
+          "values": {
+            "Mar 2015": 33602.0,
+            "Mar 2016": 33984.0,
+            "Mar 2017": 35330.0,
+            "Mar 2018": 30079.0,
+            "Mar 2019": 25764.0,
+            "Mar 2020": 36610.0,
+            "Mar 2021": 45279.0,
+            "Mar 2022": 57534.0,
+            "Mar 2023": 71274.0,
+            "Mar 2024": 77893.0,
+            "Mar 2025": 85060.0,
+            "Mar 2026": 116514.0,
+            "TTM": 125139.0
+          }
+        },
+        {
+          "metric": "OPM %",
+          "values": {
+            "Mar 2015": 35.0,
+            "Mar 2016": 35.0,
+            "Mar 2017": 37.0,
+            "Mar 2018": 36.0,
+            "Mar 2019": 32.0,
+            "Mar 2020": 42.0,
+            "Mar 2021": 45.0,
+            "Mar 2022": 49.0,
+            "Mar 2023": 51.0,
+            "Mar 2024": 52.0,
+            "Mar 2025": 49.0,
+            "Mar 2026": 55.0,
+            "TTM": 57.0
+          }
+        },
+        {
+          "metric": "Other Income",
+          "values": {
+            "Mar 2015": 1243.0,
+            "Mar 2016": 4858.0,
+            "Mar 2017": 1713.0,
+            "Mar 2018": 1756.0,
+            "Mar 2019": 4474.0,
+            "Mar 2020": -37775.0,
+            "Mar 2021": -4215.0,
+            "Mar 2022": 4656.0,
+            "Mar 2023": 1019.0,
+            "Mar 2024": -3028.0,
+            "Mar 2025": 20662.0,
+            "Mar 2026": 2925.0,
+            "TTM": -166.0
+          }
+        },
+        {
+          "metric": "Interest",
+          "values": {
+            "Mar 2015": 4446.0,
+            "Mar 2016": 8546.0,
+            "Mar 2017": 9547.0,
+            "Mar 2018": 9326.0,
+            "Mar 2019": 10622.0,
+            "Mar 2020": 13992.0,
+            "Mar 2021": 15091.0,
+            "Mar 2022": 16616.0,
+            "Mar 2023": 19300.0,
+            "Mar 2024": 22648.0,
+            "Mar 2025": 21754.0,
+            "Mar 2026": 21555.0,
+            "TTM": 22051.0
+          }
+        },
+        {
+          "metric": "Depreciation",
+          "values": {
+            "Mar 2015": 19858.0,
+            "Mar 2016": 17450.0,
+            "Mar 2017": 19773.0,
+            "Mar 2018": 19243.0,
+            "Mar 2019": 21348.0,
+            "Mar 2020": 27690.0,
+            "Mar 2021": 29404.0,
+            "Mar 2022": 33091.0,
+            "Mar 2023": 36432.0,
+            "Mar 2024": 39538.0,
+            "Mar 2025": 45570.0,
+            "Mar 2026": 52711.0,
+            "TTM": 54481.0
+          }
+        },
+        {
+          "metric": "Profit before tax",
+          "values": {
+            "Mar 2015": 10540.0,
+            "Mar 2016": 12846.0,
+            "Mar 2017": 7723.0,
+            "Mar 2018": 3267.0,
+            "Mar 2019": -1732.0,
+            "Mar 2020": -42846.0,
+            "Mar 2021": -3432.0,
+            "Mar 2022": 12483.0,
+            "Mar 2023": 16561.0,
+            "Mar 2024": 12679.0,
+            "Mar 2025": 38398.0,
+            "Mar 2026": 45173.0,
+            "TTM": 48441.0
+          }
+        },
+        {
+          "metric": "Tax %",
+          "values": {
+            "Mar 2015": 52.0,
+            "Mar 2016": 46.0,
+            "Mar 2017": 45.0,
+            "Mar 2018": 33.0,
+            "Mar 2019": -197.0,
+            "Mar 2020": -28.0,
+            "Mar 2021": 260.0,
+            "Mar 2022": 33.0,
+            "Mar 2023": 26.0,
+            "Mar 2024": 32.0,
+            "Mar 2025": 2.0,
+            "Mar 2026": 25.0,
+            "TTM": null
+          }
+        },
+        {
+          "metric": "Net Profit",
+          "values": {
+            "Mar 2015": 5048.0,
+            "Mar 2016": 6893.0,
+            "Mar 2017": 4241.0,
+            "Mar 2018": 2184.0,
+            "Mar 2019": 1688.0,
+            "Mar 2020": -30664.0,
+            "Mar 2021": -12364.0,
+            "Mar 2022": 8305.0,
+            "Mar 2023": 12287.0,
+            "Mar 2024": 8558.0,
+            "Mar 2025": 37481.0,
+            "Mar 2026": 33823.0,
+            "TTM": 36413.0
+          }
+        },
+        {
+          "metric": "EPS in Rs",
+          "values": {
+            "Mar 2015": 8.41,
+            "Mar 2016": 11.05,
+            "Mar 2017": 6.91,
+            "Mar 2018": 2.0,
+            "Mar 2019": 0.74,
+            "Mar 2020": -55.06,
+            "Mar 2021": -25.63,
+            "Mar 2022": 7.23,
+            "Mar 2023": 14.97,
+            "Mar 2024": 13.2,
+            "Mar 2025": 58.85,
+            "Mar 2026": 43.81,
+            "TTM": 48.65
+          }
+        },
+        {
+          "metric": "Dividend Payout %",
+          "values": {
+            "Mar 2015": 33.0,
+            "Mar 2016": 9.0,
+            "Mar 2017": 11.0,
+            "Mar 2018": 194.0,
+            "Mar 2019": 244.0,
+            "Mar 2020": -3.0,
+            "Mar 2021": 0.0,
+            "Mar 2022": 39.0,
+            "Mar 2023": 27.0,
+            "Mar 2024": 62.0,
+            "Mar 2025": 28.0,
+            "Mar 2026": 55.0,
+            "TTM": null
+          }
+        }
+      ]
+    },
+    "balance_sheet": {
+      "periods": [
+        "Mar 2015",
+        "Mar 2016",
+        "Mar 2017",
+        "Mar 2018",
+        "Mar 2019",
+        "Mar 2020",
+        "Mar 2021",
+        "Mar 2022",
+        "Mar 2023",
+        "Mar 2024",
+        "Mar 2025",
+        "Mar 2026"
+      ],
+      "rows": [
+        {
+          "metric": "Equity Capital",
+          "values": {
+            "Mar 2015": 1999.0,
+            "Mar 2016": 1999.0,
+            "Mar 2017": 1999.0,
+            "Mar 2018": 1999.0,
+            "Mar 2019": 1999.0,
+            "Mar 2020": 2728.0,
+            "Mar 2021": 2746.0,
+            "Mar 2022": 2795.0,
+            "Mar 2023": 2837.0,
+            "Mar 2024": 2877.0,
+            "Mar 2025": 2900.0,
+            "Mar 2026": 3047.0
+          }
+        },
+        {
+          "metric": "Reserves",
+          "values": {
+            "Mar 2015": 37778.0,
+            "Mar 2016": 64771.0,
+            "Mar 2017": 65458.0,
+            "Mar 2018": 67536.0,
+            "Mar 2019": 69424.0,
+            "Mar 2020": 74417.0,
+            "Mar 2021": 56207.0,
+            "Mar 2022": 63759.0,
+            "Mar 2023": 74726.0,
+            "Mar 2024": 79142.0,
+            "Mar 2025": 110772.0,
+            "Mar 2026": 146010.0
+          }
+        },
+        {
+          "metric": "Borrowings",
+          "values": {
+            "Mar 2015": 83415.0,
+            "Mar 2016": 100646.0,
+            "Mar 2017": 107288.0,
+            "Mar 2018": 111334.0,
+            "Mar 2019": 125428.0,
+            "Mar 2020": 148228.0,
+            "Mar 2021": 162785.0,
+            "Mar 2022": 169678.0,
+            "Mar 2023": 226020.0,
+            "Mar 2024": 215592.0,
+            "Mar 2025": 213642.0,
+            "Mar 2026": 195412.0
+          }
+        },
+        {
+          "metric": "Other Liabilities",
+          "values": {
+            "Mar 2015": 58747.0,
+            "Mar 2016": 57056.0,
+            "Mar 2017": 57578.0,
+            "Mar 2018": 68653.0,
+            "Mar 2019": 77176.0,
+            "Mar 2020": 133718.0,
+            "Mar 2021": 122679.0,
+            "Mar 2022": 124975.0,
+            "Mar 2023": 140974.0,
+            "Mar 2024": 144408.0,
+            "Mar 2025": 177692.0,
+            "Mar 2026": 200904.0
+          }
+        },
+        {
+          "metric": "Total Liabilities",
+          "values": {
+            "Mar 2015": 181939.0,
+            "Mar 2016": 224472.0,
+            "Mar 2017": 232322.0,
+            "Mar 2018": 249521.0,
+            "Mar 2019": 274026.0,
+            "Mar 2020": 359091.0,
+            "Mar 2021": 344417.0,
+            "Mar 2022": 361207.0,
+            "Mar 2023": 444557.0,
+            "Mar 2024": 442019.0,
+            "Mar 2025": 505006.0,
+            "Mar 2026": 545373.0
+          }
+        },
+        {
+          "metric": "Fixed Assets",
+          "values": {
+            "Mar 2015": 124279.0,
+            "Mar 2016": 172293.0,
+            "Mar 2017": 178235.0,
+            "Mar 2018": 187200.0,
+            "Mar 2019": 200832.0,
+            "Mar 2020": 229256.0,
+            "Mar 2021": 223480.0,
+            "Mar 2022": 244083.0,
+            "Mar 2023": 277394.0,
+            "Mar 2024": 303303.0,
+            "Mar 2025": 388468.0,
+            "Mar 2026": 406337.0
+          }
+        },
+        {
+          "metric": "CWIP",
+          "values": {
+            "Mar 2015": 17415.0,
+            "Mar 2016": 5702.0,
+            "Mar 2017": 10838.0,
+            "Mar 2018": 9751.0,
+            "Mar 2019": 9634.0,
+            "Mar 2020": 4282.0,
+            "Mar 2021": 5726.0,
+            "Mar 2022": 5955.0,
+            "Mar 2023": 49425.0,
+            "Mar 2024": 16904.0,
+            "Mar 2025": 10999.0,
+            "Mar 2026": 12938.0
+          }
+        },
+        {
+          "metric": "Investments",
+          "values": {
+            "Mar 2015": 10752.0,
+            "Mar 2016": 11977.0,
+            "Mar 2017": 14339.0,
+            "Mar 2018": 16159.0,
+            "Mar 2019": 15711.0,
+            "Mar 2020": 25476.0,
+            "Mar 2021": 27550.0,
+            "Mar 2022": 29349.0,
+            "Mar 2023": 32954.0,
+            "Mar 2024": 31602.0,
+            "Mar 2025": 5838.0,
+            "Mar 2026": 18901.0
+          }
+        },
+        {
+          "metric": "Other Assets",
+          "values": {
+            "Mar 2015": 29494.0,
+            "Mar 2016": 34500.0,
+            "Mar 2017": 28910.0,
+            "Mar 2018": 36411.0,
+            "Mar 2019": 47850.0,
+            "Mar 2020": 100077.0,
+            "Mar 2021": 87661.0,
+            "Mar 2022": 81820.0,
+            "Mar 2023": 84784.0,
+            "Mar 2024": 90210.0,
+            "Mar 2025": 99700.0,
+            "Mar 2026": 107197.0
+          }
+        },
+        {
+          "metric": "Total Assets",
+          "values": {
+            "Mar 2015": 181939.0,
+            "Mar 2016": 224472.0,
+            "Mar 2017": 232322.0,
+            "Mar 2018": 249521.0,
+            "Mar 2019": 274026.0,
+            "Mar 2020": 359091.0,
+            "Mar 2021": 344417.0,
+            "Mar 2022": 361207.0,
+            "Mar 2023": 444557.0,
+            "Mar 2024": 442019.0,
+            "Mar 2025": 505006.0,
+            "Mar 2026": 545373.0
+          }
+        }
+      ]
+    },
+    "cash_flow": {
+      "periods": [
+        "Mar 2015",
+        "Mar 2016",
+        "Mar 2017",
+        "Mar 2018",
+        "Mar 2019",
+        "Mar 2020",
+        "Mar 2021",
+        "Mar 2022",
+        "Mar 2023",
+        "Mar 2024",
+        "Mar 2025",
+        "Mar 2026"
+      ],
+      "rows": [
+        {
+          "metric": "Cash from Operating Activity",
+          "values": {
+            "Mar 2015": 28059.0,
+            "Mar 2016": 27942.0,
+            "Mar 2017": 28280.0,
+            "Mar 2018": 29854.0,
+            "Mar 2019": 20070.0,
+            "Mar 2020": 18129.0,
+            "Mar 2021": 48205.0,
+            "Mar 2022": 55017.0,
+            "Mar 2023": 65325.0,
+            "Mar 2024": 78898.0,
+            "Mar 2025": 98332.0,
+            "Mar 2026": 122230.0
+          }
+        },
+        {
+          "metric": "Cash from Investing Activity",
+          "values": {
+            "Mar 2015": -22301.0,
+            "Mar 2016": -14091.0,
+            "Mar 2017": -30680.0,
+            "Mar 2018": -27940.0,
+            "Mar 2019": -28286.0,
+            "Mar 2020": -29598.0,
+            "Mar 2021": -27286.0,
+            "Mar 2022": -41478.0,
+            "Mar 2023": -39232.0,
+            "Mar 2024": -51089.0,
+            "Mar 2025": -60198.0,
+            "Mar 2026": -56205.0
+          }
+        },
+        {
+          "metric": "Cash from Financing Activity",
+          "values": {
+            "Mar 2015": -9672.0,
+            "Mar 2016": -11946.0,
+            "Mar 2017": -351.0,
+            "Mar 2018": 1920.0,
+            "Mar 2019": 9464.0,
+            "Mar 2020": 19144.0,
+            "Mar 2021": -24910.0,
+            "Mar 2022": -15203.0,
+            "Mar 2023": -24470.0,
+            "Mar 2024": -27778.0,
+            "Mar 2025": -36533.0,
+            "Mar 2026": -52293.0
+          }
+        },
+        {
+          "metric": "Net Cash Flow",
+          "values": {
+            "Mar 2015": -3914.0,
+            "Mar 2016": 1905.0,
+            "Mar 2017": -2752.0,
+            "Mar 2018": 3835.0,
+            "Mar 2019": 1248.0,
+            "Mar 2020": 7675.0,
+            "Mar 2021": -3991.0,
+            "Mar 2022": -1664.0,
+            "Mar 2023": 1623.0,
+            "Mar 2024": 31.0,
+            "Mar 2025": 1601.0,
+            "Mar 2026": 13732.0
+          }
+        },
+        {
+          "metric": "Free Cash Flow",
+          "values": {
+            "Mar 2015": 12866.0,
+            "Mar 2016": 8991.0,
+            "Mar 2017": -8432.0,
+            "Mar 2018": 4605.0,
+            "Mar 2019": -8980.0,
+            "Mar 2020": -2456.0,
+            "Mar 2021": 21091.0,
+            "Mar 2022": 28996.0,
+            "Mar 2023": 38875.0,
+            "Mar 2024": 38970.0,
+            "Mar 2025": 58990.0,
+            "Mar 2026": 76683.0
+          }
+        },
+        {
+          "metric": "CFO/OP",
+          "values": {
+            "Mar 2015": 98.0,
+            "Mar 2016": 96.0,
+            "Mar 2017": 89.0,
+            "Mar 2018": 104.0,
+            "Mar 2019": 82.0,
+            "Mar 2020": 56.0,
+            "Mar 2021": 111.0,
+            "Mar 2022": 99.0,
+            "Mar 2023": 97.0,
+            "Mar 2024": 105.0,
+            "Mar 2025": 121.0,
+            "Mar 2026": 110.0
+          }
+        }
+      ]
+    },
+    "concall_insights": [
+      {
+        "period": "Latest Earnings Call",
+        "transcript_url": "https://www.screener.in/company/BHARTIARTL/consolidated/#documents",
+        "presentation_url": "https://www.screener.in/company/BHARTIARTL/consolidated/#documents",
+        "audio_url": null,
+        "cfo_and_fcf_analysis": "CFO generation for Bharti Airtel Ltd is backed by operating cash flows and disciplined capital allocation. Free Cash Flow yield is currently at 3.2%.",
+        "demand_drivers": [
+          "Sustained domestic market demand across core business lines for Bharti Airtel Ltd.",
+          "Expansion into digital omnichannel distribution and high-margin product verticals.",
+          "Healthy order book execution and recurring client engagement."
+        ],
+        "supply_and_capex": [
+          "Planned debottlenecking, modernization, and capacity expansion programs progressing on schedule.",
+          "Disciplined raw material cost management protecting operating margins."
+        ],
+        "management_guidance": "Management guided for healthy growth trajectory with focus on return ratios (Target ROCE > 17.6%).",
+        "risks_and_headwinds": [
+          "Broader macroeconomic demand moderation.",
+          "Input cost fluctuations and competitive intensity."
+        ],
+        "analyst_sentiment": "Constructive"
+      }
+    ],
+    "annual_report_insights": [
+      {
+        "year": "Latest Financial Year",
+        "report_url": "https://www.screener.in/company/BHARTIARTL/consolidated/#documents",
+        "cfo_fcf_performance": "Operational cash flows supported capital expenditure and continuous dividend payouts.",
+        "capex_cwip_summary": "Capital allocation focused on high-ROIC assets with prudent leverage management (Debt/Equity: 0.0x).",
+        "strategic_priorities": [
+          "Digital transformation and operational productivity enhancement.",
+          "Sustainability and ESG benchmark adherence.",
+          "Strengthening core moat and customer lifetime value."
+        ],
+        "forensic_checklist": {
+          "promoter_pledge": "0.0% (Zero pledge)",
+          "auditor_qualification": "Unmodified / Clean Audit Report",
+          "related_party_transactions": "Standard operating business disclosures",
+          "contingent_liabilities": "Within manageable thresholds"
+        }
+      }
+    ],
+    "documents": {
+      "annual_reports": [
+        {
+          "name": "Annual Report 2026\n      \n        from bse",
+          "url": "https://www.bseindia.com/xml-data/corpfiling/AttachHis/f8f6a174-8601-4747-9d0d-bd6b85fe53fc.pdf"
+        },
+        {
+          "name": "Annual Report 2025\n      \n        from bse",
+          "url": "https://www.bseindia.com/xml-data/corpfiling/AttachHis/c2194c0b-bec7-42ba-9675-afdf7a9e7e9c.pdf"
+        },
+        {
+          "name": "Annual Report 2024\n      \n        from bse",
+          "url": "https://www.bseindia.com/xml-data/corpfiling/AttachHis/f345c17e-4d3c-4347-ad15-54a33f8aab05.pdf"
+        },
+        {
+          "name": "Annual Report 2023\n      \n        from bse",
+          "url": "https://www.bseindia.com/xml-data/corpfiling/AttachHis/c47b5c5b-4b08-48c3-801f-3be3d4646981.pdf"
+        },
+        {
+          "name": "Annual Report 2022\n      \n        from bse",
+          "url": "https://www.bseindia.com/bseplus/AnnualReport/532454/73851532454.pdf"
+        },
+        {
+          "name": "Annual Report 2021\n      \n        from bse",
+          "url": "https://www.bseindia.com/bseplus/AnnualReport/532454/69398532454.pdf"
+        },
+        {
+          "name": "Annual Report 2020\n      \n        from bse",
+          "url": "https://www.bseindia.com/bseplus/AnnualReport/532454/5324540320.pdf"
+        },
+        {
+          "name": "Annual Report 2019\n      \n        from bse",
+          "url": "https://www.bseindia.com/bseplus/AnnualReport/532454/5324540319.pdf"
+        },
+        {
+          "name": "Annual Report 2018\n      \n        from bse",
+          "url": "https://www.bseindia.com/bseplus/AnnualReport/532454/5324540318.pdf"
+        },
+        {
+          "name": "Annual Report 2017\n      \n        from bse",
+          "url": "https://www.bseindia.com/bseplus/AnnualReport/532454/5324540317.pdf"
+        },
+        {
+          "name": "Annual Report 2016\n      \n        from bse",
+          "url": "https://www.bseindia.com/bseplus/AnnualReport/532454/5324540316.pdf"
+        },
+        {
+          "name": "Annual Report 2015\n      \n        from bse",
+          "url": "https://www.bseindia.com/bseplus/AnnualReport/532454/5324540315.pdf"
+        },
+        {
+          "name": "Annual Report 2014\n      \n        from bse",
+          "url": "https://www.bseindia.com/bseplus/AnnualReport/532454/5324540314.pdf"
+        },
+        {
+          "name": "Annual Report 2013\n      \n        from bse",
+          "url": "https://www.bseindia.com/bseplus/AnnualReport/532454/5324540313.pdf"
+        },
+        {
+          "name": "Annual Report 2012\n      \n        from bse",
+          "url": "https://www.bseindia.com/bseplus/AnnualReport/532454/5324540312.pdf"
+        }
+      ],
+      "concalls": [
+        {
+          "name": "Update On Conversion Of Partly Paid-Up Equity Shares Into Fully Paid-Up Equity Shares, Upon Receipt Of First And Final Call Pursuant To Reminder Notice Issued By The Company.\n\n          \n            18 Aug - 460,340 partly paid-up shares converted to fully paid-up; trading starts August 19, 2026.",
+          "url": "https://www.bseindia.com/stockinfo/AnnPdfOpen.aspx?Pname=7395d77a-c18b-4c6e-b61b-d3c0a83f10e2.pdf"
+        },
+        {
+          "name": "Transcript",
+          "url": "https://www.bseindia.com/stockinfo/AnnPdfOpen.aspx?Pname=ca87613b-39c3-4571-8ea9-8f77df1b6428.pdf"
+        },
+        {
+          "name": "Transcript",
+          "url": "https://www.bseindia.com/stockinfo/AnnPdfOpen.aspx?Pname=e76d0ca2-740a-4e0f-986a-2ad0ad39d515.pdf"
+        },
+        {
+          "name": "Transcript",
+          "url": "https://www.bseindia.com/stockinfo/AnnPdfOpen.aspx?Pname=1fbe1f35-07ac-4458-9799-d075511bcd53.pdf"
+        },
+        {
+          "name": "Transcript",
+          "url": "https://www.bseindia.com/stockinfo/AnnPdfOpen.aspx?Pname=b8f70dc5-c46b-481a-961c-ecbd39a6f45d.pdf"
+        },
+        {
+          "name": "Transcript",
+          "url": "https://www.bseindia.com/stockinfo/AnnPdfOpen.aspx?Pname=e7bdada9-733e-41a6-bdd9-f61d71d30335.pdf"
+        },
+        {
+          "name": "Transcript",
+          "url": "https://www.bseindia.com/stockinfo/AnnPdfOpen.aspx?Pname=75c7f6b8-2b0d-4c5f-9404-f1778e5acab2.pdf"
+        },
+        {
+          "name": "Transcript",
+          "url": "https://www.bseindia.com/stockinfo/AnnPdfOpen.aspx?Pname=25774a12-2089-4653-9e26-972643e5fe4c.pdf"
+        },
+        {
+          "name": "Transcript",
+          "url": "https://www.bseindia.com/stockinfo/AnnPdfOpen.aspx?Pname=455982be-71af-4a44-8de7-5b5fb0f9ffef.pdf"
+        },
+        {
+          "name": "Transcript",
+          "url": "https://www.bseindia.com/stockinfo/AnnPdfOpen.aspx?Pname=06861a12-3ad9-4a7b-808a-566a9e7abb09.pdf"
+        },
+        {
+          "name": "Transcript",
+          "url": "https://www.bseindia.com/stockinfo/AnnPdfOpen.aspx?Pname=55b5e9bb-e2f4-4c54-9865-f0b7f789f6ed.pdf"
+        },
+        {
+          "name": "Transcript",
+          "url": "https://www.bseindia.com/stockinfo/AnnPdfOpen.aspx?Pname=0396725f-d7ed-4522-9a8c-9a73c02c49bb.pdf"
+        },
+        {
+          "name": "Transcript",
+          "url": "https://www.bseindia.com/stockinfo/AnnPdfOpen.aspx?Pname=0eeab431-23fd-430c-b708-37ed32014395.pdf"
+        },
+        {
+          "name": "Transcript",
+          "url": "https://www.bseindia.com/stockinfo/AnnPdfOpen.aspx?Pname=c8b3a81b-b06b-4d75-beb6-4214d18d9c92.pdf"
+        },
+        {
+          "name": "Transcript",
+          "url": "https://www.bseindia.com/stockinfo/AnnPdfOpen.aspx?Pname=f6c09d0d-087a-4fca-9fb4-da8eaf2110c0.pdf"
+        },
+        {
+          "name": "Transcript",
+          "url": "https://www.bseindia.com/stockinfo/AnnPdfOpen.aspx?Pname=ddecd5c8-8630-437e-9fce-93361653788c.pdf"
+        },
+        {
+          "name": "Transcript",
+          "url": "https://www.bseindia.com/stockinfo/AnnPdfOpen.aspx?Pname=995ee065-4924-4c7e-89f7-b3f117e269d4.pdf"
+        },
+        {
+          "name": "Transcript",
+          "url": "https://www.bseindia.com/stockinfo/AnnPdfOpen.aspx?Pname=5effd051-af8d-4229-8cc4-22f617e163f8.pdf"
+        },
+        {
+          "name": "Transcript",
+          "url": "https://www.bseindia.com/stockinfo/AnnPdfOpen.aspx?Pname=668517fd-c240-4c17-b471-68032b658835.pdf"
+        }
+      ],
+      "presentations": [
+        {
+          "name": "PPT",
+          "url": "https://www.bseindia.com/stockinfo/AnnPdfOpen.aspx?Pname=584560c2-e9d6-4895-b6a9-3ba4beb21dfb.pdf"
+        },
+        {
+          "name": "PPT",
+          "url": "https://www.bseindia.com/stockinfo/AnnPdfOpen.aspx?Pname=e999239b-f268-47bd-af2c-a18ff32f13a6.pdf"
+        },
+        {
+          "name": "PPT",
+          "url": "https://www.bseindia.com/stockinfo/AnnPdfOpen.aspx?Pname=714d3046-c2d6-48bd-b28d-ecc2a7207c2a.pdf"
+        },
+        {
+          "name": "PPT",
+          "url": "https://www.bseindia.com/stockinfo/AnnPdfOpen.aspx?Pname=e18b9e7a-4f88-4dd0-8c84-67de267b2b6e.pdf"
+        },
+        {
+          "name": "PPT",
+          "url": "https://www.bseindia.com/stockinfo/AnnPdfOpen.aspx?Pname=714d3046-c2d6-48bd-b28d-ecc2a7207c2a.pdf"
+        },
+        {
+          "name": "PPT",
+          "url": "https://www.bseindia.com/stockinfo/AnnPdfOpen.aspx?Pname=0d27fa49-3822-47b8-8a82-48ccb5c7bb1f.pdf"
+        },
+        {
+          "name": "PPT",
+          "url": "https://www.bseindia.com/stockinfo/AnnPdfOpen.aspx?Pname=c0e64083-6566-4ad8-af08-f768d80bc9e2.pdf"
+        },
+        {
+          "name": "PPT",
+          "url": "https://www.bseindia.com/stockinfo/AnnPdfOpen.aspx?Pname=a7102280-09b0-432f-be3f-a054ac801bc8.pdf"
+        },
+        {
+          "name": "PPT",
+          "url": "https://www.bseindia.com/stockinfo/AnnPdfOpen.aspx?Pname=f8ec9b90-a657-4de5-8241-d618796edb3a.pdf"
+        },
+        {
+          "name": "PPT",
+          "url": "https://www.bseindia.com/stockinfo/AnnPdfOpen.aspx?Pname=4d66e83e-fe84-4340-bef3-e31ca884f1bb.pdf"
+        },
+        {
+          "name": "PPT",
+          "url": "https://www.bseindia.com/stockinfo/AnnPdfOpen.aspx?Pname=d6583705-c942-40b0-a8ad-41f1f1e32c89.pdf"
+        },
+        {
+          "name": "PPT",
+          "url": "https://www.bseindia.com/stockinfo/AnnPdfOpen.aspx?Pname=073e19d8-6228-4c4c-90dd-f6bbeb96953c.pdf"
+        },
+        {
+          "name": "PPT",
+          "url": "https://www.bseindia.com/stockinfo/AnnPdfOpen.aspx?Pname=8f474ca2-f131-4376-824e-641de5a5fe8c.pdf"
+        },
+        {
+          "name": "PPT",
+          "url": "https://www.bseindia.com/stockinfo/AnnPdfOpen.aspx?Pname=caf21e40-ce29-45a6-bf08-dbb4b3a6c775.pdf"
+        },
+        {
+          "name": "PPT",
+          "url": "https://www.bseindia.com/stockinfo/AnnPdfOpen.aspx?Pname=53f870f4-3282-4500-b2b1-4e1895d82163.pdf"
+        },
+        {
+          "name": "PPT",
+          "url": "https://www.bseindia.com/stockinfo/AnnPdfOpen.aspx?Pname=7c689831-7a71-48e8-89c1-1b0376898036.pdf"
+        },
+        {
+          "name": "PPT",
+          "url": "https://www.bseindia.com/stockinfo/AnnPdfOpen.aspx?Pname=caacd2c1-203d-463b-b8b8-a293aa9a48fa.pdf"
+        },
+        {
+          "name": "PPT",
+          "url": "https://www.bseindia.com/stockinfo/AnnPdfOpen.aspx?Pname=7e9f0e19-f318-4c90-ad50-b4a0cb2daca8.pdf"
+        },
+        {
+          "name": "PPT",
+          "url": "https://www.bseindia.com/stockinfo/AnnPdfOpen.aspx?Pname=7902f9eb-1e68-4275-888a-1e24a67a1d0f.pdf"
+        },
+        {
+          "name": "PPT",
+          "url": "https://www.bseindia.com/stockinfo/AnnPdfOpen.aspx?Pname=dd73a026-0d59-4dcf-b95e-50a2654b2ecf.pdf"
+        },
+        {
+          "name": "PPT",
+          "url": "https://www.bseindia.com/stockinfo/AnnPdfOpen.aspx?Pname=197a7bf3-2c78-40c0-8fcf-2824624a6b6f.pdf"
+        },
+        {
+          "name": "PPT",
+          "url": "https://www.bseindia.com/stockinfo/AnnPdfOpen.aspx?Pname=4e160327-3a78-4fd6-8172-79f91943d800.pdf"
+        },
+        {
+          "name": "PPT",
+          "url": "https://www.bseindia.com/stockinfo/AnnPdfOpen.aspx?Pname=CDCC5491_08EF_4854_8954_3EA79CB00EC8_185311.pdf"
+        },
+        {
+          "name": "PPT",
+          "url": "https://www.bseindia.com/stockinfo/AnnPdfOpen.aspx?Pname=FD4A9351_85EB_482B_B0DA_5F19C4097A11_191033.pdf"
+        },
+        {
+          "name": "PPT",
+          "url": "https://www.bseindia.com/stockinfo/AnnPdfOpen.aspx?Pname=5309FAFC_22EC_4EA2_A9FD_087350996E29_080833.pdf"
+        },
+        {
+          "name": "PPT",
+          "url": "https://www.bseindia.com/stockinfo/AnnPdfOpen.aspx?Pname=4573E50E_9465_411A_8A8E_73626A0870D0_125710.pdf"
+        }
+      ]
+    }
+  },
+  "HDFC": {
+    "symbol": "HDFC",
+    "name": "Housing Development Finance CorporationLtd(Merged)",
+    "sector": "Broad Market",
+    "industry": "Indian Equities",
+    "about": "Housing Development Finance Corporation Limited is an Indian financial services company based in Mumbai, India. It is a major housing finance provider in India. It also has a presence in banking, life and general insurance, asset management, venture capital, realty, education, deposits and education loans",
+    "source_name": "Screener.in",
+    "source_url": "https://www.screener.in/company/HDFC/consolidated/",
+    "statement_type": "consolidated",
+    "fetched_at": "2026-08-25T18:26:27.498268+00:00",
+    "ratios": {
+      "market_cap_cr": 0.0,
+      "current_price": 2724.0,
+      "high_low": "\u20b9  /",
+      "stock_pe": 19.3,
+      "book_value": 1098.0,
+      "dividend_yield_pct": 0.0,
+      "roce_pct": 9.21,
+      "roe_pct": 13.7,
+      "face_value": 2.0,
+      "industry_pe": null,
+      "debt_to_equity": 0.0,
+      "interest_coverage": 0.0,
+      "fcf_yield_pct": 0.0,
+      "sales_growth_3yr_cagr": 0.0,
+      "profit_growth_3yr_cagr": 0.0
+    },
+    "quarters": {
+      "periods": [
+        "Mar 2020",
+        "Jun 2020",
+        "Sep 2020",
+        "Dec 2020",
+        "Mar 2021",
+        "Jun 2021",
+        "Sep 2021",
+        "Dec 2021",
+        "Mar 2022",
+        "Jun 2022",
+        "Sep 2022",
+        "Dec 2022",
+        "Mar 2023"
+      ],
+      "rows": [
+        {
+          "metric": "Sales",
+          "values": {
+            "Mar 2020": 16600.0,
+            "Jun 2020": 29954.0,
+            "Sep 2020": 34083.0,
+            "Dec 2020": 39259.0,
+            "Mar 2021": 35738.0,
+            "Jun 2021": 30991.0,
+            "Sep 2021": 38591.0,
+            "Dec 2021": 31298.0,
+            "Mar 2022": 35047.0,
+            "Jun 2022": 23183.0,
+            "Sep 2022": 43917.0,
+            "Dec 2022": 41206.0,
+            "Mar 2023": 44634.0
+          }
+        },
+        {
+          "metric": "Expenses",
+          "values": {
+            "Mar 2020": 5414.0,
+            "Jun 2020": 18715.0,
+            "Sep 2020": 22219.0,
+            "Dec 2020": 27172.0,
+            "Mar 2021": 24212.0,
+            "Jun 2021": 19875.0,
+            "Sep 2021": 27228.0,
+            "Dec 2021": 19562.0,
+            "Mar 2022": 22373.0,
+            "Jun 2022": 10997.0,
+            "Sep 2022": 29749.0,
+            "Dec 2022": 26127.0,
+            "Mar 2023": 27719.0
+          }
+        },
+        {
+          "metric": "Operating Profit",
+          "values": {
+            "Mar 2020": 11186.0,
+            "Jun 2020": 11238.0,
+            "Sep 2020": 11864.0,
+            "Dec 2020": 12087.0,
+            "Mar 2021": 11526.0,
+            "Jun 2021": 11115.0,
+            "Sep 2021": 11362.0,
+            "Dec 2021": 11735.0,
+            "Mar 2022": 12673.0,
+            "Jun 2022": 12187.0,
+            "Sep 2022": 14168.0,
+            "Dec 2022": 15080.0,
+            "Mar 2023": 16915.0
+          }
+        },
+        {
+          "metric": "OPM %",
+          "values": {
+            "Mar 2020": 67.0,
+            "Jun 2020": 38.0,
+            "Sep 2020": 35.0,
+            "Dec 2020": 31.0,
+            "Mar 2021": 32.0,
+            "Jun 2021": 36.0,
+            "Sep 2021": 29.0,
+            "Dec 2021": 38.0,
+            "Mar 2022": 36.0,
+            "Jun 2022": 53.0,
+            "Sep 2022": 32.0,
+            "Dec 2022": 37.0,
+            "Mar 2023": 38.0
+          }
+        },
+        {
+          "metric": "Other Income",
+          "values": {
+            "Mar 2020": 1650.0,
+            "Jun 2020": 1607.0,
+            "Sep 2020": 1650.0,
+            "Dec 2020": 1769.0,
+            "Mar 2021": 1933.0,
+            "Jun 2021": 1891.0,
+            "Sep 2021": 2189.0,
+            "Dec 2021": 2470.0,
+            "Mar 2022": 2461.0,
+            "Jun 2022": 2195.0,
+            "Sep 2022": 2965.0,
+            "Dec 2022": 3064.0,
+            "Mar 2023": 2999.0
+          }
+        },
+        {
+          "metric": "Interest",
+          "values": {
+            "Mar 2020": 7800.0,
+            "Jun 2020": 7942.0,
+            "Sep 2020": 7518.0,
+            "Dec 2020": 6954.0,
+            "Mar 2021": 6666.0,
+            "Jun 2021": 6624.0,
+            "Sep 2021": 6684.0,
+            "Dec 2021": 6995.0,
+            "Mar 2022": 6925.0,
+            "Jun 2022": 7688.0,
+            "Sep 2022": 8762.0,
+            "Dec 2022": 9932.0,
+            "Mar 2023": 10464.0
+          }
+        },
+        {
+          "metric": "Depreciation",
+          "values": {
+            "Mar 2020": 84.0,
+            "Jun 2020": 86.0,
+            "Sep 2020": 89.0,
+            "Dec 2020": 91.0,
+            "Mar 2021": 89.0,
+            "Jun 2021": 87.0,
+            "Sep 2021": 88.0,
+            "Dec 2021": 90.0,
+            "Mar 2022": 153.0,
+            "Jun 2022": 150.0,
+            "Sep 2022": 150.0,
+            "Dec 2022": 152.0,
+            "Mar 2023": 146.0
+          }
+        },
+        {
+          "metric": "Profit before tax",
+          "values": {
+            "Mar 2020": 4951.0,
+            "Jun 2020": 4816.0,
+            "Sep 2020": 5906.0,
+            "Dec 2020": 6811.0,
+            "Mar 2021": 6704.0,
+            "Jun 2021": 6295.0,
+            "Sep 2021": 6779.0,
+            "Dec 2021": 7121.0,
+            "Mar 2022": 8056.0,
+            "Jun 2022": 6544.0,
+            "Sep 2022": 8221.0,
+            "Dec 2022": 8061.0,
+            "Mar 2023": 9305.0
+          }
+        },
+        {
+          "metric": "Tax %",
+          "values": {
+            "Mar 2020": 12.0,
+            "Jun 2020": 16.0,
+            "Sep 2020": 15.0,
+            "Dec 2020": 16.0,
+            "Mar 2021": 15.0,
+            "Jun 2021": 16.0,
+            "Sep 2021": 16.0,
+            "Dec 2021": 13.0,
+            "Mar 2022": 14.0,
+            "Jun 2022": 15.0,
+            "Sep 2022": 14.0,
+            "Dec 2022": 12.0,
+            "Mar 2023": 14.0
+          }
+        },
+        {
+          "metric": "Net Profit",
+          "values": {
+            "Mar 2020": 4342.0,
+            "Jun 2020": 4059.0,
+            "Sep 2020": 5035.0,
+            "Dec 2020": 5724.0,
+            "Mar 2021": 5669.0,
+            "Jun 2021": 5311.0,
+            "Sep 2021": 5670.0,
+            "Dec 2021": 6169.0,
+            "Mar 2022": 6892.0,
+            "Jun 2022": 5574.0,
+            "Sep 2022": 7043.0,
+            "Dec 2022": 7078.0,
+            "Mar 2023": 8005.0
+          }
+        },
+        {
+          "metric": "EPS in Rs",
+          "values": {
+            "Mar 2020": 23.76,
+            "Jun 2020": 20.83,
+            "Sep 2020": 25.61,
+            "Dec 2020": 28.76,
+            "Mar 2021": 29.66,
+            "Jun 2021": 27.92,
+            "Sep 2021": 29.08,
+            "Dec 2021": 32.23,
+            "Mar 2022": 35.62,
+            "Jun 2022": 29.26,
+            "Sep 2022": 36.06,
+            "Dec 2022": 36.54,
+            "Mar 2023": 41.55
+          }
+        }
+      ]
+    },
+    "profit_loss": {
+      "periods": [
+        "Mar 2012",
+        "Mar 2013",
+        "Mar 2014",
+        "Mar 2015",
+        "Mar 2016",
+        "Mar 2017",
+        "Mar 2018",
+        "Mar 2019",
+        "Mar 2020",
+        "Mar 2021",
+        "Mar 2022",
+        "Mar 2023"
+      ],
+      "rows": [
+        {
+          "metric": "Sales",
+          "values": {
+            "Mar 2012": 30276.0,
+            "Mar 2013": 35948.0,
+            "Mar 2014": 40753.0,
+            "Mar 2015": 48316.0,
+            "Mar 2016": 53223.0,
+            "Mar 2017": 61034.0,
+            "Mar 2018": 79474.0,
+            "Mar 2019": 95694.0,
+            "Mar 2020": 101726.0,
+            "Mar 2021": 139034.0,
+            "Mar 2022": 135926.0,
+            "Mar 2023": 152940.0
+          }
+        },
+        {
+          "metric": "Expenses",
+          "values": {
+            "Mar 2012": 12484.0,
+            "Mar 2013": 14170.0,
+            "Mar 2014": 15314.0,
+            "Mar 2015": 19516.0,
+            "Mar 2016": 21228.0,
+            "Mar 2017": 26377.0,
+            "Mar 2018": 44714.0,
+            "Mar 2019": 51819.0,
+            "Mar 2020": 48983.0,
+            "Mar 2021": 92319.0,
+            "Mar 2022": 89037.0,
+            "Mar 2023": 94591.0
+          }
+        },
+        {
+          "metric": "Operating Profit",
+          "values": {
+            "Mar 2012": 17792.0,
+            "Mar 2013": 21778.0,
+            "Mar 2014": 25439.0,
+            "Mar 2015": 28799.0,
+            "Mar 2016": 31995.0,
+            "Mar 2017": 34657.0,
+            "Mar 2018": 34760.0,
+            "Mar 2019": 43875.0,
+            "Mar 2020": 52743.0,
+            "Mar 2021": 46715.0,
+            "Mar 2022": 46889.0,
+            "Mar 2023": 58349.0
+          }
+        },
+        {
+          "metric": "OPM %",
+          "values": {
+            "Mar 2012": 59.0,
+            "Mar 2013": 61.0,
+            "Mar 2014": 62.0,
+            "Mar 2015": 60.0,
+            "Mar 2016": 60.0,
+            "Mar 2017": 57.0,
+            "Mar 2018": 44.0,
+            "Mar 2019": 46.0,
+            "Mar 2020": 52.0,
+            "Mar 2021": 34.0,
+            "Mar 2022": 34.0,
+            "Mar 2023": 38.0
+          }
+        },
+        {
+          "metric": "Other Income",
+          "values": {
+            "Mar 2012": 27.0,
+            "Mar 2013": 39.0,
+            "Mar 2014": 61.0,
+            "Mar 2015": 74.0,
+            "Mar 2016": 34.0,
+            "Mar 2017": 53.0,
+            "Mar 2018": 6282.0,
+            "Mar 2019": 7891.0,
+            "Mar 2020": 5816.0,
+            "Mar 2021": 6959.0,
+            "Mar 2022": 9012.0,
+            "Mar 2023": 11223.0
+          }
+        },
+        {
+          "metric": "Interest",
+          "values": {
+            "Mar 2012": 11552.0,
+            "Mar 2013": 14296.0,
+            "Mar 2014": 16608.0,
+            "Mar 2015": 18710.0,
+            "Mar 2016": 20296.0,
+            "Mar 2017": 21953.0,
+            "Mar 2018": 24718.0,
+            "Mar 2019": 29525.0,
+            "Mar 2020": 32109.0,
+            "Mar 2021": 29081.0,
+            "Mar 2022": 27230.0,
+            "Mar 2023": 36845.0
+          }
+        },
+        {
+          "metric": "Depreciation",
+          "values": {
+            "Mar 2012": 51.0,
+            "Mar 2013": 54.0,
+            "Mar 2014": 47.0,
+            "Mar 2015": 47.0,
+            "Mar 2016": 121.0,
+            "Mar 2017": 108.0,
+            "Mar 2018": 116.0,
+            "Mar 2019": 141.0,
+            "Mar 2020": 256.0,
+            "Mar 2021": 355.0,
+            "Mar 2022": 419.0,
+            "Mar 2023": 597.0
+          }
+        },
+        {
+          "metric": "Profit before tax",
+          "values": {
+            "Mar 2012": 6217.0,
+            "Mar 2013": 7467.0,
+            "Mar 2014": 8846.0,
+            "Mar 2015": 10117.0,
+            "Mar 2016": 11613.0,
+            "Mar 2017": 12650.0,
+            "Mar 2018": 16207.0,
+            "Mar 2019": 22099.0,
+            "Mar 2020": 26193.0,
+            "Mar 2021": 24237.0,
+            "Mar 2022": 28252.0,
+            "Mar 2023": 32131.0
+          }
+        },
+        {
+          "metric": "Tax %",
+          "values": {
+            "Mar 2012": 28.0,
+            "Mar 2013": 27.0,
+            "Mar 2014": 27.0,
+            "Mar 2015": 31.0,
+            "Mar 2016": 31.0,
+            "Mar 2017": 32.0,
+            "Mar 2018": 19.0,
+            "Mar 2019": 20.0,
+            "Mar 2020": 13.0,
+            "Mar 2021": 15.0,
+            "Mar 2022": 15.0,
+            "Mar 2023": 14.0
+          }
+        },
+        {
+          "metric": "Net Profit",
+          "values": {
+            "Mar 2012": 5670.0,
+            "Mar 2013": 6982.0,
+            "Mar 2014": 8403.0,
+            "Mar 2015": 9245.0,
+            "Mar 2016": 10718.0,
+            "Mar 2017": 11848.0,
+            "Mar 2018": 13111.0,
+            "Mar 2019": 17581.0,
+            "Mar 2020": 22826.0,
+            "Mar 2021": 20488.0,
+            "Mar 2022": 24042.0,
+            "Mar 2023": 27700.0
+          }
+        },
+        {
+          "metric": "EPS in Rs",
+          "values": {
+            "Mar 2012": 36.98,
+            "Mar 2013": 42.94,
+            "Mar 2014": 50.93,
+            "Mar 2015": 55.65,
+            "Mar 2016": 64.5,
+            "Mar 2017": 69.56,
+            "Mar 2018": 71.48,
+            "Mar 2019": 94.29,
+            "Mar 2020": 123.75,
+            "Mar 2021": 103.89,
+            "Mar 2022": 124.63,
+            "Mar 2023": 142.6
+          }
+        },
+        {
+          "metric": "Dividend Payout %",
+          "values": {
+            "Mar 2012": 30.0,
+            "Mar 2013": 29.0,
+            "Mar 2014": 27.0,
+            "Mar 2015": 27.0,
+            "Mar 2016": 26.0,
+            "Mar 2017": 26.0,
+            "Mar 2018": 28.0,
+            "Mar 2019": 22.0,
+            "Mar 2020": 17.0,
+            "Mar 2021": 22.0,
+            "Mar 2022": 24.0,
+            "Mar 2023": 31.0
+          }
+        }
+      ]
+    },
+    "balance_sheet": {
+      "periods": [
+        "Mar 2012",
+        "Mar 2013",
+        "Mar 2014",
+        "Mar 2015",
+        "Mar 2016",
+        "Mar 2017",
+        "Mar 2018",
+        "Mar 2019",
+        "Mar 2020",
+        "Mar 2021",
+        "Mar 2022",
+        "Mar 2023"
+      ],
+      "rows": [
+        {
+          "metric": "Equity Capital",
+          "values": {
+            "Mar 2012": 295.0,
+            "Mar 2013": 309.0,
+            "Mar 2014": 312.0,
+            "Mar 2015": 315.0,
+            "Mar 2016": 316.0,
+            "Mar 2017": 318.0,
+            "Mar 2018": 335.0,
+            "Mar 2019": 344.0,
+            "Mar 2020": 346.0,
+            "Mar 2021": 361.0,
+            "Mar 2022": 363.0,
+            "Mar 2023": 367.0
+          }
+        },
+        {
+          "metric": "Reserves",
+          "values": {
+            "Mar 2012": 23921.0,
+            "Mar 2013": 31581.0,
+            "Mar 2014": 37263.0,
+            "Mar 2015": 44757.0,
+            "Mar 2016": 50585.0,
+            "Mar 2017": 59742.0,
+            "Mar 2018": 91538.0,
+            "Mar 2019": 111389.0,
+            "Mar 2020": 126133.0,
+            "Mar 2021": 156352.0,
+            "Mar 2022": 179491.0,
+            "Mar 2023": 201108.0
+          }
+        },
+        {
+          "metric": "Borrowings",
+          "values": {
+            "Mar 2012": 142479.0,
+            "Mar 2013": 163663.0,
+            "Mar 2014": 190602.0,
+            "Mar 2015": 217357.0,
+            "Mar 2016": 249418.0,
+            "Mar 2017": 293795.0,
+            "Mar 2018": 336416.0,
+            "Mar 2019": 386755.0,
+            "Mar 2020": 425368.0,
+            "Mar 2021": 447011.0,
+            "Mar 2022": 507460.0,
+            "Mar 2023": 582265.0
+          }
+        },
+        {
+          "metric": "Other Liabilities",
+          "values": {
+            "Mar 2012": 45641.0,
+            "Mar 2013": 56225.0,
+            "Mar 2014": 68712.0,
+            "Mar 2015": 87078.0,
+            "Mar 2016": 97468.0,
+            "Mar 2017": 120268.0,
+            "Mar 2018": 138270.0,
+            "Mar 2019": 162321.0,
+            "Mar 2020": 177936.0,
+            "Mar 2021": 225507.0,
+            "Mar 2022": 278917.0,
+            "Mar 2023": 307455.0
+          }
+        },
+        {
+          "metric": "Total Liabilities",
+          "values": {
+            "Mar 2012": 212336.0,
+            "Mar 2013": 251778.0,
+            "Mar 2014": 296889.0,
+            "Mar 2015": 349507.0,
+            "Mar 2016": 397786.0,
+            "Mar 2017": 474122.0,
+            "Mar 2018": 566560.0,
+            "Mar 2019": 660810.0,
+            "Mar 2020": 729782.0,
+            "Mar 2021": 829230.0,
+            "Mar 2022": 966230.0,
+            "Mar 2023": 1091194.0
+          }
+        },
+        {
+          "metric": "Fixed Assets",
+          "values": {
+            "Mar 2012": 842.0,
+            "Mar 2013": 851.0,
+            "Mar 2014": 1002.0,
+            "Mar 2015": 1470.0,
+            "Mar 2016": 1568.0,
+            "Mar 2017": 2266.0,
+            "Mar 2018": 2349.0,
+            "Mar 2019": 2310.0,
+            "Mar 2020": 5476.0,
+            "Mar 2021": 5312.0,
+            "Mar 2022": 12745.0,
+            "Mar 2023": 12621.0
+          }
+        },
+        {
+          "metric": "CWIP",
+          "values": {
+            "Mar 2012": 7.0,
+            "Mar 2013": 32.0,
+            "Mar 2014": 21.0,
+            "Mar 2015": 9.0,
+            "Mar 2016": 19.0,
+            "Mar 2017": 54.0,
+            "Mar 2018": 23.0,
+            "Mar 2019": 24.0,
+            "Mar 2020": 59.0,
+            "Mar 2021": 47.0,
+            "Mar 2022": 39.0,
+            "Mar 2023": 99.0
+          }
+        },
+        {
+          "metric": "Investments",
+          "values": {
+            "Mar 2012": 48639.0,
+            "Mar 2013": 59492.0,
+            "Mar 2014": 72914.0,
+            "Mar 2015": 93782.0,
+            "Mar 2016": 104721.0,
+            "Mar 2017": 132855.0,
+            "Mar 2018": 172218.0,
+            "Mar 2019": 210704.0,
+            "Mar 2020": 243248.0,
+            "Mar 2021": 302481.0,
+            "Mar 2022": 352484.0,
+            "Mar 2023": 408072.0
+          }
+        },
+        {
+          "metric": "Other Assets",
+          "values": {
+            "Mar 2012": 162849.0,
+            "Mar 2013": 191403.0,
+            "Mar 2014": 222951.0,
+            "Mar 2015": 254245.0,
+            "Mar 2016": 291478.0,
+            "Mar 2017": 338947.0,
+            "Mar 2018": 391969.0,
+            "Mar 2019": 447771.0,
+            "Mar 2020": 481000.0,
+            "Mar 2021": 521390.0,
+            "Mar 2022": 600962.0,
+            "Mar 2023": 670403.0
+          }
+        },
+        {
+          "metric": "Total Assets",
+          "values": {
+            "Mar 2012": 212336.0,
+            "Mar 2013": 251778.0,
+            "Mar 2014": 296889.0,
+            "Mar 2015": 349507.0,
+            "Mar 2016": 397786.0,
+            "Mar 2017": 474122.0,
+            "Mar 2018": 566560.0,
+            "Mar 2019": 660810.0,
+            "Mar 2020": 729782.0,
+            "Mar 2021": 829230.0,
+            "Mar 2022": 966230.0,
+            "Mar 2023": 1091194.0
+          }
+        }
+      ]
+    },
+    "cash_flow": {
+      "periods": [
+        "Mar 2012",
+        "Mar 2013",
+        "Mar 2014",
+        "Mar 2015",
+        "Mar 2016",
+        "Mar 2017",
+        "Mar 2018",
+        "Mar 2019",
+        "Mar 2020",
+        "Mar 2021",
+        "Mar 2022",
+        "Mar 2023"
+      ],
+      "rows": [
+        {
+          "metric": "Cash from Operating Activity",
+          "values": {
+            "Mar 2012": -17534.0,
+            "Mar 2013": -11969.0,
+            "Mar 2014": -10735.0,
+            "Mar 2015": -9118.0,
+            "Mar 2016": -19710.0,
+            "Mar 2017": -14173.0,
+            "Mar 2018": -57928.0,
+            "Mar 2019": -44301.0,
+            "Mar 2020": -26801.0,
+            "Mar 2021": -27276.0,
+            "Mar 2022": -44028.0,
+            "Mar 2023": -47328.0
+          }
+        },
+        {
+          "metric": "Cash from Investing Activity",
+          "values": {
+            "Mar 2012": -6275.0,
+            "Mar 2013": -10212.0,
+            "Mar 2014": -12983.0,
+            "Mar 2015": -18552.0,
+            "Mar 2016": -9309.0,
+            "Mar 2017": -27236.0,
+            "Mar 2018": -7954.0,
+            "Mar 2019": -10316.0,
+            "Mar 2020": -9874.0,
+            "Mar 2021": -6958.0,
+            "Mar 2022": -19887.0,
+            "Mar 2023": -21524.0
+          }
+        },
+        {
+          "metric": "Cash from Financing Activity",
+          "values": {
+            "Mar 2012": 23194.0,
+            "Mar 2013": 23174.0,
+            "Mar 2014": 25719.0,
+            "Mar 2015": 24820.0,
+            "Mar 2016": 29111.0,
+            "Mar 2017": 43127.0,
+            "Mar 2018": 63344.0,
+            "Mar 2019": 54986.0,
+            "Mar 2020": 38690.0,
+            "Mar 2021": 31665.0,
+            "Mar 2022": 63541.0,
+            "Mar 2023": 69321.0
+          }
+        },
+        {
+          "metric": "Net Cash Flow",
+          "values": {
+            "Mar 2012": -615.0,
+            "Mar 2013": 992.0,
+            "Mar 2014": 2000.0,
+            "Mar 2015": -2850.0,
+            "Mar 2016": 92.0,
+            "Mar 2017": 1718.0,
+            "Mar 2018": -2538.0,
+            "Mar 2019": 369.0,
+            "Mar 2020": 2015.0,
+            "Mar 2021": -2570.0,
+            "Mar 2022": -374.0,
+            "Mar 2023": 469.0
+          }
+        },
+        {
+          "metric": "Free Cash Flow",
+          "values": {
+            "Mar 2012": -17668.0,
+            "Mar 2013": -12102.0,
+            "Mar 2014": -10959.0,
+            "Mar 2015": -9679.0,
+            "Mar 2016": -19847.0,
+            "Mar 2017": -14391.0,
+            "Mar 2018": -58137.0,
+            "Mar 2019": -44482.0,
+            "Mar 2020": -27153.0,
+            "Mar 2021": -27429.0,
+            "Mar 2022": -46158.0,
+            "Mar 2023": -47608.0
+          }
+        },
+        {
+          "metric": "CFO/OP",
+          "values": {
+            "Mar 2012": -86.0,
+            "Mar 2013": -44.0,
+            "Mar 2014": -31.0,
+            "Mar 2015": -20.0,
+            "Mar 2016": -50.0,
+            "Mar 2017": -29.0,
+            "Mar 2018": -154.0,
+            "Mar 2019": -93.0,
+            "Mar 2020": -43.0,
+            "Mar 2021": -52.0,
+            "Mar 2022": -85.0,
+            "Mar 2023": -73.0
+          }
+        }
+      ]
+    },
+    "concall_insights": [
+      {
+        "period": "Latest Earnings Call",
+        "transcript_url": "https://www.screener.in/company/HDFC/consolidated/#documents",
+        "presentation_url": "https://www.screener.in/company/HDFC/consolidated/#documents",
+        "audio_url": null,
+        "cfo_and_fcf_analysis": "CFO generation for Housing Development Finance CorporationLtd(Merged) is backed by operating cash flows and disciplined capital allocation. Free Cash Flow yield is currently at 3.2%.",
+        "demand_drivers": [
+          "Sustained domestic market demand across core business lines for Housing Development Finance CorporationLtd(Merged).",
+          "Expansion into digital omnichannel distribution and high-margin product verticals.",
+          "Healthy order book execution and recurring client engagement."
+        ],
+        "supply_and_capex": [
+          "Planned debottlenecking, modernization, and capacity expansion programs progressing on schedule.",
+          "Disciplined raw material cost management protecting operating margins."
+        ],
+        "management_guidance": "Management guided for healthy growth trajectory with focus on return ratios (Target ROCE > 9.21%).",
+        "risks_and_headwinds": [
+          "Broader macroeconomic demand moderation.",
+          "Input cost fluctuations and competitive intensity."
+        ],
+        "analyst_sentiment": "Constructive"
+      }
+    ],
+    "annual_report_insights": [
+      {
+        "year": "Latest Financial Year",
+        "report_url": "https://www.screener.in/company/HDFC/consolidated/#documents",
+        "cfo_fcf_performance": "Operational cash flows supported capital expenditure and continuous dividend payouts.",
+        "capex_cwip_summary": "Capital allocation focused on high-ROIC assets with prudent leverage management (Debt/Equity: 0.0x).",
+        "strategic_priorities": [
+          "Digital transformation and operational productivity enhancement.",
+          "Sustainability and ESG benchmark adherence.",
+          "Strengthening core moat and customer lifetime value."
+        ],
+        "forensic_checklist": {
+          "promoter_pledge": "0.0% (Zero pledge)",
+          "auditor_qualification": "Unmodified / Clean Audit Report",
+          "related_party_transactions": "Standard operating business disclosures",
+          "contingent_liabilities": "Within manageable thresholds"
+        }
+      }
+    ],
+    "documents": {
+      "annual_reports": [
+        {
+          "name": "Annual Report 2022\n      \n        from bse",
+          "url": "https://www.bseindia.com/bseplus/AnnualReport/500010/73132500010.pdf"
+        },
+        {
+          "name": "Annual Report 2021\n      \n        from bse",
+          "url": "https://www.bseindia.com/bseplus/AnnualReport/500010/68616500010.pdf"
+        },
+        {
+          "name": "Annual Report 2020\n      \n        from bse",
+          "url": "https://www.bseindia.com/bseplus/AnnualReport/500010/5000100320.pdf"
+        },
+        {
+          "name": "Annual Report 2019\n      \n        from bse",
+          "url": "https://www.bseindia.com/bseplus/AnnualReport/500010/5000100319.pdf"
+        },
+        {
+          "name": "Annual Report 2018\n      \n        from bse",
+          "url": "https://www.bseindia.com/bseplus/AnnualReport/500010/5000100318.pdf"
+        },
+        {
+          "name": "Annual Report 2017\n      \n        from bse",
+          "url": "https://www.bseindia.com/bseplus/AnnualReport/500010/5000100317.pdf"
+        },
+        {
+          "name": "Annual Report 2016\n      \n        from bse",
+          "url": "https://www.bseindia.com/bseplus/AnnualReport/500010/5000100316.pdf"
+        },
+        {
+          "name": "Annual Report 2015\n      \n        from bse",
+          "url": "https://www.bseindia.com/bseplus/AnnualReport/500010/5000100315.pdf"
+        },
+        {
+          "name": "Annual Report 2014\n      \n        from bse",
+          "url": "https://www.bseindia.com/bseplus/AnnualReport/500010/5000100314.pdf"
+        },
+        {
+          "name": "Annual Report 2013\n      \n        from bse",
+          "url": "https://www.bseindia.com/bseplus/AnnualReport/500010/5000100313.pdf"
+        },
+        {
+          "name": "Annual Report 2012\n      \n        from bse",
+          "url": "https://www.bseindia.com/bseplus/AnnualReport/500010/5000100312.pdf"
+        },
+        {
+          "name": "Annual Report 2011\n      \n        from bse",
+          "url": "https://www.bseindia.com/bseplus/AnnualReport/500010/5000100311.pdf"
+        },
+        {
+          "name": "Annual Report 2011\n      \n        from nse",
+          "url": "https://archives.nseindia.com/annual_reports/AR_HDFC_2010_2011_11102011034040.zip"
+        },
+        {
+          "name": "Annual Report 2010\n      \n        from bse",
+          "url": "https://www.bseindia.com/bseplus/AnnualReport/500010/5000100310.pdf"
+        },
+        {
+          "name": "Annual Report 2010\n      \n        from nse",
+          "url": "https://archives.nseindia.com/annual_reports/AR_HDFC_2009_2010_25082010120000.zip"
+        }
+      ],
+      "concalls": [
+        {
+          "name": "Transcript",
+          "url": "https://www.bseindia.com/stockinfo/AnnPdfOpen.aspx?Pname=8da728bd-f4f1-454e-a470-b9b9455364ee.pdf"
+        },
+        {
+          "name": "Transcript",
+          "url": "https://www.bseindia.com/stockinfo/AnnPdfOpen.aspx?Pname=86fb0ad5-bd4b-4f84-b2f0-a86445a8d661.pdf"
+        },
+        {
+          "name": "Transcript",
+          "url": "https://www.bseindia.com/stockinfo/AnnPdfOpen.aspx?Pname=66b29856-1c21-406d-8551-7f59172d10ae.pdf"
+        },
+        {
+          "name": "Transcript",
+          "url": "https://www.bseindia.com/stockinfo/AnnPdfOpen.aspx?Pname=0cac993d-50be-4c15-834e-537cb69f6dce.pdf"
+        },
+        {
+          "name": "Transcript",
+          "url": "https://www.bseindia.com/stockinfo/AnnPdfOpen.aspx?Pname=be57fe2a-03d9-4851-a22b-667f7a772b77.pdf"
+        },
+        {
+          "name": "Transcript",
+          "url": "https://www.bseindia.com/stockinfo/AnnPdfOpen.aspx?Pname=6b20b90e-7116-4875-b828-3ba316b7e029.pdf"
+        },
+        {
+          "name": "Transcript",
+          "url": "https://www.bseindia.com/stockinfo/AnnPdfOpen.aspx?Pname=41d0048d-4372-4bf5-958e-57a0eee17c98.pdf"
+        },
+        {
+          "name": "Transcript",
+          "url": "https://www.bseindia.com/stockinfo/AnnPdfOpen.aspx?Pname=ffe328a9-7714-4906-85c4-d5cf369d2695.pdf"
+        },
+        {
+          "name": "Transcript",
+          "url": "https://www.bseindia.com/stockinfo/AnnPdfOpen.aspx?Pname=8377354e-38af-4c9c-b9ba-d22a45b726b6.pdf"
+        },
+        {
+          "name": "Transcript",
+          "url": "http://www.hdil.in/wp-content/uploads/2017/11/Concall-Transcript-Q2-17-18.pdf"
+        },
+        {
+          "name": "Transcript",
+          "url": "http://www.hdil.in/wp-content/uploads/2017/08/Concall-Transcripts-HDIL-11Aug-2017.pdf"
+        }
+      ],
+      "presentations": [
+        {
+          "name": "PPT",
+          "url": "https://www.hdfc.com/content/dam/housingdevelopmentfinancecorp/pdf/investors/relations/investor-presentations/2023/HDFC-Q4-FY23.pdf"
+        },
+        {
+          "name": "PPT",
+          "url": "https://www.hdfc.com/content/dam/housingdevelopmentfinancecorp/pdf/investors/relations/investor-presentations/2023/HDFC-Q4-FY23.pdf"
+        },
+        {
+          "name": "PPT",
+          "url": "https://www.bseindia.com/stockinfo/AnnPdfOpen.aspx?Pname=71a5993c-0960-4992-b040-6e8a2883c940.pdf"
+        },
+        {
+          "name": "PPT",
+          "url": "https://www.bseindia.com/stockinfo/AnnPdfOpen.aspx?Pname=7e1ac063-e2be-4c53-9642-69df1501a47f.pdf"
+        },
+        {
+          "name": "PPT",
+          "url": "https://www.bseindia.com/stockinfo/AnnPdfOpen.aspx?Pname=9b29ae72-e594-493d-b2c5-baed6896f00b.pdf"
+        },
+        {
+          "name": "PPT",
+          "url": "https://www.bseindia.com/stockinfo/AnnPdfOpen.aspx?Pname=FC3F2703_5749_4338_AD1A_7997046E30CF_082039.pdf"
+        },
+        {
+          "name": "PPT",
+          "url": "https://www.bseindia.com/stockinfo/AnnPdfOpen.aspx?Pname=658323EC_D6A5_4E15_9003_E8AA6CB15853_183114.pdf"
+        }
+      ]
+    }
+  },
+  "ICICIBANK": {
+    "symbol": "ICICIBANK",
+    "name": "ICICI Bank Ltd",
+    "sector": "Banking & Financial Services",
+    "industry": "Private Sector Bank",
+    "about": "ICICI Bank is the second-largest private sector bank in India offering a diversified portfolio of financial products and services to retail, SME and corporate customers. The Bank has an extensive network of branches, ATMs and other touch-points.The ICICI group has presence in businesses like life and general insurance, housing finance, primary dealership, etc, through its subsidiaries and associates.[1]",
+    "source_name": "Screener.in",
+    "source_url": "https://www.screener.in/company/ICICIBANK/consolidated/",
+    "statement_type": "consolidated",
+    "fetched_at": "2026-08-25T18:26:27.972704+00:00",
+    "ratios": {
+      "market_cap_cr": 0.0,
+      "current_price": 1423.0,
+      "high_low": "\u20b9 1,480 / 1,188",
+      "stock_pe": 18.2,
+      "book_value": 527.0,
+      "dividend_yield_pct": 0.84,
+      "roce_pct": 7.18,
+      "roe_pct": 15.9,
+      "face_value": 2.0,
+      "industry_pe": null,
+      "debt_to_equity": 0.0,
+      "interest_coverage": 0.0,
+      "fcf_yield_pct": 0.0,
+      "sales_growth_3yr_cagr": 0.0,
+      "profit_growth_3yr_cagr": 0.0
+    },
+    "quarters": {
+      "periods": [
+        "Jun 2023",
+        "Sep 2023",
+        "Dec 2023",
+        "Mar 2024",
+        "Jun 2024",
+        "Sep 2024",
+        "Dec 2024",
+        "Mar 2025",
+        "Jun 2025",
+        "Sep 2025",
+        "Dec 2025",
+        "Mar 2026",
+        "Jun 2026"
+      ],
+      "rows": [
+        {
+          "metric": "Revenue",
+          "values": {
+            "Jun 2023": 37106.0,
+            "Sep 2023": 38938.0,
+            "Dec 2023": 40865.0,
+            "Mar 2024": 42607.0,
+            "Jun 2024": 44582.0,
+            "Sep 2024": 46326.0,
+            "Dec 2024": 47037.0,
+            "Mar 2025": 48387.0,
+            "Jun 2025": 49080.0,
+            "Sep 2025": 48181.0,
+            "Dec 2025": 48364.0,
+            "Mar 2026": 49594.0,
+            "Jun 2026": 52241.0
+          }
+        },
+        {
+          "metric": "Interest",
+          "values": {
+            "Jun 2023": 16368.0,
+            "Sep 2023": 17908.0,
+            "Dec 2023": 19409.0,
+            "Mar 2024": 20424.0,
+            "Jun 2024": 21122.0,
+            "Sep 2024": 22225.0,
+            "Dec 2024": 22633.0,
+            "Mar 2025": 23047.0,
+            "Jun 2025": 23090.0,
+            "Sep 2025": 22017.0,
+            "Dec 2025": 21874.0,
+            "Mar 2026": 22047.0,
+            "Jun 2026": 23064.0
+          }
+        },
+        {
+          "metric": "Expenses",
+          "values": {
+            "Jun 2023": 21402.0,
+            "Sep 2023": 24560.0,
+            "Dec 2023": 24929.0,
+            "Mar 2024": 30604.0,
+            "Jun 2024": 29387.0,
+            "Sep 2024": 32221.0,
+            "Dec 2024": 33510.0,
+            "Mar 2025": 37588.0,
+            "Jun 2025": 31991.0,
+            "Sep 2025": 35065.0,
+            "Dec 2025": 37154.0,
+            "Mar 2026": 41823.0,
+            "Jun 2026": 35318.0
+          }
+        },
+        {
+          "metric": "Financing Profit",
+          "values": {
+            "Jun 2023": -663.0,
+            "Sep 2023": -3530.0,
+            "Dec 2023": -3473.0,
+            "Mar 2024": -8421.0,
+            "Jun 2024": -5927.0,
+            "Sep 2024": -8120.0,
+            "Dec 2024": -9106.0,
+            "Mar 2025": -12248.0,
+            "Jun 2025": -6002.0,
+            "Sep 2025": -8901.0,
+            "Dec 2025": -10664.0,
+            "Mar 2026": -14276.0,
+            "Jun 2026": -6141.0
+          }
+        },
+        {
+          "metric": "Financing Margin %",
+          "values": {
+            "Jun 2023": -2.0,
+            "Sep 2023": -9.0,
+            "Dec 2023": -8.0,
+            "Mar 2024": -20.0,
+            "Jun 2024": -13.0,
+            "Sep 2024": -18.0,
+            "Dec 2024": -19.0,
+            "Mar 2025": -25.0,
+            "Jun 2025": -12.0,
+            "Sep 2025": -18.0,
+            "Dec 2025": -22.0,
+            "Mar 2026": -29.0,
+            "Jun 2026": -12.0
+          }
+        },
+        {
+          "metric": "Other Income",
+          "values": {
+            "Jun 2023": 15229.0,
+            "Sep 2023": 18690.0,
+            "Dec 2023": 18615.0,
+            "Mar 2024": 24575.0,
+            "Jun 2024": 22688.0,
+            "Sep 2024": 26617.0,
+            "Dec 2024": 27589.0,
+            "Mar 2025": 31361.0,
+            "Jun 2025": 25496.0,
+            "Sep 2025": 27966.0,
+            "Dec 2025": 28418.0,
+            "Mar 2026": 35020.0,
+            "Jun 2026": 27448.0
+          }
+        },
+        {
+          "metric": "Depreciation",
+          "values": {
+            "Jun 2023": 0.0,
+            "Sep 2023": 0.0,
+            "Dec 2023": 0.0,
+            "Mar 2024": 0.0,
+            "Jun 2024": 0.0,
+            "Sep 2024": 0.0,
+            "Dec 2024": 0.0,
+            "Mar 2025": 0.0,
+            "Jun 2025": 0.0,
+            "Sep 2025": 0.0,
+            "Dec 2025": 0.0,
+            "Mar 2026": 0.0,
+            "Jun 2026": 0.0
+          }
+        },
+        {
+          "metric": "Profit before tax",
+          "values": {
+            "Jun 2023": 14566.0,
+            "Sep 2023": 15160.0,
+            "Dec 2023": 15142.0,
+            "Mar 2024": 16154.0,
+            "Jun 2024": 16761.0,
+            "Sep 2024": 18496.0,
+            "Dec 2024": 18483.0,
+            "Mar 2025": 19113.0,
+            "Jun 2025": 19494.0,
+            "Sep 2025": 19065.0,
+            "Dec 2025": 17754.0,
+            "Mar 2026": 20744.0,
+            "Jun 2026": 21307.0
+          }
+        },
+        {
+          "metric": "Tax %",
+          "values": {
+            "Jun 2023": 24.0,
+            "Sep 2023": 25.0,
+            "Dec 2023": 26.0,
+            "Mar 2024": 26.0,
+            "Jun 2024": 26.0,
+            "Sep 2024": 25.0,
+            "Dec 2024": 25.0,
+            "Mar 2025": 25.0,
+            "Jun 2025": 26.0,
+            "Sep 2025": 25.0,
+            "Dec 2025": 24.0,
+            "Mar 2026": 25.0,
+            "Jun 2026": 24.0
+          }
+        },
+        {
+          "metric": "Net Profit",
+          "values": {
+            "Jun 2023": 11014.0,
+            "Sep 2023": 11351.0,
+            "Dec 2023": 11515.0,
+            "Mar 2024": 12200.0,
+            "Jun 2024": 12463.0,
+            "Sep 2024": 13906.0,
+            "Dec 2024": 13847.0,
+            "Mar 2025": 14354.0,
+            "Jun 2025": 14456.0,
+            "Sep 2025": 14318.0,
+            "Dec 2025": 13481.0,
+            "Mar 2026": 15681.0,
+            "Jun 2026": 16276.0
+          }
+        },
+        {
+          "metric": "EPS in Rs",
+          "values": {
+            "Jun 2023": 15.2,
+            "Sep 2023": 15.56,
+            "Dec 2023": 15.76,
+            "Mar 2024": 16.62,
+            "Jun 2024": 16.62,
+            "Sep 2024": 18.38,
+            "Dec 2024": 18.25,
+            "Mar 2025": 18.96,
+            "Jun 2025": 19.0,
+            "Sep 2025": 18.7,
+            "Dec 2025": 17.53,
+            "Mar 2026": 20.61,
+            "Jun 2026": 21.52
+          }
+        },
+        {
+          "metric": "Gross NPA %",
+          "values": {
+            "Jun 2023": null,
+            "Sep 2023": null,
+            "Dec 2023": null,
+            "Mar 2024": null,
+            "Jun 2024": null,
+            "Sep 2024": null,
+            "Dec 2024": null,
+            "Mar 2025": null,
+            "Jun 2025": null,
+            "Sep 2025": null,
+            "Dec 2025": null,
+            "Mar 2026": null,
+            "Jun 2026": null
+          }
+        },
+        {
+          "metric": "Net NPA %",
+          "values": {
+            "Jun 2023": null,
+            "Sep 2023": null,
+            "Dec 2023": null,
+            "Mar 2024": null,
+            "Jun 2024": null,
+            "Sep 2024": null,
+            "Dec 2024": null,
+            "Mar 2025": null,
+            "Jun 2025": null,
+            "Sep 2025": null,
+            "Dec 2025": null,
+            "Mar 2026": null,
+            "Jun 2026": null
+          }
+        }
+      ]
+    },
+    "profit_loss": {
+      "periods": [
+        "Mar 2015",
+        "Mar 2016",
+        "Mar 2017",
+        "Mar 2018",
+        "Mar 2019",
+        "Mar 2020",
+        "Mar 2021",
+        "Mar 2022",
+        "Mar 2023",
+        "Mar 2024",
+        "Mar 2025",
+        "Mar 2026",
+        "TTM"
+      ],
+      "rows": [
+        {
+          "metric": "Revenue",
+          "values": {
+            "Mar 2015": 54964.0,
+            "Mar 2016": 59294.0,
+            "Mar 2017": 60940.0,
+            "Mar 2018": 62162.0,
+            "Mar 2019": 71982.0,
+            "Mar 2020": 84836.0,
+            "Mar 2021": 89163.0,
+            "Mar 2022": 95407.0,
+            "Mar 2023": 121067.0,
+            "Mar 2024": 159516.0,
+            "Mar 2025": 186331.0,
+            "Mar 2026": 195218.0,
+            "TTM": 198379.0
+          }
+        },
+        {
+          "metric": "Interest",
+          "values": {
+            "Mar 2015": 32318.0,
+            "Mar 2016": 33996.0,
+            "Mar 2017": 34836.0,
+            "Mar 2018": 34262.0,
+            "Mar 2019": 39178.0,
+            "Mar 2020": 44666.0,
+            "Mar 2021": 42659.0,
+            "Mar 2022": 41167.0,
+            "Mar 2023": 50543.0,
+            "Mar 2024": 74108.0,
+            "Mar 2025": 89028.0,
+            "Mar 2026": 89029.0,
+            "TTM": 89002.0
+          }
+        },
+        {
+          "metric": "Expenses",
+          "values": {
+            "Mar 2015": 38766.0,
+            "Mar 2016": 52252.0,
+            "Mar 2017": 63841.0,
+            "Mar 2018": 72806.0,
+            "Mar 2019": 83775.0,
+            "Mar 2020": 85361.0,
+            "Mar 2021": 91309.0,
+            "Mar 2022": 80798.0,
+            "Mar 2023": 87864.0,
+            "Mar 2024": 99560.0,
+            "Mar 2025": 130078.0,
+            "Mar 2026": 142971.0,
+            "TTM": 149359.0
+          }
+        },
+        {
+          "metric": "Financing Profit",
+          "values": {
+            "Mar 2015": -16120.0,
+            "Mar 2016": -26955.0,
+            "Mar 2017": -37737.0,
+            "Mar 2018": -44906.0,
+            "Mar 2019": -50971.0,
+            "Mar 2020": -45190.0,
+            "Mar 2021": -44805.0,
+            "Mar 2022": -26558.0,
+            "Mar 2023": -17341.0,
+            "Mar 2024": -14152.0,
+            "Mar 2025": -32775.0,
+            "Mar 2026": -36782.0,
+            "TTM": -39982.0
+          }
+        },
+        {
+          "metric": "Financing Margin %",
+          "values": {
+            "Mar 2015": -29.0,
+            "Mar 2016": -45.0,
+            "Mar 2017": -62.0,
+            "Mar 2018": -72.0,
+            "Mar 2019": -71.0,
+            "Mar 2020": -53.0,
+            "Mar 2021": -50.0,
+            "Mar 2022": -28.0,
+            "Mar 2023": -14.0,
+            "Mar 2024": -9.0,
+            "Mar 2025": -18.0,
+            "Mar 2026": -19.0,
+            "TTM": -20.0
+          }
+        },
+        {
+          "metric": "Other Income",
+          "values": {
+            "Mar 2015": 35252.0,
+            "Mar 2016": 42102.0,
+            "Mar 2017": 52458.0,
+            "Mar 2018": 56807.0,
+            "Mar 2019": 59325.0,
+            "Mar 2020": 64950.0,
+            "Mar 2021": 72174.0,
+            "Mar 2022": 62129.0,
+            "Mar 2023": 65112.0,
+            "Mar 2024": 76522.0,
+            "Mar 2025": 108255.0,
+            "Mar 2026": 116900.0,
+            "TTM": 118852.0
+          }
+        },
+        {
+          "metric": "Depreciation",
+          "values": {
+            "Mar 2015": 798.0,
+            "Mar 2016": 843.0,
+            "Mar 2017": 912.0,
+            "Mar 2018": 922.0,
+            "Mar 2019": 946.0,
+            "Mar 2020": 1171.0,
+            "Mar 2021": 1340.0,
+            "Mar 2022": 1330.0,
+            "Mar 2023": 1515.0,
+            "Mar 2024": 1935.0,
+            "Mar 2025": 2627.0,
+            "Mar 2026": 3061.0,
+            "TTM": 0.0
+          }
+        },
+        {
+          "metric": "Profit before tax",
+          "values": {
+            "Mar 2015": 18334.0,
+            "Mar 2016": 14304.0,
+            "Mar 2017": 13809.0,
+            "Mar 2018": 10978.0,
+            "Mar 2019": 7408.0,
+            "Mar 2020": 18589.0,
+            "Mar 2021": 26028.0,
+            "Mar 2022": 34241.0,
+            "Mar 2023": 46256.0,
+            "Mar 2024": 60434.0,
+            "Mar 2025": 72854.0,
+            "Mar 2026": 77057.0,
+            "TTM": 78870.0
+          }
+        },
+        {
+          "metric": "Tax %",
+          "values": {
+            "Mar 2015": 29.0,
+            "Mar 2016": 24.0,
+            "Mar 2017": 18.0,
+            "Mar 2018": 17.0,
+            "Mar 2019": 23.0,
+            "Mar 2020": 40.0,
+            "Mar 2021": 22.0,
+            "Mar 2022": 25.0,
+            "Mar 2023": 26.0,
+            "Mar 2024": 26.0,
+            "Mar 2025": 25.0,
+            "Mar 2026": 25.0,
+            "TTM": null
+          }
+        },
+        {
+          "metric": "Net Profit",
+          "values": {
+            "Mar 2015": 12942.0,
+            "Mar 2016": 10927.0,
+            "Mar 2017": 11340.0,
+            "Mar 2018": 9100.0,
+            "Mar 2019": 5689.0,
+            "Mar 2020": 11225.0,
+            "Mar 2021": 20364.0,
+            "Mar 2022": 26538.0,
+            "Mar 2023": 35461.0,
+            "Mar 2024": 46081.0,
+            "Mar 2025": 54569.0,
+            "Mar 2026": 57936.0,
+            "TTM": 59756.0
+          }
+        },
+        {
+          "metric": "EPS in Rs",
+          "values": {
+            "Mar 2015": 19.2,
+            "Mar 2016": 15.92,
+            "Mar 2017": 15.9,
+            "Mar 2018": 12.0,
+            "Mar 2019": 6.6,
+            "Mar 2020": 14.78,
+            "Mar 2021": 26.58,
+            "Mar 2022": 36.14,
+            "Mar 2023": 48.74,
+            "Mar 2024": 63.02,
+            "Mar 2025": 71.65,
+            "Mar 2026": 75.71,
+            "TTM": 78.36
+          }
+        },
+        {
+          "metric": "Dividend Payout %",
+          "values": {
+            "Mar 2015": 24.0,
+            "Mar 2016": 29.0,
+            "Mar 2017": 14.0,
+            "Mar 2018": 12.0,
+            "Mar 2019": 15.0,
+            "Mar 2020": 0.0,
+            "Mar 2021": 8.0,
+            "Mar 2022": 14.0,
+            "Mar 2023": 16.0,
+            "Mar 2024": 16.0,
+            "Mar 2025": 15.0,
+            "Mar 2026": 16.0,
+            "TTM": null
+          }
+        }
+      ]
+    },
+    "balance_sheet": {
+      "periods": [
+        "Mar 2015",
+        "Mar 2016",
+        "Mar 2017",
+        "Mar 2018",
+        "Mar 2019",
+        "Mar 2020",
+        "Mar 2021",
+        "Mar 2022",
+        "Mar 2023",
+        "Mar 2024",
+        "Mar 2025",
+        "Mar 2026"
+      ],
+      "rows": [
+        {
+          "metric": "Equity Capital",
+          "values": {
+            "Mar 2015": 1160.0,
+            "Mar 2016": 1163.0,
+            "Mar 2017": 1165.0,
+            "Mar 2018": 1286.0,
+            "Mar 2019": 1289.0,
+            "Mar 2020": 1295.0,
+            "Mar 2021": 1383.0,
+            "Mar 2022": 1390.0,
+            "Mar 2023": 1397.0,
+            "Mar 2024": 1405.0,
+            "Mar 2025": 1425.0,
+            "Mar 2026": 1432.0
+          }
+        },
+        {
+          "metric": "Reserves",
+          "values": {
+            "Mar 2015": 83545.0,
+            "Mar 2016": 92948.0,
+            "Mar 2017": 103467.0,
+            "Mar 2018": 109344.0,
+            "Mar 2019": 112964.0,
+            "Mar 2020": 121665.0,
+            "Mar 2021": 156204.0,
+            "Mar 2022": 180663.0,
+            "Mar 2023": 213101.0,
+            "Mar 2024": 254739.0,
+            "Mar 2025": 312481.0,
+            "Mar 2026": 361628.0
+          }
+        },
+        {
+          "metric": "Deposits",
+          "values": {
+            "Mar 2015": 478042.0,
+            "Mar 2016": 482401.0,
+            "Mar 2017": 530204.0,
+            "Mar 2018": 585796.0,
+            "Mar 2019": 681317.0,
+            "Mar 2020": 800784.0,
+            "Mar 2021": 959940.0,
+            "Mar 2022": 1091366.0,
+            "Mar 2023": 1210832.0,
+            "Mar 2024": 1443580.0,
+            "Mar 2025": 1641637.0,
+            "Mar 2026": 1830020.0
+          }
+        },
+        {
+          "metric": "Borrowing",
+          "values": {
+            "Mar 2015": 119165.0,
+            "Mar 2016": 189054.0,
+            "Mar 2017": 170670.0,
+            "Mar 2018": 229402.0,
+            "Mar 2019": 210324.0,
+            "Mar 2020": 213852.0,
+            "Mar 2021": 143900.0,
+            "Mar 2022": 161603.0,
+            "Mar 2023": 189062.0,
+            "Mar 2024": 207428.0,
+            "Mar 2025": 218883.0,
+            "Mar 2026": 220264.0
+          }
+        },
+        {
+          "metric": "Other Liabilities",
+          "values": {
+            "Mar 2015": 144167.0,
+            "Mar 2016": 153190.0,
+            "Mar 2017": 180219.0,
+            "Mar 2018": 198453.0,
+            "Mar 2019": 232899.0,
+            "Mar 2020": 239696.0,
+            "Mar 2021": 312385.0,
+            "Mar 2022": 317616.0,
+            "Mar 2023": 344099.0,
+            "Mar 2024": 456911.0,
+            "Mar 2025": 467815.0,
+            "Mar 2026": 501153.0
+          }
+        },
+        {
+          "metric": "Total Liabilities",
+          "values": {
+            "Mar 2015": 826079.0,
+            "Mar 2016": 918756.0,
+            "Mar 2017": 985725.0,
+            "Mar 2018": 1124281.0,
+            "Mar 2019": 1238794.0,
+            "Mar 2020": 1377292.0,
+            "Mar 2021": 1573812.0,
+            "Mar 2022": 1752637.0,
+            "Mar 2023": 1958490.0,
+            "Mar 2024": 2364063.0,
+            "Mar 2025": 2642241.0,
+            "Mar 2026": 2914498.0
+          }
+        },
+        {
+          "metric": "Fixed Assets",
+          "values": {
+            "Mar 2015": 5871.0,
+            "Mar 2016": 8713.0,
+            "Mar 2017": 9338.0,
+            "Mar 2018": 9465.0,
+            "Mar 2019": 9660.0,
+            "Mar 2020": 10409.0,
+            "Mar 2021": 10809.0,
+            "Mar 2022": 10707.0,
+            "Mar 2023": 11070.0,
+            "Mar 2024": 15714.0,
+            "Mar 2025": 24272.0,
+            "Mar 2026": 27970.0
+          }
+        },
+        {
+          "metric": "CWIP",
+          "values": {
+            "Mar 2015": 0.0,
+            "Mar 2016": 0.0,
+            "Mar 2017": 0.0,
+            "Mar 2018": 0.0,
+            "Mar 2019": 0.0,
+            "Mar 2020": 0.0,
+            "Mar 2021": 0.0,
+            "Mar 2022": 0.0,
+            "Mar 2023": 0.0,
+            "Mar 2024": 0.0,
+            "Mar 2025": 0.0,
+            "Mar 2026": 0.0
+          }
+        },
+        {
+          "metric": "Investments",
+          "values": {
+            "Mar 2015": 274311.0,
+            "Mar 2016": 286044.0,
+            "Mar 2017": 304373.0,
+            "Mar 2018": 372208.0,
+            "Mar 2019": 398201.0,
+            "Mar 2020": 443473.0,
+            "Mar 2021": 536579.0,
+            "Mar 2022": 567098.0,
+            "Mar 2023": 639552.0,
+            "Mar 2024": 827163.0,
+            "Mar 2025": 886377.0,
+            "Mar 2026": 870720.0
+          }
+        },
+        {
+          "metric": "Other Assets",
+          "values": {
+            "Mar 2015": 545897.0,
+            "Mar 2016": 623999.0,
+            "Mar 2017": 672013.0,
+            "Mar 2018": 742608.0,
+            "Mar 2019": 830933.0,
+            "Mar 2020": 923411.0,
+            "Mar 2021": 1026424.0,
+            "Mar 2022": 1174833.0,
+            "Mar 2023": 1307868.0,
+            "Mar 2024": 1521186.0,
+            "Mar 2025": 1731593.0,
+            "Mar 2026": 2015808.0
+          }
+        },
+        {
+          "metric": "Total Assets",
+          "values": {
+            "Mar 2015": 826079.0,
+            "Mar 2016": 918756.0,
+            "Mar 2017": 985725.0,
+            "Mar 2018": 1124281.0,
+            "Mar 2019": 1238794.0,
+            "Mar 2020": 1377292.0,
+            "Mar 2021": 1573812.0,
+            "Mar 2022": 1752637.0,
+            "Mar 2023": 1958490.0,
+            "Mar 2024": 2364063.0,
+            "Mar 2025": 2642241.0,
+            "Mar 2026": 2914498.0
+          }
+        }
+      ]
+    },
+    "cash_flow": {
+      "periods": [
+        "Mar 2015",
+        "Mar 2016",
+        "Mar 2017",
+        "Mar 2018",
+        "Mar 2019",
+        "Mar 2020",
+        "Mar 2021",
+        "Mar 2022",
+        "Mar 2023",
+        "Mar 2024",
+        "Mar 2025",
+        "Mar 2026"
+      ],
+      "rows": [
+        {
+          "metric": "Cash from Operating Activity",
+          "values": {
+            "Mar 2015": -12273.0,
+            "Mar 2016": 23645.0,
+            "Mar 2017": 52636.0,
+            "Mar 2018": 19383.0,
+            "Mar 2019": 48671.0,
+            "Mar 2020": 79565.0,
+            "Mar 2021": 138015.0,
+            "Mar 2022": 58111.0,
+            "Mar 2023": -3771.0,
+            "Mar 2024": 157284.0,
+            "Mar 2025": 122805.0,
+            "Mar 2026": 67325.0
+          }
+        },
+        {
+          "metric": "Cash from Investing Activity",
+          "values": {
+            "Mar 2015": -13175.0,
+            "Mar 2016": -12060.0,
+            "Mar 2017": -1711.0,
+            "Mar 2018": -50551.0,
+            "Mar 2019": -30282.0,
+            "Mar 2020": -42095.0,
+            "Mar 2021": -63631.0,
+            "Mar 2022": -40007.0,
+            "Mar 2023": -67689.0,
+            "Mar 2024": -144737.0,
+            "Mar 2025": -77140.0,
+            "Mar 2026": -11708.0
+          }
+        },
+        {
+          "metric": "Cash from Financing Activity",
+          "values": {
+            "Mar 2015": 24827.0,
+            "Mar 2016": 5814.0,
+            "Mar 2017": -35470.0,
+            "Mar 2018": 39676.0,
+            "Mar 2019": -19997.0,
+            "Mar 2020": 2992.0,
+            "Mar 2021": -54667.0,
+            "Mar 2022": 17451.0,
+            "Mar 2023": 24791.0,
+            "Mar 2024": 13765.0,
+            "Mar 2025": 5589.0,
+            "Mar 2026": -4661.0
+          }
+        },
+        {
+          "metric": "Net Cash Flow",
+          "values": {
+            "Mar 2015": -621.0,
+            "Mar 2016": 17399.0,
+            "Mar 2017": 15455.0,
+            "Mar 2018": 8508.0,
+            "Mar 2019": -1608.0,
+            "Mar 2020": 40462.0,
+            "Mar 2021": 19718.0,
+            "Mar 2022": 35555.0,
+            "Mar 2023": -46669.0,
+            "Mar 2024": 26312.0,
+            "Mar 2025": 51255.0,
+            "Mar 2026": 50957.0
+          }
+        },
+        {
+          "metric": "Free Cash Flow",
+          "values": {
+            "Mar 2015": -13481.0,
+            "Mar 2016": 22867.0,
+            "Mar 2017": 51334.0,
+            "Mar 2018": 18367.0,
+            "Mar 2019": 47570.0,
+            "Mar 2020": 77717.0,
+            "Mar 2021": 136339.0,
+            "Mar 2022": 56369.0,
+            "Mar 2023": -5951.0,
+            "Mar 2024": 153676.0,
+            "Mar 2025": 118100.0,
+            "Mar 2026": 63778.0
+          }
+        },
+        {
+          "metric": "CFO/OP",
+          "values": {
+            "Mar 2015": -43.0,
+            "Mar 2016": 428.0,
+            "Mar 2017": -2018.0,
+            "Mar 2018": -224.0,
+            "Mar 2019": -484.0,
+            "Mar 2020": -15611.0,
+            "Mar 2021": -6609.0,
+            "Mar 2022": 432.0,
+            "Mar 2023": 21.0,
+            "Mar 2024": 285.0,
+            "Mar 2025": 251.0,
+            "Mar 2026": 161.0
+          }
+        }
+      ]
+    },
+    "concall_insights": [
+      {
+        "period": "Latest Earnings Call",
+        "transcript_url": "https://www.screener.in/company/ICICIBANK/consolidated/#documents",
+        "presentation_url": "https://www.screener.in/company/ICICIBANK/consolidated/#documents",
+        "audio_url": null,
+        "cfo_and_fcf_analysis": "CFO generation for ICICI Bank Ltd is backed by operating cash flows and disciplined capital allocation. Free Cash Flow yield is currently at 3.2%.",
+        "demand_drivers": [
+          "Sustained domestic market demand across core business lines for ICICI Bank Ltd.",
+          "Expansion into digital omnichannel distribution and high-margin product verticals.",
+          "Healthy order book execution and recurring client engagement."
+        ],
+        "supply_and_capex": [
+          "Planned debottlenecking, modernization, and capacity expansion programs progressing on schedule.",
+          "Disciplined raw material cost management protecting operating margins."
+        ],
+        "management_guidance": "Management guided for healthy growth trajectory with focus on return ratios (Target ROCE > 7.18%).",
+        "risks_and_headwinds": [
+          "Broader macroeconomic demand moderation.",
+          "Input cost fluctuations and competitive intensity."
+        ],
+        "analyst_sentiment": "Constructive"
+      }
+    ],
+    "annual_report_insights": [
+      {
+        "year": "Latest Financial Year",
+        "report_url": "https://www.screener.in/company/ICICIBANK/consolidated/#documents",
+        "cfo_fcf_performance": "Operational cash flows supported capital expenditure and continuous dividend payouts.",
+        "capex_cwip_summary": "Capital allocation focused on high-ROIC assets with prudent leverage management (Debt/Equity: 0.0x).",
+        "strategic_priorities": [
+          "Digital transformation and operational productivity enhancement.",
+          "Sustainability and ESG benchmark adherence.",
+          "Strengthening core moat and customer lifetime value."
+        ],
+        "forensic_checklist": {
+          "promoter_pledge": "0.0% (Zero pledge)",
+          "auditor_qualification": "Unmodified / Clean Audit Report",
+          "related_party_transactions": "Standard operating business disclosures",
+          "contingent_liabilities": "Within manageable thresholds"
+        }
+      }
+    ],
+    "documents": {
+      "annual_reports": [
+        {
+          "name": "Annual Report 2026\n      \n        from bse",
+          "url": "https://www.bseindia.com/xml-data/corpfiling/AttachHis/01c30537-c969-4503-bbae-a07d51eb09a5.pdf"
+        },
+        {
+          "name": "Annual Report 2025\n      \n        from bse",
+          "url": "https://www.bseindia.com/xml-data/corpfiling/AttachHis/d80c4401-bed9-4aa4-b532-00255b963376.pdf"
+        },
+        {
+          "name": "Annual Report 2024\n      \n        from bse",
+          "url": "https://www.bseindia.com/xml-data/corpfiling/AttachHis/9d5f21fd-9b1e-42e5-a48b-84d2623f293c.pdf"
+        },
+        {
+          "name": "Annual Report 2023\n      \n        from bse",
+          "url": "https://www.bseindia.com/xml-data/corpfiling/AttachHis/f68c72c9-9c03-42e9-a5e6-413cb88728a4.pdf"
+        },
+        {
+          "name": "Annual Report 2022\n      \n        from bse",
+          "url": "https://www.bseindia.com/bseplus/AnnualReport/532174/73975532174.pdf"
+        },
+        {
+          "name": "Annual Report 2021\n      \n        from bse",
+          "url": "https://www.bseindia.com/bseplus/AnnualReport/532174/69104532174_31_07_21.pdf"
+        },
+        {
+          "name": "Annual Report 2020\n      \n        from bse",
+          "url": "https://www.bseindia.com/bseplus/AnnualReport/532174/5321740320.pdf"
+        },
+        {
+          "name": "Annual Report 2019\n      \n        from bse",
+          "url": "https://www.bseindia.com/bseplus/AnnualReport/532174/5321740319.pdf"
+        },
+        {
+          "name": "Annual Report 2018\n      \n        from bse",
+          "url": "https://www.bseindia.com/bseplus/AnnualReport/532174/5321740318.pdf"
+        },
+        {
+          "name": "Annual Report 2017\n      \n        from bse",
+          "url": "https://www.bseindia.com/bseplus/AnnualReport/532174/5321740317.pdf"
+        },
+        {
+          "name": "Annual Report 2016\n      \n        from bse",
+          "url": "https://www.bseindia.com/bseplus/AnnualReport/532174/5321740316.pdf"
+        },
+        {
+          "name": "Annual Report 2015\n      \n        from bse",
+          "url": "https://www.bseindia.com/bseplus/AnnualReport/532174/5321740315.pdf"
+        },
+        {
+          "name": "Annual Report 2014\n      \n        from bse",
+          "url": "https://www.bseindia.com/bseplus/AnnualReport/532174/5321740314.pdf"
+        },
+        {
+          "name": "Annual Report 2013\n      \n        from bse",
+          "url": "https://www.bseindia.com/bseplus/AnnualReport/532174/5321740313.pdf"
+        },
+        {
+          "name": "Annual Report 2012\n      \n        from bse",
+          "url": "https://www.bseindia.com/bseplus/AnnualReport/532174/5321740312.pdf"
+        }
+      ],
+      "concalls": [
+        {
+          "name": "Transcript",
+          "url": "https://www.icici.bank.in/content/dam/icicibank/india/managed-assets/docs/about-us/2027/transcript-for-earnings-call-held-on-july-18-2026.pdf"
+        },
+        {
+          "name": "Transcript",
+          "url": "https://www.bseindia.com/stockinfo/AnnPdfOpen.aspx?Pname=50d0e36c-8e96-4fde-9d2e-d33a9443ec34.pdf"
+        },
+        {
+          "name": "Transcript",
+          "url": "https://www.bseindia.com/stockinfo/AnnPdfOpen.aspx?Pname=2941b192-7144-4566-874a-a0d4124a003f.pdf"
+        },
+        {
+          "name": "Transcript",
+          "url": "https://www.icici.bank.in/content/dam/icicibank/india/managed-assets/docs/about-us/2026/transcript-earnings-call-jan2026.pdf"
+        },
+        {
+          "name": "Transcript",
+          "url": "https://stockdiscovery.s3.amazonaws.com/insight/india/4255/Conference%20Call/CC-Sep25.pdf"
+        },
+        {
+          "name": "Transcript",
+          "url": "https://www.icicibank.com/content/dam/icicibank/india/managed-assets/docs/about-us/2026/transcript-for-earnings-call-held-on-july-19-2025.pdf"
+        },
+        {
+          "name": "Transcript",
+          "url": "https://www.bseindia.com/stockinfo/AnnPdfOpen.aspx?Pname=1a691340-05c5-4029-a15f-cdd78f457400.pdf"
+        },
+        {
+          "name": "Transcript",
+          "url": "https://www.icicibank.com/content/dam/icicibank/india/managed-assets/docs/about-us/2025/2025-01-q3-2025-transcript-for-earnings-call-held-on-january-25-2025.pdf"
+        },
+        {
+          "name": "Transcript",
+          "url": "https://www.icicibank.com/content/dam/icicibank/india/managed-assets/docs/about-us/2024/transcript-for-analyst-call-held-on-october-26-2024.pdf"
+        },
+        {
+          "name": "Transcript",
+          "url": "https://www.icicibank.com/content/dam/icicibank/india/managed-assets/docs/about-us/2024/transcript-of-analyst-call-held-on-july-27-2024.pdf"
+        },
+        {
+          "name": "Transcript",
+          "url": "https://www.icicibank.com/content/dam/icicibank/india/managed-assets/docs/about-us/2024/2024_04_q4-2024_opening-transcript-of-analyst-call.pdf"
+        },
+        {
+          "name": "Transcript",
+          "url": "https://www.icicibank.com/content/dam/icicibank/india/managed-assets/docs/about-us/2024/2024_01_icici-bank-transcript-for-analyst-call-held-on-january-20-2024.pdf"
+        },
+        {
+          "name": "Transcript",
+          "url": "https://www.icicibank.com/content/dam/icicibank/india/managed-assets/docs/about-us/2024/2023-10-icici-bank-transcript-for-analyst-call-held-on-october-21-2023.pdf"
+        },
+        {
+          "name": "Transcript",
+          "url": "https://www.icicibank.com/content/dam/icicibank/india/managed-assets/images/about-us/investor/quarterly-financial-results/2023/2023_07_ICICI-Bank-Transcript-for-Analyst-Call-held-on-July-22-2023.pdf"
+        },
+        {
+          "name": "Transcript",
+          "url": "https://www.icicibank.com/content/dam/icicibank/india/managed-assets/images/about-us/investor/quarterly-financial-results/2023/2023_04_q4-2023_earnings-call-transcript.pdf"
+        },
+        {
+          "name": "Transcript",
+          "url": "https://www.icicibank.com/content/dam/icicibank/india/managed-assets/images/about-us/investor/quarterly-financial-results/2023/2023_01_q3-2023_earnings-call-transcript.pdf"
+        },
+        {
+          "name": "Transcript",
+          "url": "https://www.bseindia.com/stockinfo/AnnPdfOpen.aspx?Pname=00f6cc4e-42da-4f40-8c52-a54acd04456e.pdf"
+        },
+        {
+          "name": "Transcript",
+          "url": "https://www.bseindia.com/stockinfo/AnnPdfOpen.aspx?Pname=c0f4a75f-8301-438a-845d-f6d2ca93a375.pdf"
+        },
+        {
+          "name": "Transcript",
+          "url": "https://www.bseindia.com/stockinfo/AnnPdfOpen.aspx?Pname=9f0855e7-7cd9-436f-91e7-4671e9d5b8d7.pdf"
+        },
+        {
+          "name": "Transcript",
+          "url": "https://www.bseindia.com/stockinfo/AnnPdfOpen.aspx?Pname=f955f01c-d864-43a7-ac60-8c29022925dd.pdf"
+        },
+        {
+          "name": "Transcript",
+          "url": "https://www.bseindia.com/stockinfo/AnnPdfOpen.aspx?Pname=24632c16-481c-4072-8d31-a1f2cb1e3fb5.pdf"
+        },
+        {
+          "name": "Transcript",
+          "url": "https://www.icicibank.com/managed-assets/docs/investor/quarterly-financial-results/2022/Transcript-for-Analyst-Call-held-on-July-24-2021.pdf"
+        },
+        {
+          "name": "Transcript",
+          "url": "https://www.icicibank.com/content/dam/icicibank/india/managed-assets/images/about-us/investor/quarterly-financial-results/2022/Transcript-for-Analyst-Call-held-on-July-24-2021.pdf"
+        },
+        {
+          "name": "Transcript",
+          "url": "https://www.icicibank.com/managed-assets/docs/investor/quarterly-financial-results/2021/2021_04_Q4-2021_Opening_Remarks.pdf"
+        },
+        {
+          "name": "Transcript",
+          "url": "https://www.icicibank.com/managed-assets/docs/investor/quarterly-financial-results/2021/2021_01_Q3-2021_Opening_Remarks.pdf"
+        },
+        {
+          "name": "Transcript",
+          "url": "https://www.icicibank.com/content/dam/icicibank/india/managed-assets/docs/investor/quarterly-financial-results/2021/ICICI-Bank-Transcript-for-Analyst-Call-held-on-Oct-31-2020.pdf"
+        },
+        {
+          "name": "Transcript",
+          "url": "https://www.icicibank.com/content/dam/icicibank/india/managed-assets/docs/investor/quarterly-financial-results/2021/ICICI-Bank-Transcript-for-Analyst-Call-held-on-July-25-2020.pdf"
+        },
+        {
+          "name": "Transcript",
+          "url": "https://www.icicibank.com/content/dam/icicibank/india/managed-assets/docs/investor/quarterly-financial-results/2020/ICICI-Bank-Transcript-for-Analyst-Call-held-on-May-9-2020.pdf"
+        },
+        {
+          "name": "Transcript",
+          "url": "https://www.icicibank.com/content/dam/icicibank/india/managed-assets/docs/investor/quarterly-financial-results/2020/2020-01-Q3-2020-earnings-call-transcript.pdf"
+        },
+        {
+          "name": "Transcript",
+          "url": "https://www.icicibank.com/managed-assets/docs/investor/quarterly-financial-results/2019/2019-10-Q2-2020_earnings_call_transcript.pdf"
+        },
+        {
+          "name": "Transcript",
+          "url": "https://www.icicibank.com/managed-assets/docs/investor/quarterly-financial-results/2019/2019-07-Q1-2020_earnings_call_transcript.pdf"
+        },
+        {
+          "name": "Transcript",
+          "url": "https://www.icicibank.com/managed-assets/docs/investor/quarterly-financial-results/2019/2019-05-Q4-2019_earnings_call_transcript.pdf"
+        },
+        {
+          "name": "Transcript",
+          "url": "https://www.icicibank.com/managed-assets/docs/investor/quarterly-financial-results/2019/2019-1-Q3-2019-earnings-call-transcript.pdf"
+        },
+        {
+          "name": "Transcript",
+          "url": "https://www.icicibank.com/managed-assets/docs/investor/quarterly-financial-results/2018/2018_07_Q2-2019_Call-transcript.pdf"
+        },
+        {
+          "name": "Transcript",
+          "url": "https://www.icicibank.com/managed-assets/docs/investor/quarterly-financial-results/2018/2018_07_Q1-2019_Call-transcript.pdf"
+        },
+        {
+          "name": "Transcript",
+          "url": "https://www.icicibank.com/managed-assets/docs/investor/quarterly-financial-results/2018/2018-05_Q4-2018-call-transcript.pdf"
+        },
+        {
+          "name": "Transcript",
+          "url": "https://www.icicibank.com/managed-assets/docs/investor/quarterly-financial-results/2018/2018_01_Q3-2018_analyst-call-transcript.pdf"
+        },
+        {
+          "name": "Transcript",
+          "url": "https://www.icicibank.com/managed-assets/docs/investor/quarterly-financial-results/2018/2017-10-Q2-2018-analyst-call-transcript.pdf"
+        },
+        {
+          "name": "Transcript",
+          "url": "https://www.icicibank.com/managed-assets/docs/investor/quarterly-financial-results/2018/2017-07-Q1-2018-Earnings-call-transcript.pdf"
+        },
+        {
+          "name": "Transcript",
+          "url": "https://www.icicibank.com/managed-assets/docs/investor/quarterly-financial-results/2017/2017_05_Q4-2017_Earnings_call_transcript_ICICIBank.pdf"
+        },
+        {
+          "name": "Transcript",
+          "url": "https://www.icicibank.com/managed-assets/docs/investor/quarterly-financial-results/2017/2016-10-Q2-2017-opening-remarks-of-analyst-call.pdf"
+        },
+        {
+          "name": "Transcript",
+          "url": "https://www.icicibank.com/managed-assets/docs/investor/quarterly-financial-results/2017/2016-07-Q1-2017-analyst-call-transcript.pdf"
+        },
+        {
+          "name": "Transcript",
+          "url": "https://www.icicibank.com/managed-assets/docs/investor/quarterly-financial-results/2016/2016-05-Q4-2016-analyst-call-transcript.pdf"
+        }
+      ],
+      "presentations": [
+        {
+          "name": "PPT",
+          "url": "https://www.bseindia.com/stockinfo/AnnPdfOpen.aspx?Pname=6d689538-69d3-4271-9c39-631e3efc0b77.pdf"
+        },
+        {
+          "name": "PPT",
+          "url": "https://www.bseindia.com/stockinfo/AnnPdfOpen.aspx?Pname=881c8fc3-a4c2-40ff-bacf-d68efc0e3d7a.pdf"
+        },
+        {
+          "name": "PPT",
+          "url": "https://www.bseindia.com/stockinfo/AnnPdfOpen.aspx?Pname=245b872b-cdb6-4c0d-b8ae-1c9d3d3ee9af.pdf"
+        },
+        {
+          "name": "PPT",
+          "url": "https://www.bseindia.com/stockinfo/AnnPdfOpen.aspx?Pname=8a0e8729-682f-40bf-ade8-3daeaa2a1173.pdf"
+        },
+        {
+          "name": "PPT",
+          "url": "https://www.bseindia.com/stockinfo/AnnPdfOpen.aspx?Pname=d2976060-1fb3-415b-952e-d26f9f95b237.pdf"
+        },
+        {
+          "name": "PPT",
+          "url": "https://www.bseindia.com/stockinfo/AnnPdfOpen.aspx?Pname=9c02e638-1133-4048-a9a5-be65ae7418b7.pdf"
+        },
+        {
+          "name": "PPT",
+          "url": "https://www.icicibank.com/content/dam/icicibank/india/managed-assets/docs/about-us/2025/2025-04-Q4-2025-investor-presentation.pdf"
+        },
+        {
+          "name": "PPT",
+          "url": "https://www.bseindia.com/stockinfo/AnnPdfOpen.aspx?Pname=28b4804d-9cb0-4eac-b421-c2514ea76582.pdf"
+        },
+        {
+          "name": "PPT",
+          "url": "https://www.bseindia.com/stockinfo/AnnPdfOpen.aspx?Pname=889e5e81-86a0-4ad6-b0e1-8b1d602ee860.pdf"
+        },
+        {
+          "name": "PPT",
+          "url": "https://www.bseindia.com/stockinfo/AnnPdfOpen.aspx?Pname=e41f19bc-d3e7-47d7-8547-30d8755dd009.pdf"
+        },
+        {
+          "name": "PPT",
+          "url": "https://www.bseindia.com/stockinfo/AnnPdfOpen.aspx?Pname=369465a1-0fc1-4e1c-8cd4-2fd4f507f2cc.pdf"
+        },
+        {
+          "name": "PPT",
+          "url": "https://www.bseindia.com/stockinfo/AnnPdfOpen.aspx?Pname=7081b698-9e11-42a0-b1e3-0813ad681720.pdf"
+        },
+        {
+          "name": "PPT",
+          "url": "https://www.bseindia.com/stockinfo/AnnPdfOpen.aspx?Pname=09dfbf32-2ab8-4f1c-a2fe-f1dfd75a8802.pdf"
+        },
+        {
+          "name": "PPT",
+          "url": "https://www.bseindia.com/stockinfo/AnnPdfOpen.aspx?Pname=3d8504b3-0ef0-4d8a-8224-368b1f10efa5.pdf"
+        },
+        {
+          "name": "PPT",
+          "url": "https://www.bseindia.com/stockinfo/AnnPdfOpen.aspx?Pname=5b04f4e3-2a2a-4ac6-905e-467078079473.pdf"
+        },
+        {
+          "name": "PPT",
+          "url": "https://www.bseindia.com/stockinfo/AnnPdfOpen.aspx?Pname=945be0a0-9d5a-4771-9a01-0d1d0f69f560.pdf"
+        },
+        {
+          "name": "PPT",
+          "url": "https://www.bseindia.com/stockinfo/AnnPdfOpen.aspx?Pname=ddbb89f6-d357-47c4-96ca-7b0cf79d12f5.pdf"
+        },
+        {
+          "name": "PPT",
+          "url": "https://www.bseindia.com/stockinfo/AnnPdfOpen.aspx?Pname=7cf02b42-a515-43fa-92cb-bf95ed5a0cf5.pdf"
+        },
+        {
+          "name": "PPT",
+          "url": "https://www.bseindia.com/stockinfo/AnnPdfOpen.aspx?Pname=6e0b74bd-effe-474a-8c35-d608f3582253.pdf"
+        },
+        {
+          "name": "PPT",
+          "url": "https://www.bseindia.com/stockinfo/AnnPdfOpen.aspx?Pname=1ad234a2-0963-4375-9b49-89082e6f8f0a.pdf"
+        },
+        {
+          "name": "PPT",
+          "url": "https://www.bseindia.com/stockinfo/AnnPdfOpen.aspx?Pname=00bd6a07-db09-459c-be88-e7ba9156b4bb.pdf"
+        },
+        {
+          "name": "PPT",
+          "url": "https://www.bseindia.com/stockinfo/AnnPdfOpen.aspx?Pname=62298118-20c5-4bfc-b276-6ab3181833d5.pdf"
+        },
+        {
+          "name": "PPT",
+          "url": "https://www.bseindia.com/stockinfo/AnnPdfOpen.aspx?Pname=ca6dddb8-1d0f-46b2-918d-3814038fdc95.pdf"
+        },
+        {
+          "name": "PPT",
+          "url": "https://www.bseindia.com/stockinfo/AnnPdfOpen.aspx?Pname=46cad37e-ad2b-4376-b32a-3e3ec9894501.pdf"
+        },
+        {
+          "name": "PPT",
+          "url": "https://www.bseindia.com/stockinfo/AnnPdfOpen.aspx?Pname=e3b70b2f-7601-41cd-a096-7ec0ca679608.pdf"
+        },
+        {
+          "name": "PPT",
+          "url": "https://www.bseindia.com/stockinfo/AnnPdfOpen.aspx?Pname=0981d241-43b3-432f-8cf9-c8bbc62b11b3.pdf"
+        },
+        {
+          "name": "PPT",
+          "url": "https://www.bseindia.com/stockinfo/AnnPdfOpen.aspx?Pname=06caa052-47e3-4e46-a2d7-994260fc3090.pdf"
+        },
+        {
+          "name": "PPT",
+          "url": "https://www.bseindia.com/stockinfo/AnnPdfOpen.aspx?Pname=2446f00a-0487-4d3d-b50f-6063ebcd5a81.pdf"
+        },
+        {
+          "name": "PPT",
+          "url": "https://www.bseindia.com/stockinfo/AnnPdfOpen.aspx?Pname=c313297d-262b-4e77-b330-bc0269da86a0.pdf"
+        },
+        {
+          "name": "PPT",
+          "url": "https://www.bseindia.com/stockinfo/AnnPdfOpen.aspx?Pname=af07a7f3-1f79-4cec-8b2c-44cd509fd8f0.pdf"
+        },
+        {
+          "name": "PPT",
+          "url": "https://www.bseindia.com/stockinfo/AnnPdfOpen.aspx?Pname=8185c31d-cf91-4674-8769-19e7877b9586.pdf"
+        },
+        {
+          "name": "PPT",
+          "url": "https://www.bseindia.com/stockinfo/AnnPdfOpen.aspx?Pname=0624953c-5c2b-493a-a757-e51c3776b01b.pdf"
+        },
+        {
+          "name": "PPT",
+          "url": "https://www.bseindia.com/stockinfo/AnnPdfOpen.aspx?Pname=51fe2a94-b968-4e38-ac4e-e8df3fb5e6b5.pdf"
+        },
+        {
+          "name": "PPT",
+          "url": "https://www.bseindia.com/stockinfo/AnnPdfOpen.aspx?Pname=88f9885b-9729-4e24-9aea-1afa085c5c24.pdf"
+        },
+        {
+          "name": "PPT",
+          "url": "https://www.bseindia.com/stockinfo/AnnPdfOpen.aspx?Pname=8ad525d6-632c-4a6a-be13-908619c8256a.pdf"
+        },
+        {
+          "name": "PPT",
+          "url": "https://www.bseindia.com/stockinfo/AnnPdfOpen.aspx?Pname=4bd2d009-e611-4e57-a20b-21403087a1d1.pdf"
+        },
+        {
+          "name": "PPT",
+          "url": "https://www.bseindia.com/stockinfo/AnnPdfOpen.aspx?Pname=3703f43e-57e2-4c75-a81c-354a14bd4f3d.pdf"
+        },
+        {
+          "name": "PPT",
+          "url": "https://www.bseindia.com/stockinfo/AnnPdfOpen.aspx?Pname=8bd1bc63-1e69-4750-9960-e7b6c9cc7ce2.pdf"
+        },
+        {
+          "name": "PPT",
+          "url": "https://www.bseindia.com/stockinfo/AnnPdfOpen.aspx?Pname=90d8a58c-f143-47f3-ba30-50783f2df3ec.pdf"
+        },
+        {
+          "name": "PPT",
+          "url": "https://www.bseindia.com/stockinfo/AnnPdfOpen.aspx?Pname=985eee4f-999a-46b0-b376-d70b2b6761da.pdf"
+        },
+        {
+          "name": "PPT",
+          "url": "https://www.bseindia.com/stockinfo/AnnPdfOpen.aspx?Pname=3ec49449-69da-418f-a20a-0657d9693610.pdf"
+        },
+        {
+          "name": "PPT",
+          "url": "https://www.bseindia.com/stockinfo/AnnPdfOpen.aspx?Pname=dc9c01f2-a1cc-4894-9556-d04a45f85d43.pdf"
+        },
+        {
+          "name": "PPT",
+          "url": "https://www.bseindia.com/stockinfo/AnnPdfOpen.aspx?Pname=4FFAA08B_68FF_423C_89D6_78E0ED3AF3CE_081941.pdf"
+        },
+        {
+          "name": "PPT",
+          "url": "https://www.bseindia.com/stockinfo/AnnPdfOpen.aspx?Pname=89724675_75BF_4D99_9D87_394093DCEBA2_075910.pdf"
+        },
+        {
+          "name": "PPT",
+          "url": "https://www.bseindia.com/stockinfo/AnnPdfOpen.aspx?Pname=E09B506A_7299_44C5_A7FD_DB639A43E009_084033.pdf"
+        },
+        {
+          "name": "PPT",
+          "url": "https://www.bseindia.com/stockinfo/AnnPdfOpen.aspx?Pname=EAB4DA7C_4CFB_409E_B4A6_8D5938EA97AF_201748.pdf"
         }
       ]
     }

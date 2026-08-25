@@ -179,6 +179,21 @@ def get_stock_detail(symbol: str):
         raise HTTPException(status_code=404, detail=f"Stock {symbol} not found in database or Screener.in")
     return build_full_stock_detail(data)
 
+from doc_intelligence_engine import get_company_doc_intelligence
+
+@app.get("/api/stocks/{symbol}/doc-intelligence")
+def get_stock_doc_intelligence(symbol: str):
+    clean_sym = symbol.upper().strip()
+    data = fetch_stock_from_screener(clean_sym, force_refresh=False)
+    analytics = None
+    if data:
+        detail = build_full_stock_detail(data)
+        analytics = detail.analytics
+    doc_intel = get_company_doc_intelligence(clean_sym, financial_analytics=analytics)
+    if not doc_intel:
+        raise HTTPException(status_code=404, detail=f"Document intelligence not found for {clean_sym}. Please scrape fresh documents.")
+    return doc_intel
+
 @app.post("/api/stocks/{symbol}/project", response_model=ProjectionResult)
 def project_stock_future(symbol: str, assumptions: ProjectionAssumption):
     data = fetch_stock_from_screener(symbol, force_refresh=False)

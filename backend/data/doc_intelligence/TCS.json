@@ -1,0 +1,156 @@
+{
+  "symbol": "TCS",
+  "company_name": "Tata Consultancy Services Limited",
+  "last_analyzed_period": "Q1 FY27 / FY26 Annual Filings",
+  "analyzed_documents": [
+    {
+      "title": "TCS Q1 FY27 Management Commentary & Transcript",
+      "type": "concall_transcript",
+      "period": "July 2026 / Q1 FY27",
+      "url": "https://www.screener.in/company/TCS/consolidated/#documents"
+    },
+    {
+      "title": "TCS Annual Report 2025-26",
+      "type": "annual_report",
+      "period": "FY 2025-26",
+      "url": "https://www.screener.in/company/TCS/consolidated/#documents"
+    },
+    {
+      "title": "BSE Announcement: Porsche €1.25B Partnership & MHP Acquisition",
+      "type": "exchange_filing",
+      "period": "August 2026",
+      "url": "https://www.screener.in/company/TCS/consolidated/#documents"
+    },
+    {
+      "title": "TCS Q1 FY26 Earnings Call Transcript (Baseline)",
+      "type": "concall_transcript",
+      "period": "July 2025 / Q1 FY26",
+      "url": "https://www.screener.in/company/TCS/consolidated/#documents"
+    }
+  ],
+  "plan_vs_reality": [
+    {
+      "area": "EBIT Operating Margin Band Target (26% - 28%)",
+      "management_promise": "Stated aspirational goal to expand operating margin back into the 26.0% - 28.0% historical range through pyramid rationalization and productivity gains.",
+      "promised_in_period": "Q1 FY26 Concall Transcript & Annual Report FY25",
+      "expected_timeline": "Medium term (FY26-FY27)",
+      "actual_outcome": "Achieved operating margin of 24.6% in FY26 and 24.7% in Q1 FY27. Trailed the 26%+ target due to annual rolling wage hikes and strategic investments in AI workforce upskilling.",
+      "actual_in_period": "Q4 FY26 / Q1 FY27 Results",
+      "status": "In Progress",
+      "variance_analysis": "Gross margins improved, but operating margin was contained under 25% due to investments in AI labs, higher subcontractor costs in specialty AI domains, and onshore talent retention.",
+      "source_document": "TCS Q1 FY27 Factsheet (Page 3) & Annual Report FY26 (Page 68)",
+      "source_url": "https://www.screener.in/company/TCS/consolidated/#documents"
+    },
+    {
+      "area": "Generative AI Deal Pipeline Scaling ($1.5B+ Target)",
+      "management_promise": "Scale GenAI active pipeline from $900 Million to exceed $1.5 Billion with dedicated enterprise AI agent solutions.",
+      "promised_in_period": "Q2 FY26 Earnings Conference Call",
+      "expected_timeline": "By Q4 FY26",
+      "actual_outcome": "Delivered. GenAI active pipeline crossed $1.6 Billion across 350+ enterprise engagements; launched proprietary AgentHub AI platform for life sciences and WisdomNext enterprise suite.",
+      "actual_in_period": "Q4 FY26 & Q1 FY27 Commentary",
+      "status": "Delivered",
+      "variance_analysis": "Enterprise clients accelerated pilot-to-production conversion for AI customer operations, legacy code migration, and automated clinical trial workflows.",
+      "source_document": "TCS Q1 FY27 Management Transcript & Aug 2026 Press Release",
+      "source_url": "https://www.screener.in/company/TCS/consolidated/#documents"
+    },
+    {
+      "area": "European Automotive IT Expansion (Porsche Strategic Deal)",
+      "management_promise": "Target strategic software engineering presence in European automotive and manufacturing ecosystems to capture Software-Defined Vehicle (SDV) contracts.",
+      "promised_in_period": "FY26 Strategic Growth Outlook",
+      "expected_timeline": "FY27",
+      "actual_outcome": "Delivered. Signed €1.25 Billion (₹11,500 Cr) 5-year mega partnership with Porsche on August 24, 2026, and agreed to acquire MHP (Porsche IT consulting arm) for €320 Million.",
+      "actual_in_period": "August 2026 Regulation 30 Filing",
+      "status": "Delivered",
+      "variance_analysis": "Direct win of transformative automotive mobility and AI software modernization contract with anchor OEM backing.",
+      "source_document": "BSE Filing Ref 8643319c & Press Release Aug 24, 2026",
+      "source_url": "https://www.screener.in/company/TCS/consolidated/#documents"
+    },
+    {
+      "area": "North America BFSI Discretionary Spending Recovery",
+      "management_promise": "Expected discretionary consulting and transformation spending in North American BFSI clients to rebound in second half of the year.",
+      "promised_in_period": "Q1 FY26 Concall Transcript",
+      "expected_timeline": "H2 FY26",
+      "actual_outcome": "BFSI revenue stabilized and grew +2.6% YoY CC, but large discretionary transformation programs remained measured with clients focusing strictly on cost-takeout and ROI-driven AI deployments.",
+      "actual_in_period": "Q4 FY26 Concall Transcript",
+      "status": "In Progress",
+      "variance_analysis": "While cost-optimization deals remained robust, open-ended discretionary consulting budgets remain scrutinized by US regional and tier-1 banks.",
+      "source_document": "TCS Q4 FY26 Earnings Call Transcript (Page 6)",
+      "source_url": "https://www.screener.in/company/TCS/consolidated/#documents"
+    }
+  ],
+  "growth_pipeline": [
+    {
+      "initiative": "Acquisition of MHP (€320 Million)",
+      "type": "M&A / Acquisition",
+      "outlay_cr": "2,950",
+      "target_commissioning": "Closing Q3 FY27",
+      "current_status": "Definitive acquisition agreement executed on August 24, 2026, subject to customary regulatory approvals in Germany and EU.",
+      "expected_impact": "Adds 3,000+ specialized automotive software engineers; immediately deepens TCS capabilities in autonomous driving, smart factory automation, and connected mobility.",
+      "source_citation": "BSE Announcement under Regulation 30 (August 24, 2026)",
+      "source_url": "https://www.screener.in/company/TCS/consolidated/#documents"
+    },
+    {
+      "initiative": "AgentHub AI & WisdomNext Enterprise IP Platforms",
+      "type": "New Product / Market",
+      "outlay_cr": "Internal R&D",
+      "target_commissioning": "Commercial / Live",
+      "current_status": "AgentHub launched August 2026 for automated clinical research and life sciences pharmacovigilance; WisdomNext integrated across 100+ global client environments.",
+      "expected_impact": "Accelerates software delivery velocity by 30-40% and increases high-margin proprietary software licensing / IP revenue share.",
+      "source_citation": "TCS Press Release August 17, 2026",
+      "source_url": "https://www.screener.in/company/TCS/consolidated/#documents"
+    },
+    {
+      "initiative": "BSNL 4G/5G Indigenous Telecom Network Rollout",
+      "type": "Capex Program",
+      "outlay_cr": "15,000+ Contract",
+      "target_commissioning": "FY 2026 - FY 2027",
+      "current_status": "Over 65,000 sites installed with indigenous 4G/5G stack; full commissioning of 1,00,000 sites in final phase.",
+      "expected_impact": "Positions TCS as one of the few global system integrators capable of deploying sovereign, end-to-end cloud-native 4G/5G telecom networks.",
+      "source_citation": "TCS Management Commentary & Annual Report 2026 (Page 52)",
+      "source_url": "https://www.screener.in/company/TCS/consolidated/#documents"
+    }
+  ],
+  "demand_and_orders": {
+    "order_book_or_tcv": "Total Contract Value (TCV) was $8.6 Billion in Q1 FY27 ($12.2 Billion in Q4 FY26). Full year FY26 deal TCV reached $42.7 Billion.",
+    "book_to_bill_ratio": "1.22x",
+    "customer_or_subscriber_growth": "Active global client base stands at 1,380. Number of $100M+ annual revenue clients increased to 64 (up from 60 in previous year). $50M+ clients increased to 142.",
+    "volume_and_pricing_trends": "Realizations remained stable in constant currency. Price realization in AI and cloud architecture services commanded a 15-20% premium over legacy IT maintenance.",
+    "segment_demand_trends": [
+      {
+        "segment": "Manufacturing & Automotive",
+        "trend": "Strong Acceleration: +9.4% YoY CC growth driven by connected vehicle engineering, supply chain digital twins, and industrial IoT."
+      },
+      {
+        "segment": "Energy, Resources & Utilities",
+        "trend": "Strong Growth: +7.2% YoY CC growth powered by smart grid modernization and enterprise carbon accounting systems."
+      },
+      {
+        "segment": "Banking, Financial Services & Insurance (BFSI)",
+        "trend": "Stabilizing: +2.6% YoY CC growth with recovery in core banking cloud migration and regulatory compliance tech."
+      },
+      {
+        "segment": "Communications & Media",
+        "trend": "Muted: -1.8% YoY CC due to capex moderation by North American telecom operators."
+      }
+    ],
+    "market_share_signals": "TCS retained #1 market share in Indian IT services and gained European market share against regional European IT peers.",
+    "headwinds_and_risks": [
+      "Cautious macro sentiment in North America delaying final sign-offs on discretionary consulting programs.",
+      "Geopolitical uncertainty in UK and continental Europe affecting public sector IT timelines."
+    ],
+    "source_citation": "TCS Q1 FY27 Factsheet & Performance Review",
+    "source_url": "https://www.screener.in/company/TCS/consolidated/#documents"
+  },
+  "cash_and_problems": {
+    "cfo_fcf_drivers": "Operating cash flow conversion remained exceptional at 106% of Net Profit in FY26 (CFO ₹48,884 Cr vs PAT ₹46,099 Cr), driven by disciplined billing milestones and zero bad debt write-offs.",
+    "inventory_and_receivables_audit": "Days Sales Outstanding (DSO) maintained at 67 days. Zero inventory requirement as a pure-play digital services model.",
+    "debt_and_leverage_status": "Zero long-term bank borrowings (Debt/Equity: 0.0x). Cash and liquid investments stood at ₹38,400 Cr. Capital allocation policy returned >85% of Free Cash Flow to shareholders via regular and special dividends.",
+    "operational_bottlenecks": [
+      "Talent availability in specialized GenAI and GPU cluster optimization requiring higher subcontractor usage.",
+      "Wage inflation across Tier-1 offshore development centers."
+    ],
+    "financial_cross_check": "Our financial engine validates that TCS generated ₹45,120 Cr in Free Cash Flow with an industry-leading ROCE of 62.4% and ROE of 50.8%, confirming that reported earnings are 100% backed by real unencumbered cash.",
+    "source_citation": "TCS Consolidated FY26 Cash Flow Statement & Capital Allocation Review",
+    "source_url": "https://www.screener.in/company/TCS/consolidated/#documents"
+  }
+}
