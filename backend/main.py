@@ -1,5 +1,6 @@
 import os
 import sys
+import json
 from pathlib import Path
 
 # Add local libs directory to sys.path
@@ -16,7 +17,7 @@ from models import (
     StockSummary, StockDetail, ProjectionAssumption,
     ProjectionResult, ScoreBreakdown
 )
-from data_seed import SEED_STOCKS
+from data_seed import DEFAULT_UNIVERSE_SYMBOLS
 from scraper import fetch_stock_from_screener
 from financial_engine import compute_financial_analytics
 from projection_engine import run_projections
@@ -43,6 +44,11 @@ def build_full_stock_detail(stock_data: Dict[str, Any], custom_assumptions: Opti
     sector = stock_data.get("sector", "Diversified")
     industry = stock_data.get("industry", "Indian Equities")
     about = stock_data.get("about", "")
+    source_name = stock_data.get("source_name", "Screener.in")
+    source_url = stock_data.get("source_url", "")
+    statement_type = stock_data.get("statement_type", "consolidated")
+    fetched_at = stock_data.get("fetched_at", "")
+    
     ratios = stock_data["ratios"]
     quarters = stock_data["quarters"]
     pl = stock_data["profit_loss"]
@@ -77,7 +83,11 @@ def build_full_stock_detail(stock_data: Dict[str, Any], custom_assumptions: Opti
         documents=documents,
         analytics=analytics,
         projection=projection,
-        score=score
+        score=score,
+        source_name=source_name,
+        source_url=source_url,
+        statement_type=statement_type,
+        fetched_at=fetched_at
     )
 
 @app.get("/api/health")
@@ -88,14 +98,13 @@ def health_check():
 def get_all_stocks(sector: Optional[str] = None, min_score: Optional[float] = None):
     results: List[StockSummary] = []
     
-    # Track all available stock symbols (seed + cached)
-    symbols = list(SEED_STOCKS.keys())
+    # Universe starts with default symbols
+    symbols = list(DEFAULT_UNIVERSE_SYMBOLS)
     
     # Check cache for additional scraped stocks
     cache_file = os.path.join(os.path.dirname(__file__), "data", "stocks_cache.json")
     if os.path.exists(cache_file):
         try:
-            import json
             with open(cache_file, "r") as f:
                 cached = json.load(f)
                 for sym in cached.keys():
@@ -106,7 +115,7 @@ def get_all_stocks(sector: Optional[str] = None, min_score: Optional[float] = No
             
     details = []
     for sym in symbols:
-        data = fetch_stock_from_screener(sym)
+        data = fetch_stock_from_screener(sym, force_refresh=False)
         if data:
             detail = build_full_stock_detail(data)
             details.append(detail)
@@ -137,7 +146,11 @@ def get_all_stocks(sector: Optional[str] = None, min_score: Optional[float] = No
             verdict=d.score.verdict,
             rank=idx + 1,
             is_top_conviction=(idx < 5 and d.score.total_composite_score >= 70.0),
-            investment_thesis_short=d.score.investment_thesis
+            investment_thesis_short=d.score.investment_thesis,
+            source_name=d.source_name,
+            source_url=d.source_url,
+            statement_type=d.statement_type,
+            fetched_at=d.fetched_at
         )
         
         if sector and sector.lower() not in summary.sector.lower():
@@ -161,14 +174,14 @@ def get_top_picks():
 
 @app.get("/api/stocks/{symbol}", response_model=StockDetail)
 def get_stock_detail(symbol: str):
-    data = fetch_stock_from_screener(symbol)
+    data = fetch_stock_from_screener(symbol, force_refresh=False)
     if not data:
         raise HTTPException(status_code=404, detail=f"Stock {symbol} not found in database or Screener.in")
     return build_full_stock_detail(data)
 
 @app.post("/api/stocks/{symbol}/project", response_model=ProjectionResult)
 def project_stock_future(symbol: str, assumptions: ProjectionAssumption):
-    data = fetch_stock_from_screener(symbol)
+    data = fetch_stock_from_screener(symbol, force_refresh=False)
     if not data:
         raise HTTPException(status_code=404, detail=f"Stock {symbol} not found")
     ratios = data["ratios"]
@@ -180,13 +193,14 @@ def project_stock_future(symbol: str, assumptions: ProjectionAssumption):
 @app.post("/api/stocks/scrape/{symbol}")
 def scrape_new_stock(symbol: str):
     clean_sym = symbol.upper().strip()
-    data = fetch_stock_from_screener(clean_sym)
+    # Force refresh directly from live Screener.in and overwrite cache
+    data = fetch_stock_from_screener(clean_sym, force_refresh=True)
     if not data:
         raise HTTPException(status_code=400, detail=f"Unable to scrape data for symbol '{clean_sym}' from Screener.in. Please verify ticker.")
     detail = build_full_stock_detail(data)
     return {
         "success": True,
-        "message": f"Successfully ingested fundamental data for {detail.name} ({clean_sym})",
+        "message": f"Successfully updated live Screener.in data for {detail.name} ({clean_sym})",
         "stock": detail
     }
 
@@ -197,7 +211,7 @@ class CompareRequest(BaseModel):
 def compare_stocks(req: CompareRequest):
     comparison = []
     for sym in req.symbols:
-        data = fetch_stock_from_screener(sym)
+        data = fetch_stock_from_screener(sym, force_refresh=False)
         if data:
             detail = build_full_stock_detail(data)
             r = detail.ratios
@@ -254,4 +268,3 @@ if __name__ == "__main__":
     import uvicorn
     port = int(os.environ.get("BACKEND_PORT", os.environ.get("PORT", "8088")))
     uvicorn.run("main:app", host="0.0.0.0", port=port, reload=True)
-

@@ -1,5 +1,8 @@
 import { defineConfig, loadEnv } from 'vite'
 import react from '@vitejs/plugin-react'
+import tailwindcss from 'tailwindcss'
+import autoprefixer from 'autoprefixer'
+import path from 'path'
 
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => {
@@ -9,9 +12,31 @@ export default defineConfig(({ mode }) => {
 
   return {
     plugins: [react()],
+    css: {
+      postcss: {
+        plugins: [
+          tailwindcss({
+            content: [
+              "./index.html",
+              "./src/**/*.{js,ts,jsx,tsx}",
+            ],
+            darkMode: 'class',
+            theme: {
+              extend: {
+                fontFamily: {
+                  sans: ['Inter', 'system-ui', 'sans-serif'],
+                  mono: ['JetBrains Mono', 'monospace'],
+                },
+              },
+            },
+          }),
+          autoprefixer()
+        ]
+      }
+    },
     server: {
       port: frontendPort,
-      strictPort: false, // will auto-increment if 5188 is taken
+      strictPort: false,
       proxy: {
         '/api': {
           target: `http://localhost:${backendPort}`,

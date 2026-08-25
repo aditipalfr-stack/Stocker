@@ -20,45 +20,45 @@ class KeyRatios(BaseModel):
 
 class FinancialRow(BaseModel):
     metric: str
-    values: Dict[str, Optional[float]]  # e.g. {"Dec 2022": 1500.0, "Mar 2023": 1650.0, ...}
+    values: Dict[str, Optional[float]]  # e.g. {"Jun 2023": 207559.0, "Sep 2023": 231886.0, ...}
 
 class FinancialStatement(BaseModel):
-    periods: List[str]  # e.g. ["Sep 2023", "Dec 2023", "Mar 2024", "Jun 2024"]
+    periods: List[str]  # e.g. ["Jun 2023", "Sep 2023", ..., "Jun 2026"]
     rows: List[FinancialRow]
 
 class ConcallInsight(BaseModel):
-    period: str  # e.g. "Q3 FY25 / Dec 2024"
+    period: str  # e.g. "Latest Earnings Call"
     transcript_url: Optional[str] = None
     presentation_url: Optional[str] = None
     audio_url: Optional[str] = None
-    cfo_and_fcf_analysis: str  # Operational cash flow analysis, conversion, working capital
-    demand_drivers: List[str]  # Key demand tailwinds, order book, market share
-    supply_and_capex: List[str] # Capacity utilization, new plants commissioning, bottleneck fixes
-    management_guidance: str    # Revenue / Margin / Volume guidance
-    risks_and_headwinds: List[str] # Margin pressure, input costs, regulatory risks
-    analyst_sentiment: str     # Bullish / Constructive / Cautious
+    cfo_and_fcf_analysis: str
+    demand_drivers: List[str]
+    supply_and_capex: List[str]
+    management_guidance: str
+    risks_and_headwinds: List[str]
+    analyst_sentiment: str
 
 class AnnualReportInsight(BaseModel):
-    year: str  # e.g. "FY 2024"
+    year: str  # e.g. "FY 2025 / FY 2026"
     report_url: Optional[str] = None
     cfo_fcf_performance: str
     capex_cwip_summary: str
     strategic_priorities: List[str]
-    forensic_checklist: Dict[str, str] # e.g. {"promoter_pledge": "0%", "auditor_qualification": "Clean", "related_party_tx": "Normal business course"}
+    forensic_checklist: Dict[str, str]
 
 class DocumentLinks(BaseModel):
-    annual_reports: List[Dict[str, str]] = [] # [{"name": "FY24 Annual Report", "url": "..."}]
-    concalls: List[Dict[str, str]] = []       # [{"name": "Q3 FY25 Concall Transcript", "url": "..."}]
-    presentations: List[Dict[str, str]] = []   # [{"name": "Q3 FY25 Investor PPT", "url": "..."}]
+    annual_reports: List[Dict[str, str]] = []
+    concalls: List[Dict[str, str]] = []
+    presentations: List[Dict[str, str]] = []
 
 class ProjectionAssumption(BaseModel):
-    revenue_growth_rate_pct: float = 12.0  # Annual sales growth %
-    target_opm_pct: float = 22.0          # Target Operating Profit Margin %
-    capex_pct_of_sales: float = 5.0       # Capex as % of sales
-    effective_tax_rate_pct: float = 25.0  # Effective Tax %
-    terminal_growth_rate_pct: float = 5.0 # Terminal growth rate for DCF
-    discount_rate_wacc_pct: float = 12.0  # WACC / Cost of Capital
-    target_exit_pe: float = 25.0          # Target Exit P/E multiple
+    revenue_growth_rate_pct: float = 12.0
+    target_opm_pct: float = 22.0
+    capex_pct_of_sales: float = 5.0
+    effective_tax_rate_pct: float = 25.0
+    terminal_growth_rate_pct: float = 5.0
+    discount_rate_wacc_pct: float = 12.0
+    target_exit_pe: float = 25.0
 
 class YearlyProjection(BaseModel):
     year: str
@@ -94,7 +94,7 @@ class ScoreBreakdown(BaseModel):
     balance_sheet_safety_score: float # 0 - 100
     valuation_margin_score: float     # 0 - 100
     total_composite_score: float      # 0 - 100
-    verdict: str                      # "High Conviction Buy", "Strong Growth Buy", "Fair Value Hold", "Watchlist", "Avoid"
+    verdict: str
     investment_thesis: str
     key_catalysts: List[str]
     key_risks: List[str]
@@ -118,6 +118,10 @@ class StockSummary(BaseModel):
     rank: int
     is_top_conviction: bool = False
     investment_thesis_short: str
+    source_name: str = "Screener.in"
+    source_url: str = ""
+    statement_type: str = "consolidated"
+    fetched_at: str = ""
 
 class StockDetail(BaseModel):
     symbol: str
@@ -136,4 +140,7 @@ class StockDetail(BaseModel):
     analytics: Dict[str, Any]
     projection: ProjectionResult
     score: ScoreBreakdown
-
+    source_name: str = "Screener.in"
+    source_url: str = ""
+    statement_type: str = "consolidated"
+    fetched_at: str = ""

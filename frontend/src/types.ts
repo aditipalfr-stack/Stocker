@@ -125,6 +125,10 @@ export interface StockSummary {
   rank: number;
   is_top_conviction: boolean;
   investment_thesis_short: string;
+  source_name?: string;
+  source_url?: string;
+  statement_type?: string;
+  fetched_at?: string;
 }
 
 export interface StockDetail {
@@ -133,6 +137,10 @@ export interface StockDetail {
   sector: string;
   industry: string;
   about: string;
+  source_name?: string;
+  source_url?: string;
+  statement_type?: string;
+  fetched_at?: string;
   ratios: KeyRatios;
   quarters: FinancialStatement;
   profit_loss: FinancialStatement;

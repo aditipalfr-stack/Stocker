@@ -166,13 +166,23 @@ export const StockDetailView: React.FC<StockDetailViewProps> = ({ stock, onBack,
         </button>
 
         <div className="flex items-center gap-2">
+          {onScrapeRefresh && (
+            <button
+              onClick={onScrapeRefresh}
+              className="text-xs font-semibold text-slate-300 hover:text-emerald-400 flex items-center gap-1.5 bg-slate-900 px-3 py-1.5 rounded-xl border border-slate-800 transition-colors"
+              title="Force fetch fresh data from Screener.in"
+            >
+              <RefreshCw className="w-3 h-3 text-emerald-400" />
+              <span>Force Refresh</span>
+            </button>
+          )}
           <a
-            href={`https://www.screener.in/company/${stock.symbol}/consolidated/`}
+            href={stock.source_url || `https://www.screener.in/company/${stock.symbol}/consolidated/`}
             target="_blank"
             rel="noreferrer"
             className="text-xs font-semibold text-slate-400 hover:text-slate-200 flex items-center gap-1 bg-slate-900/80 px-3 py-1.5 rounded-xl border border-slate-800"
           >
-            <span>View on Screener.in</span>
+            <span>View on {stock.source_name || 'Screener.in'} ({stock.statement_type || 'consolidated'})</span>
             <ExternalLink className="w-3 h-3" />
           </a>
         </div>
@@ -199,6 +209,15 @@ export const StockDetailView: React.FC<StockDetailViewProps> = ({ stock, onBack,
               <span>{stock.industry}</span>
               <span>•</span>
               <span>High/Low: {stock.ratios.high_low || 'N/A'}</span>
+            </div>
+            <div className="flex flex-wrap items-center gap-2 text-[11px] text-slate-500 font-mono">
+              <span className="text-emerald-400/90 font-semibold">● Raw Data: {stock.source_name || 'Screener.in'} ({stock.statement_type || 'consolidated'})</span>
+              {stock.fetched_at && (
+                <>
+                  <span>•</span>
+                  <span>Scraped: {new Date(stock.fetched_at).toLocaleDateString()} {new Date(stock.fetched_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                </>
+              )}
             </div>
           </div>
 
