@@ -1,33 +1,6 @@
 {
   "symbol": "INFY",
   "company_name": "Infosys Limited",
-  "last_analyzed_period": "Q1 FY27 / FY26 Annual Filings",
-  "analyzed_documents": [
-    {
-      "title": "Infosys Q1 FY27 Earnings Call Transcript",
-      "type": "concall_transcript",
-      "period": "July 2026 / Q1 FY27",
-      "url": "https://www.screener.in/company/INFY/consolidated/#documents"
-    },
-    {
-      "title": "Infosys Integrated Annual Report 2025-26",
-      "type": "annual_report",
-      "period": "FY 2025-26",
-      "url": "https://www.screener.in/company/INFY/consolidated/#documents"
-    },
-    {
-      "title": "BSE Filing: Management Appointment & Segment Expansion",
-      "type": "exchange_filing",
-      "period": "August 2026",
-      "url": "https://www.screener.in/company/INFY/consolidated/#documents"
-    },
-    {
-      "title": "Infosys Q1 FY26 Earnings Call Transcript (Baseline)",
-      "type": "concall_transcript",
-      "period": "July 2025 / Q1 FY26",
-      "url": "https://www.screener.in/company/INFY/consolidated/#documents"
-    }
-  ],
   "plan_vs_reality": [
     {
       "area": "Full-Year Constant Currency (CC) Revenue Growth Guidance",
@@ -142,16 +115,44 @@
     "source_url": "https://www.screener.in/company/INFY/consolidated/#documents"
   },
   "cash_and_problems": {
-    "cfo_fcf_drivers": "Operating cash flow (CFO) was ₹28,400 Cr in FY26. Free Cash Flow (FCF) conversion was 95% of Net Profit ($2.9 Billion FCF), supported by high cash collection efficiency.",
+    "cfo_fcf_drivers": "Operating cash flow (CFO) was \u20b928,400 Cr in FY26. Free Cash Flow (FCF) conversion was 95% of Net Profit ($2.9 Billion FCF), supported by high cash collection efficiency.",
     "inventory_and_receivables_audit": "Days Sales Outstanding (DSO) stood at 68 days (improved by 2 days YoY). Zero bad debt provisions required.",
-    "debt_and_leverage_status": "Zero long-term borrowings. Cash, cash equivalents, and liquid investments stood at ₹34,200 Cr. Capital allocation policy returned >85% of FCF to shareholders via regular and special dividends.",
+    "debt_and_leverage_status": "Zero long-term borrowings. Cash, cash equivalents, and liquid investments stood at \u20b934,200 Cr. Capital allocation policy returned >85% of FCF to shareholders via regular and special dividends.",
     "operational_bottlenecks": [
       "Higher subcontractor usage in niche cloud AI skill sets creating temporary gross margin drag.",
       "Offshore wage revisions requiring ongoing structural cost optimization under Project Maximus."
     ],
-    "financial_cross_check": "Our financial engine cross-checks that Infosys generated ₹27,610 Cr in Net Profit with ₹28,400 Cr in Operating Cash Flow (103% cash conversion), confirming exceptional balance sheet purity, 0.0x debt, and robust capital return credibility.",
+    "financial_cross_check": "Our financial engine cross-checks that Infosys generated \u20b927,610 Cr in Net Profit with \u20b928,400 Cr in Operating Cash Flow (103% cash conversion), confirming exceptional balance sheet purity, 0.0x debt, and robust capital return credibility.",
     "source_citation": "Infosys Consolidated Financial Statements FY26 & Auditor Report",
     "source_url": "https://www.screener.in/company/INFY/consolidated/#documents"
-  }
+  },
+  "latest_document_period": "Q1 FY27 / FY26 Annual Filings",
+  "source_documents": [
+    {
+      "title": "Infosys Q1 FY27 Earnings Call Transcript",
+      "type": "concall_transcript",
+      "period": "July 2026 / Q1 FY27",
+      "url": "https://www.screener.in/company/INFY/consolidated/#documents"
+    },
+    {
+      "title": "Infosys Integrated Annual Report 2025-26",
+      "type": "annual_report",
+      "period": "FY 2025-26",
+      "url": "https://www.screener.in/company/INFY/consolidated/#documents"
+    },
+    {
+      "title": "BSE Filing: Management Appointment & Segment Expansion",
+      "type": "exchange_filing",
+      "period": "August 2026",
+      "url": "https://www.screener.in/company/INFY/consolidated/#documents"
+    },
+    {
+      "title": "Infosys Q1 FY26 Earnings Call Transcript (Baseline)",
+      "type": "concall_transcript",
+      "period": "July 2025 / Q1 FY26",
+      "url": "https://www.screener.in/company/INFY/consolidated/#documents"
+    }
+  ],
+  "older_document_period": "Prior Baseline Concalls",
+  "ai_provider_used": "Verified Baseline (Sample)"
 }
-

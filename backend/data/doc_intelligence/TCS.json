@@ -1,33 +1,6 @@
 {
   "symbol": "TCS",
   "company_name": "Tata Consultancy Services Limited",
-  "last_analyzed_period": "Q1 FY27 / FY26 Annual Filings",
-  "analyzed_documents": [
-    {
-      "title": "TCS Q1 FY27 Management Commentary & Transcript",
-      "type": "concall_transcript",
-      "period": "July 2026 / Q1 FY27",
-      "url": "https://www.screener.in/company/TCS/consolidated/#documents"
-    },
-    {
-      "title": "TCS Annual Report 2025-26",
-      "type": "annual_report",
-      "period": "FY 2025-26",
-      "url": "https://www.screener.in/company/TCS/consolidated/#documents"
-    },
-    {
-      "title": "BSE Announcement: Porsche €1.25B Partnership & MHP Acquisition",
-      "type": "exchange_filing",
-      "period": "August 2026",
-      "url": "https://www.screener.in/company/TCS/consolidated/#documents"
-    },
-    {
-      "title": "TCS Q1 FY26 Earnings Call Transcript (Baseline)",
-      "type": "concall_transcript",
-      "period": "July 2025 / Q1 FY26",
-      "url": "https://www.screener.in/company/TCS/consolidated/#documents"
-    }
-  ],
   "plan_vs_reality": [
     {
       "area": "EBIT Operating Margin Band Target (26% - 28%)",
@@ -58,7 +31,7 @@
       "management_promise": "Target strategic software engineering presence in European automotive and manufacturing ecosystems to capture Software-Defined Vehicle (SDV) contracts.",
       "promised_in_period": "FY26 Strategic Growth Outlook",
       "expected_timeline": "FY27",
-      "actual_outcome": "Delivered. Signed €1.25 Billion (₹11,500 Cr) 5-year mega partnership with Porsche on August 24, 2026, and agreed to acquire MHP (Porsche IT consulting arm) for €320 Million.",
+      "actual_outcome": "Delivered. Signed \u20ac1.25 Billion (\u20b911,500 Cr) 5-year mega partnership with Porsche on August 24, 2026, and agreed to acquire MHP (Porsche IT consulting arm) for \u20ac320 Million.",
       "actual_in_period": "August 2026 Regulation 30 Filing",
       "status": "Delivered",
       "variance_analysis": "Direct win of transformative automotive mobility and AI software modernization contract with anchor OEM backing.",
@@ -80,7 +53,7 @@
   ],
   "growth_pipeline": [
     {
-      "initiative": "Acquisition of MHP (€320 Million)",
+      "initiative": "Acquisition of MHP (\u20ac320 Million)",
       "type": "M&A / Acquisition",
       "outlay_cr": "2,950",
       "target_commissioning": "Closing Q3 FY27",
@@ -142,16 +115,44 @@
     "source_url": "https://www.screener.in/company/TCS/consolidated/#documents"
   },
   "cash_and_problems": {
-    "cfo_fcf_drivers": "Operating cash flow conversion remained exceptional at 106% of Net Profit in FY26 (CFO ₹48,884 Cr vs PAT ₹46,099 Cr), driven by disciplined billing milestones and zero bad debt write-offs.",
+    "cfo_fcf_drivers": "Operating cash flow conversion remained exceptional at 106% of Net Profit in FY26 (CFO \u20b948,884 Cr vs PAT \u20b946,099 Cr), driven by disciplined billing milestones and zero bad debt write-offs.",
     "inventory_and_receivables_audit": "Days Sales Outstanding (DSO) maintained at 67 days. Zero inventory requirement as a pure-play digital services model.",
-    "debt_and_leverage_status": "Zero long-term bank borrowings (Debt/Equity: 0.0x). Cash and liquid investments stood at ₹38,400 Cr. Capital allocation policy returned >85% of Free Cash Flow to shareholders via regular and special dividends.",
+    "debt_and_leverage_status": "Zero long-term bank borrowings (Debt/Equity: 0.0x). Cash and liquid investments stood at \u20b938,400 Cr. Capital allocation policy returned >85% of Free Cash Flow to shareholders via regular and special dividends.",
     "operational_bottlenecks": [
       "Talent availability in specialized GenAI and GPU cluster optimization requiring higher subcontractor usage.",
       "Wage inflation across Tier-1 offshore development centers."
     ],
-    "financial_cross_check": "Our financial engine validates that TCS generated ₹45,120 Cr in Free Cash Flow with an industry-leading ROCE of 62.4% and ROE of 50.8%, confirming that reported earnings are 100% backed by real unencumbered cash.",
+    "financial_cross_check": "Our financial engine validates that TCS generated \u20b945,120 Cr in Free Cash Flow with an industry-leading ROCE of 62.4% and ROE of 50.8%, confirming that reported earnings are 100% backed by real unencumbered cash.",
     "source_citation": "TCS Consolidated FY26 Cash Flow Statement & Capital Allocation Review",
     "source_url": "https://www.screener.in/company/TCS/consolidated/#documents"
-  }
+  },
+  "latest_document_period": "Q1 FY27 / FY26 Annual Filings",
+  "source_documents": [
+    {
+      "title": "TCS Q1 FY27 Management Commentary & Transcript",
+      "type": "concall_transcript",
+      "period": "July 2026 / Q1 FY27",
+      "url": "https://www.screener.in/company/TCS/consolidated/#documents"
+    },
+    {
+      "title": "TCS Annual Report 2025-26",
+      "type": "annual_report",
+      "period": "FY 2025-26",
+      "url": "https://www.screener.in/company/TCS/consolidated/#documents"
+    },
+    {
+      "title": "BSE Announcement: Porsche \u20ac1.25B Partnership & MHP Acquisition",
+      "type": "exchange_filing",
+      "period": "August 2026",
+      "url": "https://www.screener.in/company/TCS/consolidated/#documents"
+    },
+    {
+      "title": "TCS Q1 FY26 Earnings Call Transcript (Baseline)",
+      "type": "concall_transcript",
+      "period": "July 2025 / Q1 FY26",
+      "url": "https://www.screener.in/company/TCS/consolidated/#documents"
+    }
+  ],
+  "older_document_period": "Prior Baseline Concalls",
+  "ai_provider_used": "Verified Baseline (Sample)"
 }
-

@@ -1,33 +1,6 @@
 {
   "symbol": "RELIANCE",
   "company_name": "Reliance Industries Limited",
-  "last_analyzed_period": "Q1 FY27 / FY26 Annual Filings",
-  "analyzed_documents": [
-    {
-      "title": "Reliance Industries Q1 FY27 Earnings Call Transcript",
-      "type": "concall_transcript",
-      "period": "July 2026 / Q1 FY27",
-      "url": "https://www.screener.in/company/RELIANCE/consolidated/#documents"
-    },
-    {
-      "title": "Reliance Industries Integrated Annual Report 2025-26",
-      "type": "annual_report",
-      "period": "FY 2025-26",
-      "url": "https://www.screener.in/company/RELIANCE/consolidated/#documents"
-    },
-    {
-      "title": "Reliance Industries Q4 FY26 / FY26 Investor Presentation",
-      "type": "investor_presentation",
-      "period": "April 2026 / Q4 FY26",
-      "url": "https://www.screener.in/company/RELIANCE/consolidated/#documents"
-    },
-    {
-      "title": "Reliance Industries Q1 FY26 Earnings Call Transcript (Baseline)",
-      "type": "concall_transcript",
-      "period": "July 2025 / Q1 FY26",
-      "url": "https://www.screener.in/company/RELIANCE/consolidated/#documents"
-    }
-  ],
   "plan_vs_reality": [
     {
       "area": "Pan-India 5G Rollout & JioAirFiber Scale",
@@ -70,7 +43,7 @@
       "management_promise": "Target continuous store productivity enhancement to expand Reliance Retail EBITDA margin towards double-digit (10%+) levels.",
       "promised_in_period": "FY25 Strategic Commentary",
       "expected_timeline": "By FY26",
-      "actual_outcome": "Retail EBITDA margin sustained at 8.2% - 8.6%. Revenue reached ₹3,30,000+ Cr, but margin expansion was moderated by competitive pricing in quick-commerce and consumer electronics promotions.",
+      "actual_outcome": "Retail EBITDA margin sustained at 8.2% - 8.6%. Revenue reached \u20b93,30,000+ Cr, but margin expansion was moderated by competitive pricing in quick-commerce and consumer electronics promotions.",
       "actual_in_period": "Q4 FY26 Concall Transcript",
       "status": "In Progress",
       "variance_analysis": "Volume and footprint expansion delivered (18,800+ stores), but gross margins were defended through competitive pricing rather than immediate 10% margin realization.",
@@ -113,7 +86,7 @@
   "demand_and_orders": {
     "order_book_or_tcv": "Not applicable (Consumer, Telecom & O2C business model)",
     "book_to_bill_ratio": "Not found",
-    "customer_or_subscriber_growth": "Jio total subscriber base reached 488.2 Million (5G active users exceeded 130 Million). Monthly mobile ARPU expanded to ₹195.2 following industry tariff adjustments. Retail footfalls crossed 1.15 Billion annually across 18,800 physical stores.",
+    "customer_or_subscriber_growth": "Jio total subscriber base reached 488.2 Million (5G active users exceeded 130 Million). Monthly mobile ARPU expanded to \u20b9195.2 following industry tariff adjustments. Retail footfalls crossed 1.15 Billion annually across 18,800 physical stores.",
     "volume_and_pricing_trends": "Oil-to-Chemicals (O2C) throughput sustained at 71.2 MMT. Domestic retail grocery and apparel volumes grew 14% YoY. Natural gas realizations stabilized at government ceiling price (~$9.8/MMBtu).",
     "segment_demand_trends": [
       {
@@ -138,16 +111,44 @@
     "source_url": "https://www.screener.in/company/RELIANCE/consolidated/#documents"
   },
   "cash_and_problems": {
-    "cfo_fcf_drivers": "Operating cash flow generation reached an all-time record of ₹1,92,113 Cr in FY26, driven by high-margin cash conversion in Jio (EBITDA > ₹58,000 Cr) and steady retail cash flows.",
+    "cfo_fcf_drivers": "Operating cash flow generation reached an all-time record of \u20b91,92,113 Cr in FY26, driven by high-margin cash conversion in Jio (EBITDA > \u20b958,000 Cr) and steady retail cash flows.",
     "inventory_and_receivables_audit": "Working capital cycle remained tightly controlled. Retail inventory turns averaged 48 days; O2C receivables maintained under 15 days.",
-    "debt_and_leverage_status": "Consolidated borrowings stand at ₹4,02,962 Cr with cash/liquid investments of ₹2,48,332 Cr, bringing Net Debt to ~₹1,54,000 Cr. Net Debt to EBITDA is comfortable at 0.85x. Annual capex moderated to ₹1,31,769 Cr as 5G network rollout capex passed its peak.",
+    "debt_and_leverage_status": "Consolidated borrowings stand at \u20b94,02,962 Cr with cash/liquid investments of \u20b92,48,332 Cr, bringing Net Debt to ~\u20b91,54,000 Cr. Net Debt to EBITDA is comfortable at 0.85x. Annual capex moderated to \u20b91,31,769 Cr as 5G network rollout capex passed its peak.",
     "operational_bottlenecks": [
       "Global supply chain lead times for specialized power electronics and hydrogen electrolyzer components.",
       "Lower petrochemical downstream realization due to regional overcapacity in Asia."
     ],
-    "financial_cross_check": "Our financial engine verifies that FY26 reported Net Profit of ₹88,167 Cr is backed by ₹1,92,113 Cr in Operating Cash Flow (217% CFO/PAT ratio), confirming high cash conversion quality and confirming that Free Cash Flow (₹70,023 Cr) is positive after meeting capex.",
+    "financial_cross_check": "Our financial engine verifies that FY26 reported Net Profit of \u20b988,167 Cr is backed by \u20b91,92,113 Cr in Operating Cash Flow (217% CFO/PAT ratio), confirming high cash conversion quality and confirming that Free Cash Flow (\u20b970,023 Cr) is positive after meeting capex.",
     "source_citation": "FY26 Consolidated Financial Statements & Cash Flow Audit",
     "source_url": "https://www.screener.in/company/RELIANCE/consolidated/#documents"
-  }
+  },
+  "latest_document_period": "Q1 FY27 / FY26 Annual Filings",
+  "source_documents": [
+    {
+      "title": "Reliance Industries Q1 FY27 Earnings Call Transcript",
+      "type": "concall_transcript",
+      "period": "July 2026 / Q1 FY27",
+      "url": "https://www.screener.in/company/RELIANCE/consolidated/#documents"
+    },
+    {
+      "title": "Reliance Industries Integrated Annual Report 2025-26",
+      "type": "annual_report",
+      "period": "FY 2025-26",
+      "url": "https://www.screener.in/company/RELIANCE/consolidated/#documents"
+    },
+    {
+      "title": "Reliance Industries Q4 FY26 / FY26 Investor Presentation",
+      "type": "investor_presentation",
+      "period": "April 2026 / Q4 FY26",
+      "url": "https://www.screener.in/company/RELIANCE/consolidated/#documents"
+    },
+    {
+      "title": "Reliance Industries Q1 FY26 Earnings Call Transcript (Baseline)",
+      "type": "concall_transcript",
+      "period": "July 2025 / Q1 FY26",
+      "url": "https://www.screener.in/company/RELIANCE/consolidated/#documents"
+    }
+  ],
+  "older_document_period": "Prior Baseline Concalls",
+  "ai_provider_used": "Verified Baseline (Sample)"
 }
-

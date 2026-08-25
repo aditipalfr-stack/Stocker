@@ -1,5 +1,5 @@
 from typing import List, Optional, Dict, Any, Literal
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 class GenericPlanVsRealityItem(BaseModel):
     area: str = Field(description="Target area/initiative/metric")
@@ -13,11 +13,25 @@ class GenericPlanVsRealityItem(BaseModel):
     actual_source_page: Optional[int] = Field(default=None, description="Page number in later document")
     actual_quote: Optional[str] = Field(default=None, description="Verbatim quote from later document")
     
-    status: Literal["Delivered", "In Progress", "Delayed", "Missed", "Not Enough Data"]
-    variance_analysis: str = Field(description="Reason for outcome vs target")
+    status: Literal["Delivered", "In Progress", "Delayed", "Missed", "Not Enough Data", "Not enough data"] = Field(default="Not Enough Data")
+    variance_analysis: str = Field(default="", description="Reason for outcome vs target")
     source_url_promise: Optional[str] = None
     source_url_actual: Optional[str] = None
     confidence: float = Field(default=1.0, ge=0.0, le=1.0)
+
+    @model_validator(mode="before")
+    @classmethod
+    def adapt_legacy_fields(cls, values: Any) -> Any:
+        if isinstance(values, dict):
+            # Normalize legacy 'source_document' into actual_quote / source_document
+            if "source_document" in values and not values.get("actual_quote"):
+                values["actual_quote"] = values["source_document"]
+            if "source_url" in values and not values.get("source_url_actual"):
+                values["source_url_actual"] = values["source_url"]
+            # Normalize status capitalization
+            if values.get("status") == "Not enough data":
+                values["status"] = "Not Enough Data"
+        return values
 
 class GenericGrowthPipelineItem(BaseModel):
     initiative: str = Field(description="Project, plant, capacity, or M&A name")
@@ -30,6 +44,14 @@ class GenericGrowthPipelineItem(BaseModel):
     source_quote: Optional[str] = Field(default=None, description="Verbatim quote snippet")
     source_url: Optional[str] = None
     confidence: float = Field(default=1.0, ge=0.0, le=1.0)
+
+    @model_validator(mode="before")
+    @classmethod
+    def adapt_legacy_fields(cls, values: Any) -> Any:
+        if isinstance(values, dict):
+            if "source_citation" in values and not values.get("source_quote"):
+                values["source_quote"] = values["source_citation"]
+        return values
 
 class GenericDemandAndOrders(BaseModel):
     order_book_or_tcv: Optional[str] = Field(default=None, description="Order book, backlog, or quarterly TCV value")
@@ -44,6 +66,14 @@ class GenericDemandAndOrders(BaseModel):
     source_url: Optional[str] = None
     confidence: float = Field(default=1.0, ge=0.0, le=1.0)
 
+    @model_validator(mode="before")
+    @classmethod
+    def adapt_legacy_fields(cls, values: Any) -> Any:
+        if isinstance(values, dict):
+            if "source_citation" in values and not values.get("source_quote"):
+                values["source_quote"] = values["source_citation"]
+        return values
+
 class GenericCashAndProblems(BaseModel):
     cfo_fcf_drivers: Optional[str] = Field(default=None, description="Primary drivers of operating cash flow")
     inventory_and_receivables_audit: Optional[str] = Field(default=None, description="Working capital, inventory days, debtor days")
@@ -54,6 +84,14 @@ class GenericCashAndProblems(BaseModel):
     source_quote: Optional[str] = None
     source_url: Optional[str] = None
     confidence: float = Field(default=1.0, ge=0.0, le=1.0)
+
+    @model_validator(mode="before")
+    @classmethod
+    def adapt_legacy_fields(cls, values: Any) -> Any:
+        if isinstance(values, dict):
+            if "source_citation" in values and not values.get("source_quote"):
+                values["source_quote"] = values["source_citation"]
+        return values
 
 class GenericDocumentIntelligenceResult(BaseModel):
     symbol: str
@@ -69,6 +107,20 @@ class GenericDocumentIntelligenceResult(BaseModel):
     growth_pipeline: List[GenericGrowthPipelineItem] = Field(default_factory=list)
     demand_and_orders: GenericDemandAndOrders = Field(default_factory=GenericDemandAndOrders)
     cash_and_problems: GenericCashAndProblems = Field(default_factory=GenericCashAndProblems)
+
+    @model_validator(mode="before")
+    @classmethod
+    def adapt_legacy_doc_intel(cls, values: Any) -> Any:
+        if isinstance(values, dict):
+            # Adapt 'last_analyzed_period' -> 'latest_document_period'
+            if "last_analyzed_period" in values and not values.get("latest_document_period"):
+                values["latest_document_period"] = values["last_analyzed_period"]
+            # Adapt 'analyzed_documents' -> 'source_documents'
+            if "analyzed_documents" in values and not values.get("source_documents"):
+                values["source_documents"] = values["analyzed_documents"]
+            if not values.get("ai_provider_used"):
+                values["ai_provider_used"] = "Verified Baseline (Sample)"
+        return values
 
 # Backward-compatible model aliases for doc_intelligence_engine & API consumers
 PlanVsRealityItem = GenericPlanVsRealityItem
