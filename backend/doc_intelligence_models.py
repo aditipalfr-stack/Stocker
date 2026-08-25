@@ -69,3 +69,10 @@ class GenericDocumentIntelligenceResult(BaseModel):
     growth_pipeline: List[GenericGrowthPipelineItem] = Field(default_factory=list)
     demand_and_orders: GenericDemandAndOrders = Field(default_factory=GenericDemandAndOrders)
     cash_and_problems: GenericCashAndProblems = Field(default_factory=GenericCashAndProblems)
+
+# Backward-compatible model aliases for doc_intelligence_engine & API consumers
+PlanVsRealityItem = GenericPlanVsRealityItem
+GrowthPipelineItem = GenericGrowthPipelineItem
+DemandAndOrders = GenericDemandAndOrders
+CashAndProblems = GenericCashAndProblems
+CompanyDocumentIntelligence = GenericDocumentIntelligenceResult

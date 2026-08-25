@@ -8,13 +8,185 @@
     "OPENAI_API_KEY"
   ],
   "latest_document": {
-    "title": "RIL Q1 FY2026-2027 Media & Analyst Call Transcript (17 July 2026)",
-    "url": "https://www.bseindia.com/stockinfo/AnnPdfOpen.aspx?Pname=c9d3d96a-8b04-4b41-b454-3f98d1f90702.pdf",
-    "pages_extracted": 32
+    "title": "Reliance Industries Integrated Annual Report 2025-26",
+    "url": "https://www.bseindia.com/xml-data/corpfiling/AttachHis/cc08294f-ec68-4f15-aaa4-c14a3c4bdfb2.pdf",
+    "total_pages": 187,
+    "pages_selected_for_analysis": 41,
+    "selected_page_numbers": [
+      2,
+      3,
+      4,
+      5,
+      15,
+      16,
+      17,
+      35,
+      36,
+      37,
+      40,
+      41,
+      42,
+      43,
+      44,
+      45,
+      46,
+      47,
+      51,
+      52,
+      53,
+      54,
+      55,
+      56,
+      70,
+      71,
+      72,
+      80,
+      81,
+      82,
+      83,
+      90,
+      91,
+      92,
+      94,
+      95,
+      96,
+      167,
+      168,
+      169,
+      170
+    ],
+    "selection_themes": {
+      "3": [
+        "contingent_and_related_party: 'Related Party Transactions'"
+      ],
+      "4": [
+        "contingent_and_related_party: 'Related Party Transactions'"
+      ],
+      "16": [
+        "contingent_and_related_party: 'Related Party Transactions'"
+      ],
+      "17": [
+        "contingent_and_related_party: 'Related Party Transactions'"
+      ],
+      "36": [
+        "risks_and_bottlenecks: 'Risk Management'"
+      ],
+      "41": [
+        "demand_and_orders: 'Subscribers'"
+      ],
+      "42": [
+        "demand_and_orders: 'Subscribers'"
+      ],
+      "43": [
+        "cash_and_liquidity: 'Capital Allocation'"
+      ],
+      "44": [
+        "mda_and_strategy: 'Management Discussion and Analysis'",
+        "capex_and_cwip: 'Capital Expenditure'",
+        "cash_and_liquidity: 'Capital Allocation'",
+        "debt_and_borrowings: 'Net Debt'"
+      ],
+      "45": [
+        "mda_and_strategy: 'Management Discussion and Analysis'",
+        "capex_and_cwip: 'CWIP'",
+        "demand_and_orders: 'Customer Base'",
+        "cash_and_liquidity: 'Capital Allocation'",
+        "debt_and_borrowings: 'Credit Rating'"
+      ],
+      "46": [
+        "mda_and_strategy: 'Management Discussion and Analysis'",
+        "demand_and_orders: 'Customer Base'",
+        "risks_and_bottlenecks: 'Risk Management'"
+      ],
+      "47": [
+        "mda_and_strategy: 'Management Discussion and Analysis'",
+        "demand_and_orders: 'Market Share'"
+      ],
+      "51": [
+        "mda_and_strategy: 'Management Discussion and Analysis'"
+      ],
+      "52": [
+        "mda_and_strategy: 'Management Discussion and Analysis'",
+        "capex_and_cwip: 'Capacity Expansion'"
+      ],
+      "53": [
+        "mda_and_strategy: 'Management Discussion and Analysis'",
+        "working_capital_audit: 'Inventories'"
+      ],
+      "54": [
+        "capex_and_cwip: 'Commissioning'",
+        "risks_and_bottlenecks: 'Risk Management'"
+      ],
+      "55": [
+        "mda_and_strategy: 'Management Discussion and Analysis'",
+        "demand_and_orders: 'Market Share'",
+        "debt_and_borrowings: 'Borrowings'",
+        "risks_and_bottlenecks: 'Risk Management'"
+      ],
+      "56": [
+        "mda_and_strategy: 'Management Discussion and Analysis'"
+      ],
+      "71": [
+        "demand_and_orders: 'Order Book'",
+        "working_capital_audit: 'Inventories'",
+        "debt_and_borrowings: 'Credit Rating'",
+        "risks_and_bottlenecks: 'Risk Management'"
+      ],
+      "72": [
+        "contingent_and_related_party: 'Related Party Transactions'"
+      ],
+      "80": [
+        "mda_and_strategy: 'Management Discussion and Analysis'",
+        "demand_and_orders: 'Subscribers'",
+        "contingent_and_related_party: 'Commitments'"
+      ],
+      "81": [
+        "debt_and_borrowings: 'Credit Rating'",
+        "auditor_opinion: 'Internal Financial Controls'",
+        "contingent_and_related_party: 'Related Party Transactions'"
+      ],
+      "82": [
+        "auditor_opinion: 'Internal Financial Controls'",
+        "risks_and_bottlenecks: 'Risk Management'"
+      ],
+      "83": [
+        "risks_and_bottlenecks: 'Risk Management'"
+      ],
+      "90": [
+        "demand_and_orders: 'Market Share'"
+      ],
+      "91": [
+        "cash_and_liquidity: 'Statement of Cash Flows'",
+        "auditor_opinion: 'Basis for Opinion'"
+      ],
+      "92": [
+        "auditor_opinion: 'Internal Financial Controls'"
+      ],
+      "94": [
+        "auditor_opinion: 'Internal Financial Controls'"
+      ],
+      "95": [
+        "capex_and_cwip: 'Property, Plant and Equipment'",
+        "working_capital_audit: 'Inventories'"
+      ],
+      "96": [
+        "debt_and_borrowings: 'Borrowings'"
+      ],
+      "167": [
+        "working_capital_audit: 'Inventories'",
+        "debt_and_borrowings: 'Borrowings'",
+        "contingent_and_related_party: 'Commitments'"
+      ],
+      "168": [
+        "capex_and_cwip: 'Capital Expenditure'",
+        "debt_and_borrowings: 'Borrowings'",
+        "segment_performance: 'Segment Reporting'"
+      ],
+      "169": [
+        "capex_and_cwip: 'Capital Expenditure'",
+        "segment_performance: 'Segment Revenue'"
+      ]
+    }
   },
-  "older_document": {
-    "title": "RIL Q1 FY2025-2026 Media & Analyst Call Transcript (19 July 2025)",
-    "url": "https://www.bseindia.com/stockinfo/AnnPdfOpen.aspx?Pname=26290395-526a-441f-a347-c8ac12e4adf3.pdf",
-    "pages_extracted": 38
-  }
+  "older_document": {}
 }

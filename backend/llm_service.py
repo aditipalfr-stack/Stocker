@@ -92,10 +92,10 @@ def get_available_llm_provider() -> Optional[Tuple[str, str]]:
 def is_llm_available() -> bool:
     return get_available_llm_provider() is not None
 
-def format_pages_for_prompt(pages: List[Tuple[int, str]], max_pages: int = 35) -> str:
-    """Formats page tuples into text tagged with [Page X] markers."""
+def format_pages_for_prompt(pages: List[Tuple[int, str]]) -> str:
+    """Formats page tuples into structured text chunks tagged with [Page X] markers."""
     formatted_chunks = []
-    for page_num, text in pages[:max_pages]:
+    for page_num, text in pages:
         if text.strip():
             formatted_chunks.append(f"--- [Page {page_num}] ---\n{text.strip()}\n")
     return "\n".join(formatted_chunks)
@@ -200,3 +200,4 @@ Extract the 4 required sections (Plan vs Reality, Growth Pipeline, Demand & Orde
         return True, result, f"Successfully extracted intelligence using {provider.upper()}"
     except Exception as e:
         return False, None, f"Error running LLM extraction with {provider.upper()}: {e}"
+
