@@ -54,3 +54,4 @@ class CompanyDocumentIntelligence(BaseModel):
     growth_pipeline: List[GrowthPipelineItem]
     demand_and_orders: DemandAndOrders
     cash_and_problems: CashAndProblems
+

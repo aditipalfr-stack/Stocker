@@ -47,3 +47,4 @@ def get_company_doc_intelligence(symbol: str, financial_analytics: Optional[Dict
     except Exception as e:
         print(f"Error loading document intelligence for {clean_sym}: {e}")
         return None
+
