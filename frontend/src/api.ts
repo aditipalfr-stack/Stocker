@@ -69,4 +69,33 @@ export async function generateDocIntelligence(symbol: string): Promise<BusinessO
   return res.json();
 }
 
+export interface AiStatusResult {
+  configured: boolean;
+  provider: string | null;
+  status: 'active' | 'invalid_key' | 'quota_exceeded' | 'missing_key' | 'network_error' | 'error';
+  key_preview: string | null;
+  message: string;
+}
+
+export async function fetchAiStatus(): Promise<AiStatusResult> {
+  const res = await fetch(`${API_BASE}/ai/status`);
+  if (!res.ok) {
+    throw new Error('Failed to fetch AI service status');
+  }
+  return res.json();
+}
+
+export async function configureAiKey(apiKey: string, provider: string = 'gemini'): Promise<AiStatusResult> {
+  const res = await fetch(`${API_BASE}/ai/configure`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ api_key: apiKey, provider })
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: 'Failed to configure AI key' }));
+    throw new Error(err.detail || 'Failed to configure AI key');
+  }
+  return res.json();
+}
+
 

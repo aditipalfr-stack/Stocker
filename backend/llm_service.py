@@ -107,18 +107,125 @@ Output MUST be a valid JSON object matching this schema:
 }
 """
 
+def reload_env():
+    try:
+        from dotenv import load_dotenv
+        env_path = Path(__file__).parent.parent / ".env"
+        if env_path.exists():
+            load_dotenv(dotenv_path=env_path, override=True)
+    except Exception:
+        pass
+
 def get_available_llm_provider() -> Optional[Tuple[str, str]]:
     """
-    Checks for available LLM API keys.
+    Checks for available LLM API keys with dynamic .env reload.
     Returns (provider_name, api_key) or None.
     """
+    reload_env()
     gemini_key = os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY")
-    if gemini_key:
-        return "gemini", gemini_key
+    if gemini_key and gemini_key.strip():
+        return "gemini", gemini_key.strip()
     openai_key = os.environ.get("OPENAI_API_KEY")
-    if openai_key:
-        return "openai", openai_key
+    if openai_key and openai_key.strip():
+        return "openai", openai_key.strip()
     return None
+
+def test_ai_key_connectivity() -> Dict[str, Any]:
+    """
+    Validates configured AI credentials with a fast connectivity test.
+    Returns status: 'active', 'invalid_key', 'quota_exceeded', or 'missing_key'.
+    """
+    provider_info = get_available_llm_provider()
+    if not provider_info:
+        return {
+            "configured": False,
+            "provider": None,
+            "status": "missing_key",
+            "key_preview": None,
+            "message": "No GEMINI_API_KEY or OPENAI_API_KEY found in .env file."
+        }
+        
+    provider, key = provider_info
+    masked_key = f"{key[:6]}...{key[-4:]}" if len(key) > 10 else "***"
+    
+    if provider == "gemini":
+        test_url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={key}"
+        payload = {"contents": [{"parts": [{"text": "Reply with OK"}]}]}
+        try:
+            r = requests.post(test_url, json=payload, headers={"Content-Type": "application/json"}, timeout=8)
+            if r.status_code == 200:
+                return {
+                    "configured": True,
+                    "provider": "Google Gemini (gemini-2.0-flash)",
+                    "status": "active",
+                    "key_preview": masked_key,
+                    "message": "Gemini API key is verified and fully operational."
+                }
+            elif r.status_code in (400, 403):
+                return {
+                    "configured": True,
+                    "provider": "Google Gemini",
+                    "status": "invalid_key",
+                    "key_preview": masked_key,
+                    "message": f"Gemini API rejected key ({r.status_code}). Please verify your key at https://aistudio.google.com/app/apikey"
+                }
+            elif r.status_code == 429:
+                return {
+                    "configured": True,
+                    "provider": "Google Gemini",
+                    "status": "quota_exceeded",
+                    "key_preview": masked_key,
+                    "message": "Gemini rate limit or quota exceeded. Please check your Google Cloud / AI Studio quota."
+                }
+            else:
+                return {
+                    "configured": True,
+                    "provider": "Google Gemini",
+                    "status": "error",
+                    "key_preview": masked_key,
+                    "message": f"Gemini API returned status {r.status_code}: {r.text[:150]}"
+                }
+        except Exception as e:
+            return {
+                "configured": True,
+                "provider": "Google Gemini",
+                "status": "network_error",
+                "key_preview": masked_key,
+                "message": f"Network connection to Google Gemini failed: {str(e)[:120]}"
+            }
+    else:
+        test_url = "https://api.openai.com/v1/chat/completions"
+        payload = {
+            "model": "gpt-4o-mini",
+            "messages": [{"role": "user", "content": "Reply with OK"}],
+            "max_tokens": 5
+        }
+        try:
+            r = requests.post(test_url, json=payload, headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json"}, timeout=8)
+            if r.status_code == 200:
+                return {
+                    "configured": True,
+                    "provider": "OpenAI (gpt-4o-mini)",
+                    "status": "active",
+                    "key_preview": masked_key,
+                    "message": "OpenAI API key is verified and fully operational."
+                }
+            else:
+                return {
+                    "configured": True,
+                    "provider": "OpenAI",
+                    "status": "invalid_key" if r.status_code in (401, 403) else "error",
+                    "key_preview": masked_key,
+                    "message": f"OpenAI API returned status {r.status_code}: {r.text[:150]}"
+                }
+        except Exception as e:
+            return {
+                "configured": True,
+                "provider": "OpenAI",
+                "status": "network_error",
+                "key_preview": masked_key,
+                "message": f"Network connection to OpenAI failed: {str(e)[:120]}"
+            }
 
 def is_llm_available() -> bool:
     return get_available_llm_provider() is not None

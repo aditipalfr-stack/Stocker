@@ -238,13 +238,42 @@ def get_stock_doc_intelligence(symbol: str):
         }
     return doc_intel
 
+@app.get("/api/ai/status")
+def get_ai_status():
+    """Returns real-time status and diagnostics of configured LLM providers (Gemini/OpenAI)."""
+    from llm_service import test_ai_key_connectivity
+    return test_ai_key_connectivity()
+
+@app.post("/api/ai/configure")
+def configure_ai_credentials(payload: Dict[str, str]):
+    """Saves AI API credentials to .env file and tests connection immediately."""
+    api_key = payload.get("api_key", "").strip()
+    provider = payload.get("provider", "gemini").lower().strip()
+    if not api_key:
+        raise HTTPException(status_code=400, detail="API key string cannot be empty.")
+        
+    env_path = Path(__file__).parent.parent / ".env"
+    lines = []
+    if env_path.exists():
+        lines = env_path.read_text().splitlines()
+        
+    var_name = "GEMINI_API_KEY" if provider == "gemini" else "OPENAI_API_KEY"
+    new_lines = [l for l in lines if not l.startswith(f"{var_name}=")]
+    new_lines.append(f"{var_name}={api_key}")
+    env_path.write_text("\n".join(new_lines) + "\n")
+    
+    os.environ[var_name] = api_key
+    from llm_service import test_ai_key_connectivity
+    return test_ai_key_connectivity()
+
 @app.post("/api/stocks/{symbol}/generate-doc-intelligence")
 def generate_stock_doc_intelligence(symbol: str):
     clean_sym = symbol.upper().strip()
+    from llm_service import is_llm_available, get_available_llm_provider, test_ai_key_connectivity
     if not is_llm_available():
         raise HTTPException(
             status_code=400,
-            detail="AI document analysis unavailable. Please configure GEMINI_API_KEY or OPENAI_API_KEY in your .env file."
+            detail="AI document analysis unavailable: No GEMINI_API_KEY or OPENAI_API_KEY configured in .env file. Please add your key to run live extraction."
         )
     data = fetch_stock_from_screener(clean_sym, force_refresh=False)
     if not data:

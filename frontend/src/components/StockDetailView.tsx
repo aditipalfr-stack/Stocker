@@ -3,14 +3,17 @@ import {
   StockDetail, ProjectionAssumption, ProjectionResult, 
   FinancialStatement, BusinessOutlookIntelligence 
 } from '../types';
-import { projectStock, fetchDocIntelligence, generateDocIntelligence } from '../api';
+import { 
+  projectStock, fetchDocIntelligence, generateDocIntelligence,
+  fetchAiStatus, configureAiKey, AiStatusResult
+} from '../api';
 import { 
   TrendingUp, BarChart3, Sliders, FileText, ShieldAlert, 
   ExternalLink, ArrowUpRight, ArrowDownRight, RefreshCw, 
   CheckCircle2, AlertTriangle, Sparkles, Building, Layers, 
   DollarSign, Activity, FileSpreadsheet, ChevronRight, HelpCircle,
   Clock, Target, Compass, Search, Zap, Info, ChevronDown,
-  Mic, Presentation, Bell
+  Mic, Presentation, Bell, KeyRound, Check
 } from 'lucide-react';
 import { 
   ResponsiveContainer, AreaChart, Area, XAxis, YAxis, 
@@ -33,6 +36,14 @@ export const StockDetailView: React.FC<StockDetailViewProps> = ({ stock, onBack,
   const [generatingDocIntel, setGeneratingDocIntel] = useState<boolean>(false);
   const [docIntelError, setDocIntelError] = useState<string | null>(null);
 
+  // AI Configuration & Progress State
+  const [aiStatus, setAiStatus] = useState<AiStatusResult | null>(null);
+  const [isKeyModalOpen, setIsKeyModalOpen] = useState<boolean>(false);
+  const [inputKey, setInputKey] = useState<string>('');
+  const [savingKey, setSavingKey] = useState<boolean>(false);
+  const [keySaveMessage, setKeySaveMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [generationStep, setGenerationStep] = useState<number>(0);
+
   // Projection Simulator State
   const [growthRate, setGrowthRate] = useState<number>(stock.projection.assumptions.revenue_growth_rate_pct);
   const [opmRate, setOpmRate] = useState<number>(stock.projection.assumptions.target_opm_pct);
@@ -44,8 +55,10 @@ export const StockDetailView: React.FC<StockDetailViewProps> = ({ stock, onBack,
   const [projectionResult, setProjectionResult] = useState<ProjectionResult>(stock.projection);
   const [isProjecting, setIsProjecting] = useState<boolean>(false);
 
-  // Load document intelligence on mount / stock change
+  // Load document intelligence and check AI status on mount / stock change
   useEffect(() => {
+    fetchAiStatus().then(setAiStatus).catch(() => {});
+    
     const loadIntel = async () => {
       setLoadingDocIntel(true);
       setDocIntelError(null);
@@ -62,15 +75,64 @@ export const StockDetailView: React.FC<StockDetailViewProps> = ({ stock, onBack,
   }, [stock.symbol]);
 
   const handleGenerateIntel = async () => {
+    // Check AI connection status first
+    try {
+      const status = await fetchAiStatus();
+      setAiStatus(status);
+      if (!status.configured || status.status === 'missing_key') {
+        setIsKeyModalOpen(true);
+        return;
+      }
+    } catch (e) {
+      // Proceed
+    }
+
     setGeneratingDocIntel(true);
     setDocIntelError(null);
+    setGenerationStep(1);
+
+    const stepTimer1 = setTimeout(() => setGenerationStep(2), 2500);
+    const stepTimer2 = setTimeout(() => setGenerationStep(3), 6000);
+
     try {
       const res = await generateDocIntelligence(stock.symbol);
-      setDocIntel(res);
+      setGenerationStep(4);
+      setTimeout(() => {
+        setDocIntel(res);
+        setGeneratingDocIntel(false);
+      }, 900);
     } catch (err: any) {
-      setDocIntelError(err.message || 'Failed to run AI document extraction. Please check your .env configuration.');
-    } finally {
+      clearTimeout(stepTimer1);
+      clearTimeout(stepTimer2);
+      setDocIntelError(err.message || 'Failed to run AI document extraction. Please check your Gemini API key in .env.');
       setGeneratingDocIntel(false);
+    }
+  };
+
+  const handleSaveKey = async () => {
+    if (!inputKey.trim()) {
+      setKeySaveMessage({ type: 'error', text: 'Please enter a valid Gemini API key.' });
+      return;
+    }
+    setSavingKey(true);
+    setKeySaveMessage(null);
+    try {
+      const res = await configureAiKey(inputKey.trim(), 'gemini');
+      setAiStatus(res);
+      if (res.status === 'active') {
+        setKeySaveMessage({ type: 'success', text: '✓ Gemini API key verified and operational!' });
+        setTimeout(() => {
+          setIsKeyModalOpen(false);
+          setKeySaveMessage(null);
+          setInputKey('');
+        }, 1200);
+      } else {
+        setKeySaveMessage({ type: 'error', text: res.message });
+      }
+    } catch (err: any) {
+      setKeySaveMessage({ type: 'error', text: err.message || 'Failed to connect to Gemini API.' });
+    } finally {
+      setSavingKey(false);
     }
   };
 
@@ -876,6 +938,14 @@ export const StockDetailView: React.FC<StockDetailViewProps> = ({ stock, onBack,
 
               {/* Action Buttons */}
               <div className="flex items-center gap-2.5 flex-wrap">
+                <button
+                  onClick={() => { setIsKeyModalOpen(true); setKeySaveMessage(null); }}
+                  className="bg-slate-900 hover:bg-slate-800 text-slate-300 font-bold text-xs px-3.5 py-2 rounded-xl border border-slate-700 flex items-center gap-1.5 transition-all"
+                >
+                  <KeyRound className="w-3.5 h-3.5 text-amber-400" />
+                  <span>{aiStatus?.configured && aiStatus.status === 'active' ? 'Gemini Key Active ✓' : 'Configure Gemini Key'}</span>
+                </button>
+
                 <button
                   onClick={handleGenerateIntel}
                   disabled={generatingDocIntel}
@@ -1963,6 +2033,165 @@ export const StockDetailView: React.FC<StockDetailViewProps> = ({ stock, onBack,
             </div>
           )}
 
+        </div>
+      )}
+
+      {/* Live Pipeline Execution Progress Modal */}
+      {generatingDocIntel && (
+        <div className="fixed inset-0 bg-slate-950/85 backdrop-blur-md z-50 flex items-center justify-center p-4">
+          <div className="bg-slate-900 border border-slate-700 rounded-3xl p-6 md:p-8 max-w-lg w-full space-y-6 shadow-2xl animate-in fade-in zoom-in duration-200">
+            <div className="flex items-center gap-3.5">
+              <div className="w-11 h-11 rounded-2xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center border border-emerald-500/30 shrink-0">
+                <Sparkles className="w-6 h-6 animate-pulse text-emerald-400" />
+              </div>
+              <div>
+                <h3 className="text-base font-bold text-white">Running Live AI Analysis</h3>
+                <p className="text-xs text-slate-400">Scanning official filings for {stock.name} ({stock.symbol})</p>
+              </div>
+            </div>
+
+            {/* Step-by-Step Pipeline Progress */}
+            <div className="space-y-3 bg-slate-950/70 p-4 rounded-2xl border border-slate-800">
+              <div className="flex items-center gap-3 text-xs">
+                <div className={`w-5 h-5 rounded-full flex items-center justify-center font-bold text-[10px] ${
+                  generationStep >= 1 ? 'bg-emerald-500 text-slate-950' : 'bg-slate-800 text-slate-400'
+                }`}>
+                  {generationStep > 1 ? '✓' : '1'}
+                </div>
+                <div className="flex-1">
+                  <p className={`font-semibold ${generationStep >= 1 ? 'text-slate-200' : 'text-slate-500'}`}>
+                    Discovering Verified Filings
+                  </p>
+                  <p className="text-[11px] text-slate-500">Screener.in + BSE India + NSE India feeds</p>
+                </div>
+                {generationStep === 1 && <RefreshCw className="w-3.5 h-3.5 text-emerald-400 animate-spin" />}
+              </div>
+
+              <div className="flex items-center gap-3 text-xs">
+                <div className={`w-5 h-5 rounded-full flex items-center justify-center font-bold text-[10px] ${
+                  generationStep >= 2 ? 'bg-emerald-500 text-slate-950' : 'bg-slate-800 text-slate-400'
+                }`}>
+                  {generationStep > 2 ? '✓' : '2'}
+                </div>
+                <div className="flex-1">
+                  <p className={`font-semibold ${generationStep >= 2 ? 'text-slate-200' : 'text-slate-500'}`}>
+                    Ingesting & Verifying Official PDFs
+                  </p>
+                  <p className="text-[11px] text-slate-500">Extracting page-by-page text & table markers</p>
+                </div>
+                {generationStep === 2 && <RefreshCw className="w-3.5 h-3.5 text-emerald-400 animate-spin" />}
+              </div>
+
+              <div className="flex items-center gap-3 text-xs">
+                <div className={`w-5 h-5 rounded-full flex items-center justify-center font-bold text-[10px] ${
+                  generationStep >= 3 ? 'bg-emerald-500 text-slate-950' : 'bg-slate-800 text-slate-400'
+                }`}>
+                  {generationStep > 3 ? '✓' : '3'}
+                </div>
+                <div className="flex-1">
+                  <p className={`font-semibold ${generationStep >= 3 ? 'text-slate-200' : 'text-slate-500'}`}>
+                    Gemini 2.0 Institutional Extraction
+                  </p>
+                  <p className="text-[11px] text-slate-500">Promise vs Delivery, Growth Drivers & Risks</p>
+                </div>
+                {generationStep === 3 && <RefreshCw className="w-3.5 h-3.5 text-emerald-400 animate-spin" />}
+              </div>
+
+              <div className="flex items-center gap-3 text-xs">
+                <div className={`w-5 h-5 rounded-full flex items-center justify-center font-bold text-[10px] ${
+                  generationStep >= 4 ? 'bg-emerald-500 text-slate-950' : 'bg-slate-800 text-slate-400'
+                }`}>
+                  {generationStep >= 4 ? '✓' : '4'}
+                </div>
+                <div className="flex-1">
+                  <p className={`font-semibold ${generationStep >= 4 ? 'text-slate-200' : 'text-slate-500'}`}>
+                    Fact Grounding & Citation Audit
+                  </p>
+                  <p className="text-[11px] text-slate-500">Linking quotes to exact source pages</p>
+                </div>
+                {generationStep >= 4 && <Check className="w-3.5 h-3.5 text-emerald-400" />}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* API Key Configuration Modal */}
+      {isKeyModalOpen && (
+        <div className="fixed inset-0 bg-slate-950/85 backdrop-blur-md z-50 flex items-center justify-center p-4">
+          <div className="bg-slate-900 border border-slate-700 rounded-3xl p-6 md:p-8 max-w-md w-full space-y-5 shadow-2xl animate-in fade-in zoom-in duration-200">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-2xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center border border-emerald-500/30">
+                  <KeyRound className="w-4 h-4 text-emerald-400" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-white text-sm">Configure Gemini AI Key</h3>
+                  <p className="text-[11px] text-slate-400">Institutional Document Intelligence</p>
+                </div>
+              </div>
+              <button 
+                onClick={() => { setIsKeyModalOpen(false); setKeySaveMessage(null); }}
+                className="text-slate-400 hover:text-white text-xs p-1 rounded-lg hover:bg-slate-800"
+              >
+                ✕
+              </button>
+            </div>
+
+            <p className="text-xs text-slate-300 leading-relaxed">
+              Stocker extracts facts directly from original BSE/NSE filings using <strong>Google Gemini 2.0 Flash</strong>. Enter your free API key below:
+            </p>
+
+            {aiStatus?.configured && (
+              <div className="p-3 bg-slate-950 rounded-xl border border-slate-800 text-xs flex items-center justify-between">
+                <span className="text-slate-400">Current Key:</span>
+                <code className="text-emerald-400 font-mono">{aiStatus.key_preview}</code>
+              </div>
+            )}
+
+            <div className="space-y-2">
+              <label className="text-xs font-semibold text-slate-300 block">
+                Gemini API Key (starts with <code className="text-emerald-400">AIzaSy...</code>):
+              </label>
+              <input
+                type="password"
+                placeholder="AIzaSy..."
+                value={inputKey}
+                onChange={(e) => setInputKey(e.target.value)}
+                className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2.5 text-xs text-white placeholder-slate-600 focus:outline-none focus:border-emerald-500 font-mono"
+              />
+            </div>
+
+            {keySaveMessage && (
+              <div className={`p-3 rounded-xl text-xs border ${
+                keySaveMessage.type === 'success' 
+                  ? 'bg-emerald-950/40 border-emerald-800 text-emerald-300'
+                  : 'bg-rose-950/40 border-rose-800 text-rose-300'
+              }`}>
+                {keySaveMessage.text}
+              </div>
+            )}
+
+            <div className="flex items-center gap-2 pt-2">
+              <button
+                onClick={handleSaveKey}
+                disabled={savingKey}
+                className="flex-1 py-2.5 bg-emerald-600 hover:bg-emerald-500 disabled:bg-slate-800 text-slate-950 font-bold text-xs rounded-xl transition-colors flex items-center justify-center gap-1.5"
+              >
+                {savingKey ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <CheckCircle2 className="w-3.5 h-3.5" />}
+                <span>{savingKey ? 'Verifying Key...' : 'Save & Verify Key'}</span>
+              </button>
+              <a
+                href="https://aistudio.google.com/app/apikey"
+                target="_blank"
+                rel="noreferrer"
+                className="py-2.5 px-3 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs rounded-xl border border-slate-700 flex items-center gap-1"
+              >
+                <span>Get Free Key</span>
+                <ExternalLink className="w-3 h-3" />
+              </a>
+            </div>
+          </div>
         </div>
       )}
 
