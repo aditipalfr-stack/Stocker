@@ -1852,6 +1852,15 @@ export const StockDetailView: React.FC<StockDetailViewProps> = ({ stock, onBack,
                                     </div>
                                   )}
 
+                                  {(!summary || !summary.key_takeaways || summary.key_takeaways.length === 0) && (
+                                    <div className="bg-slate-900/40 p-3 rounded-xl border border-dashed border-slate-800 text-center space-y-1 my-1">
+                                      <span className="text-[10px] text-slate-400 font-mono flex items-center justify-center gap-1">
+                                        <Clock className="w-3 h-3 text-slate-400" /> Queued for Deep AI Extraction
+                                      </span>
+                                      <p className="text-[10px] text-slate-400">Included in company multi-filing synthesis dataset</p>
+                                    </div>
+                                  )}
+
                                   <div className="text-[11px] text-slate-400 flex items-center justify-between">
                                     <span>PDF Host: <strong className="text-slate-300">{doc.actual_source_host}</strong></span>
                                     {doc.is_direct_pdf && <span className="text-emerald-400 font-bold">● Direct PDF</span>}
@@ -1956,6 +1965,15 @@ export const StockDetailView: React.FC<StockDetailViewProps> = ({ stock, onBack,
                                     </div>
                                   )}
 
+                                  {(!summary || !summary.key_takeaways || summary.key_takeaways.length === 0) && (
+                                    <div className="bg-slate-900/40 p-3 rounded-xl border border-dashed border-slate-800 text-center space-y-1 my-1">
+                                      <span className="text-[10px] text-slate-400 font-mono flex items-center justify-center gap-1">
+                                        <Clock className="w-3 h-3 text-slate-400" /> Queued for Deep AI Extraction
+                                      </span>
+                                      <p className="text-[10px] text-slate-400">Included in company multi-filing synthesis dataset</p>
+                                    </div>
+                                  )}
+
                                   <div className="text-[11px] text-slate-400 flex items-center justify-between">
                                     <span>PDF Host: <strong className="text-slate-300">{doc.actual_source_host}</strong></span>
                                     {doc.is_direct_pdf && <span className="text-cyan-400 font-bold">● Direct PDF</span>}
@@ -2052,6 +2070,15 @@ export const StockDetailView: React.FC<StockDetailViewProps> = ({ stock, onBack,
                                           <span>{summary.guidance_and_capex || summary.capex_or_guidance_highlight}</span>
                                         </div>
                                       )}
+                                    </div>
+                                  )}
+
+                                  {(!summary || !summary.key_takeaways || summary.key_takeaways.length === 0) && (
+                                    <div className="bg-slate-900/40 p-3 rounded-xl border border-dashed border-slate-800 text-center space-y-1 my-1">
+                                      <span className="text-[10px] text-slate-400 font-mono flex items-center justify-center gap-1">
+                                        <Clock className="w-3 h-3 text-slate-400" /> Queued for Deep AI Extraction
+                                      </span>
+                                      <p className="text-[10px] text-slate-400">Included in company multi-filing synthesis dataset</p>
                                     </div>
                                   )}
 
