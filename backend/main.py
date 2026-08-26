@@ -71,13 +71,21 @@ def build_full_stock_detail(stock_data: Dict[str, Any], custom_assumptions: Opti
     # 1. Financial Analytics
     analytics = compute_financial_analytics(quarters, pl, bs, cf)
     
-    # 2. Projections & DCF Valuation
-    projection = run_projections(ratios, pl, bs, cf, assumptions=custom_assumptions)
-    
-    # 3. Document Intelligence (if available)
+    # 2. Document Intelligence (if available)
     doc_intel = get_company_doc_intelligence(symbol, financial_analytics=analytics)
     
-    # 4. Multi-Factor Scoring & Thesis
+    # 3. Projections & DCF Valuation (grounded in historical parameters + AI forward signals)
+    projection = run_projections(
+        ratios=ratios,
+        pl=pl,
+        bs=bs,
+        cf=cf,
+        analytics=analytics,
+        doc_intel=doc_intel,
+        assumptions=custom_assumptions
+    )
+    
+    # 4. Multi-Factor Scoring & Thesis (with execution track record and confidence tracking)
     score = compute_stock_score(symbol, name, ratios, analytics, projection, sector=sector, doc_intel=doc_intel)
     
     return StockDetail(
@@ -93,7 +101,7 @@ def build_full_stock_detail(stock_data: Dict[str, Any], custom_assumptions: Opti
         cash_flow=cf,
         concall_insights=concall_insights,
         annual_report_insights=ar_insights,
-        documents=documents,
+        documents=documents or DocumentLinks(),
         analytics=analytics,
         projection=projection,
         score=score,
@@ -139,7 +147,7 @@ def get_all_stocks(sector: Optional[str] = None, min_score: Optional[float] = No
     for idx, d in enumerate(details):
         r = d.ratios
         sales_cagr = d.analytics.get("growth_rates", {}).get("sales_cagr_3yr") or r.sales_growth_3yr_cagr or 0.0
-        cfo_to_pat = d.analytics.get("cash_flow_quality", {}).get("cfo_to_pat_5yr_pct") or 85.0
+        cfo_to_pat = d.analytics.get("cash_flow_quality", {}).get("cfo_to_pat_5yr_pct") or 0.0
         
         summary = StockSummary(
             symbol=d.symbol,
@@ -157,6 +165,7 @@ def get_all_stocks(sector: Optional[str] = None, min_score: Optional[float] = No
             net_debt_to_equity=r.debt_to_equity or 0.0,
             composite_score=d.score.total_composite_score,
             verdict=d.score.verdict,
+            data_confidence=d.score.data_confidence,
             rank=idx + 1,
             is_top_conviction=(idx < 5 and d.score.total_composite_score >= 70.0),
             investment_thesis_short=d.score.investment_thesis,
@@ -290,10 +299,21 @@ def project_stock_future(symbol: str, assumptions: ProjectionAssumption):
     if not data:
         raise HTTPException(status_code=404, detail=f"Stock {symbol} not found")
     ratios = data["ratios"]
+    quarters = data["quarters"]
     pl = data["profit_loss"]
     bs = data["balance_sheet"]
     cf = data["cash_flow"]
-    return run_projections(ratios, pl, bs, cf, assumptions=assumptions)
+    analytics = compute_financial_analytics(quarters, pl, bs, cf)
+    doc_intel = get_company_doc_intelligence(symbol, financial_analytics=analytics)
+    return run_projections(
+        ratios=ratios,
+        pl=pl,
+        bs=bs,
+        cf=cf,
+        analytics=analytics,
+        doc_intel=doc_intel,
+        assumptions=assumptions
+    )
 
 from projection_engine import generate_scenario_suite
 
@@ -303,10 +323,20 @@ def get_stock_scenario_suite(symbol: str):
     if not data:
         raise HTTPException(status_code=404, detail=f"Stock {symbol} not found")
     ratios = data["ratios"]
+    quarters = data["quarters"]
     pl = data["profit_loss"]
     bs = data["balance_sheet"]
     cf = data["cash_flow"]
-    return generate_scenario_suite(ratios, pl, bs, cf)
+    analytics = compute_financial_analytics(quarters, pl, bs, cf)
+    doc_intel = get_company_doc_intelligence(symbol, financial_analytics=analytics)
+    return generate_scenario_suite(
+        ratios=ratios,
+        pl=pl,
+        bs=bs,
+        cf=cf,
+        analytics=analytics,
+        doc_intel=doc_intel
+    )
 
 @app.post("/api/stocks/scrape/{symbol}")
 def scrape_new_stock(symbol: str):

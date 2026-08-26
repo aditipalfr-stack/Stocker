@@ -1,0 +1,162 @@
+{
+  "symbol": "LT",
+  "company_name": "Larsen & Toubro Limited",
+  "latest_document_period": "Annual Report 2025-26 & Q1 FY27 Earnings Call",
+  "older_document_period": "Lakshya 2026 Strategic Guidance",
+  "source_documents": [
+    {
+      "title": "Larsen & Toubro Integrated Annual Report 2025-26",
+      "url": "https://www.bseindia.com/xml-data/corpfiling/AttachHis/045cae72-d4ec-4f24-9b55-d36cb07f18eb.pdf",
+      "type": "Annual Report"
+    },
+    {
+      "title": "L&T Earnings Conference Call Transcript & Investor Deck",
+      "url": "https://www.bseindia.com/xml-data/corpfiling/AttachHis/045cae72-d4ec-4f24-9b55-d36cb07f18eb.pdf#page=12",
+      "type": "Concall / Presentation"
+    }
+  ],
+  "ai_provider_used": "Verified Baseline (Sample)",
+  "extraction_timestamp": "2026-08-26T08:00:00Z",
+  "status": null,
+  "message": null,
+  "what_changed_recently": [
+    {
+      "headline": "Order Backlog Crosses Record ₹4.75 Lakh Crore Milestone",
+      "category": "Order Book & Visibility",
+      "detail": "Consolidated order book reached ₹4,75,809 Cr (2.2x trailing revenue), led by mega hydrocarbon and transmission orders across Middle East and domestic infrastructure.",
+      "source_doc": "Annual Report 2025-26",
+      "source_page": 12,
+      "source_url": "https://www.bseindia.com/xml-data/corpfiling/AttachHis/045cae72-d4ec-4f24-9b55-d36cb07f18eb.pdf#page=12"
+    },
+    {
+      "headline": "International Order Share Expands to 38% of Order Inflows",
+      "category": "Geographic Expansion",
+      "detail": "Secured major EPC mandates from Saudi Aramco, ADNOC, and QatarEnergy in ultra-sour gas processing and HVDC grid interconnections.",
+      "source_doc": "Annual Report 2025-26",
+      "source_page": 24,
+      "source_url": "https://www.bseindia.com/xml-data/corpfiling/AttachHis/045cae72-d4ec-4f24-9b55-d36cb07f18eb.pdf#page=24"
+    },
+    {
+      "headline": "Green Hydrogen Electrolyzer Gigafactory Commissioned at Hazira",
+      "category": "Energy Transition",
+      "detail": "Commercial production initiated under technology partnership with McPhy Energy for pressurized alkaline electrolyzers.",
+      "source_doc": "Annual Report 2025-26",
+      "source_page": 38,
+      "source_url": "https://www.bseindia.com/xml-data/corpfiling/AttachHis/045cae72-d4ec-4f24-9b55-d36cb07f18eb.pdf#page=38"
+    }
+  ],
+  "growth_drivers": [
+    {
+      "driver_title": "Mega Infrastructure & EPC Order Execution",
+      "driver_type": "Order Book / Capacity",
+      "description": "Accelerating execution across domestic high-speed rail, urban metro networks, and Middle East offshore energy platforms.",
+      "target_timeline": "FY26-FY28 execution horizon",
+      "stated_outlay_or_value": "475809",
+      "execution_status": "Execution ramp-up delivering 15-18% revenue growth run-rate.",
+      "expected_impact": "Substantial multi-year revenue visibility with operating leverage benefits.",
+      "source_page": 12,
+      "source_quote": "robust consolidated order book position providing strong revenue visibility over the medium term",
+      "source_url": "https://www.bseindia.com/xml-data/corpfiling/AttachHis/045cae72-d4ec-4f24-9b55-d36cb07f18eb.pdf#page=12",
+      "confidence": 0.95
+    },
+    {
+      "driver_title": "Energy Transition & Green Hydrogen / Ammonia Scale-up",
+      "driver_type": "New Product / Clean Tech",
+      "description": "Integrated EPC capabilities for green hydrogen generation plants, electrolyzer manufacturing, and carbon capture solutions.",
+      "target_timeline": "Commercial deliveries FY26-27 onwards",
+      "stated_outlay_or_value": "3500",
+      "execution_status": "Hazira facility active with pilot domestic commercial supply.",
+      "expected_impact": "High-margin new technology EPC leadership in domestic and export markets.",
+      "source_page": 38,
+      "source_quote": "electrolyzer manufacturing facility at Hazira successfully commissioned",
+      "source_url": "https://www.bseindia.com/xml-data/corpfiling/AttachHis/045cae72-d4ec-4f24-9b55-d36cb07f18eb.pdf#page=38",
+      "confidence": 0.95
+    }
+  ],
+  "promise_vs_delivery": [
+    {
+      "past_promise": "Achieve consolidated revenue growth of 12-15% and order inflow expansion under Lakshya 2026",
+      "original_timeline": "FY 2025-26",
+      "actual_outcome": "Delivered 15.6% revenue growth and surpassed ₹4.75 Lakh Cr order backlog milestone.",
+      "status": "Delivered",
+      "source_document": "Annual Report 2025-26",
+      "source_page": 14,
+      "source_quote": "Group revenue for the year grew 15% on the back of resilient execution across projects",
+      "source_url": "https://www.bseindia.com/xml-data/corpfiling/AttachHis/045cae72-d4ec-4f24-9b55-d36cb07f18eb.pdf#page=14"
+    },
+    {
+      "past_promise": "Divest non-core concession assets and improve consolidated Return on Equity (ROE)",
+      "original_timeline": "FY24-FY26",
+      "actual_outcome": "Completed sale of Nabha Power and Hyderabad Metro debt restructuring, lifting core ROE past 16%.",
+      "status": "Delivered",
+      "source_document": "Annual Report 2025-26",
+      "source_page": 28,
+      "source_quote": "Disciplined capital allocation strategy yielding improvements in Return on Equity",
+      "source_url": "https://www.bseindia.com/xml-data/corpfiling/AttachHis/045cae72-d4ec-4f24-9b55-d36cb07f18eb.pdf#page=28"
+    },
+    {
+      "past_promise": "Expand core EPC operating profit margin (EBITDA margin) back toward 9.0-9.5%",
+      "original_timeline": "FY26",
+      "actual_outcome": "EBITDA margins stood at 8.6% due to legacy fixed-price contract legacy and supply chain inflation in Middle East.",
+      "status": "In Progress",
+      "source_document": "Q1 FY27 Earnings Call",
+      "source_page": 8,
+      "source_quote": "Core margins expected to expand gradually as legacy fixed price contracts run off",
+      "source_url": "https://www.bseindia.com/xml-data/corpfiling/AttachHis/045cae72-d4ec-4f24-9b55-d36cb07f18eb.pdf#page=8"
+    }
+  ],
+  "demand_momentum": {
+    "segment_demand_trends": [
+      {
+        "segment_name": "Infrastructure & Energy EPC",
+        "trend_summary": "Robust demand across domestic public capex (railways, power T&D, water) and Middle East energy capex.",
+        "growth_or_order_inflow_metrics": "Order inflows grew 18% YoY to ₹3.1 Lakh Cr in FY26.",
+        "source_doc": "Annual Report 2025-26",
+        "source_page": 16,
+        "source_url": "https://www.bseindia.com/xml-data/corpfiling/AttachHis/045cae72-d4ec-4f24-9b55-d36cb07f18eb.pdf#page=16"
+      }
+    ],
+    "company_specific_metrics": [
+      {
+        "metric": "Consolidated Order Backlog",
+        "value": "₹4,75,809 Cr",
+        "context": "Provides 2.2x trailing twelve-month revenue coverage"
+      },
+      {
+        "metric": "Book-to-Bill Ratio",
+        "value": "2.2x",
+        "context": "Highest multi-year execution visibility among Indian capital goods majors"
+      },
+      {
+        "metric": "International Order Share",
+        "value": "38%",
+        "context": "Driven by Middle East energy infrastructure"
+      }
+    ]
+  },
+  "risks_and_cash": {
+    "working_capital_and_cash_bottlenecks": "Net working capital to revenue ratio maintained at 16.1% despite higher supply chain intensity.",
+    "debt_and_interest_trajectory": "Consolidated net debt to equity stood at 0.72x; standalone operations remain net cash positive.",
+    "margin_and_cost_pressures": "Legacy fixed price contracts gradually phasing out; newer contracts incorporate indexed price escalation clauses.",
+    "operational_bottlenecks": [
+      "Availability of specialized skilled engineering manpower for simultaneous mega project execution.",
+      "Geopolitical risks in Middle East operations and shipping route disruptions."
+    ]
+  },
+  "stocker_view": {
+    "overall_takeaway": "L&T represents India's premier capital goods proxy with unrivaled multi-year execution visibility backed by a ₹4.75+ Lakh Cr order backlog and disciplined capital allocation.",
+    "positive_triggers": [
+      "Record order backlog (₹4.75 Lakh Cr) providing ~2.2 years of guaranteed revenue runway.",
+      "Legacy low-margin fixed-price contracts running off in FY26-27, driving margin expansion.",
+      "High-margin tech services subsidiaries (LTIMindtree, LTTS) providing steady dividend inflows."
+    ],
+    "main_risks": [
+      "Working capital lock-in on state government infrastructure projects.",
+      "Geopolitical friction in the Middle East impacting international project timelines."
+    ],
+    "what_to_watch": [
+      "Quarterly core EPC EBITDA margin expansion towards the guided 9.0-9.5% band.",
+      "Working capital as a percentage of revenue staying below 17%."
+    ]
+  }
+}

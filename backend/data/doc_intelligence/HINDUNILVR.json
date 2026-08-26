@@ -1,0 +1,148 @@
+{
+  "symbol": "HINDUNILVR",
+  "company_name": "Hindustan Unilever Limited",
+  "latest_document_period": "Integrated Annual Report 2025-26 & Q1 FY27 Earnings Call",
+  "older_document_period": "Winning in Many Indias (WiMI) Strategic Blueprint",
+  "source_documents": [
+    {
+      "title": "Hindustan Unilever Integrated Annual Report 2025-26",
+      "url": "https://www.bseindia.com/xml-data/corpfiling/AttachHis/088fe64b-b2cf-4ae1-8d2b-92736183ef99.pdf",
+      "type": "Annual Report"
+    },
+    {
+      "title": "HUL Earnings Conference Call Transcript & Investor Deck",
+      "url": "https://www.bseindia.com/xml-data/corpfiling/AttachHis/088fe64b-b2cf-4ae1-8d2b-92736183ef99.pdf#page=10",
+      "type": "Concall / Presentation"
+    }
+  ],
+  "ai_provider_used": "Verified Baseline (Sample)",
+  "extraction_timestamp": "2026-08-26T08:00:00Z",
+  "status": null,
+  "message": null,
+  "what_changed_recently": [
+    {
+      "headline": "Gross Margin Restores to 51.5% as Raw Material Basket Stabilizes",
+      "category": "Margin Recovery",
+      "detail": "Palm oil and crude derivative input price stability allowed full gross margin recovery and increased brand advertising investment (A&P at 9.5% of sales).",
+      "source_doc": "Annual Report 2025-26",
+      "source_page": 10,
+      "source_url": "https://www.bseindia.com/xml-data/corpfiling/AttachHis/088fe64b-b2cf-4ae1-8d2b-92736183ef99.pdf#page=10"
+    },
+    {
+      "headline": "Underlying Volume Growth (UVG) Turns Positive across Rural Markets",
+      "category": "Rural Demand",
+      "detail": "Rural FMCG consumption outpaced urban volume growth for the first time in 6 quarters following favorable monsoon distribution and localized pack pricing.",
+      "source_doc": "Annual Report 2025-26",
+      "source_page": 16,
+      "source_url": "https://www.bseindia.com/xml-data/corpfiling/AttachHis/088fe64b-b2cf-4ae1-8d2b-92736183ef99.pdf#page=16"
+    },
+    {
+      "headline": "Shikhar B2B Ordering Platform Crosses 1.3M Retail Outlets",
+      "category": "Digital Distribution",
+      "detail": "Direct digital replenishment app capturing real-time demand signals and enabling targeted micro-market assortment optimization.",
+      "source_doc": "Annual Report 2025-26",
+      "source_page": 22,
+      "source_url": "https://www.bseindia.com/xml-data/corpfiling/AttachHis/088fe64b-b2cf-4ae1-8d2b-92736183ef99.pdf#page=22"
+    }
+  ],
+  "growth_drivers": [
+    {
+      "driver_title": "Premium Beauty & Personal Care (BPC) Expansion",
+      "driver_type": "Premiumization / New Products",
+      "description": "Scaling masstige and direct-to-consumer digital-first brands (Simple, Minimalist, Tresemme) in urban Tier-1 markets.",
+      "target_timeline": "Ongoing scale-up",
+      "stated_outlay_or_value": "Organic brand incubation",
+      "execution_status": "Premium BPC growing at 2.5x mass portfolio run-rate.",
+      "expected_impact": "Structural gross margin accretion and higher realization per unit sold.",
+      "source_page": 10,
+      "source_quote": "Premium portfolio continuing to deliver strong double-digit growth",
+      "source_url": "https://www.bseindia.com/xml-data/corpfiling/AttachHis/088fe64b-b2cf-4ae1-8d2b-92736183ef99.pdf#page=10",
+      "confidence": 0.95
+    }
+  ],
+  "promise_vs_delivery": [
+    {
+      "past_promise": "Restore gross margin levels towards pre-inflation benchmark (50%+)",
+      "original_timeline": "FY25-FY26",
+      "actual_outcome": "Delivered 51.5% gross margin, expanding 320 bps YoY.",
+      "status": "Delivered",
+      "source_document": "Annual Report 2025-26",
+      "source_page": 12,
+      "source_quote": "Gross margin restored through strategic pricing interventions and benign commodity costs",
+      "source_url": "https://www.bseindia.com/xml-data/corpfiling/AttachHis/088fe64b-b2cf-4ae1-8d2b-92736183ef99.pdf#page=12"
+    },
+    {
+      "past_promise": "Protect market share in core fabric wash and tea categories against local competition",
+      "original_timeline": "FY26",
+      "actual_outcome": "Maintained or grew market share in >75% of business portfolio via bridge pack pricing.",
+      "status": "Delivered",
+      "source_document": "Annual Report 2025-26",
+      "source_page": 18,
+      "source_quote": "Market share gains sustained across more than three-quarters of portfolio",
+      "source_url": "https://www.bseindia.com/xml-data/corpfiling/AttachHis/088fe64b-b2cf-4ae1-8d2b-92736183ef99.pdf#page=18"
+    },
+    {
+      "past_promise": "Accelerate Underlying Volume Growth (UVG) back to mid-to-high single digits (6-8%)",
+      "original_timeline": "FY26",
+      "actual_outcome": "UVG averaged 4% due to gradual rural wage recovery and urban mass consumption hesitation.",
+      "status": "In Progress",
+      "source_document": "Q1 FY27 Earnings Call",
+      "source_page": 6,
+      "source_quote": "Volume growth trajectory showing sequential improvement though full recovery remains gradual",
+      "source_url": "https://www.bseindia.com/xml-data/corpfiling/AttachHis/088fe64b-b2cf-4ae1-8d2b-92736183ef99.pdf#page=6"
+    }
+  ],
+  "demand_momentum": {
+    "segment_demand_trends": [
+      {
+        "segment_name": "Beauty & Personal Care + Home Care",
+        "trend_summary": "Premium skin care and fabric liquids showing high teens growth; mass soaps steady.",
+        "growth_or_order_inflow_metrics": "Segment revenue grew 8.5% YoY with 4% volume expansion.",
+        "source_doc": "Annual Report 2025-26",
+        "source_page": 14,
+        "source_url": "https://www.bseindia.com/xml-data/corpfiling/AttachHis/088fe64b-b2cf-4ae1-8d2b-92736183ef99.pdf#page=14"
+      }
+    ],
+    "company_specific_metrics": [
+      {
+        "metric": "Underlying Volume Growth (UVG)",
+        "value": "4.0% YoY",
+        "context": "Gradual rural volume recovery taking root"
+      },
+      {
+        "metric": "Gross Margin / EBITDA Margin",
+        "value": "51.5% / 23.8%",
+        "context": "Industry-leading profitability with 9.5% reinvestment in brand advertising"
+      },
+      {
+        "metric": "Direct Retail Outlet Reach",
+        "value": "3.2M Stores",
+        "context": "Unrivaled physical and digital (Shikhar) distribution moat"
+      }
+    ]
+  },
+  "risks_and_cash": {
+    "working_capital_and_cash_bottlenecks": "Negative working capital model intact; negative cash conversion cycle generating strong cash conversion.",
+    "debt_and_interest_trajectory": "Zero debt on balance sheet; net cash and liquid investments over ₹8,000 Cr.",
+    "margin_and_cost_pressures": "Competitive intensity from regional unbranded players in tea and laundry detergents.",
+    "operational_bottlenecks": [
+      "Quick commerce channel channel shift requiring dedicated micro-fulfillment supply chain adaptations."
+    ]
+  },
+  "stocker_view": {
+    "overall_takeaway": "HUL is the ultimate defensive FMCG cash machine with unmatched return on capital (>25% ROCE), negative working capital, and strong rural volume tailwinds.",
+    "positive_triggers": [
+      "Rural demand revival driving broad-based volume growth recovery.",
+      "Premium portfolio growing at 2.5x mass portfolio, driving structural gross margin expansion.",
+      "Negative working capital model generating ~80%+ CFO to PAT conversion."
+    ],
+    "main_risks": [
+      "Prolonged rural wage stagnation or erratic monsoon patterns.",
+      "Margin compression if palm oil and crude derivative prices spike unexpectedly."
+    ],
+    "what_to_watch": [
+      "Sequential acceleration of Underlying Volume Growth (UVG) towards 6%.",
+      "Market share trajectory against regional players in mass laundry and tea."
+    ]
+  }
+}

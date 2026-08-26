@@ -9,7 +9,7 @@ from typing import Dict, Any, Optional, List, Tuple
 
 from models import (
     KeyRatios, FinancialStatement, FinancialRow,
-    ConcallInsight, AnnualReportInsight, DocumentLinks
+    ConcallInsight, AnnualReportInsight, DocumentLinks, DocumentItem
 )
 from data_seed import COMPANY_METADATA
 
@@ -137,37 +137,68 @@ def parse_screener_ratios(soup: BeautifulSoup) -> KeyRatios:
                     
     return KeyRatios(**ratios_dict)
 
+from urllib.parse import urlparse
+
 def parse_screener_documents(soup: BeautifulSoup, symbol: str, source_url: str) -> DocumentLinks:
-    doc_links = DocumentLinks(annual_reports=[], concalls=[], presentations=[])
+    doc_links = DocumentLinks(annual_reports=[], concalls=[], presentations=[], material_announcements=[])
     doc_section = soup.find("section", {"id": "documents"})
-    if doc_section:
-        for a in doc_section.find_all("a", href=True):
-            text = a.text.strip()
-            href = a["href"]
-            if not href.startswith("http"):
-                href = f"https://www.screener.in{href}"
-            if "annual report" in text.lower() or "financial report" in text.lower():
-                doc_links.annual_reports.append({"name": text, "url": href})
-            elif "transcript" in text.lower() or "concall" in text.lower() or "call" in text.lower():
-                doc_links.concalls.append({"name": text, "url": href})
-            elif "presentation" in text.lower() or "ppt" in text.lower():
-                doc_links.presentations.append({"name": text, "url": href})
-                
-    if not doc_links.annual_reports:
-        doc_links.annual_reports.append({
-            "name": f"Latest Annual Report ({symbol})",
-            "url": f"{source_url}#documents"
-        })
-    if not doc_links.concalls:
-        doc_links.concalls.append({
-            "name": f"Latest Concall Transcript ({symbol})",
-            "url": f"{source_url}#documents"
-        })
-    if not doc_links.presentations:
-        doc_links.presentations.append({
-            "name": f"Investor Presentation ({symbol})",
-            "url": f"{source_url}#documents"
-        })
+    if not doc_section:
+        return doc_links
+        
+    for a in doc_section.find_all("a", href=True):
+        text = a.text.strip()
+        href = a["href"].strip()
+        if not text or not href or href.endswith("#documents") or href.startswith("#"):
+            continue
+            
+        if not href.startswith("http"):
+            href = f"https://www.screener.in{href}"
+            
+        try:
+            parsed_host = urlparse(href).netloc
+        except Exception:
+            parsed_host = "screener.in"
+            
+        is_pdf = href.lower().endswith(".pdf") or ".pdf" in href.lower()
+        lower_t = text.lower()
+        
+        if "annual report" in lower_t or "integrated report" in lower_t or "financial report" in lower_t:
+            doc_links.annual_reports.append(DocumentItem(
+                title=text,
+                url=href,
+                doc_type="annual_report",
+                source_host=parsed_host,
+                discovery_source="Screener.in",
+                is_direct_pdf=is_pdf
+            ))
+        elif "transcript" in lower_t or "concall" in lower_t or "call" in lower_t or "earnings" in lower_t:
+            doc_links.concalls.append(DocumentItem(
+                title=text,
+                url=href,
+                doc_type="concall_transcript",
+                source_host=parsed_host,
+                discovery_source="Screener.in",
+                is_direct_pdf=is_pdf
+            ))
+        elif "presentation" in lower_t or "ppt" in lower_t or "investor deck" in lower_t:
+            doc_links.presentations.append(DocumentItem(
+                title=text,
+                url=href,
+                doc_type="presentation",
+                source_host=parsed_host,
+                discovery_source="Screener.in",
+                is_direct_pdf=is_pdf
+            ))
+        elif "announcement" in lower_t or "outcome" in lower_t:
+            doc_links.material_announcements.append(DocumentItem(
+                title=text,
+                url=href,
+                doc_type="announcement",
+                source_host=parsed_host,
+                discovery_source="Screener.in",
+                is_direct_pdf=is_pdf
+            ))
+            
     return doc_links
 
 def fetch_screener_html(symbol: str) -> Optional[Tuple[str, str, str]]:

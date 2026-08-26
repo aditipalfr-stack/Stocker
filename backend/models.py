@@ -27,7 +27,7 @@ class FinancialStatement(BaseModel):
     rows: List[FinancialRow]
 
 class ConcallInsight(BaseModel):
-    period: str  # e.g. "Latest Earnings Call"
+    period: str
     transcript_url: Optional[str] = None
     presentation_url: Optional[str] = None
     audio_url: Optional[str] = None
@@ -39,26 +39,43 @@ class ConcallInsight(BaseModel):
     analyst_sentiment: str
 
 class AnnualReportInsight(BaseModel):
-    year: str  # e.g. "FY 2025 / FY 2026"
+    year: str
     report_url: Optional[str] = None
     cfo_fcf_performance: str
     capex_cwip_summary: str
     strategic_priorities: List[str]
     forensic_checklist: Dict[str, str]
 
+class DocumentItem(BaseModel):
+    title: str
+    url: str
+    doc_type: str = "general" # "annual_report", "concall_transcript", "presentation", "announcement"
+    period_or_date: Optional[str] = None
+    source_host: Optional[str] = None
+    discovery_source: str = "Screener.in"
+    is_direct_pdf: bool = True
+
 class DocumentLinks(BaseModel):
-    annual_reports: List[Dict[str, str]] = []
-    concalls: List[Dict[str, str]] = []
-    presentations: List[Dict[str, str]] = []
+    annual_reports: List[DocumentItem] = []
+    concalls: List[DocumentItem] = []
+    presentations: List[DocumentItem] = []
+    material_announcements: List[DocumentItem] = []
 
 class ProjectionAssumption(BaseModel):
     revenue_growth_rate_pct: float = 12.0
+    revenue_growth_source: str = "Historical CAGR" # "Historical CAGR", "Management Guidance", "Stocker Derived", "User Override"
     target_opm_pct: float = 22.0
+    opm_source: str = "Historical Median"
     capex_pct_of_sales: float = 5.0
+    capex_source: str = "Historical Average"
     effective_tax_rate_pct: float = 25.0
+    tax_source: str = "Historical Tax/PBT"
     terminal_growth_rate_pct: float = 5.0
     discount_rate_wacc_pct: float = 12.0
     target_exit_pe: float = 25.0
+    exit_pe_source: str = "Historical Median P/E"
+    projection_confidence: str = "Moderate" # "High", "Moderate", "Low"
+    forward_drivers_used: List[str] = []
 
 class YearlyProjection(BaseModel):
     year: str
@@ -71,14 +88,14 @@ class YearlyProjection(BaseModel):
     tax_cr: float
     pat_cr: float
     eps: float
-    cfo_cr: float
-    capex_cr: float
-    fcf_cr: float
+    cfo_cr: Optional[float] = None
+    capex_cr: Optional[float] = None
+    fcf_cr: Optional[float] = None
 
 class ProjectionResult(BaseModel):
     assumptions: ProjectionAssumption
-    historical_revenue_cagr_3yr: float
-    historical_opm_median: float
+    historical_revenue_cagr_3yr: Optional[float] = None
+    historical_opm_median: Optional[float] = None
     projections: List[YearlyProjection]
     dcf_fair_value_per_share: float
     dcf_upside_pct: float
@@ -86,6 +103,7 @@ class ProjectionResult(BaseModel):
     target_price_upside_pct: float
     projected_3yr_irr_cagr_pct: float
     scenario_type: str = "Base Case"
+    data_quality: str = "High"
 
 class ScoreBreakdown(BaseModel):
     growth_momentum_score: float      # 0 - 100
@@ -93,8 +111,11 @@ class ScoreBreakdown(BaseModel):
     capital_efficiency_score: float   # 0 - 100
     balance_sheet_safety_score: float # 0 - 100
     valuation_margin_score: float     # 0 - 100
+    management_execution_impact: float = 0.0 # Bonus/penalty based on Promise vs Delivery
+    future_visibility_impact: float = 0.0    # Bonus from active capex / orders
     total_composite_score: float      # 0 - 100
     verdict: str
+    data_confidence: str = "High"     # "High", "Moderate", "Low / Incomplete"
     investment_thesis: str
     key_catalysts: List[str]
     key_risks: List[str]
@@ -115,6 +136,7 @@ class StockSummary(BaseModel):
     net_debt_to_equity: float
     composite_score: float
     verdict: str
+    data_confidence: str = "High"
     rank: int
     is_top_conviction: bool = False
     investment_thesis_short: str

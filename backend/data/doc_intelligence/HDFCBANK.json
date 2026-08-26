@@ -1,0 +1,148 @@
+{
+  "symbol": "HDFCBANK",
+  "company_name": "HDFC Bank Limited",
+  "latest_document_period": "Annual Integrated Report 2025-26 & Q1 FY27 Earnings Call",
+  "older_document_period": "HDFC Merger Integration Blueprint",
+  "source_documents": [
+    {
+      "title": "HDFC Bank Integrated Annual Report 2025-26",
+      "url": "https://www.bseindia.com/xml-data/corpfiling/AttachHis/17e29a99-b1d8-4f18-971c-e72e811c750b.pdf",
+      "type": "Annual Report"
+    },
+    {
+      "title": "HDFC Bank Q1 FY27 Investor Conference Call Transcript",
+      "url": "https://www.bseindia.com/xml-data/corpfiling/AttachHis/17e29a99-b1d8-4f18-971c-e72e811c750b.pdf#page=18",
+      "type": "Concall / Presentation"
+    }
+  ],
+  "ai_provider_used": "Verified Baseline (Sample)",
+  "extraction_timestamp": "2026-08-26T08:00:00Z",
+  "status": null,
+  "message": null,
+  "what_changed_recently": [
+    {
+      "headline": "Merger Integration Stabilized with Loan Growth Re-accelerating",
+      "category": "Balance Sheet Strategy",
+      "detail": "Core deposit mobilization accelerated past loan growth, bringing Credit-to-Deposit (CD) ratio down towards historical comfort zones (~100%).",
+      "source_doc": "Annual Report 2025-26",
+      "source_page": 18,
+      "source_url": "https://www.bseindia.com/xml-data/corpfiling/AttachHis/17e29a99-b1d8-4f18-971c-e72e811c750b.pdf#page=18"
+    },
+    {
+      "headline": "Gross NPA Maintained at Pristine 1.33% with High Provision Coverage",
+      "category": "Asset Quality",
+      "detail": "Asset quality across retail, mortgage, and wholesale books remains resilient with net NPA at 0.39% and PCR at 71%.",
+      "source_doc": "Annual Report 2025-26",
+      "source_page": 24,
+      "source_url": "https://www.bseindia.com/xml-data/corpfiling/AttachHis/17e29a99-b1d8-4f18-971c-e72e811c750b.pdf#page=24"
+    },
+    {
+      "headline": "Branch Network Reaches 9,000+ Touchpoints Across India",
+      "category": "Distribution Expansion",
+      "detail": "Accelerated semi-urban and rural branch additions to deepen CASA deposit capture and retail mortgage origination.",
+      "source_doc": "Annual Report 2025-26",
+      "source_page": 32,
+      "source_url": "https://www.bseindia.com/xml-data/corpfiling/AttachHis/17e29a99-b1d8-4f18-971c-e72e811c750b.pdf#page=32"
+    }
+  ],
+  "growth_drivers": [
+    {
+      "driver_title": "Mortgage Cross-Sell across 90M+ Banking Customers",
+      "driver_type": "Product Cross-Sell",
+      "description": "Cross-selling bundled home loans, personal loans, and credit cards directly to non-mortgage banking account holders.",
+      "target_timeline": "Ongoing multi-year integration",
+      "stated_outlay_or_value": "Distribution branch synergy",
+      "execution_status": "Over 80% of new home loan customers now onboarded directly via bank branch touchpoints.",
+      "expected_impact": "Sticky long-duration asset book with zero acquisition intermediary brokerage fees.",
+      "source_page": 18,
+      "source_quote": "Expanding home loan distribution across the comprehensive bank branch network",
+      "source_url": "https://www.bseindia.com/xml-data/corpfiling/AttachHis/17e29a99-b1d8-4f18-971c-e72e811c750b.pdf#page=18",
+      "confidence": 0.95
+    }
+  ],
+  "promise_vs_delivery": [
+    {
+      "past_promise": "Execute legal amalgamation of HDFC Ltd into HDFC Bank seamlessly",
+      "original_timeline": "FY24-FY25",
+      "actual_outcome": "Completed merger integration with zero regulatory disruptions and unified treasury.",
+      "status": "Delivered",
+      "source_document": "Annual Report 2025-26",
+      "source_page": 8,
+      "source_quote": "Successfully concluded structural amalgamation and unified operational platforms",
+      "source_url": "https://www.bseindia.com/xml-data/corpfiling/AttachHis/17e29a99-b1d8-4f18-971c-e72e811c750b.pdf#page=8"
+    },
+    {
+      "past_promise": "Maintain best-in-class asset quality through merger transition",
+      "original_timeline": "FY25-FY26",
+      "actual_outcome": "Gross NPA remained pristine at 1.33%, among lowest in private banking sector.",
+      "status": "Delivered",
+      "source_document": "Annual Report 2025-26",
+      "source_page": 24,
+      "source_quote": "Asset quality ratios maintained within guided historical thresholds",
+      "source_url": "https://www.bseindia.com/xml-data/corpfiling/AttachHis/17e29a99-b1d8-4f18-971c-e72e811c750b.pdf#page=24"
+    },
+    {
+      "past_promise": "Restore Net Interest Margin (NIM) back to pre-merger 3.8-4.0% band",
+      "original_timeline": "FY26",
+      "actual_outcome": "Core NIM currently at 3.46% as high-cost liabilities run off and liquidity buffers are digested.",
+      "status": "In Progress",
+      "source_document": "Q1 FY27 Earnings Call",
+      "source_page": 12,
+      "source_quote": "NIM expansion will follow deposit repricing and gradual CD ratio normalization",
+      "source_url": "https://www.bseindia.com/xml-data/corpfiling/AttachHis/17e29a99-b1d8-4f18-971c-e72e811c750b.pdf#page=12"
+    }
+  ],
+  "demand_momentum": {
+    "segment_demand_trends": [
+      {
+        "segment_name": "Retail & Commercial Advances",
+        "trend_summary": "Steady 14-16% credit growth driven by auto loans, personal loans, and SME commercial banking.",
+        "growth_or_order_inflow_metrics": "Total advances grew 15.8% YoY.",
+        "source_doc": "Annual Report 2025-26",
+        "source_page": 20,
+        "source_url": "https://www.bseindia.com/xml-data/corpfiling/AttachHis/17e29a99-b1d8-4f18-971c-e72e811c750b.pdf#page=20"
+      }
+    ],
+    "company_specific_metrics": [
+      {
+        "metric": "Net Interest Margin (NIM)",
+        "value": "3.46%",
+        "context": "Expected to expand 20-30 bps as high-cost legacy borrowings mature"
+      },
+      {
+        "metric": "Gross NPA / Net NPA",
+        "value": "1.33% / 0.39%",
+        "context": "Industry-leading asset quality with 71% provision coverage"
+      },
+      {
+        "metric": "CASA Ratio",
+        "value": "36.2%",
+        "context": "Deposit franchise re-accelerating through branch additions"
+      }
+    ]
+  },
+  "risks_and_cash": {
+    "working_capital_and_cash_bottlenecks": "Not applicable for banking operations; credit-to-deposit ratio is the primary liquidity indicator.",
+    "debt_and_interest_trajectory": "Capital Adequacy Ratio (CAR) robust at 18.8% against regulatory minimum of 11.5%.",
+    "margin_and_cost_pressures": "Competitive deposit pricing in banking system temporarily keeping cost of funds elevated.",
+    "operational_bottlenecks": [
+      "Branch productivity gestation time for newly opened rural and semi-urban branches."
+    ]
+  },
+  "stocker_view": {
+    "overall_takeaway": "HDFC Bank offers an attractive structural franchise compounder at an undemanding valuation (~14x P/E) as merger overhangs dissipate and NIM expands.",
+    "positive_triggers": [
+      "Deposit growth outpacing credit growth, steadily reducing the CD ratio.",
+      "High-cost HDFC Ltd debt maturing over the next 12-24 months, directly expanding NIM.",
+      "Pristine asset quality with zero systemic retail credit stress."
+    ],
+    "main_risks": [
+      "Intense industry competition for low-cost CASA deposits.",
+      "Regulatory changes to liquidity coverage ratio (LCR) requirements."
+    ],
+    "what_to_watch": [
+      "Quarterly deposit mobilization run-rate relative to loan growth.",
+      "Sequential NIM trajectory towards 3.65%."
+    ]
+  }
+}

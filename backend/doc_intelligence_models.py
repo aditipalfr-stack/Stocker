@@ -48,6 +48,14 @@ class PromiseVsDeliveryItem(BaseModel):
     @classmethod
     def adapt_legacy_promise(cls, values: Any) -> Any:
         if isinstance(values, dict):
+            if "past_promise" in values and not values.get("management_promise"):
+                values["management_promise"] = values["past_promise"]
+            if "original_timeline" in values and not values.get("promised_in_period"):
+                values["promised_in_period"] = values["original_timeline"]
+            if "area" not in values or not values.get("area"):
+                values["area"] = values.get("category", "Corporate Strategy")
+            if "actual_in_period" not in values or not values.get("actual_in_period"):
+                values["actual_in_period"] = values.get("source_document", "Latest Audited Results")
             if "variance_analysis" in values and not values.get("stocker_analysis"):
                 values["stocker_analysis"] = values["variance_analysis"]
             if values.get("status") == "Not enough data":
