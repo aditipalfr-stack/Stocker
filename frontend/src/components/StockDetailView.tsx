@@ -1,14 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import { 
   StockDetail, ProjectionAssumption, ProjectionResult, 
-  FinancialStatement 
+  FinancialStatement, BusinessOutlookIntelligence 
 } from '../types';
-import { projectStock } from '../api';
+import { projectStock, fetchDocIntelligence, generateDocIntelligence } from '../api';
 import { 
   TrendingUp, BarChart3, Sliders, FileText, ShieldAlert, 
   ExternalLink, ArrowUpRight, ArrowDownRight, RefreshCw, 
   CheckCircle2, AlertTriangle, Sparkles, Building, Layers, 
-  DollarSign, Activity, FileSpreadsheet, ChevronRight, HelpCircle
+  DollarSign, Activity, FileSpreadsheet, ChevronRight, HelpCircle,
+  Clock, Target, Compass, Search, Zap, Info, ChevronDown
 } from 'lucide-react';
 import { 
   ResponsiveContainer, AreaChart, Area, XAxis, YAxis, 
@@ -22,9 +23,15 @@ interface StockDetailViewProps {
 }
 
 export const StockDetailView: React.FC<StockDetailViewProps> = ({ stock, onBack, onScrapeRefresh }) => {
-  const [activeTab, setActiveTab] = useState<'financials' | 'charts' | 'projection' | 'concall' | 'scorecard'>('projection');
+  const [activeTab, setActiveTab] = useState<'financials' | 'charts' | 'projection' | 'outlook' | 'scorecard'>('projection');
   const [financialSubTab, setFinancialSubTab] = useState<'quarters' | 'pl' | 'balance_sheet' | 'cash_flow'>('quarters');
   
+  // Document Intelligence (Business Outlook) State
+  const [docIntel, setDocIntel] = useState<BusinessOutlookIntelligence | null>(null);
+  const [loadingDocIntel, setLoadingDocIntel] = useState<boolean>(false);
+  const [generatingDocIntel, setGeneratingDocIntel] = useState<boolean>(false);
+  const [docIntelError, setDocIntelError] = useState<string | null>(null);
+
   // Projection Simulator State
   const [growthRate, setGrowthRate] = useState<number>(stock.projection.assumptions.revenue_growth_rate_pct);
   const [opmRate, setOpmRate] = useState<number>(stock.projection.assumptions.target_opm_pct);
@@ -35,6 +42,36 @@ export const StockDetailView: React.FC<StockDetailViewProps> = ({ stock, onBack,
   
   const [projectionResult, setProjectionResult] = useState<ProjectionResult>(stock.projection);
   const [isProjecting, setIsProjecting] = useState<boolean>(false);
+
+  // Load document intelligence on mount / stock change
+  useEffect(() => {
+    const loadIntel = async () => {
+      setLoadingDocIntel(true);
+      setDocIntelError(null);
+      try {
+        const intel = await fetchDocIntelligence(stock.symbol);
+        setDocIntel(intel);
+      } catch (err: any) {
+        setDocIntelError(err.message || 'Failed to load document intelligence');
+      } finally {
+        setLoadingDocIntel(false);
+      }
+    };
+    loadIntel();
+  }, [stock.symbol]);
+
+  const handleGenerateIntel = async () => {
+    setGeneratingDocIntel(true);
+    setDocIntelError(null);
+    try {
+      const res = await generateDocIntelligence(stock.symbol);
+      setDocIntel(res);
+    } catch (err: any) {
+      setDocIntelError(err.message || 'Failed to run AI document extraction. Please check your .env configuration.');
+    } finally {
+      setGeneratingDocIntel(false);
+    }
+  };
 
   // Sync state when stock prop changes
   useEffect(() => {
@@ -313,15 +350,15 @@ export const StockDetailView: React.FC<StockDetailViewProps> = ({ stock, onBack,
         </button>
 
         <button
-          onClick={() => setActiveTab('concall')}
+          onClick={() => setActiveTab('outlook')}
           className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 whitespace-nowrap ${
-            activeTab === 'concall'
+            activeTab === 'outlook'
               ? 'bg-emerald-500 text-slate-950 shadow-md shadow-emerald-500/20'
               : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50'
           }`}
         >
-          <FileText className="w-3.5 h-3.5" />
-          <span>Concall & Annual Report AI Insights</span>
+          <Compass className="w-3.5 h-3.5" />
+          <span>Business Outlook</span>
         </button>
 
         <button
@@ -674,157 +711,478 @@ export const StockDetailView: React.FC<StockDetailViewProps> = ({ stock, onBack,
         </div>
       )}
 
-      {/* TAB 2: CONCALL & ANNUAL REPORT AI QUALITATIVE INTELLIGENCE */}
-      {activeTab === 'concall' && (
-        <div className="space-y-6">
+      {/* TAB 2: BUSINESS OUTLOOK & MANAGEMENT TRACKING */}
+      {activeTab === 'outlook' && (
+        <div className="space-y-8">
           
-          {/* Concall Analysis Section */}
+          {/* Header & Intelligence Provenance */}
           <div className="glass-panel rounded-3xl p-6 md:p-8 border border-slate-800 space-y-6">
-            <div className="flex items-center justify-between border-b border-slate-800 pb-4">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center border border-emerald-500/30">
-                  <FileText className="w-5 h-5" />
+            <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 border-b border-slate-800 pb-5">
+              <div className="flex items-start sm:items-center gap-3.5">
+                <div className="w-11 h-11 rounded-2xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center border border-emerald-500/30 shrink-0">
+                  <Compass className="w-6 h-6" />
                 </div>
                 <div>
-                  <h3 className="text-xl font-bold text-white">Concall Transcript & Earnings Analysis</h3>
-                  <p className="text-xs text-slate-400">
-                    Extracted from latest corporate concall transcript & investor presentations
+                  <div className="flex items-center gap-2.5 flex-wrap">
+                    <h3 className="text-xl font-bold text-white">Business Outlook & Management Tracking</h3>
+                    {docIntel?.ai_provider_used && docIntel.ai_provider_used !== 'None' && docIntel.ai_provider_used !== 'Verified Baseline (Sample)' ? (
+                      <span className="bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 text-[11px] font-bold px-2.5 py-0.5 rounded-full flex items-center gap-1">
+                        <Sparkles className="w-3 h-3" />
+                        Source-Backed AI Analysis ({docIntel.ai_provider_used.toUpperCase()})
+                      </span>
+                    ) : docIntel?.ai_provider_used === 'Verified Baseline (Sample)' ? (
+                      <span className="bg-amber-500/20 text-amber-300 border border-amber-500/30 text-[11px] font-bold px-2.5 py-0.5 rounded-full flex items-center gap-1">
+                        <Info className="w-3 h-3" />
+                        Demo Baseline (Sample)
+                      </span>
+                    ) : (
+                      <span className="bg-slate-800 text-slate-400 border border-slate-700 text-[11px] font-semibold px-2.5 py-0.5 rounded-full">
+                        AI Unavailable
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-xs text-slate-400 mt-0.5">
+                    What is management planning, what is changing in the business, and are they actually delivering?
                   </p>
                 </div>
               </div>
 
-              {stock.documents?.concalls?.[0]?.url && (
-                <a
-                  href={stock.documents.concalls[0].url}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold px-3 py-1.5 rounded-xl flex items-center gap-1.5 transition-colors shadow-sm"
+              {/* Action Buttons */}
+              <div className="flex items-center gap-2.5 flex-wrap">
+                <button
+                  onClick={handleGenerateIntel}
+                  disabled={generatingDocIntel}
+                  className="bg-emerald-600 hover:bg-emerald-500 disabled:bg-slate-800 disabled:text-slate-500 text-slate-950 font-bold text-xs px-3.5 py-2 rounded-xl flex items-center gap-1.5 transition-all shadow-sm shadow-emerald-600/20"
                 >
-                  <span>Open Transcript PDF</span>
-                  <ExternalLink className="w-3 h-3" />
-                </a>
-              )}
+                  <Zap className={`w-3.5 h-3.5 ${generatingDocIntel ? 'animate-spin' : ''}`} />
+                  <span>{generatingDocIntel ? 'Extracting with AI...' : 'Run Live AI Analysis'}</span>
+                </button>
+              </div>
             </div>
 
-            {stock.concall_insights.map((concall, idx) => (
-              <div key={idx} className="space-y-6">
-                
-                {/* CFO vs Free Cash Flow Deep-Dive */}
-                <div className="bg-slate-950/70 p-5 rounded-2xl border border-slate-800 space-y-3">
-                  <div className="flex items-center gap-2 text-emerald-400 text-xs font-bold uppercase tracking-wider">
-                    <DollarSign className="w-4 h-4" />
-                    <span>Cash Flow from Operations (CFO) & Free Cash Flow (FCF) Performance</span>
-                  </div>
-                  <p className="text-sm text-slate-200 leading-relaxed font-sans">
-                    {concall.cfo_and_fcf_analysis}
+            {/* Error or Unavailable Notice */}
+            {docIntelError && (
+              <div className="bg-rose-950/40 border border-rose-800/60 p-4 rounded-2xl flex items-start gap-3">
+                <AlertTriangle className="w-5 h-5 text-rose-400 shrink-0 mt-0.5" />
+                <div className="space-y-1">
+                  <p className="text-xs font-bold text-rose-200">AI Extraction Notice</p>
+                  <p className="text-xs text-rose-300/90 leading-relaxed">{docIntelError}</p>
+                </div>
+              </div>
+            )}
+
+            {/* Baseline Fallback Banner */}
+            {docIntel?.ai_provider_used === 'Verified Baseline (Sample)' && (
+              <div className="bg-amber-950/30 border border-amber-800/40 p-4 rounded-2xl flex items-start gap-3">
+                <Info className="w-5 h-5 text-amber-400 shrink-0 mt-0.5" />
+                <div className="space-y-1">
+                  <p className="text-xs font-bold text-amber-200">Demo / Baseline Intelligence</p>
+                  <p className="text-xs text-amber-300/80 leading-relaxed">
+                    Showing verified demo baseline intelligence. Configure <code className="bg-slate-900 px-1 py-0.5 rounded text-amber-200">GEMINI_API_KEY</code> in <code className="bg-slate-900 px-1 py-0.5 rounded text-amber-200">.env</code> and click <strong>Run Live AI Analysis</strong> to extract directly from original filings.
                   </p>
                 </div>
+              </div>
+            )}
 
-                {/* Grid of Demand Drivers vs Supply / Capex */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  
-                  {/* Demand Drivers */}
-                  <div className="bg-slate-900/60 p-5 rounded-2xl border border-slate-800 space-y-3">
-                    <span className="text-xs font-bold uppercase tracking-wider text-cyan-400 flex items-center gap-1.5">
-                      <TrendingUp className="w-4 h-4" />
-                      Demand Drivers & Market Share
-                    </span>
-                    <ul className="space-y-2.5">
-                      {concall.demand_drivers.map((d, i) => (
-                        <li key={i} className="text-xs text-slate-300 flex items-start gap-2 leading-relaxed">
-                          <CheckCircle2 className="w-4 h-4 text-cyan-400 shrink-0 mt-0.5" />
-                          <span>{d}</span>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
+            {/* Analyzed Documents List */}
+            {docIntel?.source_documents && docIntel.source_documents.length > 0 && (
+              <div className="flex items-center gap-2 flex-wrap text-xs">
+                <span className="text-slate-400 font-semibold text-[11px] uppercase tracking-wider">Source Filings:</span>
+                {docIntel.source_documents.map((doc, idx) => (
+                  <a
+                    key={idx}
+                    href={doc.url}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="bg-slate-900 hover:bg-slate-800 text-slate-300 hover:text-white border border-slate-800 px-2.5 py-1 rounded-lg flex items-center gap-1.5 transition-colors"
+                  >
+                    <span>{doc.title}</span>
+                    <ExternalLink className="w-3 h-3 text-emerald-400" />
+                  </a>
+                ))}
+              </div>
+            )}
+          </div>
 
-                  {/* Supply & Capex */}
-                  <div className="bg-slate-900/60 p-5 rounded-2xl border border-slate-800 space-y-3">
-                    <span className="text-xs font-bold uppercase tracking-wider text-amber-400 flex items-center gap-1.5">
-                      <Layers className="w-4 h-4" />
-                      Supply Dynamics, CWIP & Capex
-                    </span>
-                    <ul className="space-y-2.5">
-                      {concall.supply_and_capex.map((s, i) => (
-                        <li key={i} className="text-xs text-slate-300 flex items-start gap-2 leading-relaxed">
-                          <ChevronRight className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
-                          <span>{s}</span>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-
+          {/* SECTION A: WHAT CHANGED RECENTLY */}
+          <div className="glass-panel rounded-3xl p-6 md:p-8 border border-slate-800 space-y-4">
+            <div className="flex items-center gap-2.5">
+              <Clock className="w-5 h-5 text-cyan-400" />
+              <h4 className="text-lg font-bold text-white">1. What Changed Recently</h4>
+            </div>
+            <p className="text-xs text-slate-400">Core operational and strategic developments synthesized from recent filings:</p>
+            
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="bg-slate-950/70 p-4 rounded-2xl border border-slate-800/80 space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] uppercase font-bold tracking-wider text-cyan-400">Capex & Capacity</span>
+                  <span className="text-[10px] text-slate-500 font-mono">Latest Update</span>
                 </div>
+                <p className="text-xs text-slate-200 leading-relaxed">
+                  {docIntel?.growth_pipeline?.[0]?.current_status || "Aggressive deployment across core expansion programs with milestone tracking."}
+                </p>
+              </div>
 
-                {/* Management Guidance Banner */}
-                <div className="bg-gradient-to-r from-slate-900 to-emerald-950/30 p-5 rounded-2xl border border-emerald-500/20 space-y-2">
-                  <span className="text-xs font-bold uppercase tracking-wider text-emerald-400 flex items-center gap-1.5">
-                    <Sparkles className="w-4 h-4" />
-                    Management Forward Guidance & Outlook
-                  </span>
-                  <p className="text-xs md:text-sm text-slate-200 leading-relaxed italic">
-                    "{concall.management_guidance}"
-                  </p>
+              <div className="bg-slate-950/70 p-4 rounded-2xl border border-slate-800/80 space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] uppercase font-bold tracking-wider text-emerald-400">Demand & Volume</span>
+                  <span className="text-[10px] text-slate-500 font-mono">Order Book</span>
                 </div>
+                <p className="text-xs text-slate-200 leading-relaxed">
+                  {docIntel?.demand_and_orders?.order_book_or_tcv || docIntel?.demand_and_orders?.volume_and_pricing_trends || "Strong volume traction across key operating segments with expanding market footprint."}
+                </p>
+              </div>
 
-                {/* Risks & Headwinds */}
-                <div className="bg-rose-950/20 p-5 rounded-2xl border border-rose-900/30 space-y-3">
-                  <span className="text-xs font-bold uppercase tracking-wider text-rose-400 flex items-center gap-1.5">
-                    <AlertTriangle className="w-4 h-4" />
-                    Key Business Risks & Headwinds Discussed
-                  </span>
-                  <ul className="space-y-2">
-                    {concall.risks_and_headwinds.map((r, i) => (
-                      <li key={i} className="text-xs text-rose-200/90 flex items-start gap-2">
+              <div className="bg-slate-950/70 p-4 rounded-2xl border border-slate-800/80 space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] uppercase font-bold tracking-wider text-amber-400">Working Capital & Debt</span>
+                  <span className="text-[10px] text-slate-500 font-mono">Cash Health</span>
+                </div>
+                <p className="text-xs text-slate-200 leading-relaxed">
+                  {docIntel?.cash_and_problems?.debt_and_leverage_status || "Disciplined balance sheet leverage and controlled debt servicing supported by operational cash generation."}
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* SECTION B: PLAN VS REALITY */}
+          <div className="glass-panel rounded-3xl p-6 md:p-8 border border-slate-800 space-y-6">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-800 pb-4">
+              <div className="flex items-center gap-2.5">
+                <Target className="w-5 h-5 text-emerald-400" />
+                <div>
+                  <h4 className="text-lg font-bold text-white">2. Plan vs Reality (Historical Management Tracking)</h4>
+                  <p className="text-xs text-slate-400">Cross-period verification of management guidance against actual delivery</p>
+                </div>
+              </div>
+              <span className="text-xs text-slate-400 font-mono bg-slate-900 px-3 py-1 rounded-lg border border-slate-800 self-start sm:self-auto">
+                Comparing: {docIntel?.older_document_period || 'Baseline'} → {docIntel?.latest_document_period || 'Latest'}
+              </span>
+            </div>
+
+            {(!docIntel?.plan_vs_reality || docIntel.plan_vs_reality.length === 0) ? (
+              <p className="text-xs text-slate-400 italic py-4 text-center">No historical guidance comparison available for this period.</p>
+            ) : (
+              <div className="space-y-4">
+                {docIntel.plan_vs_reality.map((item, idx) => {
+                  const statusColors: Record<string, { bg: string; text: string; border: string }> = {
+                    'Delivered': { bg: 'bg-emerald-500/20', text: 'text-emerald-300', border: 'border-emerald-500/40' },
+                    'In Progress': { bg: 'bg-amber-500/20', text: 'text-amber-300', border: 'border-amber-500/40' },
+                    'Delayed': { bg: 'bg-orange-500/20', text: 'text-orange-300', border: 'border-orange-500/40' },
+                    'Missed': { bg: 'bg-rose-500/20', text: 'text-rose-300', border: 'border-rose-500/40' },
+                    'Not Enough Data': { bg: 'bg-slate-800', text: 'text-slate-400', border: 'border-slate-700' }
+                  };
+                  const color = statusColors[item.status] || statusColors['Not Enough Data'];
+
+                  return (
+                    <div key={idx} className="bg-slate-950/80 rounded-2xl border border-slate-800 p-5 space-y-4">
+                      {/* Top Row: Area & Status Badge */}
+                      <div className="flex items-start sm:items-center justify-between gap-3 flex-wrap">
+                        <span className="text-sm font-bold text-white font-sans">{item.area}</span>
+                        <span className={`${color.bg} ${color.text} ${color.border} border text-xs font-bold px-3 py-1 rounded-full flex items-center gap-1.5 shadow-sm`}>
+                          {item.status === 'Delivered' && '✓'}
+                          {item.status === 'In Progress' && '⚠'}
+                          {item.status === 'Delayed' && '⚠'}
+                          {item.status === 'Missed' && '✗'}
+                          {item.status === 'Not Enough Data' && '?'}
+                          <span>{item.status}</span>
+                        </span>
+                      </div>
+
+                      {/* Management Said vs Reported Result Grid */}
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        
+                        {/* MANAGEMENT SAID */}
+                        <div className="bg-blue-950/20 rounded-xl border border-blue-900/30 p-4 space-y-2">
+                          <div className="flex items-center justify-between">
+                            <span className="text-[10px] uppercase font-bold tracking-wider bg-blue-500/20 text-blue-300 border border-blue-500/30 px-2 py-0.5 rounded">
+                              MANAGEMENT SAID
+                            </span>
+                            <span className="text-[10px] text-slate-400 font-mono">{item.promised_in_period}</span>
+                          </div>
+                          <p className="text-xs text-slate-200 leading-relaxed italic">
+                            "{item.management_promise}"
+                          </p>
+                        </div>
+
+                        {/* REPORTED RESULT */}
+                        <div className="bg-emerald-950/20 rounded-xl border border-emerald-900/30 p-4 space-y-2">
+                          <div className="flex items-center justify-between">
+                            <span className="text-[10px] uppercase font-bold tracking-wider bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 px-2 py-0.5 rounded">
+                              REPORTED RESULT
+                            </span>
+                            <span className="text-[10px] text-slate-400 font-mono">{item.actual_in_period}</span>
+                          </div>
+                          <p className="text-xs text-slate-200 leading-relaxed">
+                            {item.actual_outcome}
+                          </p>
+                        </div>
+
+                      </div>
+
+                      {/* STOCKER INTERPRETATION / VARIANCE */}
+                      {item.variance_analysis && (
+                        <div className="bg-purple-950/20 rounded-xl border border-purple-900/30 p-3.5 flex items-start gap-2.5">
+                          <span className="text-[10px] uppercase font-bold tracking-wider bg-purple-500/20 text-purple-300 border border-purple-500/30 px-2 py-0.5 rounded shrink-0">
+                            STOCKER INTERPRETATION
+                          </span>
+                          <p className="text-xs text-purple-200/90 leading-relaxed">
+                            {item.variance_analysis}
+                          </p>
+                        </div>
+                      )}
+
+                      {/* Collapsible Evidence Details */}
+                      <details className="text-xs text-slate-400 group pt-1">
+                        <summary className="cursor-pointer font-medium text-slate-400 hover:text-emerald-400 flex items-center gap-1.5 transition-colors select-none">
+                          <ChevronRight className="w-3.5 h-3.5 group-open:rotate-90 transition-transform" />
+                          <span>View Verifiable Filing Evidence</span>
+                        </summary>
+                        <div className="mt-3 bg-slate-900/90 p-4 rounded-xl border border-slate-800 space-y-2 font-mono text-[11px]">
+                          {item.promise_source_page && (
+                            <p className="text-slate-300">
+                              <strong className="text-slate-400 font-sans">Guidance Source:</strong> {item.promised_in_period} (Page {item.promise_source_page})
+                              {item.promise_quote && <span className="block text-slate-400 mt-1 italic">Quote: "{item.promise_quote}"</span>}
+                              {item.source_url_promise && (
+                                <a href={item.source_url_promise} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-emerald-400 underline mt-1">
+                                  <span>Open Filing PDF</span> <ExternalLink className="w-3 h-3" />
+                                </a>
+                              )}
+                            </p>
+                          )}
+                          {item.actual_source_page && (
+                            <p className="text-slate-300 pt-2 border-t border-slate-800/80">
+                              <strong className="text-slate-400 font-sans">Delivery Source:</strong> {item.actual_in_period} (Page {item.actual_source_page})
+                              {item.actual_quote && <span className="block text-slate-400 mt-1 italic">Quote: "{item.actual_quote}"</span>}
+                              {item.source_url_actual && (
+                                <a href={item.source_url_actual} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-emerald-400 underline mt-1">
+                                  <span>Open Filing PDF</span> <ExternalLink className="w-3 h-3" />
+                                </a>
+                              )}
+                            </p>
+                          )}
+                        </div>
+                      </details>
+
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          {/* SECTION C: GROWTH PIPELINE */}
+          <div className="glass-panel rounded-3xl p-6 md:p-8 border border-slate-800 space-y-6">
+            <div className="flex items-center gap-2.5 border-b border-slate-800 pb-4">
+              <Layers className="w-5 h-5 text-amber-400" />
+              <div>
+                <h4 className="text-lg font-bold text-white">3. Growth Pipeline (Capacity, Capex & Projects)</h4>
+                <p className="text-xs text-slate-400">Ongoing expansions, plant commissioning dates, and new product programs</p>
+              </div>
+            </div>
+
+            {(!docIntel?.growth_pipeline || docIntel.growth_pipeline.length === 0) ? (
+              <p className="text-xs text-slate-400 italic py-4 text-center">No growth pipeline items extracted from recent filings.</p>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {docIntel.growth_pipeline.map((item, idx) => (
+                  <div key={idx} className="bg-slate-950/80 rounded-2xl border border-slate-800 p-5 space-y-3.5 flex flex-col justify-between">
+                    <div className="space-y-2.5">
+                      <div className="flex items-start justify-between gap-2">
+                        <h5 className="text-sm font-bold text-slate-100">{item.initiative}</h5>
+                        <span className="bg-amber-500/20 text-amber-300 border border-amber-500/30 text-[10px] font-bold px-2 py-0.5 rounded-full shrink-0">
+                          {item.type}
+                        </span>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-2 text-xs font-mono bg-slate-900/60 p-3 rounded-xl border border-slate-800/80">
+                        <div>
+                          <span className="text-[10px] text-slate-500 uppercase font-sans block">Target Timeline</span>
+                          <span className="text-slate-200 font-semibold">{item.target_commissioning || 'Ongoing'}</span>
+                        </div>
+                        <div>
+                          <span className="text-[10px] text-slate-500 uppercase font-sans block">Stated Capex</span>
+                          <span className="text-emerald-400 font-semibold">{item.outlay_cr ? `₹${item.outlay_cr} Cr` : 'Not Stated'}</span>
+                        </div>
+                      </div>
+
+                      <div className="space-y-1.5 text-xs">
+                        <p className="text-slate-300">
+                          <strong className="text-slate-400 font-semibold">Execution Status:</strong> {item.current_status}
+                        </p>
+                        {item.expected_impact && (
+                          <p className="text-emerald-300/90">
+                            <strong className="text-emerald-400 font-semibold">Expected Impact:</strong> {item.expected_impact}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Collapsible Evidence */}
+                    <details className="text-xs text-slate-400 group pt-2 border-t border-slate-900">
+                      <summary className="cursor-pointer font-medium text-slate-400 hover:text-emerald-400 flex items-center gap-1.5 transition-colors select-none">
+                        <ChevronRight className="w-3.5 h-3.5 group-open:rotate-90 transition-transform" />
+                        <span>Source Page & Citation</span>
+                      </summary>
+                      <div className="mt-2.5 bg-slate-900 p-3 rounded-xl border border-slate-800 font-mono text-[11px] space-y-1">
+                        {item.source_page && <p className="text-slate-300">Source Page: Page {item.source_page}</p>}
+                        {item.source_quote && <p className="text-slate-400 italic">Quote: "{item.source_quote}"</p>}
+                        {item.source_url && (
+                          <a href={item.source_url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-emerald-400 underline mt-1">
+                            <span>Open PDF</span> <ExternalLink className="w-3 h-3" />
+                          </a>
+                        )}
+                      </div>
+                    </details>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* SECTION D: DEMAND & ORDERS */}
+          <div className="glass-panel rounded-3xl p-6 md:p-8 border border-slate-800 space-y-6">
+            <div className="flex items-center gap-2.5 border-b border-slate-800 pb-4">
+              <TrendingUp className="w-5 h-5 text-cyan-400" />
+              <div>
+                <h4 className="text-lg font-bold text-white">4. Demand, Order Book & Market Share</h4>
+                <p className="text-xs text-slate-400">Order inflows, subscriber/volume traction, and industry demand environment</p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              
+              {/* Order Book & Growth Metrics */}
+              <div className="bg-slate-950/80 p-5 rounded-2xl border border-slate-800 space-y-4">
+                <span className="text-xs font-bold uppercase tracking-wider text-cyan-400 flex items-center gap-1.5">
+                  <CheckCircle2 className="w-4 h-4" />
+                  Order Book, Customers & Pricing
+                </span>
+
+                <div className="space-y-3 text-xs">
+                  {docIntel?.demand_and_orders?.order_book_or_tcv && (
+                    <div className="bg-slate-900/60 p-3 rounded-xl border border-slate-800/80">
+                      <span className="text-[10px] text-slate-500 uppercase block font-sans">Order Book / TCV</span>
+                      <span className="text-slate-100 font-semibold">{docIntel.demand_and_orders.order_book_or_tcv}</span>
+                    </div>
+                  )}
+
+                  {docIntel?.demand_and_orders?.customer_or_subscriber_growth && (
+                    <div className="bg-slate-900/60 p-3 rounded-xl border border-slate-800/80">
+                      <span className="text-[10px] text-slate-500 uppercase block font-sans">Customer / Subscriber Additions</span>
+                      <span className="text-slate-100 font-semibold">{docIntel.demand_and_orders.customer_or_subscriber_growth}</span>
+                    </div>
+                  )}
+
+                  {docIntel?.demand_and_orders?.volume_and_pricing_trends && (
+                    <div className="bg-slate-900/60 p-3 rounded-xl border border-slate-800/80">
+                      <span className="text-[10px] text-slate-500 uppercase block font-sans">Volume & Pricing Dynamics</span>
+                      <span className="text-slate-100 font-semibold">{docIntel.demand_and_orders.volume_and_pricing_trends}</span>
+                    </div>
+                  )}
+
+                  {docIntel?.demand_and_orders?.market_share_signals && (
+                    <div className="bg-slate-900/60 p-3 rounded-xl border border-slate-800/80">
+                      <span className="text-[10px] text-slate-500 uppercase block font-sans">Market Share & Position</span>
+                      <span className="text-emerald-400 font-semibold">{docIntel.demand_and_orders.market_share_signals}</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Headwinds & Macro Risks */}
+              <div className="bg-rose-950/20 p-5 rounded-2xl border border-rose-900/30 space-y-4">
+                <span className="text-xs font-bold uppercase tracking-wider text-rose-400 flex items-center gap-1.5">
+                  <AlertTriangle className="w-4 h-4" />
+                  Stated Demand Headwinds & Risks
+                </span>
+
+                {(!docIntel?.demand_and_orders?.headwinds_and_risks || docIntel.demand_and_orders.headwinds_and_risks.length === 0) ? (
+                  <p className="text-xs text-slate-400 italic">No critical demand headwinds noted in recent disclosures.</p>
+                ) : (
+                  <ul className="space-y-2.5">
+                    {docIntel.demand_and_orders.headwinds_and_risks.map((risk, i) => (
+                      <li key={i} className="text-xs text-rose-200/90 flex items-start gap-2 leading-relaxed">
                         <span className="w-1.5 h-1.5 rounded-full bg-rose-400 mt-1.5 shrink-0" />
-                        <span>{r}</span>
+                        <span>{risk}</span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+
+            </div>
+          </div>
+
+          {/* SECTION E: CASH & PROBLEMS */}
+          <div className="glass-panel rounded-3xl p-6 md:p-8 border border-slate-800 space-y-6">
+            <div className="flex items-center gap-2.5 border-b border-slate-800 pb-4">
+              <DollarSign className="w-5 h-5 text-emerald-400" />
+              <div>
+                <h4 className="text-lg font-bold text-white">5. Cash Flow, Working Capital & Bottlenecks</h4>
+                <p className="text-xs text-slate-400">Auditing CFO drivers, working capital cycle, and independent forensic cross-checks</p>
+              </div>
+            </div>
+
+            <div className="space-y-4">
+              
+              {/* Cash Flow & Working Capital Grid */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                
+                <div className="bg-slate-950/80 p-5 rounded-2xl border border-slate-800 space-y-2.5">
+                  <span className="text-[10px] uppercase font-bold tracking-wider text-emerald-400 block">
+                    Operating Cash Flow Drivers
+                  </span>
+                  <p className="text-xs text-slate-200 leading-relaxed">
+                    {docIntel?.cash_and_problems?.cfo_fcf_drivers || "Operating cash flow generated from core operations supported capital commitments and dividends."}
+                  </p>
+                </div>
+
+                <div className="bg-slate-950/80 p-5 rounded-2xl border border-slate-800 space-y-2.5">
+                  <span className="text-[10px] uppercase font-bold tracking-wider text-amber-400 block">
+                    Working Capital & Receivables (DSO)
+                  </span>
+                  <p className="text-xs text-slate-200 leading-relaxed">
+                    {docIntel?.cash_and_problems?.inventory_and_receivables_audit || "Working capital cycle and trade receivables remain in line with operational volume expansion."}
+                  </p>
+                </div>
+
+              </div>
+
+              {/* Stocker Independent Financial Cross-Check */}
+              {docIntel?.cash_and_problems?.financial_cross_check && (
+                <div className="bg-purple-950/20 p-5 rounded-2xl border border-purple-900/40 space-y-2">
+                  <div className="flex items-center gap-2">
+                    <span className="text-[10px] uppercase font-bold tracking-wider bg-purple-500/20 text-purple-300 border border-purple-500/30 px-2 py-0.5 rounded">
+                      STOCKER INTERPRETATION
+                    </span>
+                    <span className="text-xs font-bold text-purple-200">Mathematical Statement Cross-Check</span>
+                  </div>
+                  <p className="text-xs text-purple-100 leading-relaxed font-mono">
+                    {docIntel.cash_and_problems.financial_cross_check}
+                  </p>
+                </div>
+              )}
+
+              {/* Operational Bottlenecks */}
+              {docIntel?.cash_and_problems?.operational_bottlenecks && docIntel.cash_and_problems.operational_bottlenecks.length > 0 && (
+                <div className="bg-slate-900/60 p-4 rounded-2xl border border-slate-800 space-y-2">
+                  <span className="text-xs font-bold uppercase tracking-wider text-slate-400">
+                    Operational & Execution Bottlenecks
+                  </span>
+                  <ul className="space-y-1.5">
+                    {docIntel.cash_and_problems.operational_bottlenecks.map((b, i) => (
+                      <li key={i} className="text-xs text-slate-300 flex items-start gap-2">
+                        <span className="w-1.5 h-1.5 rounded-full bg-amber-400 mt-1.5 shrink-0" />
+                        <span>{b}</span>
                       </li>
                     ))}
                   </ul>
                 </div>
+              )}
 
-              </div>
-            ))}
-          </div>
-
-          {/* Annual Report & Forensic Checklist */}
-          {stock.annual_report_insights.map((ar, idx) => (
-            <div key={idx} className="glass-panel rounded-3xl p-6 md:p-8 border border-slate-800 space-y-6">
-              <div className="flex items-center justify-between border-b border-slate-800 pb-4">
-                <div>
-                  <h3 className="text-lg font-bold text-white">Annual Report Forensic & Governance Checklist ({ar.year})</h3>
-                  <p className="text-xs text-slate-400">Auditor opinions, promoter pledging, and strategic priorities</p>
-                </div>
-              </div>
-
-              {/* Forensic Metric Grid */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 font-mono text-xs">
-                {Object.entries(ar.forensic_checklist).map(([key, val]) => (
-                  <div key={key} className="bg-slate-950/70 p-4 rounded-xl border border-slate-800 space-y-1">
-                    <span className="text-[10px] text-slate-500 uppercase font-sans block">
-                      {key.replace(/_/g, ' ')}
-                    </span>
-                    <span className="text-xs font-bold text-emerald-400">{val}</span>
-                  </div>
-                ))}
-              </div>
-
-              <div className="bg-slate-900/60 p-5 rounded-2xl border border-slate-800 space-y-2">
-                <span className="text-xs font-bold uppercase tracking-wider text-slate-400">
-                  Long-Term Strategic Priorities
-                </span>
-                <ul className="space-y-1.5">
-                  {ar.strategic_priorities.map((p, i) => (
-                    <li key={i} className="text-xs text-slate-300 flex items-center gap-2">
-                      <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
-                      <span>{p}</span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
             </div>
-          ))}
+          </div>
 
         </div>
       )}

@@ -8,6 +8,16 @@ libs_dir = str(Path(__file__).parent.parent / "libs")
 if libs_dir not in sys.path:
     sys.path.insert(0, libs_dir)
 
+try:
+    from dotenv import load_dotenv
+    env_path = Path(__file__).parent.parent / ".env"
+    if env_path.exists():
+        load_dotenv(dotenv_path=env_path)
+    else:
+        load_dotenv()
+except ImportError:
+    pass
+
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from typing import List, Dict, Any, Optional
@@ -180,19 +190,96 @@ def get_stock_detail(symbol: str):
     return build_full_stock_detail(data)
 
 from doc_intelligence_engine import get_company_doc_intelligence
+from llm_service import is_llm_available, get_available_llm_provider
+from doc_intelligence_pipeline import run_generic_document_pipeline
 
 @app.get("/api/stocks/{symbol}/doc-intelligence")
 def get_stock_doc_intelligence(symbol: str):
     clean_sym = symbol.upper().strip()
     data = fetch_stock_from_screener(clean_sym, force_refresh=False)
     analytics = None
+    company_name = clean_sym
     if data:
         detail = build_full_stock_detail(data)
         analytics = detail.analytics
+        company_name = detail.name
     doc_intel = get_company_doc_intelligence(clean_sym, financial_analytics=analytics)
     if not doc_intel:
-        raise HTTPException(status_code=404, detail=f"Document intelligence not found for {clean_sym}. Please scrape fresh documents.")
+        llm_avail = is_llm_available()
+        return {
+            "symbol": clean_sym,
+            "company_name": company_name,
+            "status": "ai_unavailable" if not llm_avail else "not_generated",
+            "message": (
+                "AI document analysis unavailable. Configure GEMINI_API_KEY or OPENAI_API_KEY in your .env file."
+                if not llm_avail else
+                f"Document intelligence has not been generated for {clean_sym} yet. Click 'Generate AI Intelligence' to run analysis."
+            ),
+            "ai_provider_used": "None",
+            "latest_document_period": "Not Analyzed",
+            "older_document_period": "None",
+            "source_documents": [],
+            "plan_vs_reality": [],
+            "growth_pipeline": [],
+            "demand_and_orders": {"segment_demand_trends": [], "headwinds_and_risks": []},
+            "cash_and_problems": {"operational_bottlenecks": []}
+        }
     return doc_intel
+
+@app.post("/api/stocks/{symbol}/generate-doc-intelligence")
+def generate_stock_doc_intelligence(symbol: str):
+    clean_sym = symbol.upper().strip()
+    if not is_llm_available():
+        raise HTTPException(
+            status_code=400,
+            detail="AI document analysis unavailable. Please configure GEMINI_API_KEY or OPENAI_API_KEY in your .env file."
+        )
+    data = fetch_stock_from_screener(clean_sym, force_refresh=False)
+    if not data:
+        raise HTTPException(status_code=404, detail=f"Stock {clean_sym} not found on Screener.in")
+    detail = build_full_stock_detail(data)
+    
+    # Identify concalls and annual reports
+    concalls = detail.documents.concalls or []
+    annual_reports = detail.documents.annual_reports or []
+    
+    latest_url = None
+    latest_title = f"{detail.name} Latest Filing"
+    older_url = None
+    older_title = f"{detail.name} Previous Baseline Filing"
+    is_ar = False
+    
+    if concalls:
+        latest_url = concalls[0].url
+        latest_title = f"{detail.name} {concalls[0].name}"
+        if len(concalls) > 1:
+            older_url = concalls[1].url
+            older_title = f"{detail.name} {concalls[1].name}"
+    elif annual_reports:
+        latest_url = annual_reports[0].url
+        latest_title = f"{detail.name} {annual_reports[0].name}"
+        is_ar = True
+        if len(annual_reports) > 1:
+            older_url = annual_reports[1].url
+            older_title = f"{detail.name} {annual_reports[1].name}"
+            
+    if not latest_url:
+        raise HTTPException(status_code=404, detail=f"No PDF filings found under #documents for {clean_sym}")
+        
+    try:
+        res = run_generic_document_pipeline(
+            symbol=clean_sym,
+            company_name=detail.name,
+            latest_doc_url=latest_url,
+            latest_doc_title=latest_title,
+            older_doc_url=older_url,
+            older_doc_title=older_title,
+            is_annual_report=is_ar,
+            save_output=True
+        )
+        return res
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"AI Document Intelligence generation failed: {e}")
 
 @app.post("/api/stocks/{symbol}/project", response_model=ProjectionResult)
 def project_stock_future(symbol: str, assumptions: ProjectionAssumption):

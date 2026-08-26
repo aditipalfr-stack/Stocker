@@ -12,10 +12,10 @@ __pycache__/
 # Frontend dependencies
 frontend/node_modules/
 
-# Logs, editor history & temp
+# Environment Variables & Keys
+.env
+.env.local
+.env.*.local
+!.env.example
 .history/
-*.log
-.DS_Store
-.idea/
-.vscode/
 

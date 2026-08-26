@@ -3,6 +3,17 @@ import json
 import re
 import requests
 from typing import List, Tuple, Dict, Any, Optional
+from pathlib import Path
+
+try:
+    from dotenv import load_dotenv
+    env_path = Path(__file__).parent.parent / ".env"
+    if env_path.exists():
+        load_dotenv(dotenv_path=env_path)
+    else:
+        load_dotenv()
+except ImportError:
+    pass
 
 from doc_intelligence_models import (
     GenericDocumentIntelligenceResult, GenericPlanVsRealityItem,

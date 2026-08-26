@@ -52,31 +52,56 @@ Unlike generic screeners that only show pre-calculated trailing ratios, Stocker 
 
 ---
 
-## Quick Start
+### 1. Configure Environment (Optional but Recommended for Live AI Document Intelligence)
+Copy the template `.env.example` to `.env`:
+```bash
+cp .env.example .env
+```
+Add your preferred API key (Google Gemini is preferred):
+```bash
+GEMINI_API_KEY=your_gemini_api_key_here
+# OR
+OPENAI_API_KEY=your_openai_api_key_here
+```
+*(Note: If no API key is provided, the platform continues working normally and displays verified demo/baseline intelligence with clear status indicators).*
 
-### 1. Launch Platform
+### 2. Launch Platform
 Simply run the startup script:
 ```bash
 ./start.sh
 ```
 This launches:
-- **Backend API**: `http://localhost:8088` (FastAPI + Swagger Docs at `/docs`)
+- **Backend API & Web App**: `http://localhost:8088` (FastAPI + Swagger Docs at `/docs`)
 - **Frontend Dashboard**: `http://localhost:5188` (React + Tailwind CSS + Recharts)
 
-To run on different custom ports:
+To run on custom ports:
 ```bash
 BACKEND_PORT=9000 FRONTEND_PORT=3000 ./start.sh
 ```
 
-### 2. Run Automated Test Suite
+### 3. Run Automated Test Suite
 ```bash
 PYTHONPATH=libs:backend python3 backend/tests.py
 ```
 
 ---
 
+## Business Outlook & Document Intelligence Pipeline
+
+The **Business Outlook** tab extracts and verifies fundamental claims directly from corporate concall transcripts, investor presentations, and annual reports without manual pre-filling:
+
+1. **What Changed Recently**: Fast synthesis of the latest operational updates.
+2. **Plan vs Reality**: Cross-period audit comparing historical management guidance ($T-1$) with actual delivery ($T$), classified into `Delivered`, `In Progress`, `Delayed`, `Missed`.
+3. **Growth Pipeline**: Capacity expansions, new plants, capex projects, and acquisitions with verifiable COD timelines.
+4. **Demand & Orders**: Order backlog / TCV, subscriber additions, volume/pricing mix, and segment momentum.
+5. **Cash & Problems**: Working capital cycle, inventory turns, debt trajectory, and independent mathematical cross-checks.
+
+---
+
 ## Technology Stack
 
-- **Backend**: Python 3.12, FastAPI, BeautifulSoup4, Pydantic, Uvicorn
+- **Backend**: Python 3.12, FastAPI, BeautifulSoup4, pypdf, python-dotenv, Pydantic, Uvicorn
+- **AI Service**: Google Gemini (`gemini-2.0-flash`) / OpenAI (`gpt-4o-mini`)
 - **Frontend**: React 19, Vite, TypeScript, Tailwind CSS, Lucide Icons, Recharts
+
 

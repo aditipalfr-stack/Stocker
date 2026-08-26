@@ -233,3 +233,76 @@ export interface ComparisonItem {
   };
 }
 
+export interface PlanVsRealityItem {
+  area: string;
+  management_promise: string;
+  promised_in_period: string;
+  promise_source_page?: number;
+  promise_quote?: string;
+  actual_outcome: string;
+  actual_in_period: string;
+  actual_source_page?: number;
+  actual_quote?: string;
+  status: 'Delivered' | 'In Progress' | 'Delayed' | 'Missed' | 'Not Enough Data';
+  variance_analysis: string;
+  source_url_promise?: string;
+  source_url_actual?: string;
+  confidence?: number;
+}
+
+export interface GrowthPipelineItem {
+  initiative: string;
+  type: 'Capacity / Plant' | 'Capex Program' | 'M&A / Acquisition' | 'New Product / Market';
+  outlay_cr?: string;
+  target_commissioning?: string;
+  current_status: string;
+  expected_impact?: string;
+  source_page?: number;
+  source_quote?: string;
+  source_url?: string;
+  confidence?: number;
+}
+
+export interface DemandAndOrders {
+  order_book_or_tcv?: string;
+  book_to_bill_ratio?: string;
+  customer_or_subscriber_growth?: string;
+  volume_and_pricing_trends?: string;
+  segment_demand_trends: Array<{ segment: string; trend: string }>;
+  market_share_signals?: string;
+  headwinds_and_risks: string[];
+  source_page?: number;
+  source_quote?: string;
+  source_url?: string;
+  confidence?: number;
+}
+
+export interface CashAndProblems {
+  cfo_fcf_drivers?: string;
+  inventory_and_receivables_audit?: string;
+  debt_and_leverage_status?: string;
+  operational_bottlenecks: string[];
+  financial_cross_check?: string;
+  source_page?: number;
+  source_quote?: string;
+  source_url?: string;
+  confidence?: number;
+}
+
+export interface BusinessOutlookIntelligence {
+  symbol: string;
+  company_name: string;
+  status?: string;
+  message?: string;
+  latest_document_period: string;
+  older_document_period?: string;
+  source_documents: Array<{ title: string; url: string; type?: string; period?: string }>;
+  ai_provider_used: string;
+  extraction_timestamp?: string;
+  plan_vs_reality: PlanVsRealityItem[];
+  growth_pipeline: GrowthPipelineItem[];
+  demand_and_orders: DemandAndOrders;
+  cash_and_problems: CashAndProblems;
+}
+
+

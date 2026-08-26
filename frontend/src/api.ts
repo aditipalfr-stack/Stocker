@@ -50,3 +50,23 @@ export async function compareStocks(symbols: string[]): Promise<ComparisonItem[]
   return data.comparison;
 }
 
+import { BusinessOutlookIntelligence } from './types';
+
+export async function fetchDocIntelligence(symbol: string): Promise<BusinessOutlookIntelligence | null> {
+  const res = await fetch(`${API_BASE}/stocks/${symbol}/doc-intelligence`);
+  if (!res.ok) return null;
+  return res.json();
+}
+
+export async function generateDocIntelligence(symbol: string): Promise<BusinessOutlookIntelligence> {
+  const res = await fetch(`${API_BASE}/stocks/${symbol}/generate-doc-intelligence`, {
+    method: 'POST'
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: 'Failed to generate document intelligence' }));
+    throw new Error(err.detail || 'Failed to generate document intelligence');
+  }
+  return res.json();
+}
+
+
