@@ -541,23 +541,48 @@ SYNTHESIS INSTRUCTIONS:
             
         result = GenericDocumentIntelligenceResult(**data_to_parse)
         
-        # Fallback default URLs only if the model failed to provide a valid URL
+        # Strict Citation Sanitization & Attribution Verification
+        valid_urls_map = {}
+        if candidate_documents_meta:
+            for d in candidate_documents_meta:
+                u = d.get("url", "").strip()
+                t = d.get("title", "").strip()
+                if u:
+                    valid_urls_map[u] = t
+                    
+        def _sanitize_citation(url: Optional[str], doc_title: Optional[str]) -> Tuple[Optional[str], Optional[str]]:
+            if not url and not doc_title:
+                return None, None
+            # If URL is in verified corpus
+            if url and url in valid_urls_map:
+                return url, valid_urls_map[url]
+            # Try matching title to verified documents
+            if doc_title:
+                for v_url, v_title in valid_urls_map.items():
+                    if doc_title.lower() in v_title.lower() or v_title.lower() in doc_title.lower():
+                        return v_url, v_title
+            # If URL matches latest_doc_url or older_doc_url
+            if url and url == latest_doc_url:
+                return latest_doc_url, latest_doc_title
+            if url and url == older_doc_url:
+                return older_doc_url, older_doc_title
+            # Do NOT guess or default blindly to latest annual report
+            return url or None, doc_title or None
+
         for c in result.what_changed_recently:
-            if not c.source_url:
-                c.source_url = latest_doc_url
+            c.source_url, c.source_doc_title = _sanitize_citation(c.source_url, c.source_doc_title)
         for g in result.growth_drivers:
-            if not g.source_url:
-                g.source_url = latest_doc_url
+            g.source_url, g.source_doc_title = _sanitize_citation(g.source_url, g.source_doc_title)
         for p in result.promise_vs_delivery:
-            if not p.source_url_actual:
-                p.source_url_actual = latest_doc_url
-            if not p.source_url_promise:
-                p.source_url_promise = older_doc_url or latest_doc_url
+            p.source_url_actual, _ = _sanitize_citation(p.source_url_actual, None)
+            p.source_url_promise, _ = _sanitize_citation(p.source_url_promise, None)
+            if not p.source_url_promise and not p.quote_or_target_promise:
+                p.status = "Not Enough Evidence"
                 
-        if not result.demand_momentum.source_url:
-            result.demand_momentum.source_url = latest_doc_url
-        if not result.risks_and_cash.source_url:
-            result.risks_and_cash.source_url = latest_doc_url
+        if result.demand_momentum:
+            result.demand_momentum.source_url, _ = _sanitize_citation(result.demand_momentum.source_url, None)
+        if result.risks_and_cash:
+            result.risks_and_cash.source_url, _ = _sanitize_citation(result.risks_and_cash.source_url, None)
             
         return True, result, "Extraction succeeded"
     except Exception as e:

@@ -7,6 +7,7 @@ import requests
 from bs4 import BeautifulSoup
 from typing import Dict, Any, Optional, List, Tuple
 
+import database
 from models import (
     KeyRatios, FinancialStatement, FinancialRow,
     ConcallInsight, AnnualReportInsight, DocumentLinks, DocumentItem
@@ -209,7 +210,23 @@ def hydrate_stock_data(cached_dict: Dict[str, Any]) -> Dict[str, Any]:
     data["cash_flow"] = FinancialStatement(**data["cash_flow"])
     data["concall_insights"] = [ConcallInsight(**c) for c in data.get("concall_insights", [])]
     data["annual_report_insights"] = [AnnualReportInsight(**a) for a in data.get("annual_report_insights", [])]
-    data["documents"] = DocumentLinks(**data.get("documents", {}))
+    doc_links = DocumentLinks(**data.get("documents", {}))
+    data["documents"] = doc_links
+    
+    # Sync documents into SQLite source_documents index
+    clean_sym = data.get("symbol", "").upper().strip()
+    if clean_sym and doc_links:
+        all_docs = []
+        if doc_links.annual_reports: all_docs.extend(doc_links.annual_reports)
+        if doc_links.concalls: all_docs.extend(doc_links.concalls)
+        if doc_links.presentations: all_docs.extend(doc_links.presentations)
+        if doc_links.material_announcements: all_docs.extend(doc_links.material_announcements)
+        if all_docs:
+            try:
+                database.save_source_documents(clean_sym, all_docs)
+            except Exception:
+                pass
+                
     return data
 
 def serialize_stock_data(stock_data: Dict[str, Any]) -> Dict[str, Any]:

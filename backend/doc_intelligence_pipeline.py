@@ -115,7 +115,7 @@ def format_audited_financials_for_prompt(symbol: str) -> str:
     if not data:
         return "Audited financial statements not available in database."
         
-    pl_data = data.get("profit_and_loss")
+    pl_data = data.get("profit_loss") or data.get("profit_and_loss")
     bs_data = data.get("balance_sheet")
     cf_data = data.get("cash_flow")
     q_data = data.get("quarters")
@@ -125,10 +125,11 @@ def format_audited_financials_for_prompt(symbol: str) -> str:
     # 1. Annual P&L Summary
     pl_years, pl_rows = _extract_statement_table(pl_data)
     if pl_years:
-        sales = pl_rows.get("Sales", [])
-        op = pl_rows.get("Operating Profit", [])
-        opm = pl_rows.get("OPM %", [])
-        pat = pl_rows.get("Net Profit", [])
+        sales = pl_rows.get("Sales", []) or pl_rows.get("Revenue", [])
+        op = pl_rows.get("Operating Profit", []) or pl_rows.get("EBITDA", [])
+        opm = pl_rows.get("OPM %", []) or pl_rows.get("OPM", [])
+        pat = pl_rows.get("Net Profit", []) or pl_rows.get("PAT", [])
+        eps = pl_rows.get("EPS in Rs", []) or pl_rows.get("EPS", [])
         
         lines.append("\n[Annual Performance (₹ in Crores)]")
         header = f"{'Metric':<18} | " + " | ".join(f"{str(y):>8}" for y in pl_years[-6:])
@@ -138,11 +139,12 @@ def format_audited_financials_for_prompt(symbol: str) -> str:
         if op: lines.append(f"{'EBITDA':<18} | " + " | ".join(f"{str(v or '-'):>8}" for v in op[-6:]))
         if opm: lines.append(f"{'OPM %':<18} | " + " | ".join(f"{str(v or '-'):>8}" for v in opm[-6:]))
         if pat: lines.append(f"{'Net Profit':<18} | " + " | ".join(f"{str(v or '-'):>8}" for v in pat[-6:]))
+        if eps: lines.append(f"{'EPS (₹)':<18} | " + " | ".join(f"{str(v or '-'):>8}" for v in eps[-6:]))
         
     # 2. Cash Flow Summary
     cf_years, cf_rows = _extract_statement_table(cf_data)
     if cf_years:
-        cfo = cf_rows.get("Cash from Operating Activity", []) or cf_rows.get("Operating Cash Flow", [])
+        cfo = cf_rows.get("Cash from Operating Activity", []) or cf_rows.get("Operating Cash Flow", []) or cf_rows.get("CFO", [])
         if cfo:
             lines.append("\n[Operating Cash Flow (CFO)]")
             lines.append(f"{'CFO (₹ Cr)':<18} | " + " | ".join(f"{str(v or '-'):>8}" for v in cfo[-6:]))
@@ -161,9 +163,9 @@ def format_audited_financials_for_prompt(symbol: str) -> str:
     # 4. Recent Quarters
     q_periods, q_rows = _extract_statement_table(q_data)
     if q_periods:
-        q_sales = q_rows.get("Sales", [])
-        q_opm = q_rows.get("OPM %", [])
-        q_pat = q_rows.get("Net Profit", [])
+        q_sales = q_rows.get("Sales", []) or q_rows.get("Revenue", [])
+        q_opm = q_rows.get("OPM %", []) or q_rows.get("OPM", [])
+        q_pat = q_rows.get("Net Profit", []) or q_rows.get("PAT", [])
         lines.append("\n[Recent 6 Quarters Trend]")
         lines.append(f"{'Quarter':<18} | " + " | ".join(f"{str(q):>8}" for q in q_periods[-6:]))
         if q_sales: lines.append(f"{'Qtr Sales':<18} | " + " | ".join(f"{str(v or '-'):>8}" for v in q_sales[-6:]))
@@ -178,7 +180,7 @@ def select_default_document_working_set(documents: DocumentLinks) -> List[Docume
     - Annual Reports: latest 3 financial years
     - Concall Transcripts: latest 6 quarters
     - Investor Presentations: latest 6 quarters
-    - Material Announcements: latest 12 months (up to 8 items)
+    - Material Announcements: latest 12 months (up to 8 material items, filtering routine procedural notices)
     """
     selected: List[DocumentItem] = []
     if documents.annual_reports:
@@ -188,18 +190,26 @@ def select_default_document_working_set(documents: DocumentLinks) -> List[Docume
     if documents.presentations:
         selected.extend(documents.presentations[:6])
     if documents.material_announcements:
-        selected.extend(documents.material_announcements[:8])
+        # Filter for materiality: avoid routine loss of shares or trading window notices
+        material_only = []
+        for ann in documents.material_announcements:
+            t_lower = ann.title.lower()
+            if not any(r in t_lower for r in ["loss of share", "duplicate share", "trading window", "newspaper publication"]):
+                material_only.append(ann)
+        selected.extend(material_only[:8] if material_only else documents.material_announcements[:8])
     return selected
 
 def fetch_historical_evidence_document(
     symbol: str, 
     doc_type: str, 
     period_or_year: str,
-    all_available_documents: Optional[DocumentLinks] = None
+    all_available_documents: Optional[DocumentLinks] = None,
+    company_name: str = ""
 ) -> Optional[DocumentItem]:
     """
     Retrieves an older document on demand (e.g. FY21/FY22 Annual Report or older Concall)
     when Promise vs Delivery or long-term capex verification requires historical evidence.
+    Executes live waterfall discovery if not already present in memory or SQLite.
     """
     clean_sym = symbol.upper().strip()
     
@@ -208,7 +218,7 @@ def fetch_historical_evidence_document(
         pool = []
         if doc_type in ("annual_report", "annual_reports", "ar"):
             pool = all_available_documents.annual_reports
-        elif doc_type in ("concall", "concalls", "transcript"):
+        elif doc_type in ("concall", "concalls", "transcript", "concall_transcript"):
             pool = all_available_documents.concalls
         elif doc_type in ("presentation", "presentations", "ppt"):
             pool = all_available_documents.presentations
@@ -233,15 +243,30 @@ def fetch_historical_evidence_document(
         if row:
             return DocumentItem(
                 ticker=clean_sym,
+                company_name=company_name or clean_sym,
                 title=row["title"],
+                name=row["title"],
                 url=row["url"],
                 doc_type=row["doc_type"],
                 period_or_date=row["period_or_date"],
                 discovery_source=row["discovery_source"],
-                actual_source_host=row["actual_source_host"]
+                actual_source_host=row["actual_source_host"],
+                is_direct_pdf=True,
+                validation_status="Valid"
             )
     finally:
         conn.close()
+        
+    # 3. Live On-Demand Discovery Waterfall via document_sourcing
+    try:
+        import document_sourcing
+        discovered = document_sourcing.discover_historical_document(
+            clean_sym, company_name or clean_sym, doc_type, period_or_year
+        )
+        if discovered:
+            return discovered
+    except Exception as e:
+        print(f"Notice: Live historical document discovery error for {clean_sym}: {e}")
         
     return None
 

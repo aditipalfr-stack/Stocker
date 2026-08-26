@@ -278,6 +278,69 @@ def get_cached_ai_analysis(symbol: str) -> Optional[Dict[str, Any]]:
     finally:
         conn.close()
 
+def save_source_documents(symbol: str, documents: List[Any]) -> None:
+    """Persists discovered and verified source documents into SQLite."""
+    if not documents:
+        return
+    clean_sym = symbol.upper().strip()
+    now_iso = datetime.now(timezone.utc).isoformat()
+    conn = get_db_connection()
+    try:
+        with conn:
+            for doc in documents:
+                title = getattr(doc, "title", None) or (doc.get("title") if isinstance(doc, dict) else "")
+                url = getattr(doc, "url", None) or (doc.get("url") if isinstance(doc, dict) else "")
+                doc_type = getattr(doc, "doc_type", None) or (doc.get("doc_type") if isinstance(doc, dict) else "general")
+                period = getattr(doc, "period_or_date", None) or (doc.get("period_or_date") if isinstance(doc, dict) else None)
+                discovery = getattr(doc, "discovery_source", None) or (doc.get("discovery_source") if isinstance(doc, dict) else "Unknown")
+                host = getattr(doc, "actual_source_host", None) or (doc.get("actual_source_host") if isinstance(doc, dict) else "")
+                status = getattr(doc, "validation_status", "Valid") or (doc.get("validation_status", "Valid") if isinstance(doc, dict) else "Valid")
+                is_valid = 1 if status == "Valid" else 0
+                
+                if not url:
+                    continue
+                    
+                conn.execute("""
+                    INSERT INTO source_documents (
+                        symbol, title, url, doc_type, period_or_date, discovery_source, actual_source_host, is_valid, added_at
+                    )
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    ON CONFLICT(url) DO UPDATE SET
+                        title = excluded.title,
+                        doc_type = excluded.doc_type,
+                        period_or_date = excluded.period_or_date,
+                        discovery_source = excluded.discovery_source,
+                        actual_source_host = excluded.actual_source_host,
+                        is_valid = excluded.is_valid
+                """, (clean_sym, title, url, doc_type, period, discovery, host, is_valid, now_iso))
+    finally:
+        conn.close()
+
+def get_source_documents(symbol: str, doc_type: Optional[str] = None) -> List[Dict[str, Any]]:
+    """Retrieves verified source documents from SQLite."""
+    clean_sym = symbol.upper().strip()
+    conn = get_db_connection()
+    try:
+        cur = conn.cursor()
+        if doc_type:
+            cur.execute("""
+                SELECT symbol, title, url, doc_type, period_or_date, discovery_source, actual_source_host, is_valid, added_at
+                FROM source_documents
+                WHERE symbol = ? AND doc_type = ? AND is_valid = 1
+                ORDER BY id DESC
+            """, (clean_sym, doc_type))
+        else:
+            cur.execute("""
+                SELECT symbol, title, url, doc_type, period_or_date, discovery_source, actual_source_host, is_valid, added_at
+                FROM source_documents
+                WHERE symbol = ? AND is_valid = 1
+                ORDER BY id DESC
+            """, (clean_sym,))
+        rows = cur.fetchall()
+        return [dict(r) for r in rows]
+    finally:
+        conn.close()
+
 def save_ai_analysis(
     symbol: str, 
     company_name: str, 

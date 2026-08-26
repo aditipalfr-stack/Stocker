@@ -7,6 +7,7 @@ from typing import Dict, List, Optional, Tuple, Any
 from bs4 import BeautifulSoup
 import requests
 
+import database
 from models import DocumentItem, DocumentLinks, DocumentDiscoveryDiagnostics
 
 BSE_SCRIP_CODES: Dict[str, str] = {
@@ -268,6 +269,73 @@ def validate_document_candidate(
     is_valid, _, reason = verify_document_network_and_content(title, url, doc_type, symbol, check_network=False)
     return is_valid, reason
 
+def classify_document_title(raw_title: str, company_name: str = "", period: Optional[str] = None) -> Tuple[str, str]:
+    """
+    Strict fundamental classification of filing titles:
+    Returns (doc_type, formatted_title)
+    doc_type is one of: 'annual_report', 'concall_transcript', 'presentation', 'announcement', 'general'
+    """
+    if not raw_title:
+        return "general", ""
+    lower_t = raw_title.lower().strip()
+    
+    # 1. Negative Guards: Explicit Capital calls / rights notices / routine corporate intimations
+    is_capital_call = any(k in lower_t for k in [
+        "partly paid", "call money", "share call", "first and final call", 
+        "reminder notice", "allotment of", "conversion of partly", "paid-up",
+        "forfeiture of shares", "right issue", "rights issue"
+    ])
+    is_routine_notice = any(k in lower_t for k in [
+        "loss of share", "duplicate share", "trading window", "closure of trading",
+        "newspaper publication", "loss of certificate"
+    ])
+    
+    # 2. Annual Reports & Integrated Filings
+    if not is_capital_call and any(k in lower_t for k in [
+        "annual report", "integrated report", "integrated annual report", 
+        "business responsibility and sustainability", "brsr", "annual accounts"
+    ]):
+        formatted_title = raw_title
+        if company_name and len(raw_title) <= 20:
+            formatted_title = f"{company_name} {raw_title}"
+        return "annual_report", formatted_title
+        
+    # 3. Earnings Conference Call Transcripts (Strict - no generic 'call' word matches!)
+    is_concall = not is_capital_call and (
+        "earnings call" in lower_t or
+        "conference call" in lower_t or
+        "concall" in lower_t or
+        "earnings conference" in lower_t or
+        "call transcript" in lower_t or
+        ("transcript" in lower_t and not any(w in lower_t for w in ["share", "transfer", "notice", "court", "tribunal"]))
+    )
+    if is_concall:
+        formatted_title = raw_title
+        if raw_title.lower() in ("transcript", "concall transcript", "earnings call"):
+            formatted_title = f"{company_name} {period or ''} Earnings Call Transcript".strip()
+        return "concall_transcript", formatted_title
+
+    # 4. Investor Presentations & Quarterly Decks
+    is_ppt = any(k in lower_t for k in [
+        "investor presentation", "earnings presentation", "investor deck", 
+        "analyst presentation", "quarterly presentation", "investor update"
+    ]) or (("presentation" in lower_t or "ppt" in lower_t) and not is_capital_call)
+    if is_ppt:
+        formatted_title = raw_title
+        if raw_title.lower() in ("presentation", "ppt", "investor presentation"):
+            formatted_title = f"{company_name} {period or ''} Investor Presentation".strip()
+        return "presentation", formatted_title
+
+    # 5. Material Exchange Announcements & Corporate Actions
+    if is_capital_call or is_routine_notice or any(k in lower_t for k in [
+        "announcement", "outcome", "board meeting", "filing", "regulation 30", 
+        "press release", "media release", "acquisition", "order", "contract", 
+        "intimation", "disclosure", "resignation", "appointment", "update", "clarification"
+    ]):
+        return "announcement", raw_title
+        
+    return "general", raw_title
+
 def discover_documents_screener(soup: BeautifulSoup, symbol: str, company_name: str) -> List[DocumentItem]:
     """Stage 1: Discover documents from Screener's #documents section."""
     found: List[DocumentItem] = []
@@ -296,30 +364,15 @@ def discover_documents_screener(soup: BeautifulSoup, symbol: str, company_name: 
             if parent_el:
                 period = extract_period_or_date(parent_el.text)
         
-        lower_t = raw_title.lower()
-        doc_type = "general"
-        if "annual report" in lower_t or "integrated report" in lower_t or "financial report" in lower_t:
-            doc_type = "annual_report"
-            if len(raw_title) <= 20:
-                raw_title = f"{company_name} {raw_title}"
-        elif "transcript" in lower_t or "concall" in lower_t or "earnings call" in lower_t or "call" in lower_t:
-            doc_type = "concall_transcript"
-            if raw_title.lower() == "transcript":
-                raw_title = f"{company_name} {period or ''} Earnings Call Transcript".strip()
-        elif "presentation" in lower_t or "ppt" in lower_t or "investor deck" in lower_t or "investor presentation" in lower_t:
-            doc_type = "presentation"
-            if raw_title.lower() in ("presentation", "ppt"):
-                raw_title = f"{company_name} {period or ''} Investor Presentation".strip()
-        elif "announcement" in lower_t or "outcome" in lower_t or "board meeting" in lower_t or "filing" in lower_t:
-            doc_type = "announcement"
+        doc_type, formatted_title = classify_document_title(raw_title, company_name, period)
             
-        is_valid, reason = validate_document_candidate(raw_title, href, doc_type, symbol)
+        is_valid, reason = validate_document_candidate(formatted_title, href, doc_type, symbol)
         
         found.append(DocumentItem(
             ticker=symbol,
             company_name=company_name,
-            title=raw_title,
-            name=raw_title,
+            title=formatted_title,
+            name=formatted_title,
             url=href,
             doc_type=doc_type,
             period_or_date=period,
@@ -364,25 +417,20 @@ def discover_documents_bse_fallback(symbol: str, company_name: str, needed_types
                 is_pdf = direct_url.lower().endswith(".pdf")
                 period = format_filing_date(dt) or extract_period_or_date(headline)
                 
-                lower_h = headline.lower()
-                doc_type = "announcement"
-                if "annual report" in lower_h:
-                    doc_type = "annual_report"
-                elif "transcript" in lower_h or "concall" in lower_h:
-                    doc_type = "concall_transcript"
-                elif "presentation" in lower_h or "investor deck" in lower_h:
-                    doc_type = "presentation"
+                doc_type, formatted_title = classify_document_title(headline, company_name, period)
+                if doc_type == "general":
+                    doc_type = "announcement"
                     
                 if needed_types and doc_type not in needed_types and "announcement" not in needed_types:
                     continue
                     
-                is_valid, _ = validate_document_candidate(headline, direct_url, doc_type, symbol)
+                is_valid, _ = validate_document_candidate(formatted_title, direct_url, doc_type, symbol)
                 if is_valid:
                     found.append(DocumentItem(
                         ticker=symbol,
                         company_name=company_name,
-                        title=headline[:120],
-                        name=headline[:120],
+                        title=formatted_title[:120],
+                        name=formatted_title[:120],
                         url=direct_url,
                         doc_type=doc_type,
                         period_or_date=period,
@@ -424,22 +472,17 @@ def discover_documents_nse_fallback(symbol: str, company_name: str, needed_types
                 pdf_url = attach_file if attach_file.startswith("http") else f"https://archives.nseindia.com/corporate/{attach_file}"
                 period = format_filing_date(dt) or extract_period_or_date(desc)
                 
-                doc_type = "announcement"
-                lower_d = desc.lower()
-                if "annual report" in lower_d:
-                    doc_type = "annual_report"
-                elif "transcript" in lower_d or "concall" in lower_d:
-                    doc_type = "concall_transcript"
-                elif "presentation" in lower_d or "investor deck" in lower_d:
-                    doc_type = "presentation"
+                doc_type, formatted_title = classify_document_title(desc, company_name, period)
+                if doc_type == "general":
+                    doc_type = "announcement"
                     
-                is_valid, _ = validate_document_candidate(desc, pdf_url, doc_type, symbol)
+                is_valid, _ = validate_document_candidate(formatted_title, pdf_url, doc_type, symbol)
                 if is_valid:
                     found.append(DocumentItem(
                         ticker=symbol,
                         company_name=company_name,
-                        title=desc[:120],
-                        name=desc[:120],
+                        title=formatted_title[:120],
+                        name=formatted_title[:120],
                         url=pdf_url,
                         doc_type=doc_type,
                         period_or_date=period,
@@ -467,62 +510,47 @@ def discover_documents_company_ir_fallback(symbol: str, company_name: str, neede
     if not ir_url:
         return found
         
-    domain = ir_info["domain"]
     headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-        "Referer": ir_url
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
     }
     
     try:
-        resp = requests.get(ir_url, headers=headers, timeout=5)
-        if resp.status_code != 200:
-            return found
-            
-        soup = BeautifulSoup(resp.text, "html.parser")
-        from urllib.parse import urljoin
-        
-        for a in soup.find_all("a", href=True):
-            href = a["href"].strip()
-            text = re.sub(r"\s+", " ", a.text).strip()
-            if not href or not text or len(text) < 3:
-                continue
-                
-            full_url = urljoin(ir_url, href)
-            is_pdf = full_url.lower().endswith(".pdf") or ".pdf" in full_url.lower()
-            if not is_pdf:
-                continue
-                
-            lower_t = text.lower()
-            doc_type = "general"
-            if "annual report" in lower_t or "integrated report" in lower_t:
-                doc_type = "annual_report"
-            elif "transcript" in lower_t or "concall" in lower_t:
-                doc_type = "concall_transcript"
-            elif "presentation" in lower_t or "deck" in lower_t:
-                doc_type = "presentation"
-            else:
-                doc_type = "announcement"
-                
-            if needed_types and doc_type not in needed_types:
-                continue
-                
-            period = extract_period_or_date(text) or extract_period_or_date(full_url)
-            is_valid, _ = validate_document_candidate(text, full_url, doc_type, symbol)
-            if is_valid:
-                found.append(DocumentItem(
-                    ticker=symbol,
-                    company_name=company_name,
-                    title=f"{company_name} {text}" if len(text) < 30 else text,
-                    name=f"{company_name} {text}" if len(text) < 30 else text,
-                    url=full_url,
-                    doc_type=doc_type,
-                    period_or_date=period,
-                    discovery_source="Company IR",
-                    actual_source_host=domain,
-                    actual_source_url=full_url,
-                    is_direct_pdf=True,
-                    validation_status="Valid"
-                ))
+        resp = requests.get(ir_url, headers=headers, timeout=6)
+        if resp.status_code == 200:
+            soup = BeautifulSoup(resp.text, "html.parser")
+            for a in soup.find_all("a", href=True):
+                text = a.text.strip()
+                href = a["href"].strip()
+                if not href or not text or len(text) < 3:
+                    continue
+                    
+                # Resolve relative URL
+                if href.startswith("/"):
+                    parsed_domain = urlparse(ir_url)
+                    href = f"{parsed_domain.scheme}://{parsed_domain.netloc}{href}"
+                elif not href.startswith("http"):
+                    href = f"{ir_url.rstrip('/')}/{href}"
+                    
+                period = extract_period_or_date(text) or extract_period_or_date(href)
+                doc_type, formatted_title = classify_document_title(text, company_name, period)
+                if doc_type in ("annual_report", "presentation", "concall_transcript") and (not needed_types or doc_type in needed_types):
+                    is_valid, _ = validate_document_candidate(formatted_title, href, doc_type, symbol)
+                    if is_valid:
+                        parsed_h = urlparse(href)
+                        found.append(DocumentItem(
+                            ticker=symbol,
+                            company_name=company_name,
+                            title=formatted_title[:120],
+                            name=formatted_title[:120],
+                            url=href,
+                            doc_type=doc_type,
+                            period_or_date=period,
+                            discovery_source="Company IR",
+                            actual_source_host=parsed_h.netloc.lower(),
+                            actual_source_url=href,
+                            is_direct_pdf=href.lower().endswith(".pdf"),
+                            validation_status="Valid"
+                        ))
     except Exception:
         pass
         
@@ -540,6 +568,7 @@ def execute_document_sourcing_waterfall(
     3. NSE India (Exchange Announcements Fallback)
     4. Company IR (Official Live Repository Fallback - No Guessed URLs)
     5. Parallel Network & PDF Signature Validation
+    6. SQLite Index Persistence in source_documents
     """
     clean_sym = symbol.upper().strip()
     all_raw_docs: List[DocumentItem] = []
@@ -619,6 +648,13 @@ def execute_document_sourcing_waterfall(
         else:
             invalid_links_count += 1
             
+    # Persist all discovered and verified documents into SQLite source_documents table
+    if final_valid_docs:
+        try:
+            database.save_source_documents(clean_sym, final_valid_docs)
+        except Exception as e:
+            print(f"Notice: Failed to persist source documents to SQLite for {clean_sym}: {e}")
+
     # Group by category and limit to target history
     annual_reports = [d for d in final_valid_docs if d.doc_type == "annual_report"][:3]
     concalls = [d for d in final_valid_docs if d.doc_type == "concall_transcript"][:6]
@@ -650,3 +686,66 @@ def execute_document_sourcing_waterfall(
         material_announcements=announcements,
         diagnostics=diagnostics
     )
+
+def discover_historical_document(
+    symbol: str, 
+    company_name: str, 
+    doc_type: str, 
+    period_or_year: str
+) -> Optional[DocumentItem]:
+    """
+    On-Demand True Historical Document Discovery:
+    When Promise vs Delivery or a multi-year capex verification requires an older filing
+    (e.g., FY21/FY22 Annual Report or older Concall) that is not in the default working set,
+    this function performs targeted live waterfall discovery to locate, validate, and index it.
+    """
+    clean_sym = symbol.upper().strip()
+    target_clean = period_or_year.lower().strip()
+    
+    # 1. Search BSE Corporate Announcements archives
+    scrip_code = BSE_SCRIP_CODES.get(clean_sym)
+    if scrip_code:
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+            "Referer": "https://www.bseindia.com/"
+        }
+        api_url = f"https://api.bseindia.com/BseIndiaAPI/api/AnnSubCategoryGetData/w?pageno=1&strCat=-1&strPrevDate=&strScrip={scrip_code}&strSearch=P&strToDate=&strType=C"
+        try:
+            resp = requests.get(api_url, headers=headers, timeout=6)
+            if resp.status_code == 200:
+                data = resp.json()
+                for item in data.get("Table", []):
+                    headline = item.get("NEWSSUB", "") or item.get("HEADLINE", "")
+                    attach_name = item.get("ATTACHMENTNAME", "")
+                    dt = item.get("NEWS_DT", "")
+                    if not attach_name or not headline:
+                        continue
+                        
+                    period = format_filing_date(dt) or extract_period_or_date(headline)
+                    d_type, f_title = classify_document_title(headline, company_name, period)
+                    
+                    if (d_type == doc_type or doc_type in d_type) and (target_clean in headline.lower() or (period and target_clean in period.lower())):
+                        direct_url = f"https://www.bseindia.com/xml-data/corpfiling/AttachHis/{attach_name}"
+                        is_valid, size, _ = verify_document_network_and_content(f_title, direct_url, d_type, clean_sym, check_network=True)
+                        if is_valid:
+                            doc = DocumentItem(
+                                ticker=clean_sym,
+                                company_name=company_name,
+                                title=f_title[:120],
+                                name=f_title[:120],
+                                url=direct_url,
+                                doc_type=d_type,
+                                period_or_date=period,
+                                discovery_source="BSE India Historical",
+                                actual_source_host="bseindia.com",
+                                actual_source_url=direct_url,
+                                is_direct_pdf=True,
+                                validation_status="Valid",
+                                file_size_bytes=size
+                            )
+                            database.save_source_documents(clean_sym, [doc])
+                            return doc
+        except Exception:
+            pass
+            
+    return None
