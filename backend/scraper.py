@@ -263,6 +263,7 @@ def hydrate_stock_data(cached_dict: Dict[str, Any]) -> Dict[str, Any]:
             except Exception:
                 pass
                 
+    data["documents_checked_at"] = database.get_document_sources_checked_at(clean_sym) or cached_dict.get("documents_checked_at")
     return data
 
 def serialize_stock_data(stock_data: Dict[str, Any]) -> Dict[str, Any]:
@@ -277,6 +278,7 @@ def serialize_stock_data(stock_data: Dict[str, Any]) -> Dict[str, Any]:
         "source_url": stock_data.get("source_url", ""),
         "statement_type": stock_data.get("statement_type", "consolidated"),
         "fetched_at": stock_data.get("fetched_at", ""),
+        "documents_checked_at": stock_data.get("documents_checked_at") or database.get_document_sources_checked_at(stock_data["symbol"]),
         "ratios": stock_data["ratios"].model_dump() if hasattr(stock_data["ratios"], "model_dump") else stock_data["ratios"],
         "quarters": stock_data["quarters"].model_dump() if hasattr(stock_data["quarters"], "model_dump") else stock_data["quarters"],
         "profit_loss": stock_data["profit_loss"].model_dump() if hasattr(stock_data["profit_loss"], "model_dump") else stock_data["profit_loss"],
@@ -385,7 +387,8 @@ def fetch_stock_from_screener(symbol: str, force_refresh: bool = False) -> Optio
         "cash_flow": cf,
         "concall_insights": concall_insights,
         "annual_report_insights": ar_insights,
-        "documents": documents
+        "documents": documents,
+        "documents_checked_at": getattr(documents, "checked_at", None) or fetched_at
     }
     
     # Save to Cache

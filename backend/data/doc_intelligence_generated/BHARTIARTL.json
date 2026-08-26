@@ -139,92 +139,67 @@
   ],
   "ai_provider_used": "GEMINI",
   "model_version": "gemini-3.6-flash",
-  "extraction_timestamp": "2026-08-26T15:42:44.286776+00:00",
+  "extraction_timestamp": "2026-08-26T16:35:32.109219+00:00",
   "status": null,
   "message": null,
   "what_changed_recently": [
     {
-      "headline": "Conversion of Partly Paid-up Shares",
-      "category": "Debt / Cash",
-      "detail": "Bharti Airtel successfully converted 460,340 partly paid-up equity shares into fully paid-up equity shares, with trading commencing on August 19, 2026.",
-      "source_doc": "Update On Conversion Of Partly Paid-Up Equity Shares Into Fully Paid-Up Equity Shares, Upon Receipt Of First And Final Call Pursuant To Reminder Notice Issued By The Company. 18 Aug - 460,340 partly paid-up shares converted to fully paid-up; trading starts August 19, 2026.",
-      "source_page": 1,
-      "source_url": "https://www.bseindia.com/stockinfo/AnnPdfOpen.aspx?Pname=7395d77a-c18b-4c6e-b61b-d3c0a83f10e2.pdf"
-    },
-    {
-      "headline": "Strategic Shift in Homes Segment Prioritizing Fiber over FWA",
-      "category": "Capex / Expansion",
-      "detail": "Management shifted focus from Fixed Wireless Access (FWA) to fiber in the Homes segment due to high churn, poor acquisition quality from low entry-level pricing, and rising chipset/memory costs.",
+      "headline": "Strategic pivot in Homes segment",
+      "category": "Strategic / M&A",
+      "detail": "Airtel is shifting focus from Fixed Wireless Access (FWA) to fiber-based connectivity due to high churn, poor acquisition quality, and rising chipset/memory costs.",
       "source_doc": "BHARTIARTL Aug 2026 Earnings Call Transcript",
       "source_page": 3,
       "source_url": "https://www.bseindia.com/stockinfo/AnnPdfOpen.aspx?Pname=ca87613b-39c3-4571-8ea9-8f77df1b6428.pdf"
     },
     {
-      "headline": "Airtel Money London Listing Preparation",
+      "headline": "Airtel Money NBFC approval",
       "category": "Strategic / M&A",
-      "detail": "Airtel Money is preparing for a London listing in the second half of 2026 following rapid scale and revenue growth.",
-      "source_doc": "BHARTIARTL Aug 2026 Earnings Call Transcript",
+      "detail": "Airtel Money Limited received RBI approval to operate as a non-deposit taking NBFC, marking a new growth engine for digital financial services.",
+      "source_doc": "BHARTIARTL Annual Report 2026",
       "source_page": 1,
-      "source_url": "https://www.bseindia.com/stockinfo/AnnPdfOpen.aspx?Pname=ca87613b-39c3-4571-8ea9-8f77df1b6428.pdf"
+      "source_url": "https://www.bseindia.com/xml-data/corpfiling/AttachHis/f8f6a174-8601-4747-9d0d-bd6b85fe53fc.pdf"
     }
   ],
   "growth_drivers": [
     {
-      "driver_title": "Nxtra Data Centers 1GW Ambition",
+      "driver_title": "Nxtra Data Center Expansion",
       "driver_type": "Capacity / Plant",
-      "description": "Scaling Nxtra data centers towards a 1GW ambition with funding raised at the Nxtra entity level.",
+      "description": "Scaling data center capacity to a 1GW ambition to capture enterprise demand for cloud and digital services.",
       "target_timeline": "Next few years",
-      "stated_outlay_or_value": "$1 billion fundraise",
-      "execution_status": "Active expansion and land acquisition in Mumbai",
-      "expected_impact": "Capturing rapid growth in hyperscaler and enterprise workloads",
-      "source_page": 4,
-      "source_quote": "Aggressive expansion of new growth engines, including scaling Nxtra data centers towards a 1GW ambition, expanding Airtel Cloud, and preparing Airtel Money for a London listing in H2 2026.",
-      "source_url": "https://www.bseindia.com/stockinfo/AnnPdfOpen.aspx?Pname=ca87613b-39c3-4571-8ea9-8f77df1b6428.pdf",
-      "confidence": 0.95
-    },
-    {
-      "driver_title": "Airtel Finance & NBFC Scale-up",
-      "driver_type": "New Product / Market",
-      "description": "Leveraging RBI-approved NBFC license to scale lending services, supported by digital storefront Airtel Finance.",
-      "target_timeline": "Ongoing",
-      "stated_outlay_or_value": "\u20b9750 Crores+ per month disbursements",
-      "execution_status": "Live and scaling rapidly with low delinquencies",
-      "expected_impact": "Higher customer engagement and monetization adjacencies",
-      "source_page": 3,
-      "source_quote": "Airtel Finance loan disbursements reached over Rs. 750 Crores per month.",
+      "stated_outlay_or_value": "1GW capacity",
+      "execution_status": "In Progress",
+      "expected_impact": "Strong revenue growth and capture of enterprise digital demand.",
+      "source_page": 1,
+      "source_quote": "Nxtra has a clear line of sight to 1GW capacity with upcoming landmark deals.",
       "source_url": "https://www.bseindia.com/stockinfo/AnnPdfOpen.aspx?Pname=ca87613b-39c3-4571-8ea9-8f77df1b6428.pdf",
       "confidence": 0.95
     }
   ],
   "promise_vs_delivery": [
     {
-      "area": "5G Network Rollout",
-      "management_promise": "Nationwide 5G roll-out reached 500+ cities ahead of guidance schedule.",
-      "promised_in_period": "FY2025",
-      "promise_source_page": 92,
-      "promise_quote": "Nationwide 5G roll-out reached 500+ cities ahead of guidance schedule.",
-      "actual_outcome": "5G Standalone (SA) and NSA rolled out across mobility and FWA, with radio capex moderating in FY26/FY27.",
+      "area": "Deleveraging",
+      "management_promise": "Targeting Net Debt/EBITDA below 2.0x",
+      "promised_in_period": "FY2026",
+      "promise_source_page": 32,
+      "promise_quote": "Rapid deleveraging with Net Debt/EBITDA contracting below 2.0x.",
+      "actual_outcome": "Net Debt/EBITDAaL ratio improved to 0.8x as of March 31, 2026.",
       "actual_in_period": "FY2026",
-      "actual_source_page": 10,
-      "actual_quote": "During the year, the Company rolled out 5G standalone (SA) capabilities across both FWA and mobility.",
+      "actual_source_page": 92,
+      "actual_quote": "The net debt-to-EBITDAaL ratio improved to 0.8x from 1.5x as of March 31, 2025.",
       "status": "Delivered",
-      "stocker_analysis": "Successfully deployed 5G across India ahead of schedule, transitioning to SA capabilities and moderating base radio capex while focusing on transport/fiber layers.",
-      "financial_numbers_check": "Sales grew from \u20b9149,982 Cr (FY24) to \u20b9172,985 Cr (FY25) and \u20b9210,973 Cr (FY26), representing 15.3% and 22.0% YoY growth respectively. OPM stood at 49% in FY25 and expanded to 55% in FY26. CFO surged from \u20b965,325 Cr in FY24 to \u20b978,898 Cr in FY25 and \u20b998,332 Cr in FY26. Net debt to EBITDAaL improved to 0.8x in FY26 from 1.5x in FY25.",
-      "source_url_promise": "https://www.bseindia.com/xml-data/corpfiling/AttachHis/c2194c0b-bec7-42ba-9675-afdf7a9e7e9c.pdf",
+      "stocker_analysis": "Management significantly outperformed deleveraging targets through strong cash flow generation and debt prepayments.",
+      "financial_numbers_check": "Borrowings reduced from \u20b9226,020 Cr (Mar 2024) to \u20b9213,642 Cr (Mar 2026).",
+      "source_url_promise": "https://www.bseindia.com/xml-data/corpfiling/AttachHis/f8f6a174-8601-4747-9d0d-bd6b85fe53fc.pdf",
       "source_url_actual": "https://www.bseindia.com/xml-data/corpfiling/AttachHis/f8f6a174-8601-4747-9d0d-bd6b85fe53fc.pdf",
-      "confidence": 0.95
+      "confidence": 1.0
     }
   ],
   "demand_momentum": {
-    "summary": "Robust demand across mobility, homes, and B2B segments, driven by rising data consumption, 5G smartphone upgrades, and enterprise digital transformation.",
+    "summary": "Strong demand for high-speed home connectivity and enterprise digital services, though ARPU growth is constrained by unlimited data plans.",
     "company_specific_metrics": [
       {
         "metric": "India Mobile ARPU",
-        "value": "\u20b9264 (Q1 FY27)"
-      },
-      {
-        "metric": "Consolidated Q1 Sales",
-        "value": "\u20b958,500 Cr (Q1 FY27)"
+        "value": "\u20b9257"
       },
       {
         "metric": "Homes Customer Base",
@@ -233,61 +208,57 @@
     ],
     "segment_trends": [
       {
-        "segment": "Mobile Services India",
-        "trend": "Steady ARPU expansion and 3M+ quarterly smartphone data additions"
-      },
-      {
-        "segment": "Airtel Business & Digital",
-        "trend": "27% YoY growth in digital portfolio; strong cloud and data center demand"
+        "segment": "Digital Business",
+        "trend": "+27% YoY revenue growth"
       }
     ],
-    "market_share_and_pricing": "Sustained revenue market share gains reaching lifetime highs in India Mobile. Long-term pricing architecture remains constrained by unlimited data offerings.",
+    "market_share_and_pricing": "Pricing architecture is considered 'broken' due to unlimited data plans; management is pushing for tariff repair.",
     "headwinds_and_risks": [
-      "Global chipset and memory price inflation affecting FWA and hardware deployments",
-      "Africa FX currency volatility (NGN/KES)",
-      "Geopolitical tensions impacting international roaming and energy costs"
+      "Industry pricing architecture",
+      "Global cost headwinds",
+      "Memory/chipset price inflation"
     ],
-    "source_page": 3,
-    "source_quote": "Our consolidated revenue was Rs.58,500 Crores, growing at about 5.7% sequentially... Consolidated EBITDAaL was at Rs.29,800 Crores, this is a growth of 4.2% and the margin stood at 51%.",
-    "source_url": "https://www.bseindia.com/stockinfo/AnnPdfOpen.aspx?Pname=ca87613b-39c3-4571-8ea9-8f77df1b6428.pdf",
+    "source_page": 92,
+    "source_quote": "The Company\u2019s focus on portfolio premiumisation and high-quality customer acquisition continued to support industry-leading ARPU, which rose to \u20b9257.",
+    "source_url": "https://www.bseindia.com/xml-data/corpfiling/AttachHis/f8f6a174-8601-4747-9d0d-bd6b85fe53fc.pdf",
     "confidence": 0.95
   },
   "risks_and_cash": {
-    "working_capital_and_receivables": "Working capital remains well-managed with disciplined debtor days (14-30 days for mobility, up to 90 days for B2B).",
-    "debt_and_capex_burden": "Aggressive deleveraging has brought consolidated net debt-to-EBITDAaL down to 0.7x-0.8x. High-cost DoT debt has been substantially prepaid.",
-    "margin_and_cost_pressures": "Input cost pressures from rising memory, chipset, and energy prices. 'War on Waste' program successfully structuralizes opex savings.",
+    "working_capital_and_receivables": "Receivables are well-managed; management uses a provision matrix for ECL.",
+    "debt_and_capex_burden": "Net debt significantly reduced; capex remains focused on fiber and data centers.",
+    "margin_and_cost_pressures": "War on Waste initiatives successfully expanded EBITDAaL margins to 51.4%.",
     "execution_and_bottlenecks": [
-      "Supply chain constraints on memory and chipset availability impacting broadband expansion",
-      "Tower build-out slowdowns due to gas supply restrictions impacting galvanizing industry"
+      "Supply chain constraints for memory/chipsets",
+      "Geopolitical risks in Africa"
     ],
     "regulatory_or_legal_headwinds": [
-      "Sub-judice matters regarding AGR and statutory dues totaling ~\u20b92.88 Lakh Cr provisioned on balance sheet",
-      "Spectrum pricing and regulatory compliance norms in India and Africa"
+      "Regulatory uncertainties in Africa",
+      "Spectrum liability obligations"
     ],
     "reported_numbers_comparison": null,
-    "source_page": 3,
-    "source_quote": "Our consolidated net debt to EBITDAaL improved to 0.7% and India without passive infra is now lower than 1%.",
-    "source_url": "https://www.bseindia.com/stockinfo/AnnPdfOpen.aspx?Pname=ca87613b-39c3-4571-8ea9-8f77df1b6428.pdf",
-    "confidence": 0.95
+    "source_page": 32,
+    "source_quote": "Airtel operates in India and 14 African countries... prone to political instability, civil unrest, pandemic and social tensions.",
+    "source_url": "https://www.bseindia.com/xml-data/corpfiling/AttachHis/f8f6a174-8601-4747-9d0d-bd6b85fe53fc.pdf",
+    "confidence": 0.9
   },
   "stocker_view": {
     "execution_verdict": "Strong Execution",
     "positive_triggers": [
-      "Potential London listing of Airtel Money in H2 2026",
-      "Scale-up of Nxtra data centers towards 1GW capacity",
-      "Continued ARPU expansion via postpaid adoption and potential industry tariff repair"
+      "Scaling of digital growth engines (Cloud, Data Centers, NBFC)",
+      "Continued deleveraging",
+      "ARPU premiumization"
     ],
     "main_risks": [
-      "African currency devaluation and macroeconomic instability",
-      "Inflationary pressure on hardware, chipsets, and energy costs",
-      "Intensifying competitive intensity in rural and home broadband segments"
+      "Industry pricing architecture",
+      "African FX volatility",
+      "Supply chain cost inflation"
     ],
     "what_to_watch_next": [
-      "Progress on Airtel Money London IPO in H2 2026",
-      "Land acquisition and milestone announcements for Nxtra data center 1GW buildout",
-      "ARPU trajectory and postpaid subscriber net additions"
+      "Airtel Money London listing",
+      "1GW data center capacity progress",
+      "Tariff repair progress"
     ],
-    "investor_summary": "Bharti Airtel demonstrates stellar financial and operational execution, delivering record revenues (\u20b92,11,000+ Cr in FY26) and robust EBITDA margins (~51%). Balance sheet health has transformed dramatically through proactive deleveraging, with net debt-to-EBITDA dropping below 1.0x. While structural headwinds like unlimited data pricing architecture and memory/chipset inflation persist, new growth engines in data centers (Nxtra), cloud, and financial services (NBFC/Airtel Money) provide a highly diversified runway for multi-year compounding."
+    "investor_summary": "Bharti Airtel has demonstrated robust execution, achieving record revenues and significant margin expansion. The company is successfully pivoting toward high-growth digital adjacencies while maintaining a strong balance sheet. Investors should monitor the progress of new growth engines and the industry's ability to move away from unlimited data pricing."
   },
   "document_summaries": [
     {

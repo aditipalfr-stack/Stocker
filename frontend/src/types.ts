@@ -85,6 +85,7 @@ export interface DocumentLinks {
   presentations: DocumentItem[];
   material_announcements?: DocumentItem[];
   diagnostics?: DocumentDiscoveryDiagnostics;
+  checked_at?: string;
 }
 
 export interface ProjectionAssumption {
@@ -102,11 +103,6 @@ export interface ProjectionAssumption {
   exit_pe_source?: string;
   projection_confidence?: string;
   forward_drivers_used?: string[];
-}
-  effective_tax_rate_pct: number;
-  terminal_growth_rate_pct: number;
-  discount_rate_wacc_pct: number;
-  target_exit_pe: number;
 }
 
 export interface YearlyProjection {
@@ -186,6 +182,7 @@ export interface StockDetail {
   source_url?: string;
   statement_type?: string;
   fetched_at?: string;
+  documents_checked_at?: string;
   ratios: KeyRatios;
   quarters: FinancialStatement;
   profit_loss: FinancialStatement;

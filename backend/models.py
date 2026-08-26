@@ -91,6 +91,7 @@ class DocumentLinks(BaseModel):
     presentations: List[DocumentItem] = []
     material_announcements: List[DocumentItem] = []
     diagnostics: Optional[DocumentDiscoveryDiagnostics] = None
+    checked_at: Optional[str] = None
 
 class ProjectionAssumption(BaseModel):
     revenue_growth_rate_pct: float = 12.0
@@ -197,3 +198,4 @@ class StockDetail(BaseModel):
     source_url: str = ""
     statement_type: str = "consolidated"
     fetched_at: str = ""
+    documents_checked_at: Optional[str] = None

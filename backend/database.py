@@ -102,6 +102,18 @@ def init_db() -> None:
                 );
             """)
             conn.execute("CREATE INDEX IF NOT EXISTS idx_analysis_symbol ON ai_analysis_cache(symbol);")
+
+            # 6. Document Sources Sync State (Incremental Date-Window Tracking)
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS document_sync_state (
+                    symbol TEXT NOT NULL,
+                    category TEXT NOT NULL,
+                    last_checked_at TEXT NOT NULL,
+                    last_filing_date TEXT,
+                    PRIMARY KEY(symbol, category)
+                );
+            """)
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_sync_symbol ON document_sync_state(symbol);")
     finally:
         conn.close()
 
@@ -386,5 +398,69 @@ def save_ai_analysis(
     finally:
         conn.close()
 
+# ---------------------------------------------------------
+# DOCUMENT SOURCES SYNC STATE HELPERS
+# ---------------------------------------------------------
+
+def get_document_sources_checked_at(symbol: str) -> Optional[str]:
+    """Retrieves the timestamp when document sources were last checked from trusted external sources."""
+    clean_sym = symbol.upper().strip()
+    conn = get_db_connection()
+    try:
+        cur = conn.cursor()
+        cur.execute("""
+            SELECT last_checked_at FROM document_sync_state 
+            WHERE symbol = ? 
+            ORDER BY last_checked_at DESC 
+            LIMIT 1
+        """, (clean_sym,))
+        row = cur.fetchone()
+        if row:
+            return row["last_checked_at"]
+        return None
+    finally:
+        conn.close()
+
+def get_document_sync_state(symbol: str, category: str = "all") -> Optional[Dict[str, Any]]:
+    """Retrieves document sync state for a symbol and category."""
+    clean_sym = symbol.upper().strip()
+    conn = get_db_connection()
+    try:
+        cur = conn.cursor()
+        cur.execute("""
+            SELECT symbol, category, last_checked_at, last_filing_date 
+            FROM document_sync_state 
+            WHERE symbol = ? AND category = ?
+        """, (clean_sym, category))
+        row = cur.fetchone()
+        if row:
+            return dict(row)
+        return None
+    finally:
+        conn.close()
+
+def update_document_sync_state(
+    symbol: str, 
+    category: str = "all", 
+    checked_at: Optional[str] = None, 
+    last_filing_date: Optional[str] = None
+) -> None:
+    """Updates the last_checked_at timestamp when trusted external sources are checked."""
+    clean_sym = symbol.upper().strip()
+    now_iso = checked_at or datetime.now(timezone.utc).isoformat()
+    conn = get_db_connection()
+    try:
+        with conn:
+            conn.execute("""
+                INSERT INTO document_sync_state (symbol, category, last_checked_at, last_filing_date)
+                VALUES (?, ?, ?, ?)
+                ON CONFLICT(symbol, category) DO UPDATE SET
+                    last_checked_at = excluded.last_checked_at,
+                    last_filing_date = COALESCE(excluded.last_filing_date, document_sync_state.last_filing_date)
+            """, (clean_sym, category, now_iso, last_filing_date))
+    finally:
+        conn.close()
+
 # Auto-initialize on module load
 init_db()
+

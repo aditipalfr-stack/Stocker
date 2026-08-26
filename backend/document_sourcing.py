@@ -2,6 +2,7 @@ import re
 import os
 import json
 import time
+from datetime import datetime, timezone
 from urllib.parse import urlparse
 from typing import Dict, List, Optional, Tuple, Any
 from bs4 import BeautifulSoup
@@ -623,7 +624,24 @@ def execute_document_sourcing_waterfall(
             seen_urls.add(norm_url)
             deduped_docs.append(doc)
 
-    # 5. True Network & Signature Validation in Parallel
+    # 5. Smart Incremental Validation: Skip unchanged, already-verified documents in SQLite
+    known_db_docs = {d["url"]: d for d in database.get_source_documents(clean_sym)}
+    
+    docs_to_validate_network: List[DocumentItem] = []
+    already_valid_docs: List[DocumentItem] = []
+    
+    for doc in deduped_docs:
+        norm_url = doc.actual_source_url.strip()
+        if norm_url in known_db_docs and known_db_docs[norm_url].get("is_valid") == 1:
+            # Document is already known and verified in SQLite DB: SKIP network validation
+            cached_row = known_db_docs[norm_url]
+            doc.validation_status = "Valid"
+            doc.file_size_bytes = cached_row.get("file_size_bytes")
+            already_valid_docs.append(doc)
+        else:
+            # New or unverified document: queue for network validation
+            docs_to_validate_network.append(doc)
+
     def _validate_document(doc: DocumentItem) -> DocumentItem:
         is_valid, size_bytes, _ = verify_document_network_and_content(
             title=doc.title,
@@ -637,29 +655,57 @@ def execute_document_sourcing_waterfall(
             doc.file_size_bytes = size_bytes
         return doc
 
-    with ThreadPoolExecutor(max_workers=8) as executor:
-        validated_candidates = list(executor.map(_validate_document, deduped_docs))
-
-    # Keep only truly verified Valid documents
-    final_valid_docs: List[DocumentItem] = []
-    for doc in validated_candidates:
-        if doc.validation_status == "Valid":
-            final_valid_docs.append(doc)
-        else:
-            invalid_links_count += 1
-            
-    # Persist all discovered and verified documents into SQLite source_documents table
-    if final_valid_docs:
+    newly_validated_docs: List[DocumentItem] = []
+    if docs_to_validate_network:
+        with ThreadPoolExecutor(max_workers=min(8, len(docs_to_validate_network))) as executor:
+            validated_candidates = list(executor.map(_validate_document, docs_to_validate_network))
+        for doc in validated_candidates:
+            if doc.validation_status == "Valid":
+                newly_validated_docs.append(doc)
+            else:
+                invalid_links_count += 1
+                
+    # Persist any newly validated documents into SQLite source_documents table
+    if newly_validated_docs:
         try:
-            database.save_source_documents(clean_sym, final_valid_docs)
+            database.save_source_documents(clean_sym, newly_validated_docs)
         except Exception as e:
             print(f"Notice: Failed to persist source documents to SQLite for {clean_sym}: {e}")
 
+    # Combine all valid documents (both previously known from DB and newly verified)
+    all_valid_combined = already_valid_docs + newly_validated_docs
+    
+    # Also incorporate any known valid documents from SQLite that may not have been returned in the recent scrape
+    seen_combined_urls = {d.url.strip() for d in all_valid_combined}
+    for db_url, db_doc in known_db_docs.items():
+        if db_url not in seen_combined_urls and db_doc.get("is_valid") == 1:
+            all_valid_combined.append(DocumentItem(
+                ticker=clean_sym,
+                company_name=company_name,
+                title=db_doc.get("title", ""),
+                name=db_doc.get("title", ""),
+                url=db_url,
+                doc_type=db_doc.get("doc_type", "general"),
+                period_or_date=db_doc.get("period_or_date"),
+                discovery_source=db_doc.get("discovery_source", "SQLite Archive"),
+                actual_source_host=db_doc.get("actual_source_host", "bseindia.com"),
+                actual_source_url=db_url,
+                is_direct_pdf=db_url.lower().endswith(".pdf"),
+                validation_status="Valid"
+            ))
+
+    # Update sync state timestamp since external source check actually ran
+    now_iso = datetime.now(timezone.utc).isoformat()
+    try:
+        database.update_document_sync_state(clean_sym, category="all", checked_at=now_iso)
+    except Exception:
+        pass
+
     # Group by category and limit to target history
-    annual_reports = [d for d in final_valid_docs if d.doc_type == "annual_report"][:3]
-    concalls = [d for d in final_valid_docs if d.doc_type == "concall_transcript"][:6]
-    presentations = [d for d in final_valid_docs if d.doc_type == "presentation"][:6]
-    announcements = [d for d in final_valid_docs if d.doc_type == "announcement"][:8]
+    annual_reports = [d for d in all_valid_combined if d.doc_type == "annual_report"][:3]
+    concalls = [d for d in all_valid_combined if d.doc_type == "concall_transcript"][:6]
+    presentations = [d for d in all_valid_combined if d.doc_type == "presentation"][:6]
+    announcements = [d for d in all_valid_combined if d.doc_type == "announcement"][:8]
     
     total_ai_ready = len(annual_reports) + len(concalls) + len(presentations) + len(announcements)
     overall_status = "Ready" if total_ai_ready >= 4 else ("Partial" if total_ai_ready > 0 else "Missing")
@@ -684,7 +730,8 @@ def execute_document_sourcing_waterfall(
         concalls=concalls,
         presentations=presentations,
         material_announcements=announcements,
-        diagnostics=diagnostics
+        diagnostics=diagnostics,
+        checked_at=now_iso
     )
 
 def discover_historical_document(

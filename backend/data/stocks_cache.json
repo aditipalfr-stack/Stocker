@@ -8,12 +8,13 @@
     "source_name": "Screener.in",
     "source_url": "https://www.screener.in/company/RELIANCE/consolidated/",
     "statement_type": "consolidated",
-    "fetched_at": "2026-08-26T10:38:06.391398+00:00",
+    "fetched_at": "2026-08-26T17:21:27.875722+00:00",
+    "documents_checked_at": "2026-08-26T17:21:27.867926+00:00",
     "ratios": {
-      "market_cap_cr": 1757876.0,
-      "current_price": 1299.0,
+      "market_cap_cr": 1762411.0,
+      "current_price": 1298.0,
       "high_low": "\u20b9 1,612 / 1,250",
-      "stock_pe": 23.5,
+      "stock_pe": 23.6,
       "book_value": 668.0,
       "dividend_yield_pct": 0.46,
       "roce_pct": 10.3,
@@ -803,7 +804,7 @@
           "actual_source_url": "https://www.bseindia.com/xml-data/corpfiling/AttachHis/cc08294f-ec68-4f15-aaa4-c14a3c4bdfb2.pdf",
           "is_direct_pdf": true,
           "validation_status": "Valid",
-          "file_size_bytes": 11007429,
+          "file_size_bytes": null,
           "fetched_date": null,
           "checksum_sha256": null
         },
@@ -820,7 +821,7 @@
           "actual_source_url": "https://www.bseindia.com/xml-data/corpfiling/AttachHis/468b09a3-a212-4066-bbaa-4b0ba524d2ce.pdf",
           "is_direct_pdf": true,
           "validation_status": "Valid",
-          "file_size_bytes": 8858713,
+          "file_size_bytes": null,
           "fetched_date": null,
           "checksum_sha256": null
         },
@@ -837,7 +838,7 @@
           "actual_source_url": "https://www.bseindia.com/xml-data/corpfiling/AttachHis/d473280d-1c2b-4037-8ff9-dfbb82aa2c7e.pdf",
           "is_direct_pdf": true,
           "validation_status": "Valid",
-          "file_size_bytes": 12354677,
+          "file_size_bytes": null,
           "fetched_date": null,
           "checksum_sha256": null
         }
@@ -856,7 +857,7 @@
           "actual_source_url": "https://www.bseindia.com/stockinfo/AnnPdfOpen.aspx?Pname=c9d3d96a-8b04-4b41-b454-3f98d1f90702.pdf",
           "is_direct_pdf": true,
           "validation_status": "Valid",
-          "file_size_bytes": 607452,
+          "file_size_bytes": null,
           "fetched_date": null,
           "checksum_sha256": null
         },
@@ -873,7 +874,7 @@
           "actual_source_url": "https://www.bseindia.com/stockinfo/AnnPdfOpen.aspx?Pname=971d8c86-397a-4780-b843-5a84d3006d0b.pdf",
           "is_direct_pdf": true,
           "validation_status": "Valid",
-          "file_size_bytes": 1799089,
+          "file_size_bytes": null,
           "fetched_date": null,
           "checksum_sha256": null
         },
@@ -890,7 +891,7 @@
           "actual_source_url": "https://www.bseindia.com/stockinfo/AnnPdfOpen.aspx?Pname=26290395-526a-441f-a347-c8ac12e4adf3.pdf",
           "is_direct_pdf": true,
           "validation_status": "Valid",
-          "file_size_bytes": 525002,
+          "file_size_bytes": null,
           "fetched_date": null,
           "checksum_sha256": null
         },
@@ -907,7 +908,7 @@
           "actual_source_url": "https://www.bseindia.com/stockinfo/AnnPdfOpen.aspx?Pname=f2454c0f-aad9-4d23-add0-dfe3d49aa8d6.pdf",
           "is_direct_pdf": true,
           "validation_status": "Valid",
-          "file_size_bytes": 485961,
+          "file_size_bytes": null,
           "fetched_date": null,
           "checksum_sha256": null
         },
@@ -924,7 +925,7 @@
           "actual_source_url": "https://www.bseindia.com/stockinfo/AnnPdfOpen.aspx?Pname=38a33049-ed9e-4544-ace5-a92e5f984f23.pdf",
           "is_direct_pdf": true,
           "validation_status": "Valid",
-          "file_size_bytes": 553692,
+          "file_size_bytes": null,
           "fetched_date": null,
           "checksum_sha256": null
         },
@@ -941,7 +942,7 @@
           "actual_source_url": "https://www.bseindia.com/stockinfo/AnnPdfOpen.aspx?Pname=b6203612-be21-4d28-ace9-6496cd3fb8b2.pdf",
           "is_direct_pdf": true,
           "validation_status": "Valid",
-          "file_size_bytes": 487983,
+          "file_size_bytes": null,
           "fetched_date": null,
           "checksum_sha256": null
         }
@@ -960,7 +961,7 @@
           "actual_source_url": "https://www.bseindia.com/stockinfo/AnnPdfOpen.aspx?Pname=01d1656c-cf53-4d52-94c3-7ed0edd50271.pdf",
           "is_direct_pdf": true,
           "validation_status": "Valid",
-          "file_size_bytes": 6240020,
+          "file_size_bytes": null,
           "fetched_date": null,
           "checksum_sha256": null
         },
@@ -977,7 +978,7 @@
           "actual_source_url": "https://www.bseindia.com/stockinfo/AnnPdfOpen.aspx?Pname=5145c56f-ff81-4812-9663-f9b2461c4b2c.pdf",
           "is_direct_pdf": true,
           "validation_status": "Valid",
-          "file_size_bytes": 5235870,
+          "file_size_bytes": null,
           "fetched_date": null,
           "checksum_sha256": null
         },
@@ -994,7 +995,7 @@
           "actual_source_url": "https://www.bseindia.com/stockinfo/AnnPdfOpen.aspx?Pname=d0e06e07-5a3e-4bc0-a6a6-76635bc53238.pdf",
           "is_direct_pdf": true,
           "validation_status": "Valid",
-          "file_size_bytes": 8505195,
+          "file_size_bytes": null,
           "fetched_date": null,
           "checksum_sha256": null
         },
@@ -1011,7 +1012,7 @@
           "actual_source_url": "https://www.bseindia.com/stockinfo/AnnPdfOpen.aspx?Pname=b74bb5fb-c15b-42f1-b853-34231e587f46.pdf",
           "is_direct_pdf": true,
           "validation_status": "Valid",
-          "file_size_bytes": 6081947,
+          "file_size_bytes": null,
           "fetched_date": null,
           "checksum_sha256": null
         },
@@ -1028,7 +1029,7 @@
           "actual_source_url": "https://www.bseindia.com/stockinfo/AnnPdfOpen.aspx?Pname=7a050d55-ad53-4d57-8735-cbcf20bb412b.pdf",
           "is_direct_pdf": true,
           "validation_status": "Valid",
-          "file_size_bytes": 6081947,
+          "file_size_bytes": null,
           "fetched_date": null,
           "checksum_sha256": null
         },
@@ -1045,7 +1046,7 @@
           "actual_source_url": "https://www.bseindia.com/stockinfo/AnnPdfOpen.aspx?Pname=49a01d99-854c-4c3a-b62c-e1fb3619029f.pdf",
           "is_direct_pdf": true,
           "validation_status": "Valid",
-          "file_size_bytes": 7199028,
+          "file_size_bytes": null,
           "fetched_date": null,
           "checksum_sha256": null
         }
@@ -1064,7 +1065,7 @@
           "actual_source_url": "https://www.bseindia.com/stockinfo/AnnPdfOpen.aspx?Pname=0a4fcd8b-8527-4e96-9b39-22429d3c8b38.pdf",
           "is_direct_pdf": true,
           "validation_status": "Valid",
-          "file_size_bytes": 1234358,
+          "file_size_bytes": null,
           "fetched_date": null,
           "checksum_sha256": null
         },
@@ -1081,7 +1082,7 @@
           "actual_source_url": "https://www.bseindia.com/xml-data/corpfiling/AttachHis/0a4fcd8b-8527-4e96-9b39-22429d3c8b38.pdf",
           "is_direct_pdf": true,
           "validation_status": "Valid",
-          "file_size_bytes": 1234358,
+          "file_size_bytes": null,
           "fetched_date": null,
           "checksum_sha256": null
         },
@@ -1091,14 +1092,14 @@
           "title": " Shareholder Meeting / Postal Ballot-Scrutinizer\"s Report",
           "name": " Shareholder Meeting / Postal Ballot-Scrutinizer\"s Report",
           "url": "https://www.bseindia.com/xml-data/corpfiling/AttachHis/2acaed98-3653-4056-a280-054732511a9f.pdf",
-          "doc_type": "general",
+          "doc_type": "announcement",
           "period_or_date": "21 Aug 2026",
           "discovery_source": "BSE India",
           "actual_source_host": "bseindia.com",
           "actual_source_url": "https://www.bseindia.com/xml-data/corpfiling/AttachHis/2acaed98-3653-4056-a280-054732511a9f.pdf",
           "is_direct_pdf": true,
           "validation_status": "Valid",
-          "file_size_bytes": 1234358,
+          "file_size_bytes": null,
           "fetched_date": null,
           "checksum_sha256": null
         },
@@ -1115,7 +1116,7 @@
           "actual_source_url": "https://www.bseindia.com/xml-data/corpfiling/AttachHis/27647703-eded-4e63-a04e-5778b54afcb8.pdf",
           "is_direct_pdf": true,
           "validation_status": "Valid",
-          "file_size_bytes": 238773,
+          "file_size_bytes": null,
           "fetched_date": null,
           "checksum_sha256": null
         },
@@ -1132,7 +1133,7 @@
           "actual_source_url": "https://www.bseindia.com/xml-data/corpfiling/AttachHis/316b5fc6-c19f-4ec6-ab07-43cef96d8be3.pdf",
           "is_direct_pdf": true,
           "validation_status": "Valid",
-          "file_size_bytes": 275828,
+          "file_size_bytes": null,
           "fetched_date": null,
           "checksum_sha256": null
         },
@@ -1149,7 +1150,7 @@
           "actual_source_url": "https://www.bseindia.com/xml-data/corpfiling/AttachHis/c97374ee-7904-4c1e-83ee-6cac42c0eaff.pdf",
           "is_direct_pdf": true,
           "validation_status": "Valid",
-          "file_size_bytes": 425454,
+          "file_size_bytes": null,
           "fetched_date": null,
           "checksum_sha256": null
         },
@@ -1166,7 +1167,7 @@
           "actual_source_url": "https://www.bseindia.com/xml-data/corpfiling/AttachHis/caefdcb0-a92e-40cc-9875-66a71c5e7cce.pdf",
           "is_direct_pdf": true,
           "validation_status": "Valid",
-          "file_size_bytes": 239709,
+          "file_size_bytes": null,
           "fetched_date": null,
           "checksum_sha256": null
         },
@@ -1183,11 +1184,28 @@
           "actual_source_url": "https://www.bseindia.com/xml-data/corpfiling/AttachHis/b14db185-53b9-413b-b8c0-94faa95df316.pdf",
           "is_direct_pdf": true,
           "validation_status": "Valid",
-          "file_size_bytes": 238678,
+          "file_size_bytes": null,
           "fetched_date": null,
           "checksum_sha256": null
         }
-      ]
+      ],
+      "diagnostics": {
+        "target_annual_reports_count": 3,
+        "annual_reports_found": 3,
+        "target_concalls_count": 6,
+        "concalls_found": 6,
+        "target_presentations_count": 6,
+        "presentations_found": 6,
+        "target_announcements_count": 8,
+        "announcements_found": 8,
+        "invalid_links_rejected": 5,
+        "fallback_sources_used": [
+          "BSE India"
+        ],
+        "ai_ready_documents_count": 23,
+        "overall_status": "Ready"
+      },
+      "checked_at": "2026-08-26T17:21:27.867926+00:00"
     }
   },
   "TCS": {
@@ -3513,14 +3531,15 @@
     "source_name": "Screener.in",
     "source_url": "https://www.screener.in/company/LT/consolidated/",
     "statement_type": "consolidated",
-    "fetched_at": "2026-08-26T10:38:28.010753+00:00",
+    "fetched_at": "2026-08-26T17:21:39.108626+00:00",
+    "documents_checked_at": "2026-08-26T17:21:39.100128+00:00",
     "ratios": {
-      "market_cap_cr": 556373.0,
-      "current_price": 4044.0,
+      "market_cap_cr": 555939.0,
+      "current_price": 4038.0,
       "high_low": "\u20b9 4,440 / 3,288",
       "stock_pe": 31.6,
       "book_value": 794.0,
-      "dividend_yield_pct": 0.92,
+      "dividend_yield_pct": 0.94,
       "roce_pct": 14.6,
       "roe_pct": 15.9,
       "face_value": 2.0,
@@ -4308,7 +4327,7 @@
           "actual_source_url": "https://www.bseindia.com/xml-data/corpfiling/AttachHis/825f9859-e7f2-4e90-8583-01a38850f795.pdf",
           "is_direct_pdf": true,
           "validation_status": "Valid",
-          "file_size_bytes": 29793480,
+          "file_size_bytes": null,
           "fetched_date": null,
           "checksum_sha256": null
         },
@@ -4325,7 +4344,7 @@
           "actual_source_url": "https://www.bseindia.com/xml-data/corpfiling/AttachHis/63959ce8-b641-4bd4-9a62-43ab52301856.pdf",
           "is_direct_pdf": true,
           "validation_status": "Valid",
-          "file_size_bytes": 28846803,
+          "file_size_bytes": null,
           "fetched_date": null,
           "checksum_sha256": null
         },
@@ -4342,7 +4361,7 @@
           "actual_source_url": "https://www.bseindia.com/xml-data/corpfiling/AttachHis/b59765b4-ed42-48bd-afad-7caa4417d85d.pdf",
           "is_direct_pdf": true,
           "validation_status": "Valid",
-          "file_size_bytes": 18837574,
+          "file_size_bytes": null,
           "fetched_date": null,
           "checksum_sha256": null
         }
@@ -4361,7 +4380,7 @@
           "actual_source_url": "https://investors.larsentoubro.com/upload/Analysttrans/FY2027AnalysttransL&T-Earnings-Jul28-2026.pdf",
           "is_direct_pdf": true,
           "validation_status": "Valid",
-          "file_size_bytes": 329138,
+          "file_size_bytes": null,
           "fetched_date": null,
           "checksum_sha256": null
         },
@@ -4378,7 +4397,7 @@
           "actual_source_url": "https://investors.larsentoubro.com/upload/Analysttrans/FY2026AnalysttransL&T%20Q4%20FY26%20Earnings%20Call%20Transcript.pdf",
           "is_direct_pdf": true,
           "validation_status": "Valid",
-          "file_size_bytes": 469974,
+          "file_size_bytes": null,
           "fetched_date": null,
           "checksum_sha256": null
         },
@@ -4395,7 +4414,7 @@
           "actual_source_url": "https://investors.larsentoubro.com/upload/Analysttrans/FY2026AnalysttransL&T%20Transcript%20Q3FY26.pdf",
           "is_direct_pdf": true,
           "validation_status": "Valid",
-          "file_size_bytes": 318557,
+          "file_size_bytes": null,
           "fetched_date": null,
           "checksum_sha256": null
         },
@@ -4412,7 +4431,7 @@
           "actual_source_url": "https://investors.larsentoubro.com/upload/Analysttrans/FY2026AnalysttransL&T%20Q2FY26%20Earnings%20Call%20Transcript%20.pdf",
           "is_direct_pdf": true,
           "validation_status": "Valid",
-          "file_size_bytes": 348704,
+          "file_size_bytes": null,
           "fetched_date": null,
           "checksum_sha256": null
         },
@@ -4429,7 +4448,7 @@
           "actual_source_url": "https://investors.larsentoubro.com/upload/Analysttrans/FY2026AnalysttransL&T%20Earnings%20Call%20Transcript%20Q1FY26.pdf",
           "is_direct_pdf": true,
           "validation_status": "Valid",
-          "file_size_bytes": 316537,
+          "file_size_bytes": null,
           "fetched_date": null,
           "checksum_sha256": null
         },
@@ -4446,7 +4465,7 @@
           "actual_source_url": "https://investors.larsentoubro.com/upload/Analysttrans/FY2025AnalysttransL&T%20Q4FY25%20Earnings%20Call%20Transcript.pdf",
           "is_direct_pdf": true,
           "validation_status": "Valid",
-          "file_size_bytes": 256244,
+          "file_size_bytes": null,
           "fetched_date": null,
           "checksum_sha256": null
         }
@@ -4465,7 +4484,7 @@
           "actual_source_url": "https://www.bseindia.com/stockinfo/AnnPdfOpen.aspx?Pname=a4d1bc4e-1492-4448-b203-5d6041b48a0e.pdf",
           "is_direct_pdf": true,
           "validation_status": "Valid",
-          "file_size_bytes": 6737599,
+          "file_size_bytes": null,
           "fetched_date": null,
           "checksum_sha256": null
         },
@@ -4482,7 +4501,7 @@
           "actual_source_url": "https://www.bseindia.com/stockinfo/AnnPdfOpen.aspx?Pname=d2095c57-89e5-4a19-adb3-0d074ac96126.pdf",
           "is_direct_pdf": true,
           "validation_status": "Valid",
-          "file_size_bytes": 9000186,
+          "file_size_bytes": null,
           "fetched_date": null,
           "checksum_sha256": null
         },
@@ -4499,7 +4518,7 @@
           "actual_source_url": "https://www.bseindia.com/stockinfo/AnnPdfOpen.aspx?Pname=d35018aa-6e52-4d2f-a36e-82205456c0de.pdf",
           "is_direct_pdf": true,
           "validation_status": "Valid",
-          "file_size_bytes": 7272883,
+          "file_size_bytes": null,
           "fetched_date": null,
           "checksum_sha256": null
         },
@@ -4516,7 +4535,7 @@
           "actual_source_url": "https://www.bseindia.com/stockinfo/AnnPdfOpen.aspx?Pname=79d47adc-e94d-4ae2-9f11-2053b053b389.pdf",
           "is_direct_pdf": true,
           "validation_status": "Valid",
-          "file_size_bytes": 7438600,
+          "file_size_bytes": null,
           "fetched_date": null,
           "checksum_sha256": null
         },
@@ -4533,7 +4552,7 @@
           "actual_source_url": "https://www.bseindia.com/stockinfo/AnnPdfOpen.aspx?Pname=ce24f0b7-3769-4f7f-ba0b-8b700d2de060.pdf",
           "is_direct_pdf": true,
           "validation_status": "Valid",
-          "file_size_bytes": 7298318,
+          "file_size_bytes": null,
           "fetched_date": null,
           "checksum_sha256": null
         },
@@ -4550,7 +4569,7 @@
           "actual_source_url": "https://www.bseindia.com/stockinfo/AnnPdfOpen.aspx?Pname=d4a102eb-f822-40cd-b836-0590ea3f2229.pdf",
           "is_direct_pdf": true,
           "validation_status": "Valid",
-          "file_size_bytes": 8791725,
+          "file_size_bytes": null,
           "fetched_date": null,
           "checksum_sha256": null
         }
@@ -4569,7 +4588,7 @@
           "actual_source_url": "https://www.bseindia.com/stockinfo/AnnPdfOpen.aspx?Pname=d3455341-be3a-4584-a9a6-1a5b91e51ad3.pdf",
           "is_direct_pdf": true,
           "validation_status": "Valid",
-          "file_size_bytes": 1389431,
+          "file_size_bytes": null,
           "fetched_date": null,
           "checksum_sha256": null
         },
@@ -4586,7 +4605,7 @@
           "actual_source_url": "https://www.bseindia.com/stockinfo/AnnPdfOpen.aspx?Pname=f6d19ffd-960f-4ea5-9406-e6c718117b81.pdf",
           "is_direct_pdf": true,
           "validation_status": "Valid",
-          "file_size_bytes": 1358010,
+          "file_size_bytes": null,
           "fetched_date": null,
           "checksum_sha256": null
         },
@@ -4603,7 +4622,7 @@
           "actual_source_url": "https://www.bseindia.com/stockinfo/AnnPdfOpen.aspx?Pname=dd1be844-e6e6-449c-9fd4-9de1fae93ff9.pdf",
           "is_direct_pdf": true,
           "validation_status": "Valid",
-          "file_size_bytes": 3459185,
+          "file_size_bytes": null,
           "fetched_date": null,
           "checksum_sha256": null
         },
@@ -4620,7 +4639,7 @@
           "actual_source_url": "https://www.bseindia.com/stockinfo/AnnPdfOpen.aspx?Pname=308d30bd-d92d-4677-8986-a065b1d0fcd4.pdf",
           "is_direct_pdf": true,
           "validation_status": "Valid",
-          "file_size_bytes": 674536,
+          "file_size_bytes": null,
           "fetched_date": null,
           "checksum_sha256": null
         },
@@ -4637,7 +4656,7 @@
           "actual_source_url": "https://www.bseindia.com/stockinfo/AnnPdfOpen.aspx?Pname=435071c8-de1b-4040-9829-fd867d04b5f9.pdf",
           "is_direct_pdf": true,
           "validation_status": "Valid",
-          "file_size_bytes": 1365436,
+          "file_size_bytes": null,
           "fetched_date": null,
           "checksum_sha256": null
         },
@@ -4654,7 +4673,7 @@
           "actual_source_url": "https://www.bseindia.com/xml-data/corpfiling/AttachHis/dd1be844-e6e6-449c-9fd4-9de1fae93ff9.pdf",
           "is_direct_pdf": true,
           "validation_status": "Valid",
-          "file_size_bytes": 3459185,
+          "file_size_bytes": null,
           "fetched_date": null,
           "checksum_sha256": null
         },
@@ -4671,7 +4690,7 @@
           "actual_source_url": "https://www.bseindia.com/xml-data/corpfiling/AttachHis/308d30bd-d92d-4677-8986-a065b1d0fcd4.pdf",
           "is_direct_pdf": true,
           "validation_status": "Valid",
-          "file_size_bytes": 674536,
+          "file_size_bytes": null,
           "fetched_date": null,
           "checksum_sha256": null
         },
@@ -4688,11 +4707,28 @@
           "actual_source_url": "https://www.bseindia.com/xml-data/corpfiling/AttachHis/435071c8-de1b-4040-9829-fd867d04b5f9.pdf",
           "is_direct_pdf": true,
           "validation_status": "Valid",
-          "file_size_bytes": 1365436,
+          "file_size_bytes": null,
           "fetched_date": null,
           "checksum_sha256": null
         }
-      ]
+      ],
+      "diagnostics": {
+        "target_annual_reports_count": 3,
+        "annual_reports_found": 3,
+        "target_concalls_count": 6,
+        "concalls_found": 6,
+        "target_presentations_count": 6,
+        "presentations_found": 6,
+        "target_announcements_count": 8,
+        "announcements_found": 8,
+        "invalid_links_rejected": 7,
+        "fallback_sources_used": [
+          "BSE India"
+        ],
+        "ai_ready_documents_count": 23,
+        "overall_status": "Ready"
+      },
+      "checked_at": "2026-08-26T17:21:39.100128+00:00"
     }
   },
   "ITC": {

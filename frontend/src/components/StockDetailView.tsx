@@ -311,12 +311,34 @@ export const StockDetailView: React.FC<StockDetailViewProps> = ({ stock, onBack,
               <span>•</span>
               <span>High/Low: {stock.ratios.high_low || 'N/A'}</span>
             </div>
-            <div className="flex flex-wrap items-center gap-2 text-[11px] text-slate-500 font-mono">
-              <span className="text-emerald-400/90 font-semibold">● Raw Data: {stock.source_name || 'Screener.in'} ({stock.statement_type || 'consolidated'})</span>
+            <div className="flex flex-wrap items-center gap-2.5 text-[11px] text-slate-400 font-mono">
+              <span className="text-emerald-400/90 font-semibold flex items-center gap-1">
+                <span className="w-2 h-2 rounded-full bg-emerald-400"></span> Raw Data: {stock.source_name || 'Screener.in'} ({stock.statement_type || 'consolidated'})
+              </span>
               {stock.fetched_at && (
                 <>
-                  <span>•</span>
-                  <span>Scraped: {new Date(stock.fetched_at).toLocaleDateString()} {new Date(stock.fetched_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                  <span className="text-slate-600">•</span>
+                  <span className="text-slate-300">
+                    Raw Data Fetched: {new Date(stock.fetched_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })} {new Date(stock.fetched_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                  </span>
+                </>
+              )}
+              {stock.documents_checked_at && (
+                <>
+                  <span className="text-slate-600">•</span>
+                  <span className="text-cyan-300 flex items-center gap-1">
+                    <FileText className="w-3 h-3 text-cyan-400" />
+                    Document Sources Checked: {new Date(stock.documents_checked_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })} {new Date(stock.documents_checked_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                  </span>
+                </>
+              )}
+              {docIntel?.extraction_timestamp && (
+                <>
+                  <span className="text-slate-600">•</span>
+                  <span className="text-amber-300 flex items-center gap-1">
+                    <Sparkles className="w-3 h-3 text-amber-400" />
+                    AI Analysis Last Run: {new Date(docIntel.extraction_timestamp).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })} {new Date(docIntel.extraction_timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                  </span>
                 </>
               )}
             </div>
@@ -1646,6 +1668,34 @@ export const StockDetailView: React.FC<StockDetailViewProps> = ({ stock, onBack,
 
                 return (
                   <>
+                    {/* Document Sourcing Sync & Freshness Status Banner */}
+                    <div className="bg-slate-950/80 p-4 rounded-2xl border border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+                      <div className="flex items-center gap-2.5">
+                        <div className="w-8 h-8 rounded-xl bg-cyan-500/10 text-cyan-400 flex items-center justify-center border border-cyan-500/20 shrink-0">
+                          <FileText className="w-4 h-4" />
+                        </div>
+                        <div>
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="font-bold text-white">Sourced Filings Repository</span>
+                            <span className="bg-cyan-500/10 text-cyan-300 border border-cyan-500/30 text-[10px] font-mono px-2 py-0.5 rounded-full font-bold">
+                              Incremental Sync (5-Day Overlap)
+                            </span>
+                          </div>
+                          <p className="text-[11px] text-slate-400">
+                            Trusted primary sources checked incrementally. Historical filings retrieved on-demand.
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-3 text-[11px] font-mono self-start sm:self-auto">
+                        {stock.documents_checked_at && (
+                          <span className="text-slate-300 bg-slate-900 px-3 py-1.5 rounded-xl border border-slate-800 flex items-center gap-1.5">
+                            <Clock className="w-3.5 h-3.5 text-cyan-400" />
+                            Sources Checked: {new Date(stock.documents_checked_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })} {new Date(stock.documents_checked_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+
                     {/* Section 1: Annual Reports */}
                     <div className="glass-panel rounded-3xl p-6 border border-slate-800 space-y-4">
                       <div className="flex items-center justify-between">

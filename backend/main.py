@@ -108,7 +108,8 @@ def build_full_stock_detail(stock_data: Dict[str, Any], custom_assumptions: Opti
         source_name=source_name,
         source_url=source_url,
         statement_type=statement_type,
-        fetched_at=fetched_at
+        fetched_at=fetched_at,
+        documents_checked_at=database.get_document_sources_checked_at(symbol) or stock_data.get("documents_checked_at")
     )
 
 @app.get("/api/health")
