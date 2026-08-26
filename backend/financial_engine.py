@@ -443,112 +443,246 @@ def compute_financial_analytics(
 # CHRONOLOGICAL & MATHEMATICAL PROMISE VS DELIVERY VERIFICATION HELPERS
 # -----------------------------------------------------------------------------
 
+# -----------------------------------------------------------------------------
+# CHRONOLOGICAL & MATHEMATICAL PROMISE VS DELIVERY VERIFICATION HELPERS
+# -----------------------------------------------------------------------------
+
 def parse_filing_period_to_year(period_str: Optional[str]) -> Optional[float]:
     """
-    Parses various period strings into a continuous float year index for strict chronological checks.
-    Examples:
-      - 'FY24' / 'FY2024' -> 2024.0
-      - 'Q1 FY25' / 'Jun 2024' -> 2024.5
-      - 'Q2 FY25' / 'Sep 2024' -> 2024.75
-      - 'Q3 FY25' / 'Dec 2024' -> 2025.0
-      - 'Q4 FY25' / 'Mar 2025' -> 2025.25
-      - 'Jul 2026' / 'Aug 2026' -> 2026.6
+    Parses filing periods, fiscal quarters, calendar months, and exact dates
+    into a continuous float year index for strict chronological verification.
+    
+    Equivalences:
+      - 'Q1 FY25' and 'Jun 2024' -> 2024.458 (Q1 ending June 2024)
+      - 'Q2 FY25' and 'Sep 2024' -> 2024.708 (Q2 ending September 2024)
+      - 'Q3 FY25' and 'Dec 2024' -> 2024.958 (Q3 ending December 2024)
+      - 'Q4 FY25' and 'Mar 2025' -> 2025.208 (Q4 ending March 2025)
+      - 'FY24' / 'FY2024' -> 2024.25 (Audited full-year results ending March 2024)
+      - 'FY25' / 'FY2025' -> 2025.25
+      - 'FY26' / 'FY2026' -> 2026.25
+      - '24 Jul 2026' -> 2026.565
+      - 'July 2026' -> 2026.540
     """
     if not period_str or not isinstance(period_str, str):
         return None
     s = period_str.strip().upper()
     
-    # 1. Check for 4-digit year (e.g. 2026, 2025)
-    m_yr4 = re.search(r'\b(20\d\d)\b', s)
-    yr4 = int(m_yr4.group(1)) if m_yr4 else None
+    MONTHS_MAP = {
+        "JAN": 1, "FEB": 2, "MAR": 3, "APR": 4, "MAY": 5, "JUN": 6,
+        "JUL": 7, "AUG": 8, "SEP": 9, "OCT": 10, "NOV": 11, "DEC": 12
+    }
     
-    # 2. Check for FYxx (e.g. FY24, FY25, FY26)
+    # 1. Exact Date (e.g. '24 Jul 2026', '24-07-2026', '2026-07-24', '24/07/2026')
+    m_exact = re.search(r'\b(\d{1,2})[-/ ]+(JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC)[A-Z]*[-/ ]+(\d{4})\b', s)
+    if m_exact:
+        d = int(m_exact.group(1))
+        m = MONTHS_MAP.get(m_exact.group(2)[:3], 6)
+        y = int(m_exact.group(3))
+        return round(y + (m - 1) / 12.0 + d / 365.0, 4)
+        
+    m_iso = re.search(r'\b(20\d\d)-(\d{2})-(\d{2})\b', s)
+    if m_iso:
+        y, m, d = int(m_iso.group(1)), int(m_iso.group(2)), int(m_iso.group(3))
+        return round(y + (m - 1) / 12.0 + d / 365.0, 4)
+        
+    m_dmy = re.search(r'\b(\d{1,2})[-/](\d{1,2})[-/](20\d\d)\b', s)
+    if m_dmy:
+        d, m, y = int(m_dmy.group(1)), int(m_dmy.group(2)), int(m_dmy.group(3))
+        return round(y + (m - 1) / 12.0 + d / 365.0, 4)
+
+    # 2. Fiscal Quarter (e.g. 'Q1 FY25', 'Q2 FY2026', 'Q3 FY24', 'Q4 FY25')
+    m_q_fy = re.search(r'Q([1-4])\s*(?:FY)?\s*(\d{2,4})', s)
+    if m_q_fy:
+        q_num = int(m_q_fy.group(1))
+        raw_yr = int(m_q_fy.group(2))
+        fy_year = raw_yr if raw_yr > 2000 else (2000 + raw_yr)
+        
+        # In Indian FY (Apr-Mar):
+        # Q1 FYxx ends in June (fy_year - 1) -> Month 6
+        # Q2 FYxx ends in Sept (fy_year - 1) -> Month 9
+        # Q3 FYxx ends in Dec (fy_year - 1)  -> Month 12
+        # Q4 FYxx ends in Mar (fy_year)      -> Month 3
+        if q_num == 1:
+            return round((fy_year - 1) + (6 - 1) / 12.0 + 15 / 365.0, 4)  # 2024.458
+        elif q_num == 2:
+            return round((fy_year - 1) + (9 - 1) / 12.0 + 15 / 365.0, 4)  # 2024.708
+        elif q_num == 3:
+            return round((fy_year - 1) + (12 - 1) / 12.0 + 15 / 365.0, 4) # 2024.958
+        elif q_num == 4:
+            return round(fy_year + (3 - 1) / 12.0 + 15 / 365.0, 4)        # 2025.208
+
+    # 3. Month and Year (e.g. 'Jun 2024', 'September 2025', 'Jul 2026')
+    m_my = re.search(r'\b(JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC)[A-Z]*\s*(20\d\d)\b', s)
+    if m_my:
+        m = MONTHS_MAP.get(m_my.group(1)[:3], 6)
+        y = int(m_my.group(2))
+        return round(y + (m - 1) / 12.0 + 15 / 365.0, 4)
+
+    # 4. Fiscal Year (e.g. 'FY24', 'FY2025', 'FY 26')
     m_fy = re.search(r'FY\s*(\d{2,4})', s)
     if m_fy:
         raw_yr = int(m_fy.group(1))
         fy_year = raw_yr if raw_yr > 2000 else (2000 + raw_yr)
-        if "Q1" in s or "JUN" in s: return fy_year - 0.75
-        if "Q2" in s or "SEP" in s: return fy_year - 0.50
-        if "Q3" in s or "DEC" in s: return fy_year - 0.25
-        return float(fy_year)
-        
-    if yr4:
-        if "JAN" in s or "FEB" in s or "MAR" in s: return yr4 + 0.25
-        if "APR" in s or "MAY" in s or "JUN" in s: return yr4 + 0.50
-        if "JUL" in s or "AUG" in s or "SEP" in s: return yr4 + 0.75
-        if "OCT" in s or "NOV" in s or "DEC" in s: return yr4 + 1.00
-        return float(yr4)
-        
+        return round(fy_year + (3 - 1) / 12.0 + 15 / 365.0, 4) # 2024.208
+
+    # 5. Plain 4-digit Year (e.g. '2026', '2027')
+    m_yr4 = re.search(r'\b(20\d\d)\b', s)
+    if m_yr4:
+        y = int(m_yr4.group(1))
+        return float(y)
+
     return None
 
 def verify_promise_vs_delivery_item(
     item: Dict[str, Any],
-    pl_stmt: Optional[FinancialStatement] = None,
-    quarters_stmt: Optional[FinancialStatement] = None,
-    current_year: float = 2026.65
+    pl_stmt: Optional[Any] = None,
+    quarters_stmt: Optional[Any] = None,
+    current_year: Optional[float] = None
 ) -> Dict[str, Any]:
     """
-    Deterministically enforces chronology, timeline deadlines, and mathematical checks in code:
-    1. Enforces actual_year > promise_year (rejects backwards comparisons).
-    2. If target deadline is in future (e.g. FY27/28), forces status to 'In Progress'.
-    3. Calculates exact mathematical achievement % against reported financial statements.
-    4. Marks 'Not Enough Evidence' if citations or chronology fail.
+    Deterministically enforces strict chronology, deadline rules, and mathematical statement calculations:
+    1. Dynamic Runtime Year: Computes continuous float year from datetime.now(timezone.utc) if current_year is not passed.
+    2. Same Filing / Same Event Guard: A promise and outcome citing the same document/URL cannot prove delivery.
+    3. Strict Chronology Assertion: Requires act_yr > prom_yr. Backwards or equal dates are downgraded to 'Not Enough Evidence'.
+    4. Target Deadline Enforcement:
+       - deadline in future -> 'In Progress'
+       - deadline passed + verified target met -> 'Delivered'
+       - deadline passed + verified target not met -> 'Missed'
+       - insufficient evidence / missing statements -> 'Not Enough Evidence'
+    5. Pure Mathematical Verification: Computes exact achievement % and variance from structured P&L data.
     """
     res = dict(item)
+    
+    # 1. Dynamic Runtime Current Year (Never hardcoded!)
+    if current_year is None:
+        from datetime import datetime, timezone
+        now = datetime.now(timezone.utc)
+        curr_yr = now.year + (now.month - 1) / 12.0 + now.day / 365.0
+    else:
+        curr_yr = float(current_year)
+        
     promise_period = item.get("promised_in_period")
     actual_period = item.get("actual_in_period")
     target_timeline = item.get("target_timeline") or item.get("management_promise")
     
+    url_prom = (item.get("source_url_promise") or "").strip().rstrip("/")
+    url_act = (item.get("source_url_actual") or "").strip().rstrip("/")
+    
+    # 2. Same Filing / Same Event Guard
+    if url_prom and url_act and url_prom == url_act:
+        res["status"] = "Not Enough Evidence"
+        res["stocker_analysis"] = "Evidence from Same Filing: A promise and its delivered outcome cannot be verified from the same source document without an independent subsequent filing."
+        return res
+        
     prom_yr = parse_filing_period_to_year(promise_period)
     act_yr = parse_filing_period_to_year(actual_period)
     target_yr = parse_filing_period_to_year(target_timeline)
     
-    # 1. Chronology Verification
+    # 3. Strict Chronology Check (act_yr must be strictly > prom_yr)
     if prom_yr is not None and act_yr is not None:
-        if act_yr < prom_yr:
-            # Flawed backwards comparison!
+        if act_yr <= prom_yr:
             res["status"] = "Not Enough Evidence"
-            res["stocker_analysis"] = f"Chronological Mismatch: Outcome period ({actual_period}) predates the guidance baseline ({promise_period}). Evidence rejected by Stocker chronological verification."
+            res["stocker_analysis"] = f"Chronological Mismatch: Outcome period ({actual_period}) does not occur strictly after the guidance baseline ({promise_period}). Evidence rejected by Stocker chronological verification."
             return res
-            
-    # 2. Future Target Deadline Check
-    if target_yr is not None and target_yr > current_year:
-        # The guided milestone has not matured yet
-        res["status"] = "In Progress"
-        if not res.get("stocker_analysis") or "Missed" in res.get("stocker_analysis", "") or "Delivered" in res.get("stocker_analysis", ""):
-            res["stocker_analysis"] = f"Milestone In Progress: Stated target timeline ({target_timeline}) matures in the future ({target_yr:.0f}). Ongoing execution tracked against interim audited progress."
-            
-    # 3. Audited Financial Statements Cross-Examination
-    if pl_stmt and pl_stmt.periods:
-        y_sales = get_row_values(pl_stmt, "Sales") or get_row_values(pl_stmt, "Revenue")
-        y_opm = get_row_values(pl_stmt, "OPM %") or get_row_values(pl_stmt, "OPM")
+
+    # Helper to extract metric values from statement (supports Pydantic model or dict)
+    def _extract_metric_dict(stmt_obj: Any, metric_name: str) -> Dict[str, Optional[float]]:
+        if not stmt_obj:
+            return {}
+        if hasattr(stmt_obj, "rows"):
+            return get_row_values(stmt_obj, metric_name)
+        if isinstance(stmt_obj, dict):
+            periods = stmt_obj.get("periods") or stmt_obj.get("years") or []
+            rows = stmt_obj.get("rows") or []
+            target = metric_name.strip().lower()
+            if isinstance(rows, list):
+                for r in rows:
+                    if isinstance(r, dict):
+                        m = r.get("metric", "").strip().lower()
+                        if target in m or m in target:
+                            v = r.get("values", {})
+                            if isinstance(v, dict):
+                                return v
+                            elif isinstance(v, list) and len(v) == len(periods):
+                                return {periods[i]: v[i] for i in range(len(periods))}
+            elif isinstance(rows, dict):
+                for m_k, v_list in rows.items():
+                    if target in m_k.lower() or m_k.lower() in target:
+                        if isinstance(v_list, list) and len(v_list) == len(periods):
+                            return {periods[i]: v_list[i] for i in range(len(periods))}
+        return {}
+
+    # Helper to extract periods list
+    def _get_stmt_periods(stmt_obj: Any) -> List[str]:
+        if not stmt_obj: return []
+        if hasattr(stmt_obj, "periods"): return list(stmt_obj.periods)
+        if isinstance(stmt_obj, dict): return list(stmt_obj.get("periods") or stmt_obj.get("years") or [])
+        return []
+
+    # 4. Pure Mathematical Cross-Examination from Structured Statements
+    pl_periods = _get_stmt_periods(pl_stmt)
+    y_sales = _extract_metric_dict(pl_stmt, "Sales") or _extract_metric_dict(pl_stmt, "Revenue")
+    y_opm = _extract_metric_dict(pl_stmt, "OPM %") or _extract_metric_dict(pl_stmt, "OPM")
+    
+    # Extract promised growth percentage from management_promise text
+    m_growth = re.search(r'(\d+(?:\.\d+)?)\s*%\s*(?:revenue|sales|growth|cagr|margin)', item.get("management_promise", ""), re.IGNORECASE)
+    
+    if pl_periods and y_sales and m_growth:
+        promised_pct = float(m_growth.group(1))
         
-        last_p = pl_stmt.periods[-1]
-        p_prev = pl_stmt.periods[-2] if len(pl_stmt.periods) >= 2 else None
+        # Match target year period or latest period in P&L
+        target_p = None
+        if actual_period and actual_period in pl_periods:
+            target_p = actual_period
+        else:
+            # Match by year
+            for p in pl_periods:
+                p_yr = parse_filing_period_to_year(p)
+                if p_yr and act_yr and abs(p_yr - act_yr) < 0.3:
+                    target_p = p
+                    break
+        if not target_p and pl_periods:
+            target_p = pl_periods[-1]
+            
+        p_idx = pl_periods.index(target_p) if target_p in pl_periods else len(pl_periods) - 1
+        p_prev = pl_periods[p_idx - 1] if p_idx > 0 else None
         
-        s_last = y_sales.get(last_p)
+        s_curr = y_sales.get(target_p)
         s_prev = y_sales.get(p_prev) if p_prev else None
-        opm_last = y_opm.get(last_p)
+        opm_curr = y_opm.get(target_p)
         
-        # Calculate actual sales growth
-        act_sales_growth = round(((s_last - s_prev) / s_prev) * 100.0, 1) if (s_last and s_prev and s_prev > 0) else None
-        
-        # Look for promised growth rate in management_promise
-        m_growth = re.search(r'(\d+(?:\.\d+)?)\s*%\s*(?:revenue|sales|growth)', item.get("management_promise", ""), re.IGNORECASE)
-        if m_growth and act_sales_growth is not None:
-            promised_pct = float(m_growth.group(1))
-            achieve_pct = round((act_sales_growth / promised_pct) * 100.0, 1) if promised_pct > 0 else 0.0
+        if s_curr and s_prev and s_prev > 0:
+            act_growth = round(((s_curr - s_prev) / s_prev) * 100.0, 1)
+            achieve_pct = round((act_growth / promised_pct) * 100.0, 1) if promised_pct > 0 else 0.0
+            variance_pct = round(act_growth - promised_pct, 1)
             
             res["financial_numbers_check"] = (
-                f"Promised {promised_pct}% revenue growth; audited {last_p} reported revenue of ₹{s_last:,.0f} Cr "
-                f"reflects {act_sales_growth}% YoY growth (Achievement Rate: {achieve_pct}% of guidance). Audited OPM stood at {opm_last}%."
+                f"Promised {promised_pct}% revenue growth; audited {target_p} reported revenue of ₹{s_curr:,.0f} Cr "
+                f"reflects {act_growth}% YoY growth (Achievement Rate: {achieve_pct}% of guidance; variance {variance_pct:+.1f}%). "
+                f"Audited OPM stood at {opm_curr if opm_curr is not None else 'N/A'}%."
             )
             
-            # If target deadline has passed and achievement is below 85%
-            if target_yr is not None and target_yr <= current_year and achieve_pct < 85.0:
-                res["status"] = "Missed"
-            elif target_yr is not None and target_yr <= current_year and achieve_pct >= 95.0:
+            # Deterministic Status Assignment
+            if target_yr is not None and target_yr > curr_yr:
+                res["status"] = "In Progress"
+            elif achieve_pct >= 90.0:
                 res["status"] = "Delivered"
+            elif achieve_pct < 85.0:
+                res["status"] = "Missed"
+            else:
+                res["status"] = "In Progress"
+        else:
+            res["financial_numbers_check"] = f"Audited financial statements for {target_p} provide baseline revenue data."
+    elif not pl_stmt or not pl_periods:
+        # Missing structured statements: do not invent achievement numbers
+        if not res.get("financial_numbers_check"):
+            res["financial_numbers_check"] = "Reported statements for exact promise verification period not yet available in database."
 
+    # 5. Future Target Deadline Protection (Always overrides!)
+    if target_yr is not None and target_yr > curr_yr:
+        res["status"] = "In Progress"
+        if not res.get("stocker_analysis") or "Missed" in res.get("stocker_analysis", "") or "Delivered" in res.get("stocker_analysis", ""):
+            res["stocker_analysis"] = f"Milestone In Progress: Stated target timeline ({target_timeline or f'FY{int(target_yr)}'}) matures in the future ({target_yr:.0f}). Ongoing execution tracked against interim audited progress."
+            
     return res
 

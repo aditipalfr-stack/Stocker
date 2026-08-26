@@ -100,7 +100,7 @@ Output MUST be a valid JSON object matching this schema:
 }
 """
 
-SYSTEM_PROMPT = """You are an institutional fundamental equity research analyst extracting rigorous, verifiable insights by synthesizing official corporate filings (Annual Reports, Concalls, Presentations, Announcements) with audited 10-year reported financial statements (P&L, Balance Sheet, Cash Flow, Quarterly trends).
+SYSTEM_PROMPT = """You are an institutional fundamental equity research analyst extracting rigorous, verifiable qualitative claims, management targets, and execution evidence from official corporate filings (Annual Reports, Concalls, Presentations, Announcements).
 
 CRITICAL RULES:
 1. Work ONLY from the provided document summaries, tagged text chunks, and audited financial tables.
@@ -112,12 +112,12 @@ CRITICAL RULES:
      * `source_page`: The exact page number from the [Page X] marker.
      * `source_quote`: The exact verbatim quote snippet (10 to 30 words) proving the claim.
      * `confidence`: Score between 0.8 and 1.0.
-3. QUANTITATIVE TRIANGULATION MANDATE (Promise vs Delivery):
-   - Compare management guidance from the baseline document against actual delivered outcomes in subsequent filings.
-   - Cross-check EVERY guidance claim against the provided REPORTED AUDITED FINANCIAL STATEMENTS table (Sales growth %, OPM %, PAT, CFO/PAT conversion %, Gross Block, CWIP, Debt).
-   - In 'financial_numbers_check', state the exact numerical outcome and variance percentage (e.g. 'Promised 20% revenue growth in FY25; audited FY26 P&L shows revenue of ₹58,500 Cr representing 12.3% YoY growth. OPM contracted by 140 bps').
+3. QUALITATIVE EXTRACTION & SEPARATION OF RESPONSIBILITIES:
+   - Extract management guidance, capacity targets, and forward statements verbatim from earlier baseline documents.
+   - Extract subsequently reported business outcomes and progress statements from later documents.
+   - DO NOT attempt to compute mathematical CAGR, YoY growth %, margin basis point changes, CFO/PAT ratios, debt variances, or achievement percentages. Code calculates all financial formulas deterministically from structured audited statements.
+   - In 'stocker_analysis', summarize the qualitative execution takeaways and operational drivers.
    - For 'source_url_promise', use the baseline document URL. For 'source_url_actual', use the outcome document URL.
-   - Assign status: 'Delivered', 'In Progress', 'Delayed', 'Missed', or 'Not Enough Data'.
 
 Output MUST be a valid JSON object matching this schema:
 {
@@ -474,7 +474,11 @@ def extract_document_intelligence_with_llm(
     financial_statements_summary: Optional[str] = None,
     candidate_documents_meta: Optional[List[Dict[str, str]]] = None,
     precomputed_document_summaries: Optional[List[Dict[str, Any]]] = None,
-    tagged_all_documents_text: Optional[str] = None
+    tagged_all_documents_text: Optional[str] = None,
+    pl_stmt: Optional[Any] = None,
+    quarters_stmt: Optional[Any] = None,
+    bs_stmt: Optional[Any] = None,
+    cf_stmt: Optional[Any] = None
 ) -> Tuple[bool, Optional[GenericDocumentIntelligenceResult], str]:
     """
     Synthesizes company-level fundamental research using:
@@ -698,7 +702,12 @@ SYNTHESIS INSTRUCTIONS:
                 # Deterministic Chronological & Mathematical Verification in Code
                 try:
                     from financial_engine import verify_promise_vs_delivery_item
-                    verified_dict = verify_promise_vs_delivery_item(p.model_dump())
+                    verified_dict = verify_promise_vs_delivery_item(
+                        item=p.model_dump(),
+                        pl_stmt=pl_stmt,
+                        quarters_stmt=quarters_stmt,
+                        current_year=None  # Computes runtime UTC datetime
+                    )
                     p.status = verified_dict.get("status", p.status)
                     if verified_dict.get("financial_numbers_check"):
                         p.financial_numbers_check = verified_dict["financial_numbers_check"]

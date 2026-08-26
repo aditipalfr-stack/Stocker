@@ -2,7 +2,8 @@ import re
 import os
 import json
 import time
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
+from concurrent.futures import ThreadPoolExecutor
 from urllib.parse import urlparse
 from typing import Dict, List, Optional, Tuple, Any
 from bs4 import BeautifulSoup
@@ -337,8 +338,13 @@ def classify_document_title(raw_title: str, company_name: str = "", period: Opti
         
     return "general", raw_title
 
-def discover_documents_screener(soup: BeautifulSoup, symbol: str, company_name: str) -> List[DocumentItem]:
-    """Stage 1: Discover documents from Screener's #documents section."""
+def discover_documents_screener(
+    soup: BeautifulSoup, 
+    symbol: str, 
+    company_name: str,
+    from_date_dt: Optional[datetime] = None
+) -> List[DocumentItem]:
+    """Stage 1: Discover documents from Screener's #documents section with incremental window filtering."""
     found: List[DocumentItem] = []
     doc_section = soup.find("section", {"id": "documents"})
     if not doc_section:
@@ -365,6 +371,18 @@ def discover_documents_screener(soup: BeautifulSoup, symbol: str, company_name: 
             if parent_el:
                 period = extract_period_or_date(parent_el.text)
         
+        # In incremental mode, skip filings with an explicit date older than the safety window
+        if from_date_dt and period:
+            try:
+                from financial_engine import parse_filing_period_to_year
+                p_yr = parse_filing_period_to_year(period)
+                from_yr = from_date_dt.year + (from_date_dt.month - 1) / 12.0 + from_date_dt.day / 365.0
+                if p_yr is not None and p_yr < (from_yr - 0.05):
+                    # Filing is older than the recent date window; will be loaded from SQLite archive
+                    continue
+            except Exception:
+                pass
+        
         doc_type, formatted_title = classify_document_title(raw_title, company_name, period)
             
         is_valid, reason = validate_document_candidate(formatted_title, href, doc_type, symbol)
@@ -386,8 +404,14 @@ def discover_documents_screener(soup: BeautifulSoup, symbol: str, company_name: 
         
     return found
 
-def discover_documents_bse_fallback(symbol: str, company_name: str, needed_types: List[str]) -> List[DocumentItem]:
-    """Stage 2: Discover direct official exchange filings from BSE India."""
+def discover_documents_bse_fallback(
+    symbol: str, 
+    company_name: str, 
+    needed_types: List[str],
+    from_date_str: Optional[str] = None,
+    to_date_str: Optional[str] = None
+) -> List[DocumentItem]:
+    """Stage 2: Discover direct official exchange filings from BSE India within the date window."""
     found: List[DocumentItem] = []
     scrip_code = BSE_SCRIP_CODES.get(symbol.upper())
     if not scrip_code:
@@ -398,8 +422,10 @@ def discover_documents_bse_fallback(symbol: str, company_name: str, needed_types
         "Referer": "https://www.bseindia.com/"
     }
     
-    # BSE Corporate Announcements API
-    api_url = f"https://api.bseindia.com/BseIndiaAPI/api/AnnSubCategoryGetData/w?pageno=1&strCat=-1&strPrevDate=&strScrip={scrip_code}&strSearch=P&strToDate=&strType=C"
+    # BSE Corporate Announcements API with date-window params
+    prev_d = from_date_str or ""
+    to_d = to_date_str or ""
+    api_url = f"https://api.bseindia.com/BseIndiaAPI/api/AnnSubCategoryGetData/w?pageno=1&strCat=-1&strPrevDate={prev_d}&strScrip={scrip_code}&strSearch=P&strToDate={to_d}&strType=C"
     
     try:
         resp = requests.get(api_url, headers=headers, timeout=5)
@@ -446,8 +472,14 @@ def discover_documents_bse_fallback(symbol: str, company_name: str, needed_types
         
     return found
 
-def discover_documents_nse_fallback(symbol: str, company_name: str, needed_types: List[str]) -> List[DocumentItem]:
-    """Stage 3: Discover verified direct exchange filings from NSE India."""
+def discover_documents_nse_fallback(
+    symbol: str, 
+    company_name: str, 
+    needed_types: List[str],
+    from_date_str: Optional[str] = None,
+    to_date_str: Optional[str] = None
+) -> List[DocumentItem]:
+    """Stage 3: Discover verified direct exchange filings from NSE India within the date window."""
     found: List[DocumentItem] = []
     clean_sym = symbol.upper().strip()
     
@@ -457,7 +489,11 @@ def discover_documents_nse_fallback(symbol: str, company_name: str, needed_types
         "Accept": "application/json, text/plain, */*"
     }
     
-    api_url = f"https://www.nseindia.com/api/corporate-announcements?index=equities&symbol={clean_sym}"
+    if from_date_str and to_date_str:
+        api_url = f"https://www.nseindia.com/api/corporate-announcements?index=equities&symbol={clean_sym}&from_date={from_date_str}&to_date={to_date_str}"
+    else:
+        api_url = f"https://www.nseindia.com/api/corporate-announcements?index=equities&symbol={clean_sym}"
+        
     try:
         session = requests.Session()
         session.get("https://www.nseindia.com", headers=headers, timeout=4)
@@ -576,9 +612,31 @@ def execute_document_sourcing_waterfall(
     fallback_sources_used: List[str] = []
     invalid_links_count = 0
     
+    # 0. Check previous sync state to establish Date-Window for Incremental Refresh
+    sync_state = database.get_document_sync_state(clean_sym, category="all")
+    last_checked_at = sync_state.get("last_checked_at") if sync_state else None
+    
+    from_date_dt: Optional[datetime] = None
+    from_date_bse: Optional[str] = None
+    to_date_bse: Optional[str] = None
+    from_date_nse: Optional[str] = None
+    to_date_nse: Optional[str] = None
+    
+    if last_checked_at:
+        try:
+            last_dt = datetime.fromisoformat(last_checked_at.replace("Z", "+00:00"))
+            overlap_days = 5  # Safety overlap window
+            from_date_dt = last_dt - timedelta(days=overlap_days)
+            from_date_bse = from_date_dt.strftime("%Y%m%d")
+            to_date_bse = datetime.now(timezone.utc).strftime("%Y%m%d")
+            from_date_nse = from_date_dt.strftime("%d-%m-%Y")
+            to_date_nse = datetime.now(timezone.utc).strftime("%d-%m-%Y")
+        except Exception:
+            pass
+
     # 1. Primary Discovery: Screener.in
     if screener_soup:
-        screener_docs = discover_documents_screener(screener_soup, clean_sym, company_name)
+        screener_docs = discover_documents_screener(screener_soup, clean_sym, company_name, from_date_dt=from_date_dt)
         all_raw_docs.extend(screener_docs)
 
     # Check category counts
@@ -592,17 +650,29 @@ def execute_document_sourcing_waterfall(
     if ppt_count < 4: needed_types.append("presentation")
     needed_types.append("announcement")
     
-    # 2. Stage 2: BSE India Fallback
+    # 2. Stage 2: BSE India Fallback (Searching inside the date window)
     if needed_types:
-        bse_docs = discover_documents_bse_fallback(clean_sym, company_name, needed_types)
+        bse_docs = discover_documents_bse_fallback(
+            clean_sym, 
+            company_name, 
+            needed_types,
+            from_date_str=from_date_bse,
+            to_date_str=to_date_bse
+        )
         if bse_docs:
             fallback_sources_used.append("BSE India")
             all_raw_docs.extend(bse_docs)
 
-    # 3. Stage 3: NSE India Fallback
+    # 3. Stage 3: NSE India Fallback (Searching inside the date window)
     ann_count = sum(1 for d in all_raw_docs if d.doc_type == "announcement")
     if ann_count < 4:
-        nse_docs = discover_documents_nse_fallback(clean_sym, company_name, ["announcement"])
+        nse_docs = discover_documents_nse_fallback(
+            clean_sym, 
+            company_name, 
+            ["announcement"],
+            from_date_str=from_date_nse,
+            to_date_str=to_date_nse
+        )
         if nse_docs:
             fallback_sources_used.append("NSE India")
             all_raw_docs.extend(nse_docs)

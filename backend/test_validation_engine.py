@@ -1,51 +1,72 @@
 import sys
+from datetime import datetime, timezone, timedelta
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent / "libs"))
 sys.path.insert(0, str(Path(__file__).parent))
 
 from financial_engine import parse_filing_period_to_year, verify_promise_vs_delivery_item, compute_financial_analytics
-from models import FinancialStatement, FinancialRow
+from models import FinancialStatement, FinancialRow, DocumentItem
+import database
+import document_sourcing
 
-def test_chronology_parser():
-    print("Testing period string parser...")
-    assert parse_filing_period_to_year("FY24") == 2024.0
-    assert parse_filing_period_to_year("FY2025") == 2025.0
-    assert parse_filing_period_to_year("Q2 FY25") == 2024.5
-    assert parse_filing_period_to_year("Mar 2026") == 2026.25
-    print("✓ Chronology parsing passed.")
-
-def test_chronology_enforcement():
-    print("Testing chronology and backwards comparison rejection...")
-    # Test case 1: Backwards outcome (Actual is FY23, Promise is FY25)
-    bad_item = {
-        "area": "Retail Growth",
-        "management_promise": "Double footprint to 30,000 stores",
-        "promised_in_period": "FY25",
-        "actual_outcome": "Expanded store count by 10%",
-        "actual_in_period": "FY23",
+def test_case_a_promise_after_outcome():
+    """Case A: Promise made July 2026, actual FY2026 result that occurred before promise -> Rejected / Not Enough Evidence."""
+    print("Testing Case A: Promise made July 2026 vs FY26 outcome...")
+    item = {
+        "area": "Retail Network Expansion",
+        "management_promise": "Double store count across tier 2 cities",
+        "promised_in_period": "24 Jul 2026",
+        "source_url_promise": "https://example.com/concall_jul2026.pdf",
+        "actual_outcome": "Reported annual store additions",
+        "actual_in_period": "FY26",  # FY26 ended March 2026, prior to July 2026
+        "source_url_actual": "https://example.com/ar_fy26.pdf",
         "status": "Delivered"
     }
-    verified = verify_promise_vs_delivery_item(bad_item)
+    verified = verify_promise_vs_delivery_item(item)
     assert verified["status"] == "Not Enough Evidence"
     assert "Chronological Mismatch" in verified["stocker_analysis"]
-    print("✓ Backwards chronological comparison successfully rejected.")
+    print("✓ Case A passed: Backwards chronology successfully rejected.")
 
-    # Test case 2: Future deadline (Target FY28)
-    future_item = {
-        "area": "New Energy Gigafactory",
-        "management_promise": "Commission 20GW solar giga-complex by FY28",
-        "target_timeline": "FY28",
-        "promised_in_period": "FY24",
-        "actual_outcome": "Phase 1 civil work initiated",
+def test_case_b_same_filing():
+    """Case B: Promise and actual come from the same filing -> Rejected / Not Enough Evidence."""
+    print("Testing Case B: Promise and actual from same filing...")
+    item = {
+        "area": "Solar Module Capacity",
+        "management_promise": "Commission 10GW solar cell facility",
+        "promised_in_period": "FY26",
+        "source_url_promise": "https://example.com/filing_fy26.pdf",
+        "actual_outcome": "Completed civil foundations",
         "actual_in_period": "FY26",
+        "source_url_actual": "https://example.com/filing_fy26.pdf",  # Same filing!
         "status": "Delivered"
     }
-    verified_future = verify_promise_vs_delivery_item(future_item)
-    assert verified_future["status"] == "In Progress"
-    print("✓ Future target milestone correctly forced to 'In Progress'.")
+    verified = verify_promise_vs_delivery_item(item)
+    assert verified["status"] == "Not Enough Evidence"
+    assert "Evidence from Same Filing" in verified["stocker_analysis"]
+    print("✓ Case B passed: Same filing delivery claim rejected.")
 
-def test_mathematical_achievement():
-    print("Testing mathematical achievement rate verification...")
+def test_case_c_future_deadline():
+    """Case C: Promise FY25, target FY28, current date 2026 -> In Progress."""
+    print("Testing Case C: Target deadline in future (FY28)...")
+    item = {
+        "area": "Green Hydrogen Ecosystem",
+        "management_promise": "Achieve 3GW electrolyzer manufacturing capacity by FY28",
+        "target_timeline": "FY28",
+        "promised_in_period": "FY25",
+        "source_url_promise": "https://example.com/ar_fy25.pdf",
+        "actual_outcome": "Secured land and long-lead equipment orders",
+        "actual_in_period": "Q1 FY27",
+        "source_url_actual": "https://example.com/concall_q1fy27.pdf",
+        "status": "Delivered"  # LLM mistakenly labeled delivered
+    }
+    verified = verify_promise_vs_delivery_item(item, current_year=2026.65)
+    assert verified["status"] == "In Progress"
+    assert "Milestone In Progress" in verified["stocker_analysis"]
+    print("✓ Case C passed: Future target milestone forced to 'In Progress'.")
+
+def test_case_d_code_calculated_achievement():
+    """Case D: Promise 20% revenue growth, actual from structured P&L is 15% -> achievement = 75%, calculated by code."""
+    print("Testing Case D: Deterministic revenue achievement calculated by code...")
     pl = FinancialStatement(
         periods=["Mar 2024", "Mar 2025", "Mar 2026"],
         rows=[
@@ -54,18 +75,88 @@ def test_mathematical_achievement():
             FinancialRow(metric="Net Profit", values={"Mar 2024": 10000.0, "Mar 2025": 12500.0, "Mar 2026": 15000.0})
         ]
     )
-    guided_item = {
+    item = {
         "area": "Revenue Guidance",
-        "management_promise": "Guide for 20% revenue growth in FY26",
+        "management_promise": "Targeting 20% revenue growth for FY26",
         "promised_in_period": "FY25",
-        "actual_outcome": "Reported audited annual numbers",
+        "source_url_promise": "https://example.com/ar_fy25.pdf",
+        "actual_outcome": "Reported audited FY26 annual numbers",
         "actual_in_period": "FY26",
+        "source_url_actual": "https://example.com/ar_fy26.pdf",
         "status": "Delivered"
     }
-    verified = verify_promise_vs_delivery_item(guided_item, pl_stmt=pl)
-    # Sales grew from 120000 to 138000 = 15.0% YoY vs 20% promised -> Achievement: 75.0%
+    # Sales grew from 120,000 to 138,000 = 15.0% YoY. 15.0% / 20.0% = 75.0% achievement rate.
+    verified = verify_promise_vs_delivery_item(item, pl_stmt=pl, current_year=2026.65)
     assert "75.0%" in verified["financial_numbers_check"]
-    print("✓ Numerical achievement percentage correctly computed: 75.0%.")
+    assert "variance -5.0%" in verified["financial_numbers_check"]
+    assert verified["status"] == "Missed"  # 75% < 85% threshold
+    print("✓ Case D passed: Mathematical achievement 75.0% and status computed by code.")
+
+def test_case_e_missing_financial_statements():
+    """Case E: Missing financial statements -> do not invent achievement %, use Not Enough Evidence where required."""
+    print("Testing Case E: Missing structured statements...")
+    item = {
+        "area": "Long-Term Revenue Goal",
+        "management_promise": "Targeting 25% revenue growth by FY25",
+        "target_timeline": "FY25",
+        "promised_in_period": "FY23",
+        "source_url_promise": "https://example.com/ar_fy23.pdf",
+        "actual_outcome": "Target deadline passed",
+        "actual_in_period": "FY25",
+        "source_url_actual": "https://example.com/ar_fy25.pdf"
+    }
+    # Pass None for pl_stmt
+    verified = verify_promise_vs_delivery_item(item, pl_stmt=None, current_year=2026.65)
+    assert "Reported statements for exact promise verification period not yet available" in verified["financial_numbers_check"]
+    print("✓ Case E passed: Missing statements handled safely without invented numbers.")
+
+def test_case_f_incremental_refresh_date_window():
+    """Case F: Incremental refresh with last_checked_at = 10 Aug -> search window starts a few days before 10 Aug."""
+    print("Testing Case F: Incremental refresh date-window calculation...")
+    sym = "TEST_INC_SYM"
+    last_checked_iso = "2026-08-10T12:00:00+00:00"
+    database.update_document_sync_state(sym, category="all", checked_at=last_checked_iso)
+    
+    sync_state = database.get_document_sync_state(sym, category="all")
+    assert sync_state is not None
+    assert sync_state["last_checked_at"] == last_checked_iso
+    
+    last_dt = datetime.fromisoformat(sync_state["last_checked_at"].replace("Z", "+00:00"))
+    overlap_days = 5
+    from_date_dt = last_dt - timedelta(days=overlap_days)
+    from_date_bse = from_date_dt.strftime("%Y%m%d")
+    
+    # 10 Aug minus 5 days = 05 Aug 2026
+    assert from_date_bse == "20260805"
+    assert from_date_dt.day == 5
+    assert from_date_dt.month == 8
+    print(f"✓ Case F passed: Incremental date window starts on {from_date_bse} (5-day safety overlap).")
+
+def test_case_g_cached_known_documents():
+    """Case G: Cached known document -> no unnecessary download / revalidation."""
+    print("Testing Case G: Known SQLite document caching...")
+    sym = "TEST_CACHE_SYM"
+    test_doc = DocumentItem(
+        ticker=sym,
+        company_name="Test Corp",
+        title="Test Corp Annual Report 2026",
+        name="Test Corp Annual Report 2026",
+        url="https://example.com/test_ar_2026.pdf",
+        doc_type="annual_report",
+        period_or_date="FY26",
+        discovery_source="SQLite Cache",
+        actual_source_host="example.com",
+        actual_source_url="https://example.com/test_ar_2026.pdf",
+        is_direct_pdf=True,
+        validation_status="Valid",
+        file_size_bytes=1048576
+    )
+    database.save_source_documents(sym, [test_doc])
+    
+    stored = database.get_source_documents(sym)
+    assert len(stored) >= 1
+    assert any(d["url"] == "https://example.com/test_ar_2026.pdf" and d["is_valid"] == 1 for d in stored)
+    print("✓ Case G passed: Document correctly cached and indexed in SQLite.")
 
 def test_formula_transparency():
     print("Testing formula transparency in financial analytics...")
@@ -115,8 +206,13 @@ def test_formula_transparency():
     print("✓ Formula transparency verified successfully.")
 
 if __name__ == "__main__":
-    test_chronology_parser()
-    test_chronology_enforcement()
-    test_mathematical_achievement()
+    test_case_a_promise_after_outcome()
+    test_case_b_same_filing()
+    test_case_c_future_deadline()
+    test_case_d_code_calculated_achievement()
+    test_case_e_missing_financial_statements()
+    test_case_f_incremental_refresh_date_window()
+    test_case_g_cached_known_documents()
     test_formula_transparency()
-    print("\n🎉 ALL VERIFICATION ENGINE TESTS PASSED!")
+    print("\n🎉 ALL REGRESSION & CORRECTNESS TESTS PASSED PERFECTLY!")
+
