@@ -1934,14 +1934,17 @@ export const StockDetailView: React.FC<StockDetailViewProps> = ({ stock, onBack,
                   <div key={idx} className="bg-slate-950/70 p-4 rounded-2xl border border-slate-800/80 space-y-2 flex flex-col justify-between">
                     <div>
                       <div className="flex items-center justify-between text-[11px] font-mono">
-                        <span className="text-purple-400 font-bold">{doc.period_or_date || 'Announcement'}</span>
+                        <span className="px-2 py-0.5 rounded bg-purple-500/10 text-purple-400 border border-purple-500/20 font-bold">
+                          {doc.period_or_date || 'Announcement'}
+                        </span>
                         <span className="px-2 py-0.5 rounded bg-slate-900 text-slate-300 border border-slate-700 text-[10px]">
                           Discovered via: <strong className="text-purple-300">{doc.discovery_source}</strong>
                         </span>
                       </div>
-                      <p className="text-xs font-semibold text-slate-200 line-clamp-2 mt-1">{doc.title}</p>
-                      <div className="text-[11px] text-slate-400 mt-1">
+                      <p className="text-xs font-semibold text-slate-200 line-clamp-2 mt-1.5">{doc.title}</p>
+                      <div className="text-[11px] text-slate-400 mt-1 flex items-center justify-between">
                         <span>PDF Host: <strong className="text-slate-300">{doc.actual_source_host}</strong></span>
+                        {doc.is_direct_pdf && <span className="text-purple-400 font-bold">● Direct PDF</span>}
                       </div>
                     </div>
 

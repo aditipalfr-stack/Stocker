@@ -77,6 +77,42 @@ COMPANY_IR_DOMAINS: Dict[str, Dict[str, str]] = {
     }
 }
 
+def format_filing_date(date_str: str) -> Optional[str]:
+    """Formats raw exchange timestamp (e.g. '2026-08-21T14:30:00' or '21-Aug-2026') into '21 Aug 2026'."""
+    if not date_str:
+        return None
+    s = date_str.strip()
+    
+    # Format 1: ISO date like '2026-08-21' or '2026-08-21T14:30:00'
+    m_iso = re.search(r"(\d{4})-(\d{2})-(\d{2})", s)
+    if m_iso:
+        try:
+            from datetime import datetime
+            dt = datetime(int(m_iso.group(1)), int(m_iso.group(2)), int(m_iso.group(3)))
+            return dt.strftime("%d %b %Y")
+        except Exception:
+            pass
+
+    # Format 2: '21-Aug-2026' or '21/Aug/2026'
+    m_text = re.search(r"(\d{1,2})[-/ ]+(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*[-/ ]+(\d{4})", s, re.IGNORECASE)
+    if m_text:
+        day = m_text.group(1).zfill(2)
+        month = m_text.group(2).capitalize()
+        year = m_text.group(3)
+        return f"{day} {month} {year}"
+
+    # Format 3: '21/08/2026' or '21-08-2026'
+    m_dmy = re.search(r"(\d{1,2})[-/](\d{1,2})[-/](\d{4})", s)
+    if m_dmy:
+        try:
+            from datetime import datetime
+            dt = datetime(int(m_dmy.group(3)), int(m_dmy.group(2)), int(m_dmy.group(1)))
+            return dt.strftime("%d %b %Y")
+        except Exception:
+            pass
+            
+    return extract_period_or_date(s)
+
 def extract_period_or_date(text: str) -> Optional[str]:
     """Extracts exact Date (e.g. '24 Jul 2026'), Month-Year with Quarter (e.g. 'Jun 2026 (Q1 FY27)'), or Fiscal Year."""
     if not text:
@@ -283,7 +319,7 @@ def discover_documents_bse_fallback(symbol: str, company_name: str, needed_types
                     
                 direct_url = f"https://www.bseindia.com/xml-data/corpfiling/AttachHis/{attach_name}"
                 is_pdf = direct_url.lower().endswith(".pdf")
-                period = extract_period_or_date(headline) or extract_period_or_date(dt) or dt[:10]
+                period = format_filing_date(dt) or extract_period_or_date(headline)
                 
                 lower_h = headline.lower()
                 doc_type = "announcement"
@@ -342,7 +378,7 @@ def discover_documents_nse_fallback(symbol: str, company_name: str, needed_types
                 if not desc or not attach_file:
                     continue
                 pdf_url = attach_file if attach_file.startswith("http") else f"https://archives.nseindia.com/corporate/{attach_file}"
-                period = extract_period_or_date(desc) or extract_period_or_date(dt) or dt[:10]
+                period = format_filing_date(dt) or extract_period_or_date(desc)
                 
                 doc_type = "announcement"
                 lower_d = desc.lower()
