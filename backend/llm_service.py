@@ -20,18 +20,23 @@ from doc_intelligence_models import (
     GenericGrowthPipelineItem, GenericDemandAndOrders, GenericCashAndProblems
 )
 
-SYSTEM_PROMPT = """You are an institutional fundamental equity analyst extracting rigorous, verifiable insights from company earnings call transcripts, investor presentations, and annual reports for fundamental investors.
+SYSTEM_PROMPT = """You are an institutional fundamental equity research analyst extracting rigorous, verifiable insights by triangulating official corporate filings (Annual Reports, Concall Transcripts, Investor Decks) with audited 10-year reported financial statements (P&L, Balance Sheet, Cash Flow, Quarterly trends).
 
 CRITICAL RULES:
-1. Work ONLY from the provided document text chunks with [Page X] markers.
-2. Do NOT use outside training knowledge, assumptions, or generic boilerplate text.
-3. If a metric or topic is NOT explicitly mentioned in the text, return null or an empty list. Never invent or fabricate numbers or claims.
-4. For EVERY extracted fact, you MUST specify:
+1. Work ONLY from the provided document text chunks with [Page X] markers and the audited financial tables.
+2. Do NOT use outside training assumptions or generic boilerplate text.
+3. If a metric or topic is NOT explicitly mentioned in the text, return null or an empty list. Never invent numbers or claims.
+4. For EVERY extracted qualitative fact, you MUST specify:
    - Exact source page number based on the [Page X] marker where the statement appears.
    - Exact verbatim quote snippet (10 to 30 words) from that page proving the claim.
    - Confidence score between 0.8 and 1.0.
-5. For 'Promise vs Delivery', compare previous management promises/guidance in the OLDER document against actual delivered outcomes reported in the LATEST document. Assign status: 'Delivered', 'In Progress', 'Delayed', 'Missed', or 'Not Enough Data'.
-6. Do NOT force metrics that do not apply to this specific company. For example, for telecom extract subscribers/ARPU; for L&T extract order book/execution; for banks extract loans/deposits/NIM; for FMCG extract volume/pricing; for IT extract deal TCV/headcount.
+5. QUANTITATIVE TRIANGULATION MANDATE (Promise vs Delivery):
+   - Compare management promises/guidance from the baseline document against actual delivered outcomes.
+   - Cross-check EVERY guidance claim against the provided REPORTED AUDITED FINANCIAL STATEMENTS table (Sales growth %, OPM %, PAT, CFO/PAT conversion %, Gross Block, CWIP, Debt).
+   - In 'financial_numbers_check', state the exact numerical outcome and variance percentage (e.g. 'Promised 20% revenue growth in FY25; audited FY26 P&L shows revenue of ₹58,500 Cr representing 12.3% YoY growth. OPM contracted by 140 bps').
+   - Assign status: 'Delivered', 'In Progress', 'Delayed', 'Missed', or 'Not Enough Data'.
+6. PER-DOCUMENT EXECUTIVE SUMMARIES:
+   - For each distinct filing analyzed, generate a 3-bullet takeaway, management tone, and crucial capex/growth milestone.
 
 Output MUST be a valid JSON object matching this schema:
 {
@@ -70,6 +75,7 @@ Output MUST be a valid JSON object matching this schema:
       "actual_quote": "Verbatim quote from later document",
       "status": "Delivered" | "In Progress" | "Delayed" | "Missed" | "Not Enough Data",
       "stocker_analysis": "Concise variance explanation of why target was met/delayed/missed",
+      "financial_numbers_check": "Exact audited financial statement check (Sales growth %, OPM %, CFO conversion, Debt changes)",
       "confidence": 0.95
     }
   ],
@@ -103,7 +109,16 @@ Output MUST be a valid JSON object matching this schema:
     "main_risks": ["Critical fundamental risks to monitor"],
     "what_to_watch_next": ["Specific milestones to watch in next 2-4 quarters"],
     "investor_summary": "Concise, plain-English summary for fundamental investors."
-  }
+  },
+  "document_summaries": [
+    {
+      "doc_title": "Title of filing analyzed",
+      "doc_url": "URL of filing",
+      "key_takeaways": ["Takeaway bullet 1", "Takeaway bullet 2", "Takeaway bullet 3"],
+      "management_tone": "Prudent" | "Confident / Aggressive" | "Cautious" | "Neutral",
+      "capex_or_guidance_highlight": "Key capex, growth, or guidance milestone from this filing"
+    }
+  ]
 }
 """
 
@@ -316,10 +331,12 @@ def extract_document_intelligence_with_llm(
     latest_pages: List[Tuple[int, str]],
     older_doc_title: Optional[str] = None,
     older_doc_url: Optional[str] = None,
-    older_pages: Optional[List[Tuple[int, str]]] = None
+    older_pages: Optional[List[Tuple[int, str]]] = None,
+    financial_statements_summary: Optional[str] = None,
+    candidate_documents_meta: Optional[List[Dict[str, str]]] = None
 ) -> Tuple[bool, Optional[GenericDocumentIntelligenceResult], str]:
     """
-    Generic LLM analysis pipeline feeding extracted text pages to an LLM provider.
+    LLM analysis pipeline feeding multi-document text pages + audited financial time-series.
     Returns (success, result, message).
     """
     provider_info = get_available_llm_provider()
@@ -332,20 +349,36 @@ def extract_document_intelligence_with_llm(
     provider, api_key = provider_info
     
     latest_text = format_pages_for_prompt(latest_pages)
-    older_text = format_pages_for_prompt(older_pages) if older_pages else "No older document provided."
+    older_text = format_pages_for_prompt(older_pages) if older_pages else "No older baseline document provided."
     
-    prompt = f"""Analyze the provided document text for company '{company_name}' ({symbol}).
+    fin_text = financial_statements_summary or "No reported financial time-series provided."
+    
+    prompt = f"""Perform comprehensive, institutional fundamental equity research for company '{company_name}' ({symbol}).
 
-LATEST DOCUMENT: '{latest_doc_title}' (URL: {latest_doc_url})
-OLDER DOCUMENT (for Plan vs Reality historical comparison): '{older_doc_title or "None"}' (URL: {older_doc_url or "None"})
+======================================================================
+1. REPORTED AUDITED FINANCIAL STATEMENTS & TIME-SERIES (Screener.in Data)
+======================================================================
+{fin_text}
 
-=== OLDER DOCUMENT TEXT (PREVIOUS PROMISES / TARGETS) ===
+======================================================================
+2. HISTORICAL BASELINE DOCUMENT (MANAGEMENT GUIDANCE / TARGETS)
+======================================================================
+Document: '{older_doc_title or "None"}' (URL: {older_doc_url or "None"})
 {older_text}
 
-=== LATEST DOCUMENT TEXT (CURRENT QUARTER / ACTUAL OUTCOMES) ===
+======================================================================
+3. LATEST DOCUMENTS CORPUS (CURRENT ANNUAL REPORT & RECENT CONCALLS)
+======================================================================
+Document: '{latest_doc_title}' (URL: {latest_doc_url})
 {latest_text}
 
-Extract the 4 required sections (Plan vs Reality, Growth Pipeline, Demand & Orders, Cash & Problems) strictly following the JSON schema.
+======================================================================
+ANALYSIS INSTRUCTIONS:
+======================================================================
+1. Cross-examine management promises from the baseline document against the LATEST document AND the REPORTED AUDITED FINANCIAL STATEMENTS table above.
+2. In 'financial_numbers_check', state the exact numerical outcome and variance percentage (e.g. Sales growth %, OPM %, CFO conversion, Debt changes).
+3. For each document in the corpus, provide a concise 3-bullet takeaway in 'document_summaries'.
+4. Strictly follow the JSON schema.
 """
 
     try:
@@ -360,10 +393,16 @@ Extract the 4 required sections (Plan vs Reality, Growth Pipeline, Demand & Orde
         data_to_parse["company_name"] = company_name
         data_to_parse["latest_document_period"] = latest_doc_title
         data_to_parse["older_document_period"] = older_doc_title
-        data_to_parse["source_documents"] = [
-            {"title": latest_doc_title, "url": latest_doc_url, "type": "Latest Filing"}
-        ] + ([{"title": older_doc_title, "url": older_doc_url, "type": "Baseline Comparison"}] if older_doc_title and older_doc_url else [])
+        
+        if candidate_documents_meta:
+            data_to_parse["source_documents"] = candidate_documents_meta
+        else:
+            data_to_parse["source_documents"] = [
+                {"title": latest_doc_title, "url": latest_doc_url, "type": "Latest Filing"}
+            ] + ([{"title": older_doc_title, "url": older_doc_url, "type": "Baseline Comparison"}] if older_doc_title and older_doc_url else [])
+            
         data_to_parse["ai_provider_used"] = f"{provider.upper()}"
+        data_to_parse["model_version"] = "gemini-3.6-flash" if provider == "gemini" else "gpt-4o-mini"
         
         result = GenericDocumentIntelligenceResult(**data_to_parse)
         
@@ -379,12 +418,13 @@ Extract the 4 required sections (Plan vs Reality, Growth Pipeline, Demand & Orde
                 p.source_url_actual = latest_doc_url
             if not p.source_url_promise:
                 p.source_url_promise = older_doc_url or latest_doc_url
+                
         if not result.demand_momentum.source_url:
             result.demand_momentum.source_url = latest_doc_url
         if not result.risks_and_cash.source_url:
             result.risks_and_cash.source_url = latest_doc_url
-
-        return True, result, f"Successfully extracted intelligence using {provider.upper()}"
+            
+        return True, result, "Extraction succeeded"
     except Exception as e:
         return False, None, f"Error running LLM extraction with {provider.upper()}: {e}"
 

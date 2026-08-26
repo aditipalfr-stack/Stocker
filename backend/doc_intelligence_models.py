@@ -95,6 +95,16 @@ class StockerView(BaseModel):
     what_to_watch_next: List[str] = Field(default_factory=list, description="Specific milestones and financial numbers to watch in next 2-4 quarters")
     investor_summary: str = Field(default="", description="Concise, plain-English synthesis for fundamental investors")
 
+# 7. PER-DOCUMENT EXECUTIVE SUMMARY
+class DocumentSummaryItem(BaseModel):
+    doc_title: str
+    doc_url: str
+    doc_type: Optional[str] = None
+    period_or_date: Optional[str] = None
+    key_takeaways: List[str] = Field(default_factory=list, description="3-5 bullet executive takeaways")
+    management_tone: Optional[str] = Field(default=None, description="Tone e.g. Confident, Prudent, Cautious")
+    capex_or_guidance_highlight: Optional[str] = Field(default=None, description="Most important capex, growth, or guidance milestone")
+
 # ROOT DOCUMENT INTELLIGENCE OBJECT
 class BusinessOutlookResult(BaseModel):
     symbol: str
@@ -103,6 +113,7 @@ class BusinessOutlookResult(BaseModel):
     older_document_period: Optional[str] = Field(default=None)
     source_documents: List[Dict[str, str]] = Field(default_factory=list)
     ai_provider_used: str = Field(default="None")
+    model_version: Optional[str] = Field(default="gemini-3.6-flash")
     extraction_timestamp: str = Field(default="")
     status: Optional[str] = Field(default=None)
     message: Optional[str] = Field(default=None)
@@ -114,6 +125,7 @@ class BusinessOutlookResult(BaseModel):
     demand_momentum: DemandMomentum = Field(default_factory=DemandMomentum)
     risks_and_cash: RisksAndCashIssues = Field(default_factory=RisksAndCashIssues)
     stocker_view: StockerView = Field(default_factory=StockerView)
+    document_summaries: List[DocumentSummaryItem] = Field(default_factory=list)
 
     # Backward-compatible properties / validators
     @model_validator(mode="before")

@@ -13,7 +13,7 @@ import {
   CheckCircle2, AlertTriangle, Sparkles, Building, Layers, 
   DollarSign, Activity, FileSpreadsheet, ChevronRight, HelpCircle,
   Clock, Target, Compass, Search, Zap, Info, ChevronDown,
-  Mic, Presentation, Bell, KeyRound, Check
+  Mic, Presentation, Bell, KeyRound, Check, Calculator
 } from 'lucide-react';
 import { 
   ResponsiveContainer, AreaChart, Area, XAxis, YAxis, 
@@ -908,24 +908,43 @@ export const StockDetailView: React.FC<StockDetailViewProps> = ({ stock, onBack,
                 <div>
                   <div className="flex items-center gap-2.5 flex-wrap">
                     <h3 className="text-xl font-bold text-white">Business Outlook & Management Tracking</h3>
-                    {docIntel?.ai_provider_used && docIntel.ai_provider_used !== 'None' && docIntel.ai_provider_used !== 'Verified Baseline (Sample)' ? (
-                      <span className="bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 text-[11px] font-bold px-2.5 py-0.5 rounded-full flex items-center gap-1">
-                        <Sparkles className="w-3 h-3" />
-                        Source-Backed AI Analysis ({docIntel.ai_provider_used.toUpperCase()})
-                      </span>
-                    ) : docIntel?.ai_provider_used === 'Verified Baseline (Sample)' ? (
-                      <span className="bg-amber-500/20 text-amber-300 border border-amber-500/30 text-[11px] font-bold px-2.5 py-0.5 rounded-full flex items-center gap-1">
-                        <Info className="w-3 h-3" />
-                        Demo Baseline (Sample)
-                      </span>
-                    ) : (
-                      <span className="bg-slate-800 text-slate-400 border border-slate-700 text-[11px] font-semibold px-2.5 py-0.5 rounded-full">
-                        AI Unavailable
-                      </span>
-                    )}
+                    {(() => {
+                      const isAnalyzed = Boolean(docIntel && (docIntel.promise_vs_delivery?.length > 0 || docIntel.what_changed_recently?.length > 0 || docIntel.growth_drivers?.length > 0));
+                      const formattedTime = docIntel?.extraction_timestamp ? new Date(docIntel.extraction_timestamp).toLocaleString('en-IN', {
+                        day: 'numeric',
+                        month: 'short',
+                        year: 'numeric',
+                        hour: '2-digit',
+                        minute: '2-digit',
+                        hour12: true
+                      }) : null;
+
+                      if (isAnalyzed) {
+                        return (
+                          <>
+                            <span className="bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 text-[11px] font-bold px-2.5 py-0.5 rounded-full flex items-center gap-1">
+                              <Sparkles className="w-3 h-3 text-emerald-400" />
+                              AI Analyzed ({docIntel?.model_version || docIntel?.ai_provider_used || 'GEMINI'})
+                            </span>
+                            {formattedTime && (
+                              <span className="bg-slate-900 text-slate-300 border border-slate-800 text-[11px] font-mono font-medium px-2.5 py-0.5 rounded-full flex items-center gap-1.5">
+                                <Clock className="w-3 h-3 text-cyan-400" />
+                                Last Analyzed: {formattedTime}
+                              </span>
+                            )}
+                          </>
+                        );
+                      }
+                      return (
+                        <span className="bg-amber-500/10 text-amber-400 border border-amber-500/20 text-[11px] font-semibold px-2.5 py-0.5 rounded-full flex items-center gap-1">
+                          <HelpCircle className="w-3 h-3" />
+                          Analysis Not Run Yet
+                        </span>
+                      );
+                    })()}
                   </div>
                   <p className="text-xs text-slate-400 mt-0.5">
-                    What is management planning, what is changing in the business, and are they actually delivering?
+                    What is management planning, what is changing in the business, and are they actually delivering against audited numbers?
                   </p>
                 </div>
               </div>
@@ -946,7 +965,7 @@ export const StockDetailView: React.FC<StockDetailViewProps> = ({ stock, onBack,
                   className="bg-emerald-600 hover:bg-emerald-500 disabled:bg-slate-800 disabled:text-slate-500 text-slate-950 font-bold text-xs px-3.5 py-2 rounded-xl flex items-center gap-1.5 transition-all shadow-sm shadow-emerald-600/20"
                 >
                   <Zap className={`w-3.5 h-3.5 ${generatingDocIntel ? 'animate-spin' : ''}`} />
-                  <span>{generatingDocIntel ? 'Extracting with AI...' : 'Run Live AI Analysis'}</span>
+                  <span>{generatingDocIntel ? 'Extracting with AI...' : (docIntel?.promise_vs_delivery?.length ? 'Re-run Fresh Analysis' : 'Run Live AI Analysis')}</span>
                 </button>
               </div>
             </div>
@@ -962,31 +981,40 @@ export const StockDetailView: React.FC<StockDetailViewProps> = ({ stock, onBack,
               </div>
             )}
 
-            {/* Baseline Fallback Banner */}
-            {docIntel?.ai_provider_used === 'Verified Baseline (Sample)' && (
-              <div className="bg-amber-950/30 border border-amber-800/40 p-4 rounded-2xl flex items-start gap-3">
-                <Info className="w-5 h-5 text-amber-400 shrink-0 mt-0.5" />
-                <div className="space-y-1">
-                  <p className="text-xs font-bold text-amber-200">Demo / Baseline Intelligence</p>
-                  <p className="text-xs text-amber-300/80 leading-relaxed">
-                    Showing verified demo baseline intelligence. Configure <code className="bg-slate-900 px-1 py-0.5 rounded text-amber-200">GEMINI_API_KEY</code> in <code className="bg-slate-900 px-1 py-0.5 rounded text-amber-200">.env</code> and click <strong>Run Live AI Analysis</strong> to extract directly from original filings.
+            {/* NOT ANALYZED YET INVITATION HERO (NO SAMPLE FALLBACK!) */}
+            {(!docIntel || (!docIntel.promise_vs_delivery?.length && !docIntel.what_changed_recently?.length && !docIntel.growth_drivers?.length)) && (
+              <div className="bg-slate-950/90 border border-slate-800 p-8 rounded-3xl text-center space-y-5 bg-gradient-to-b from-slate-950 to-slate-900/60">
+                <div className="w-14 h-14 rounded-3xl bg-emerald-500/10 text-emerald-400 flex items-center justify-center border border-emerald-500/20 mx-auto">
+                  <Sparkles className="w-7 h-7" />
+                </div>
+                <div className="space-y-2 max-w-lg mx-auto">
+                  <h4 className="text-lg font-bold text-white">Deep AI Fundamental Analysis Not Run Yet</h4>
+                  <p className="text-xs text-slate-400 leading-relaxed">
+                    Stocker can autonomously scan and triangulate <strong className="text-emerald-300">{stock.documents?.diagnostics?.ai_ready_documents_count || 'all'} official filings</strong> (Annual Reports, Concall Transcripts, Investor PPTs) against <strong className="text-cyan-300">10-year audited financial statements</strong> to audit management guidance, capex roadmaps, and balance sheet cash flows.
                   </p>
+                </div>
+                
+                <div className="flex items-center justify-center gap-3 pt-2 flex-wrap">
+                  <button
+                    onClick={handleGenerateIntel}
+                    disabled={generatingDocIntel}
+                    className="bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-xs px-6 py-3 rounded-2xl flex items-center gap-2 transition-all shadow-lg shadow-emerald-500/20 disabled:bg-slate-800 disabled:text-slate-500"
+                  >
+                    <Zap className={`w-4 h-4 ${generatingDocIntel ? 'animate-spin' : ''}`} />
+                    <span>{generatingDocIntel ? 'Executing Live Extraction...' : 'Run Live AI Analysis Now'}</span>
+                  </button>
+                  <button
+                    onClick={() => setOutlookSubTab('filings')}
+                    className="bg-slate-900 hover:bg-slate-800 text-slate-300 font-bold text-xs px-4 py-3 rounded-2xl border border-slate-800 flex items-center gap-1.5"
+                  >
+                    <FileText className="w-4 h-4 text-emerald-400" />
+                    <span>Explore {stock.documents?.diagnostics?.ai_ready_documents_count || 0} Sourced Filings</span>
+                  </button>
                 </div>
               </div>
             )}
 
-            {/* Empty / Unavailable State */}
-            {(!docIntel || docIntel.status === 'ai_unavailable' || (!docIntel.promise_vs_delivery?.length && !docIntel.plan_vs_reality?.length)) && (
-              <div className="bg-slate-950/80 border border-slate-800 p-6 rounded-2xl text-center space-y-3">
-                <HelpCircle className="w-8 h-8 text-slate-500 mx-auto" />
-                <p className="text-sm font-bold text-slate-200">AI Document Analysis Not Generated</p>
-                <p className="text-xs text-slate-400 max-w-md mx-auto leading-relaxed">
-                  Configure <code className="bg-slate-900 px-1.5 py-0.5 rounded text-emerald-400">GEMINI_API_KEY</code> or <code className="bg-slate-900 px-1.5 py-0.5 rounded text-emerald-400">OPENAI_API_KEY</code> in your <code className="bg-slate-900 px-1.5 py-0.5 rounded text-emerald-400">.env</code> file, then click <strong>Run Live AI Analysis</strong> above to automatically scan filings and generate fundamental intelligence.
-                </p>
-              </div>
-            )}
-
-            {/* Analyzed Documents List */}
+            {/* Analyzed Documents Header Badges */}
             {docIntel?.source_documents && docIntel.source_documents.length > 0 && (
               <div className="flex items-center gap-2 flex-wrap text-xs">
                 <span className="text-slate-400 font-semibold text-[11px] uppercase tracking-wider">Source Filings:</span>
@@ -1095,7 +1123,7 @@ export const StockDetailView: React.FC<StockDetailViewProps> = ({ stock, onBack,
             <div className="space-y-6">
               
               {/* Hero Stocker Institutional Verdict */}
-              {docIntel?.stocker_view && (
+              {docIntel?.stocker_view && (docIntel.promise_vs_delivery?.length > 0 || docIntel.what_changed_recently?.length > 0) && (
                 <div className="glass-panel rounded-3xl p-6 md:p-8 border border-slate-800 space-y-6">
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800 pb-4">
                     <div className="flex items-center gap-2.5">
@@ -1281,12 +1309,12 @@ export const StockDetailView: React.FC<StockDetailViewProps> = ({ stock, onBack,
                 <div className="flex items-center gap-2.5">
                   <Target className="w-5 h-5 text-emerald-400" />
                   <div>
-                    <h4 className="text-lg font-bold text-white">Promise vs Delivery (Execution Scorecard)</h4>
-                    <p className="text-xs text-slate-400">Verifying historical management promises against actual subsequent outcomes</p>
+                    <h4 className="text-lg font-bold text-white">Promise vs Delivery (Quantitative Execution Scorecard)</h4>
+                    <p className="text-xs text-slate-400">Verifying historical management promises against subsequent reported audited financials</p>
                   </div>
                 </div>
                 <span className="text-xs text-slate-400 font-mono bg-slate-900 px-3 py-1 rounded-lg border border-slate-800 self-start sm:self-auto">
-                  Comparing: {docIntel?.older_document_period || 'Baseline'} → {docIntel?.latest_document_period || 'Latest'}
+                  Comparing: {docIntel?.older_document_period || 'Baseline Guidance'} → {docIntel?.latest_document_period || 'Latest Audited Results'}
                 </span>
               </div>
 
@@ -1367,6 +1395,17 @@ export const StockDetailView: React.FC<StockDetailViewProps> = ({ stock, onBack,
                           </div>
 
                         </div>
+
+                        {/* REPORTED NUMBERS VARIANCE AUDIT */}
+                        {item.financial_numbers_check && (
+                          <div className="bg-cyan-950/20 p-3.5 rounded-xl border border-cyan-900/30 text-xs text-cyan-200/90 leading-relaxed space-y-1">
+                            <span className="text-[10px] uppercase font-bold tracking-wider text-cyan-400 flex items-center gap-1">
+                              <Calculator className="w-3.5 h-3.5" />
+                              Reported Audited Numbers Verification
+                            </span>
+                            <p className="font-mono text-[11px] text-cyan-100">{item.financial_numbers_check}</p>
+                          </div>
+                        )}
 
                         {/* Stocker Analytical Variance Note */}
                         {item.stocker_analysis && (
@@ -1590,6 +1629,23 @@ export const StockDetailView: React.FC<StockDetailViewProps> = ({ stock, onBack,
                         </p>
                       </div>
                     )}
+
+                    {/* Operational Bottlenecks */}
+                    {docIntel.risks_and_cash.execution_and_bottlenecks && docIntel.risks_and_cash.execution_and_bottlenecks.length > 0 && (
+                      <div className="bg-slate-900/60 p-4 rounded-2xl border border-slate-800 space-y-2">
+                        <span className="text-xs font-bold uppercase tracking-wider text-slate-400">
+                          Operational & Execution Bottlenecks
+                        </span>
+                        <ul className="space-y-1.5">
+                          {docIntel.risks_and_cash.execution_and_bottlenecks.map((b, i) => (
+                            <li key={i} className="text-xs text-slate-300 flex items-start gap-2">
+                              <span className="w-1.5 h-1.5 rounded-full bg-amber-400 mt-1.5 shrink-0" />
+                              <span>{b}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
                   </div>
                 </div>
               )}
@@ -1719,185 +1775,299 @@ export const StockDetailView: React.FC<StockDetailViewProps> = ({ stock, onBack,
                 </button>
               </div>
 
-              {/* Section 1: Annual Reports */}
-              {(filingsFilter === 'all' || filingsFilter === 'annual_reports') && (
-                <div className="glass-panel rounded-3xl p-6 border border-slate-800 space-y-4">
-                  <div className="flex items-center justify-between">
-                    <h4 className="font-bold text-white text-sm flex items-center gap-2">
-                      <FileText className="w-4 h-4 text-emerald-400" />
-                      <span>Audited Annual Reports & Integrated Filings</span>
-                    </h4>
-                    <span className="text-xs font-mono text-slate-400">{stock.documents?.annual_reports?.length || 0} Available</span>
-                  </div>
+              {/* Helper for Document Summaries Lookup */}
+              {(() => {
+                const getDocSummary = (url: string) => {
+                  return docIntel?.document_summaries?.find(s => s.doc_url === url);
+                };
 
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                    {stock.documents?.annual_reports?.map((doc, idx) => (
-                      <div key={idx} className="bg-slate-950/70 p-4 rounded-2xl border border-slate-800/80 space-y-3 flex flex-col justify-between">
-                        <div className="space-y-1.5">
-                          <div className="flex items-center justify-between text-[11px] font-mono">
-                            <span className="px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-bold">
-                              {doc.period_or_date || 'Annual Filing'}
-                            </span>
-                            <span className="px-2 py-0.5 rounded bg-slate-900 text-slate-300 border border-slate-700 text-[10px]">
-                              Discovered via: <strong className="text-emerald-300">{doc.discovery_source}</strong>
-                            </span>
-                          </div>
-                          <p className="text-xs font-semibold text-slate-200 line-clamp-2">{doc.title}</p>
-                          <div className="text-[11px] text-slate-400 flex items-center justify-between">
-                            <span>PDF Host: <strong className="text-slate-300">{doc.actual_source_host}</strong></span>
-                            {doc.is_direct_pdf && <span className="text-emerald-400 font-bold">● Direct PDF</span>}
-                          </div>
+                return (
+                  <>
+                    {/* Section 1: Annual Reports */}
+                    {(filingsFilter === 'all' || filingsFilter === 'annual_reports') && (
+                      <div className="glass-panel rounded-3xl p-6 border border-slate-800 space-y-4">
+                        <div className="flex items-center justify-between">
+                          <h4 className="font-bold text-white text-sm flex items-center gap-2">
+                            <FileText className="w-4 h-4 text-emerald-400" />
+                            <span>Audited Annual Reports & Integrated Filings</span>
+                          </h4>
+                          <span className="text-xs font-mono text-slate-400">{stock.documents?.annual_reports?.length || 0} Available</span>
                         </div>
 
-                        <a
-                          href={doc.url}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="w-full py-2 px-3 bg-slate-900 hover:bg-slate-800 text-slate-200 text-xs font-bold rounded-xl border border-slate-800 text-center flex items-center justify-center gap-1.5 transition-colors"
-                        >
-                          <span>Open Official Document</span>
-                          <ExternalLink className="w-3 h-3" />
-                        </a>
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                          {stock.documents?.annual_reports?.map((doc, idx) => {
+                            const summary = getDocSummary(doc.url);
+                            return (
+                              <div key={idx} className="bg-slate-950/70 p-4 rounded-2xl border border-slate-800/80 space-y-3 flex flex-col justify-between">
+                                <div className="space-y-2">
+                                  <div className="flex items-center justify-between text-[11px] font-mono">
+                                    <span className="px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-bold">
+                                      {doc.period_or_date || 'Annual Filing'}
+                                    </span>
+                                    <span className="px-2 py-0.5 rounded bg-slate-900 text-slate-300 border border-slate-700 text-[10px]">
+                                      Discovered via: <strong className="text-emerald-300">{doc.discovery_source}</strong>
+                                    </span>
+                                  </div>
+                                  <p className="text-xs font-semibold text-slate-200 line-clamp-2">{doc.title}</p>
+                                  
+                                  {/* AI Per-Document Summary Card */}
+                                  {summary && summary.key_takeaways && summary.key_takeaways.length > 0 && (
+                                    <div className="bg-slate-900/80 p-3 rounded-xl border border-slate-800 space-y-2 text-xs font-sans">
+                                      <div className="flex items-center justify-between">
+                                        <span className="text-[10px] uppercase font-bold text-emerald-400 tracking-wider flex items-center gap-1">
+                                          <Sparkles className="w-3 h-3" /> AI Summary
+                                        </span>
+                                        {summary.management_tone && (
+                                          <span className="text-[10px] bg-emerald-500/10 text-emerald-300 border border-emerald-500/20 px-2 py-0.2 rounded font-medium">
+                                            {summary.management_tone}
+                                          </span>
+                                        )}
+                                      </div>
+                                      <ul className="space-y-1 text-slate-300 text-[11px]">
+                                        {summary.key_takeaways.map((t, tIdx) => (
+                                          <li key={tIdx} className="flex items-start gap-1.5">
+                                            <span className="text-emerald-400">•</span>
+                                            <span>{t}</span>
+                                          </li>
+                                        ))}
+                                      </ul>
+                                      {summary.capex_or_guidance_highlight && (
+                                        <div className="pt-1.5 border-t border-slate-800 text-[11px] text-amber-300 font-medium">
+                                          🎯 {summary.capex_or_guidance_highlight}
+                                        </div>
+                                      )}
+                                    </div>
+                                  )}
+
+                                  <div className="text-[11px] text-slate-400 flex items-center justify-between">
+                                    <span>PDF Host: <strong className="text-slate-300">{doc.actual_source_host}</strong></span>
+                                    {doc.is_direct_pdf && <span className="text-emerald-400 font-bold">● Direct PDF</span>}
+                                  </div>
+                                </div>
+
+                                <a
+                                  href={doc.url}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="w-full py-2 px-3 bg-slate-900 hover:bg-slate-800 text-slate-200 text-xs font-bold rounded-xl border border-slate-800 text-center flex items-center justify-center gap-1.5 transition-colors"
+                                >
+                                  <span>Open Official Document</span>
+                                  <ExternalLink className="w-3 h-3" />
+                                </a>
+                              </div>
+                            );
+                          })}
+                          {(!stock.documents?.annual_reports || stock.documents.annual_reports.length === 0) && (
+                            <p className="text-xs text-slate-500 italic p-4">No annual reports discovered via exchange feeds.</p>
+                          )}
+                        </div>
                       </div>
-                    ))}
-                  </div>
-                </div>
-              )}
+                    )}
 
-              {/* Section 2: Concall Transcripts */}
-              {(filingsFilter === 'all' || filingsFilter === 'concalls') && (
-                <div className="glass-panel rounded-3xl p-6 border border-slate-800 space-y-4">
-                  <div className="flex items-center justify-between">
-                    <h4 className="font-bold text-white text-sm flex items-center gap-2">
-                      <Mic className="w-4 h-4 text-cyan-400" />
-                      <span>Earnings Conference Call Transcripts</span>
-                    </h4>
-                    <span className="text-xs font-mono text-slate-400">{stock.documents?.concalls?.length || 0} Available</span>
-                  </div>
-
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                    {stock.documents?.concalls?.map((doc, idx) => (
-                      <div key={idx} className="bg-slate-950/70 p-4 rounded-2xl border border-slate-800/80 space-y-3 flex flex-col justify-between">
-                        <div className="space-y-1.5">
-                          <div className="flex items-center justify-between text-[11px] font-mono">
-                            <span className="px-2 py-0.5 rounded bg-cyan-500/10 text-cyan-400 border border-cyan-500/20 font-bold">
-                              {doc.period_or_date || 'Earnings Call'}
-                            </span>
-                            <span className="px-2 py-0.5 rounded bg-slate-900 text-slate-300 border border-slate-700 text-[10px]">
-                              Discovered via: <strong className="text-cyan-300">{doc.discovery_source}</strong>
-                            </span>
-                          </div>
-                          <p className="text-xs font-semibold text-slate-200 line-clamp-2">{doc.title}</p>
-                          <div className="text-[11px] text-slate-400 flex items-center justify-between">
-                            <span>PDF Host: <strong className="text-slate-300">{doc.actual_source_host}</strong></span>
-                            {doc.is_direct_pdf && <span className="text-cyan-400 font-bold">● Direct PDF</span>}
-                          </div>
+                    {/* Section 2: Concall Transcripts */}
+                    {(filingsFilter === 'all' || filingsFilter === 'concalls') && (
+                      <div className="glass-panel rounded-3xl p-6 border border-slate-800 space-y-4">
+                        <div className="flex items-center justify-between">
+                          <h4 className="font-bold text-white text-sm flex items-center gap-2">
+                            <Mic className="w-4 h-4 text-cyan-400" />
+                            <span>Earnings Conference Call Transcripts</span>
+                          </h4>
+                          <span className="text-xs font-mono text-slate-400">{stock.documents?.concalls?.length || 0} Available</span>
                         </div>
 
-                        <a
-                          href={doc.url}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="w-full py-2 px-3 bg-slate-900 hover:bg-slate-800 text-slate-200 text-xs font-bold rounded-xl border border-slate-800 text-center flex items-center justify-center gap-1.5 transition-colors"
-                        >
-                          <span>Open Transcript</span>
-                          <ExternalLink className="w-3 h-3" />
-                        </a>
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                          {stock.documents?.concalls?.map((doc, idx) => {
+                            const summary = getDocSummary(doc.url);
+                            return (
+                              <div key={idx} className="bg-slate-950/70 p-4 rounded-2xl border border-slate-800/80 space-y-3 flex flex-col justify-between">
+                                <div className="space-y-2">
+                                  <div className="flex items-center justify-between text-[11px] font-mono">
+                                    <span className="px-2 py-0.5 rounded bg-cyan-500/10 text-cyan-400 border border-cyan-500/20 font-bold">
+                                      {doc.period_or_date || 'Earnings Call'}
+                                    </span>
+                                    <span className="px-2 py-0.5 rounded bg-slate-900 text-slate-300 border border-slate-700 text-[10px]">
+                                      Discovered via: <strong className="text-cyan-300">{doc.discovery_source}</strong>
+                                    </span>
+                                  </div>
+                                  <p className="text-xs font-semibold text-slate-200 line-clamp-2">{doc.title}</p>
+                                  
+                                  {/* AI Per-Document Summary Card */}
+                                  {summary && summary.key_takeaways && summary.key_takeaways.length > 0 && (
+                                    <div className="bg-slate-900/80 p-3 rounded-xl border border-slate-800 space-y-2 text-xs font-sans">
+                                      <div className="flex items-center justify-between">
+                                        <span className="text-[10px] uppercase font-bold text-cyan-400 tracking-wider flex items-center gap-1">
+                                          <Sparkles className="w-3 h-3" /> Concall Highlights
+                                        </span>
+                                        {summary.management_tone && (
+                                          <span className="text-[10px] bg-cyan-500/10 text-cyan-300 border border-cyan-500/20 px-2 py-0.2 rounded font-medium">
+                                            {summary.management_tone}
+                                          </span>
+                                        )}
+                                      </div>
+                                      <ul className="space-y-1 text-slate-300 text-[11px]">
+                                        {summary.key_takeaways.map((t, tIdx) => (
+                                          <li key={tIdx} className="flex items-start gap-1.5">
+                                            <span className="text-cyan-400">•</span>
+                                            <span>{t}</span>
+                                          </li>
+                                        ))}
+                                      </ul>
+                                      {summary.capex_or_guidance_highlight && (
+                                        <div className="pt-1.5 border-t border-slate-800 text-[11px] text-amber-300 font-medium">
+                                          🎯 {summary.capex_or_guidance_highlight}
+                                        </div>
+                                      )}
+                                    </div>
+                                  )}
+
+                                  <div className="text-[11px] text-slate-400 flex items-center justify-between">
+                                    <span>PDF Host: <strong className="text-slate-300">{doc.actual_source_host}</strong></span>
+                                    {doc.is_direct_pdf && <span className="text-cyan-400 font-bold">● Direct PDF</span>}
+                                  </div>
+                                </div>
+
+                                <a
+                                  href={doc.url}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="w-full py-2 px-3 bg-slate-900 hover:bg-slate-800 text-slate-200 text-xs font-bold rounded-xl border border-slate-800 text-center flex items-center justify-center gap-1.5 transition-colors"
+                                >
+                                  <span>Open Transcript</span>
+                                  <ExternalLink className="w-3 h-3" />
+                                </a>
+                              </div>
+                            );
+                          })}
+                          {(!stock.documents?.concalls || stock.documents.concalls.length === 0) && (
+                            <p className="text-xs text-slate-500 italic p-4">No concall transcripts discovered for this stock.</p>
+                          )}
+                        </div>
                       </div>
-                    ))}
-                  </div>
-                </div>
-              )}
+                    )}
 
-              {/* Section 3: Investor Presentations */}
-              {(filingsFilter === 'all' || filingsFilter === 'presentations') && (
-                <div className="glass-panel rounded-3xl p-6 border border-slate-800 space-y-4">
-                  <div className="flex items-center justify-between">
-                    <h4 className="font-bold text-white text-sm flex items-center gap-2">
-                      <Presentation className="w-4 h-4 text-amber-400" />
-                      <span>Investor Decks & Quarterly Presentations</span>
-                    </h4>
-                    <span className="text-xs font-mono text-slate-400">{stock.documents?.presentations?.length || 0} Available</span>
-                  </div>
-
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                    {stock.documents?.presentations?.map((doc, idx) => (
-                      <div key={idx} className="bg-slate-950/70 p-4 rounded-2xl border border-slate-800/80 space-y-3 flex flex-col justify-between">
-                        <div className="space-y-1.5">
-                          <div className="flex items-center justify-between text-[11px] font-mono">
-                            <span className="px-2 py-0.5 rounded bg-amber-500/10 text-amber-400 border border-amber-500/20 font-bold">
-                              {doc.period_or_date || 'Investor PPT'}
-                            </span>
-                            <span className="px-2 py-0.5 rounded bg-slate-900 text-slate-300 border border-slate-700 text-[10px]">
-                              Discovered via: <strong className="text-amber-300">{doc.discovery_source}</strong>
-                            </span>
-                          </div>
-                          <p className="text-xs font-semibold text-slate-200 line-clamp-2">{doc.title}</p>
-                          <div className="text-[11px] text-slate-400 flex items-center justify-between">
-                            <span>PDF Host: <strong className="text-slate-300">{doc.actual_source_host}</strong></span>
-                            {doc.is_direct_pdf && <span className="text-amber-400 font-bold">● Direct PDF</span>}
-                          </div>
+                    {/* Section 3: Investor Presentations */}
+                    {(filingsFilter === 'all' || filingsFilter === 'presentations') && (
+                      <div className="glass-panel rounded-3xl p-6 border border-slate-800 space-y-4">
+                        <div className="flex items-center justify-between">
+                          <h4 className="font-bold text-white text-sm flex items-center gap-2">
+                            <Presentation className="w-4 h-4 text-amber-400" />
+                            <span>Investor Decks & Quarterly Presentations</span>
+                          </h4>
+                          <span className="text-xs font-mono text-slate-400">{stock.documents?.presentations?.length || 0} Available</span>
                         </div>
 
-                        <a
-                          href={doc.url}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="w-full py-2 px-3 bg-slate-900 hover:bg-slate-800 text-slate-200 text-xs font-bold rounded-xl border border-slate-800 text-center flex items-center justify-center gap-1.5 transition-colors"
-                        >
-                          <span>Open Presentation</span>
-                          <ExternalLink className="w-3 h-3" />
-                        </a>
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                          {stock.documents?.presentations?.map((doc, idx) => {
+                            const summary = getDocSummary(doc.url);
+                            return (
+                              <div key={idx} className="bg-slate-950/70 p-4 rounded-2xl border border-slate-800/80 space-y-3 flex flex-col justify-between">
+                                <div className="space-y-2">
+                                  <div className="flex items-center justify-between text-[11px] font-mono">
+                                    <span className="px-2 py-0.5 rounded bg-amber-500/10 text-amber-400 border border-amber-500/20 font-bold">
+                                      {doc.period_or_date || 'Investor PPT'}
+                                    </span>
+                                    <span className="px-2 py-0.5 rounded bg-slate-900 text-slate-300 border border-slate-700 text-[10px]">
+                                      Discovered via: <strong className="text-amber-300">{doc.discovery_source}</strong>
+                                    </span>
+                                  </div>
+                                  <p className="text-xs font-semibold text-slate-200 line-clamp-2">{doc.title}</p>
+                                  
+                                  {/* AI Per-Document Summary Card */}
+                                  {summary && summary.key_takeaways && summary.key_takeaways.length > 0 && (
+                                    <div className="bg-slate-900/80 p-3 rounded-xl border border-slate-800 space-y-2 text-xs font-sans">
+                                      <div className="flex items-center justify-between">
+                                        <span className="text-[10px] uppercase font-bold text-amber-400 tracking-wider flex items-center gap-1">
+                                          <Sparkles className="w-3 h-3" /> PPT Highlights
+                                        </span>
+                                        {summary.management_tone && (
+                                          <span className="text-[10px] bg-amber-500/10 text-amber-300 border border-amber-500/20 px-2 py-0.2 rounded font-medium">
+                                            {summary.management_tone}
+                                          </span>
+                                        )}
+                                      </div>
+                                      <ul className="space-y-1 text-slate-300 text-[11px]">
+                                        {summary.key_takeaways.map((t, tIdx) => (
+                                          <li key={tIdx} className="flex items-start gap-1.5">
+                                            <span className="text-amber-400">•</span>
+                                            <span>{t}</span>
+                                          </li>
+                                        ))}
+                                      </ul>
+                                    </div>
+                                  )}
+
+                                  <div className="text-[11px] text-slate-400 flex items-center justify-between">
+                                    <span>PDF Host: <strong className="text-slate-300">{doc.actual_source_host}</strong></span>
+                                    {doc.is_direct_pdf && <span className="text-amber-400 font-bold">● Direct PDF</span>}
+                                  </div>
+                                </div>
+
+                                <a
+                                  href={doc.url}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="w-full py-2 px-3 bg-slate-900 hover:bg-slate-800 text-slate-200 text-xs font-bold rounded-xl border border-slate-800 text-center flex items-center justify-center gap-1.5 transition-colors"
+                                >
+                                  <span>Open Presentation</span>
+                                  <ExternalLink className="w-3 h-3" />
+                                </a>
+                              </div>
+                            );
+                          })}
+                          {(!stock.documents?.presentations || stock.documents.presentations.length === 0) && (
+                            <p className="text-xs text-slate-500 italic p-4">No investor presentations discovered.</p>
+                          )}
+                        </div>
                       </div>
-                    ))}
-                  </div>
-                </div>
-              )}
+                    )}
 
-              {/* Section 4: Material Exchange Announcements */}
-              {(filingsFilter === 'all' || filingsFilter === 'announcements') && stock.documents?.material_announcements && stock.documents.material_announcements.length > 0 && (
-                <div className="glass-panel rounded-3xl p-6 border border-slate-800 space-y-4">
-                  <div className="flex items-center justify-between">
-                    <h4 className="font-bold text-white text-sm flex items-center gap-2">
-                      <Bell className="w-4 h-4 text-purple-400" />
-                      <span>Important BSE/NSE Corporate Announcements</span>
-                    </h4>
-                    <span className="text-xs font-mono text-slate-400">{stock.documents.material_announcements.length} Available</span>
-                  </div>
-
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                    {stock.documents.material_announcements.map((doc, idx) => (
-                      <div key={idx} className="bg-slate-950/70 p-4 rounded-2xl border border-slate-800/80 space-y-2 flex flex-col justify-between">
-                        <div>
-                          <div className="flex items-center justify-between text-[11px] font-mono">
-                            <span className="px-2 py-0.5 rounded bg-purple-500/10 text-purple-400 border border-purple-500/20 font-bold">
-                              {doc.period_or_date || 'Announcement'}
-                            </span>
-                            <span className="px-2 py-0.5 rounded bg-slate-900 text-slate-300 border border-slate-700 text-[10px]">
-                              Discovered via: <strong className="text-purple-300">{doc.discovery_source}</strong>
-                            </span>
-                          </div>
-                          <p className="text-xs font-semibold text-slate-200 line-clamp-2 mt-1.5">{doc.title}</p>
-                          <div className="text-[11px] text-slate-400 mt-1 flex items-center justify-between">
-                            <span>PDF Host: <strong className="text-slate-300">{doc.actual_source_host}</strong></span>
-                            {doc.is_direct_pdf && <span className="text-purple-400 font-bold">● Direct PDF</span>}
-                          </div>
+                    {/* Section 4: Material Exchange Announcements */}
+                    {(filingsFilter === 'all' || filingsFilter === 'announcements') && stock.documents?.material_announcements && stock.documents.material_announcements.length > 0 && (
+                      <div className="glass-panel rounded-3xl p-6 border border-slate-800 space-y-4">
+                        <div className="flex items-center justify-between">
+                          <h4 className="font-bold text-white text-sm flex items-center gap-2">
+                            <Bell className="w-4 h-4 text-purple-400" />
+                            <span>Important BSE/NSE Corporate Announcements</span>
+                          </h4>
+                          <span className="text-xs font-mono text-slate-400">{stock.documents.material_announcements.length} Available</span>
                         </div>
 
-                        <a
-                          href={doc.url}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="py-1.5 px-3 bg-slate-900 hover:bg-slate-800 text-slate-200 text-xs font-bold rounded-xl border border-slate-800 text-center flex items-center justify-center gap-1.5 transition-colors mt-2"
-                        >
-                          <span>View Filing</span>
-                          <ExternalLink className="w-3 h-3" />
-                        </a>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                          {stock.documents.material_announcements.map((doc, idx) => (
+                            <div key={idx} className="bg-slate-950/70 p-4 rounded-2xl border border-slate-800/80 space-y-2 flex flex-col justify-between">
+                              <div>
+                                <div className="flex items-center justify-between text-[11px] font-mono">
+                                  <span className="px-2 py-0.5 rounded bg-purple-500/10 text-purple-400 border border-purple-500/20 font-bold">
+                                    {doc.period_or_date || 'Announcement'}
+                                  </span>
+                                  <span className="px-2 py-0.5 rounded bg-slate-900 text-slate-300 border border-slate-700 text-[10px]">
+                                    Discovered via: <strong className="text-purple-300">{doc.discovery_source}</strong>
+                                  </span>
+                                </div>
+                                <p className="text-xs font-semibold text-slate-200 line-clamp-2 mt-1.5">{doc.title}</p>
+                                <div className="text-[11px] text-slate-400 mt-1 flex items-center justify-between">
+                                  <span>PDF Host: <strong className="text-slate-300">{doc.actual_source_host}</strong></span>
+                                  {doc.is_direct_pdf && <span className="text-purple-400 font-bold">● Direct PDF</span>}
+                                </div>
+                              </div>
+
+                              <a
+                                href={doc.url}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="py-1.5 px-3 bg-slate-900 hover:bg-slate-800 text-slate-200 text-xs font-bold rounded-xl border border-slate-800 text-center flex items-center justify-center gap-1.5 transition-colors mt-2"
+                              >
+                                <span>View Filing</span>
+                                <ExternalLink className="w-3 h-3" />
+                              </a>
+                            </div>
+                          ))}
+                        </div>
                       </div>
-                    ))}
-                  </div>
-                </div>
-              )}
+                    )}
+                  </>
+                );
+              })()}
 
             </div>
           )}

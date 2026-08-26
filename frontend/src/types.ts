@@ -352,6 +352,16 @@ export interface StockerView {
   investor_summary: string;
 }
 
+export interface DocumentSummaryItem {
+  doc_title: string;
+  doc_url: string;
+  doc_type?: string;
+  period_or_date?: string;
+  key_takeaways: string[];
+  management_tone?: string;
+  capex_or_guidance_highlight?: string;
+}
+
 export interface BusinessOutlookIntelligence {
   symbol: string;
   company_name: string;
@@ -361,6 +371,7 @@ export interface BusinessOutlookIntelligence {
   older_document_period?: string;
   source_documents: Array<{ title: string; url: string; type?: string; period?: string }>;
   ai_provider_used: string;
+  model_version?: string;
   extraction_timestamp?: string;
   what_changed_recently: RecentChange[];
   growth_drivers: GrowthDriver[];
@@ -368,6 +379,7 @@ export interface BusinessOutlookIntelligence {
   demand_momentum: DemandMomentum;
   risks_and_cash: RisksAndCashIssues;
   stocker_view: StockerView;
+  document_summaries?: DocumentSummaryItem[];
 }
 
 

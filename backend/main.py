@@ -201,6 +201,7 @@ def get_stock_detail(symbol: str):
         raise HTTPException(status_code=404, detail=f"Stock {symbol} not found in database or Screener.in")
     return build_full_stock_detail(data)
 
+import database
 from doc_intelligence_engine import get_company_doc_intelligence
 from llm_service import is_llm_available, get_available_llm_provider
 from doc_intelligence_pipeline import run_generic_document_pipeline
@@ -211,32 +212,54 @@ def get_stock_doc_intelligence(symbol: str):
     data = fetch_stock_from_screener(clean_sym, force_refresh=False)
     analytics = None
     company_name = clean_sym
+    queued_docs = []
     if data:
         detail = build_full_stock_detail(data)
         analytics = detail.analytics
         company_name = detail.name
+        database.save_stock_cache(clean_sym, detail.name, detail.sector, detail.industry, data)
+        
+        # Collect queued source documents
+        if detail.documents.annual_reports:
+            queued_docs.extend(detail.documents.annual_reports)
+        if detail.documents.concalls:
+            queued_docs.extend(detail.documents.concalls[:2])
+        if detail.documents.presentations:
+            queued_docs.extend(detail.documents.presentations[:1])
+        if detail.documents.material_announcements:
+            queued_docs.extend(detail.documents.material_announcements[:2])
+            
     doc_intel = get_company_doc_intelligence(clean_sym, financial_analytics=analytics)
     if not doc_intel:
         llm_avail = is_llm_available()
         return {
             "symbol": clean_sym,
             "company_name": company_name,
-            "status": "ai_unavailable" if not llm_avail else "not_generated",
+            "status": "not_analyzed",
             "message": (
-                "AI document analysis unavailable. Configure GEMINI_API_KEY or OPENAI_API_KEY in your .env file."
-                if not llm_avail else
-                f"Document intelligence has not been generated for {clean_sym} yet. Click 'Generate AI Intelligence' to run analysis."
+                f"Deep AI fundamental analysis has not been executed for {company_name} ({clean_sym}) yet."
             ),
             "ai_provider_used": "None",
+            "model_version": None,
+            "extraction_timestamp": "",
             "latest_document_period": "Not Analyzed",
-            "older_document_period": "None",
-            "source_documents": [],
-            "plan_vs_reality": [],
-            "growth_pipeline": [],
-            "demand_and_orders": {"segment_demand_trends": [], "headwinds_and_risks": []},
-            "cash_and_problems": {"operational_bottlenecks": []}
+            "older_document_period": None,
+            "source_documents": [d.model_dump() for d in queued_docs],
+            "what_changed_recently": [],
+            "growth_drivers": [],
+            "promise_vs_delivery": [],
+            "demand_momentum": {"summary": "", "company_specific_metrics": [], "segment_trends": [], "headwinds_and_risks": []},
+            "risks_and_cash": {"working_capital_and_receivables": "", "debt_and_capex_burden": "", "execution_and_bottlenecks": [], "regulatory_or_legal_headwinds": []},
+            "stocker_view": {"execution_verdict": "Evolving / Watchlist", "investor_summary": "", "positive_triggers": [], "main_risks": [], "what_to_watch_next": []},
+            "document_summaries": []
         }
     return doc_intel
+
+@app.get("/api/stocks/{symbol}/document-summaries")
+def get_stock_document_summaries(symbol: str):
+    """Returns AI executive summaries for all individual documents of a stock."""
+    clean_sym = symbol.upper().strip()
+    return database.get_document_summaries(clean_sym)
 
 @app.get("/api/ai/status")
 def get_ai_status():
