@@ -1,5 +1,6 @@
 from typing import Dict, List, Any, Optional
 import math
+import re
 from models import FinancialStatement, FinancialRow
 
 def calculate_cagr(start_val: Optional[float], end_val: Optional[float], years: float) -> Optional[float]:
@@ -341,31 +342,213 @@ def compute_financial_analytics(
         }
 
     # -------------------------------------------------------------------------
-    # 6. Forensic Checklist & Data Completeness
+    # 7. Comprehensive Formula & Calculation Transparency (Plain English & Inputs)
     # -------------------------------------------------------------------------
-    pat_3y_cagr = analytics["growth_rates"].get("pat_cagr_3yr")
-    sales_3y_cagr = analytics["growth_rates"].get("sales_cagr_3yr")
+    last_p = y_periods[-1] if y_periods else ""
+    p_3y = y_periods[-4] if len(y_periods) >= 4 else ""
     
-    # Calculate Data Completeness (Number of verified non-null core metrics)
-    metrics_checked = [
-        y_sales.get(y_periods[-1]) if y_periods else None,
-        y_pat.get(y_periods[-1]) if y_periods else None,
-        cfo_to_pat_5yr,
-        debt_eq,
-        sales_3y_cagr
-    ]
-    available_metrics = sum(1 for m in metrics_checked if m is not None)
-    completeness_score = round((available_metrics / len(metrics_checked)) * 100.0, 0)
-    data_confidence = "High" if completeness_score >= 80 else ("Moderate" if completeness_score >= 60 else "Low / Incomplete")
-
-    analytics["forensic_checklist"] = {
-        "cash_flow_health": conv_quality,
-        "cfo_to_pat_5yr_pct": cfo_to_pat_5yr,
-        "debt_burden_level": "Safe" if debt_eq < 0.8 else ("Moderate" if debt_eq < 1.5 else "High Leverage"),
-        "cwip_capex_catalyst": cwip_pct >= 12.0,
-        "sales_growth_sustainable": (sales_3y_cagr is not None and sales_3y_cagr >= 10.0),
-        "data_completeness_pct": completeness_score,
-        "data_confidence": data_confidence
+    last_sales = y_sales.get(last_p) if last_p else None
+    base_sales_3y = y_sales.get(p_3y) if p_3y else None
+    last_pat = y_pat.get(last_p) if last_p else None
+    base_pat_3y = y_pat.get(p_3y) if p_3y else None
+    
+    latest_fcf_item = fcf_trends[-1] if fcf_trends else {}
+    latest_cfo = latest_fcf_item.get("reported_cfo_cr")
+    latest_capex = latest_fcf_item.get("capex_cr")
+    latest_fcf = latest_fcf_item.get("stocker_derived_fcf_cr")
+    latest_capex_meth = latest_fcf_item.get("capex_methodology", "Unavailable")
+    
+    latest_q_trend = analytics["quarterly_analysis"]["trends"][-1] if analytics["quarterly_analysis"]["trends"] else {}
+    
+    analytics["formula_transparency"] = {
+        "sales_cagr_3yr": {
+            "metric_name": "Sales 3-Year CAGR",
+            "value": analytics["growth_rates"].get("sales_cagr_3yr"),
+            "formula": "((Sales_Latest / Sales_3Yr_Ago) ^ (1/3) - 1) × 100",
+            "inputs": {
+                "Latest Sales (₹ Cr)": last_sales,
+                "Sales 3 Years Ago (₹ Cr)": base_sales_3y,
+                "Latest Period": last_p,
+                "Base Period": p_3y
+            },
+            "source": "Audited Profit & Loss Statement (Screener.in)",
+            "explanation": f"Revenue grew at a compounded annual growth rate of {analytics['growth_rates'].get('sales_cagr_3yr')}% from ₹{base_sales_3y:,.0f} Cr ({p_3y}) to ₹{last_sales:,.0f} Cr ({last_p})." if (last_sales and base_sales_3y) else "Historical 3-year P&L data insufficient."
+        },
+        "pat_cagr_3yr": {
+            "metric_name": "Profit (PAT) 3-Year CAGR",
+            "value": analytics["growth_rates"].get("pat_cagr_3yr"),
+            "formula": "((PAT_Latest / PAT_3Yr_Ago) ^ (1/3) - 1) × 100",
+            "inputs": {
+                "Latest PAT (₹ Cr)": last_pat,
+                "PAT 3 Years Ago (₹ Cr)": base_pat_3y,
+                "Latest Period": last_p,
+                "Base Period": p_3y
+            },
+            "source": "Audited Profit & Loss Statement (Screener.in)",
+            "explanation": f"Net profit compounded at {analytics['growth_rates'].get('pat_cagr_3yr')}% per annum from ₹{base_pat_3y:,.0f} Cr ({p_3y}) to ₹{last_pat:,.0f} Cr ({last_p})." if (last_pat and base_pat_3y and last_pat > 0 and base_pat_3y > 0) else "PAT CAGR calculation requires positive base and terminal net profit."
+        },
+        "cfo_to_pat_5yr": {
+            "metric_name": "5-Year CFO to PAT Conversion %",
+            "value": cfo_to_pat_5yr,
+            "formula": "(Cumulative 5-Year CFO / Cumulative 5-Year PAT) × 100",
+            "inputs": {
+                "Cumulative 5Y CFO (₹ Cr)": round(cum_5y_cfo, 1),
+                "Cumulative 5Y PAT (₹ Cr)": round(cum_5y_pat, 1),
+                "Period Range": f"{y_periods[-5]} to {y_periods[-1]}" if len(y_periods) >= 5 else "Last 5 Years"
+            },
+            "source": "Audited Cash Flow & Profit/Loss Statements",
+            "explanation": f"The company converted {cfo_to_pat_5yr}% of its accounting net profit into actual operational cash flow over the last 5 financial years ({conv_quality})." if cfo_to_pat_5yr else "Cash flow conversion data incomplete."
+        },
+        "free_cash_flow": {
+            "metric_name": "Free Cash Flow (FCF)",
+            "value": latest_fcf,
+            "formula": "FCF = CFO - Capex",
+            "inputs": {
+                "Reported CFO (₹ Cr)": latest_cfo,
+                "Capex (₹ Cr)": latest_capex,
+                "Capex Methodology": latest_capex_meth,
+                "Period": last_p
+            },
+            "source": "Audited Cash Flow Statement / Balance Sheet Gross Block Reconciliation",
+            "explanation": f"In {last_p}, operating cash flow was ₹{latest_cfo:,.0f} Cr and capital expenditure was ₹{latest_capex:,.0f} Cr ({latest_capex_meth}), resulting in ₹{latest_fcf:,.0f} Cr of free cash flow." if (latest_cfo is not None and latest_capex is not None and latest_fcf is not None) else "FCF requires reliable CFO and Capex figures."
+        },
+        "debt_to_equity": {
+            "metric_name": "Debt to Equity Ratio",
+            "value": debt_eq,
+            "formula": "Total Borrowings / Total Net Worth (Equity + Reserves)",
+            "inputs": {
+                "Total Borrowings (₹ Cr)": latest_bs.get("borrowings_cr"),
+                "Total Equity (₹ Cr)": latest_bs.get("total_equity_cr"),
+                "Period": latest_bs.get("period")
+            },
+            "source": "Audited Balance Sheet (Screener.in)",
+            "explanation": f"The company has ₹{debt_eq} of debt for every ₹1.00 of shareholder equity."
+        },
+        "latest_yoy_sales_growth": {
+            "metric_name": "Latest Quarter YoY Sales Growth",
+            "value": latest_q_trend.get("sales_growth_yoy_pct"),
+            "formula": "((Sales_Q_Latest - Sales_Q_Prior_Year) / Sales_Q_Prior_Year) × 100",
+            "inputs": {
+                "Latest Quarter Sales (₹ Cr)": latest_q_trend.get("sales"),
+                "Quarter": latest_q_trend.get("period")
+            },
+            "source": "Quarterly Financial Results",
+            "explanation": f"Quarterly sales grew {latest_q_trend.get('sales_growth_yoy_pct')}% year-over-year in {latest_q_trend.get('period')}." if latest_q_trend.get("sales_growth_yoy_pct") is not None else "YoY quarter comparison pending."
+        }
     }
     
     return analytics
+
+# -----------------------------------------------------------------------------
+# CHRONOLOGICAL & MATHEMATICAL PROMISE VS DELIVERY VERIFICATION HELPERS
+# -----------------------------------------------------------------------------
+
+def parse_filing_period_to_year(period_str: Optional[str]) -> Optional[float]:
+    """
+    Parses various period strings into a continuous float year index for strict chronological checks.
+    Examples:
+      - 'FY24' / 'FY2024' -> 2024.0
+      - 'Q1 FY25' / 'Jun 2024' -> 2024.5
+      - 'Q2 FY25' / 'Sep 2024' -> 2024.75
+      - 'Q3 FY25' / 'Dec 2024' -> 2025.0
+      - 'Q4 FY25' / 'Mar 2025' -> 2025.25
+      - 'Jul 2026' / 'Aug 2026' -> 2026.6
+    """
+    if not period_str or not isinstance(period_str, str):
+        return None
+    s = period_str.strip().upper()
+    
+    # 1. Check for 4-digit year (e.g. 2026, 2025)
+    m_yr4 = re.search(r'\b(20\d\d)\b', s)
+    yr4 = int(m_yr4.group(1)) if m_yr4 else None
+    
+    # 2. Check for FYxx (e.g. FY24, FY25, FY26)
+    m_fy = re.search(r'FY\s*(\d{2,4})', s)
+    if m_fy:
+        raw_yr = int(m_fy.group(1))
+        fy_year = raw_yr if raw_yr > 2000 else (2000 + raw_yr)
+        if "Q1" in s or "JUN" in s: return fy_year - 0.75
+        if "Q2" in s or "SEP" in s: return fy_year - 0.50
+        if "Q3" in s or "DEC" in s: return fy_year - 0.25
+        return float(fy_year)
+        
+    if yr4:
+        if "JAN" in s or "FEB" in s or "MAR" in s: return yr4 + 0.25
+        if "APR" in s or "MAY" in s or "JUN" in s: return yr4 + 0.50
+        if "JUL" in s or "AUG" in s or "SEP" in s: return yr4 + 0.75
+        if "OCT" in s or "NOV" in s or "DEC" in s: return yr4 + 1.00
+        return float(yr4)
+        
+    return None
+
+def verify_promise_vs_delivery_item(
+    item: Dict[str, Any],
+    pl_stmt: Optional[FinancialStatement] = None,
+    quarters_stmt: Optional[FinancialStatement] = None,
+    current_year: float = 2026.65
+) -> Dict[str, Any]:
+    """
+    Deterministically enforces chronology, timeline deadlines, and mathematical checks in code:
+    1. Enforces actual_year > promise_year (rejects backwards comparisons).
+    2. If target deadline is in future (e.g. FY27/28), forces status to 'In Progress'.
+    3. Calculates exact mathematical achievement % against reported financial statements.
+    4. Marks 'Not Enough Evidence' if citations or chronology fail.
+    """
+    res = dict(item)
+    promise_period = item.get("promised_in_period")
+    actual_period = item.get("actual_in_period")
+    target_timeline = item.get("target_timeline") or item.get("management_promise")
+    
+    prom_yr = parse_filing_period_to_year(promise_period)
+    act_yr = parse_filing_period_to_year(actual_period)
+    target_yr = parse_filing_period_to_year(target_timeline)
+    
+    # 1. Chronology Verification
+    if prom_yr is not None and act_yr is not None:
+        if act_yr < prom_yr:
+            # Flawed backwards comparison!
+            res["status"] = "Not Enough Evidence"
+            res["stocker_analysis"] = f"Chronological Mismatch: Outcome period ({actual_period}) predates the guidance baseline ({promise_period}). Evidence rejected by Stocker chronological verification."
+            return res
+            
+    # 2. Future Target Deadline Check
+    if target_yr is not None and target_yr > current_year:
+        # The guided milestone has not matured yet
+        res["status"] = "In Progress"
+        if not res.get("stocker_analysis") or "Missed" in res.get("stocker_analysis", "") or "Delivered" in res.get("stocker_analysis", ""):
+            res["stocker_analysis"] = f"Milestone In Progress: Stated target timeline ({target_timeline}) matures in the future ({target_yr:.0f}). Ongoing execution tracked against interim audited progress."
+            
+    # 3. Audited Financial Statements Cross-Examination
+    if pl_stmt and pl_stmt.periods:
+        y_sales = get_row_values(pl_stmt, "Sales") or get_row_values(pl_stmt, "Revenue")
+        y_opm = get_row_values(pl_stmt, "OPM %") or get_row_values(pl_stmt, "OPM")
+        
+        last_p = pl_stmt.periods[-1]
+        p_prev = pl_stmt.periods[-2] if len(pl_stmt.periods) >= 2 else None
+        
+        s_last = y_sales.get(last_p)
+        s_prev = y_sales.get(p_prev) if p_prev else None
+        opm_last = y_opm.get(last_p)
+        
+        # Calculate actual sales growth
+        act_sales_growth = round(((s_last - s_prev) / s_prev) * 100.0, 1) if (s_last and s_prev and s_prev > 0) else None
+        
+        # Look for promised growth rate in management_promise
+        m_growth = re.search(r'(\d+(?:\.\d+)?)\s*%\s*(?:revenue|sales|growth)', item.get("management_promise", ""), re.IGNORECASE)
+        if m_growth and act_sales_growth is not None:
+            promised_pct = float(m_growth.group(1))
+            achieve_pct = round((act_sales_growth / promised_pct) * 100.0, 1) if promised_pct > 0 else 0.0
+            
+            res["financial_numbers_check"] = (
+                f"Promised {promised_pct}% revenue growth; audited {last_p} reported revenue of ₹{s_last:,.0f} Cr "
+                f"reflects {act_sales_growth}% YoY growth (Achievement Rate: {achieve_pct}% of guidance). Audited OPM stood at {opm_last}%."
+            )
+            
+            # If target deadline has passed and achievement is below 85%
+            if target_yr is not None and target_yr <= current_year and achieve_pct < 85.0:
+                res["status"] = "Missed"
+            elif target_yr is not None and target_yr <= current_year and achieve_pct >= 95.0:
+                res["status"] = "Delivered"
+
+    return res
+

@@ -172,6 +172,15 @@ export interface StockSummary {
   fetched_at?: string;
 }
 
+export interface FormulaTransparencyItem {
+  metric_name: string;
+  value?: number | string | null;
+  formula: string;
+  inputs: Record<string, any>;
+  source: string;
+  explanation: string;
+}
+
 export interface StockDetail {
   symbol: string;
   name: string;
@@ -214,34 +223,37 @@ export interface StockDetail {
       pat_cagr_10yr?: number;
     };
     cash_flow_quality: {
-      cumulative_5y_pat_cr: number;
-      cumulative_5y_cfo_cr: number;
-      cumulative_5y_fcf_cr: number;
-      cfo_to_pat_5yr_pct: number;
-      is_cash_conversion_superior: boolean;
-      fcf_trends: Array<{
+      cumulative_5y_pat_cr?: number;
+      cumulative_5y_cfo_cr?: number;
+      cumulative_5y_fcf_cr?: number;
+      cfo_to_pat_5yr_pct?: number;
+      cash_conversion_quality?: string;
+      is_cash_conversion_superior?: boolean;
+      fcf_trends?: Array<{
         period: string;
-        cfo_cr: number;
-        pat_cr: number;
-        capex_cr: number;
-        fcf_cr: number;
+        reported_cfo_cr?: number;
+        reported_pat_cr?: number;
+        capex_cr?: number;
+        capex_methodology?: string;
+        stocker_derived_fcf_cr?: number;
         cfo_to_pat_pct?: number;
       }>;
     };
     balance_sheet_efficiency: {
-      latest_debt_to_equity: number;
-      latest_cwip_to_net_block_pct: number;
-      has_significant_capex_trigger: boolean;
-      bs_trends: Array<{
+      latest_debt_to_equity?: number;
+      latest_cwip_to_net_block_pct?: number;
+      has_significant_capex_trigger?: boolean;
+      bs_trends?: Array<{
         period: string;
-        total_equity_cr: number;
-        borrowings_cr: number;
-        fixed_assets_cr: number;
-        cwip_cr: number;
-        cwip_to_fixed_assets_pct: number;
-        debt_to_equity: number;
+        total_equity_cr?: number;
+        borrowings_cr?: number;
+        fixed_assets_cr?: number;
+        cwip_cr?: number;
+        cwip_to_fixed_assets_pct?: number;
+        debt_to_equity?: number;
       }>;
     };
+    formula_transparency?: Record<string, FormulaTransparencyItem>;
   };
   projection: ProjectionResult;
   score: ScoreBreakdown;

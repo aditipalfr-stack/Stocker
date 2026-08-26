@@ -24,41 +24,79 @@ from doc_intelligence_models import (
 
 from datetime import datetime, timezone
 
-DOC_SUMMARY_SYSTEM_PROMPT = """You are an institutional equity analyst extracting a structured executive summary from a specific corporate filing.
-CRITICAL RULES:
-1. Work strictly from the provided text pages of the document.
-2. Return factual, verifiable takeaways. Do not fabricate or speculate.
-3. Tailor the extraction according to the document type:
-   - For Annual Reports: 3 key takeaways, management tone, guidance & capex, major risks/headwinds.
-   - For Concall Transcripts: guidance, demand commentary, order book / pipeline, margins, capex, execution updates, quarterly shifts, management tone.
-   - For Investor Presentations: major KPIs, expansion roadmap, segment growth highlights, forward numbers.
-   - For Exchange Announcements: event summary, fundamental importance, potential business impact, guidance impact.
+ANNUAL_REPORT_SUMMARY_PROMPT = """You are an institutional fundamental equity analyst extracting an executive summary from an Audited Annual Report.
+Focus strictly on:
+- Important business developments & strategic priorities
+- Capital expenditure & capacity expansion plans
+- Segment performance & operational highlights
+- Cash flow, net debt & working capital management
+- Major risks, compliance, and long-term management targets
+
+Output MUST be a valid JSON object matching this schema:
+{
+  "key_takeaways": ["Takeaway 1", "Takeaway 2", "Takeaway 3", "Takeaway 4"],
+  "management_tone": "Bullish / Confident" | "Prudent" | "Cautious" | "Neutral",
+  "strategic_priorities": "Key long-term strategic roadmap",
+  "capex_and_expansion": "Capex numbers and capacity additions",
+  "cash_debt_working_capital": "Cash generation, leverage, and working capital commentary",
+  "major_risks": ["Key operational/financial risk 1", "Key risk 2"],
+  "long_term_targets": "Management's multi-year vision or numerical targets"
+}
+"""
+
+CONCALL_SUMMARY_PROMPT = """You are an institutional fundamental equity analyst extracting an executive summary from an Earnings Conference Call Transcript.
+Focus strictly on:
+- Management quarterly guidance & commentary
+- Demand environment, order book, deal pipeline
+- Margin outlook, pricing power & cost trends
+- Capex deployment & execution updates
+- Key operational shifts vs previous quarter
+- Management tone & analyst Q&A sentiment
 
 Output MUST be a valid JSON object matching this schema:
 {
   "key_takeaways": ["Takeaway 1", "Takeaway 2", "Takeaway 3"],
   "management_tone": "Bullish / Confident" | "Prudent" | "Cautious" | "Neutral",
-  "guidance_and_capex": "Key guidance or capex roadmap stated in this document (or null if none)",
-  "risks_and_headwinds": ["Key risk 1", "Key risk 2"],
-  "concall_specific": {
-    "demand_commentary": "Demand environment commentary",
-    "order_book_or_pipeline": "Order book / deal pipeline numbers",
-    "margin_outlook": "Margin trajectory & cost commentary",
-    "execution_updates": "Execution & delivery progress",
-    "quarterly_changes_or_shifts": "Key operational shifts vs previous quarter"
-  },
-  "presentation_specific": {
-    "major_kpis": ["KPI 1", "KPI 2"],
-    "expansion_roadmap": "Capacity expansion & timeline",
-    "segment_highlights": ["Segment 1 highlight", "Segment 2 highlight"],
-    "forward_targets": "Forward-looking numerical targets"
-  },
-  "announcement_specific": {
-    "event_summary": "What happened",
-    "fundamental_importance": "Why it matters fundamentally",
-    "business_impact": "Potential financial/operational impact",
-    "changes_management_guidance": "Whether it modifies previous guidance"
-  }
+  "management_guidance": "Explicit guidance numbers for sales/margins/capex",
+  "demand_and_orders": "Demand commentary, order intake, backlog",
+  "margin_outlook": "Margin trajectory and cost pressures",
+  "capex_and_execution": "Capex timeline and project execution updates",
+  "quarterly_shifts": "Key changes vs prior quarters"
+}
+"""
+
+PRESENTATION_SUMMARY_PROMPT = """You are an institutional fundamental equity analyst extracting an executive summary from an Investor Presentation.
+Focus strictly on:
+- Core operational KPIs and market share
+- Capacity additions and expansion roadmap
+- Segment growth highlights
+- Forward-looking financial and operational targets
+
+Output MUST be a valid JSON object matching this schema:
+{
+  "key_takeaways": ["Takeaway 1", "Takeaway 2", "Takeaway 3"],
+  "management_tone": "Bullish / Confident" | "Prudent" | "Cautious" | "Neutral",
+  "major_kpis": ["Key KPI 1", "Key KPI 2"],
+  "expansion_roadmap": "Capacity additions and project milestones",
+  "segment_highlights": ["Segment 1 trajectory", "Segment 2 trajectory"],
+  "forward_targets": "Target numbers and expected milestones"
+}
+"""
+
+ANNOUNCEMENT_SUMMARY_PROMPT = """You are an institutional fundamental equity analyst extracting an executive summary from a Material Exchange Filing / Corporate Announcement.
+Focus strictly on:
+- What happened (core transaction, order, contract, regulatory development)
+- Fundamental importance to the business
+- Potential financial and operational impact
+- Whether it modifies previous guidance or corporate strategy
+
+Output MUST be a valid JSON object matching this schema:
+{
+  "key_takeaways": ["Takeaway 1", "Takeaway 2"],
+  "event_summary": "Concise summary of the corporate action/announcement",
+  "fundamental_importance": "Why this matters fundamentally for equity value",
+  "business_and_financial_impact": "Quantifiable revenue, margin, or operational impact",
+  "guidance_impact": "Whether this modifies previous guidance or strategy"
 }
 """
 
@@ -396,11 +434,22 @@ OFFICIAL URL: {doc_url}
 === EXTRACTED FILING TEXT ===
 {pages_text}
 """
+    # Select document-type specialized system prompt
+    norm_type = (doc_type or "").lower().strip()
+    if norm_type == "annual_report":
+        target_prompt = ANNUAL_REPORT_SUMMARY_PROMPT
+    elif norm_type in ("concall_transcript", "concall"):
+        target_prompt = CONCALL_SUMMARY_PROMPT
+    elif norm_type in ("presentation", "investor_presentation"):
+        target_prompt = PRESENTATION_SUMMARY_PROMPT
+    else:
+        target_prompt = ANNOUNCEMENT_SUMMARY_PROMPT
+
     try:
         if provider == "gemini":
-            raw_json = call_gemini_api(api_key, prompt, system_prompt=DOC_SUMMARY_SYSTEM_PROMPT)
+            raw_json = call_gemini_api(api_key, prompt, system_prompt=target_prompt)
         else:
-            raw_json = call_openai_api(api_key, prompt, system_prompt=DOC_SUMMARY_SYSTEM_PROMPT)
+            raw_json = call_openai_api(api_key, prompt, system_prompt=target_prompt)
             
         summary = dict(raw_json)
         summary["doc_title"] = doc_title
@@ -645,6 +694,18 @@ SYNTHESIS INSTRUCTIONS:
                 
             if not p.source_url_promise or not p.source_url_actual:
                 p.status = "Not Enough Evidence"
+            else:
+                # Deterministic Chronological & Mathematical Verification in Code
+                try:
+                    from financial_engine import verify_promise_vs_delivery_item
+                    verified_dict = verify_promise_vs_delivery_item(p.model_dump())
+                    p.status = verified_dict.get("status", p.status)
+                    if verified_dict.get("financial_numbers_check"):
+                        p.financial_numbers_check = verified_dict["financial_numbers_check"]
+                    if verified_dict.get("stocker_analysis"):
+                        p.stocker_analysis = verified_dict["stocker_analysis"]
+                except Exception as ve:
+                    print(f"Notice: Promise vs Delivery verification error: {ve}")
                 
         # 4. DemandMomentum: summary, company_specific_metrics, segment_trends, market_share_and_pricing, headwinds_and_risks, source_page, source_quote, source_url, confidence
         if result.demand_momentum:

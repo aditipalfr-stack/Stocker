@@ -34,8 +34,8 @@ export const StockDetailView: React.FC<StockDetailViewProps> = ({ stock, onBack,
   const [docIntel, setDocIntel] = useState<BusinessOutlookIntelligence | null>(null);
   const [loadingDocIntel, setLoadingDocIntel] = useState<boolean>(false);
   const [generatingDocIntel, setGeneratingDocIntel] = useState<boolean>(false);
-  const [docIntelError, setDocIntelError] = useState<string | null>(null);
-  const [outlookSubTab, setOutlookSubTab] = useState<'summary' | 'promise_delivery' | 'growth_pipeline' | 'risks_demand' | 'filings'>('summary');
+  const [outlookSubTab, setOutlookSubTab] = useState<'summary' | 'promise_delivery' | 'growth_pipeline' | 'risks_demand' | 'filings_ai' | 'filings'>('summary');
+  const [selectedFormulaKey, setSelectedFormulaKey] = useState<string | null>(null);
 
   // AI Configuration & Progress State
   const [aiStatus, setAiStatus] = useState<AiStatusResult | null>(null);
@@ -389,24 +389,44 @@ export const StockDetailView: React.FC<StockDetailViewProps> = ({ stock, onBack,
             <span className="text-[10px] text-slate-500 uppercase font-sans block">ROE</span>
             <span className="text-sm font-bold text-cyan-400">{stock.ratios.roe_pct}%</span>
           </div>
-          <div className="bg-slate-950/60 p-3 rounded-xl border border-slate-800/80 text-center">
-            <span className="text-[10px] text-slate-500 uppercase font-sans block">FCF Yield</span>
+          <div className="bg-slate-950/60 p-3 rounded-xl border border-slate-800/80 text-center relative group">
+            <div className="flex items-center justify-center gap-1">
+              <span className="text-[10px] text-slate-500 uppercase font-sans block">FCF Yield</span>
+              <button onClick={() => setSelectedFormulaKey('free_cash_flow')} className="text-slate-600 hover:text-cyan-400 transition-colors" title="View FCF Formula & Inputs">
+                <Info className="w-2.5 h-2.5" />
+              </button>
+            </div>
             <span className="text-sm font-bold text-teal-400">{stock.ratios.fcf_yield_pct}%</span>
           </div>
-          <div className="bg-slate-950/60 p-3 rounded-xl border border-slate-800/80 text-center">
-            <span className="text-[10px] text-slate-500 uppercase font-sans block">3Y Sales CAGR</span>
+          <div className="bg-slate-950/60 p-3 rounded-xl border border-slate-800/80 text-center relative group">
+            <div className="flex items-center justify-center gap-1">
+              <span className="text-[10px] text-slate-500 uppercase font-sans block">3Y Sales CAGR</span>
+              <button onClick={() => setSelectedFormulaKey('sales_cagr_3yr')} className="text-slate-600 hover:text-cyan-400 transition-colors" title="View Sales CAGR Formula & Inputs">
+                <Info className="w-2.5 h-2.5" />
+              </button>
+            </div>
             <span className="text-sm font-bold text-slate-100">
               {stock.analytics?.growth_rates?.sales_cagr_3yr ?? stock.ratios.sales_growth_3yr_cagr}%
             </span>
           </div>
-          <div className="bg-slate-950/60 p-3 rounded-xl border border-slate-800/80 text-center">
-            <span className="text-[10px] text-slate-500 uppercase font-sans block">CFO / PAT (5Y)</span>
+          <div className="bg-slate-950/60 p-3 rounded-xl border border-slate-800/80 text-center relative group">
+            <div className="flex items-center justify-center gap-1">
+              <span className="text-[10px] text-slate-500 uppercase font-sans block">CFO / PAT (5Y)</span>
+              <button onClick={() => setSelectedFormulaKey('cfo_to_pat_5yr')} className="text-slate-600 hover:text-cyan-400 transition-colors" title="View CFO/PAT Formula & Inputs">
+                <Info className="w-2.5 h-2.5" />
+              </button>
+            </div>
             <span className="text-sm font-bold text-emerald-400">
               {stock.analytics?.cash_flow_quality?.cfo_to_pat_5yr_pct}%
             </span>
           </div>
-          <div className="bg-slate-950/60 p-3 rounded-xl border border-slate-800/80 text-center">
-            <span className="text-[10px] text-slate-500 uppercase font-sans block">Debt / Equity</span>
+          <div className="bg-slate-950/60 p-3 rounded-xl border border-slate-800/80 text-center relative group">
+            <div className="flex items-center justify-center gap-1">
+              <span className="text-[10px] text-slate-500 uppercase font-sans block">Debt / Equity</span>
+              <button onClick={() => setSelectedFormulaKey('debt_to_equity')} className="text-slate-600 hover:text-cyan-400 transition-colors" title="View Debt/Equity Formula & Inputs">
+                <Info className="w-2.5 h-2.5" />
+              </button>
+            </div>
             <span className="text-sm font-bold text-slate-100">{stock.ratios.debt_to_equity}x</span>
           </div>
           <div className="bg-slate-950/60 p-3 rounded-xl border border-slate-800/80 text-center">
@@ -1101,6 +1121,25 @@ export const StockDetailView: React.FC<StockDetailViewProps> = ({ stock, onBack,
             </button>
 
             <button
+              onClick={() => setOutlookSubTab('filings_ai')}
+              className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 whitespace-nowrap ${
+                outlookSubTab === 'filings_ai'
+                  ? 'bg-emerald-500 text-slate-950 shadow-md shadow-emerald-500/20'
+                  : 'text-slate-400 hover:text-white hover:bg-slate-900'
+              }`}
+            >
+              <FileSpreadsheet className="w-3.5 h-3.5" />
+              <span>Document Findings by Type</span>
+              {docIntel?.document_summaries?.length ? (
+                <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-mono font-bold ${
+                  outlookSubTab === 'filings_ai' ? 'bg-slate-950 text-emerald-300' : 'bg-slate-900 text-slate-400'
+                }`}>
+                  {docIntel.document_summaries.length}
+                </span>
+              ) : null}
+            </button>
+
+            <button
               onClick={() => setOutlookSubTab('filings')}
               className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 whitespace-nowrap ${
                 outlookSubTab === 'filings'
@@ -1656,7 +1695,159 @@ export const StockDetailView: React.FC<StockDetailViewProps> = ({ stock, onBack,
             </div>
           )}
 
-          {/* SUB-VIEW 5: SOURCED FILINGS REPOSITORY */}
+          {/* SUB-VIEW 5: DOCUMENT-TYPE SPECIFIC AI FINDINGS */}
+          {outlookSubTab === 'filings_ai' && (
+            <div className="space-y-6">
+              <div className="glass-panel rounded-3xl p-6 md:p-8 border border-slate-800 space-y-3">
+                <div className="flex items-center gap-2.5">
+                  <FileSpreadsheet className="w-5 h-5 text-emerald-400" />
+                  <div>
+                    <h4 className="text-lg font-bold text-white">Document-Specific Fundamental Findings</h4>
+                    <p className="text-xs text-slate-400">
+                      Structured extractions tailored specifically for each filing type without irrelevant generic sections.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {(!docIntel?.document_summaries || docIntel.document_summaries.length === 0) ? (
+                <div className="p-8 text-center bg-slate-950/60 rounded-2xl border border-slate-800 text-slate-400 text-xs">
+                  No per-document AI summaries available. Run AI Analysis to generate tailored document findings.
+                </div>
+              ) : (
+                <div className="space-y-6">
+                  {docIntel.document_summaries.map((sum, idx) => {
+                    const typeLabels: Record<string, { label: string; color: string }> = {
+                      'annual_report': { label: 'Audited Annual Report', color: 'bg-emerald-500/10 text-emerald-300 border-emerald-500/30' },
+                      'concall_transcript': { label: 'Earnings Call Transcript', color: 'bg-purple-500/10 text-purple-300 border-purple-500/30' },
+                      'presentation': { label: 'Investor Presentation', color: 'bg-cyan-500/10 text-cyan-300 border-cyan-500/30' },
+                      'announcement': { label: 'Exchange Announcement', color: 'bg-amber-500/10 text-amber-300 border-amber-500/30' }
+                    };
+                    const typeInfo = typeLabels[sum.doc_type] || { label: sum.doc_type, color: 'bg-slate-800 text-slate-300 border-slate-700' };
+
+                    return (
+                      <div key={idx} className="glass-panel rounded-3xl p-6 md:p-7 border border-slate-800 space-y-4">
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800/80 pb-4">
+                          <div className="space-y-1">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className={`text-[10px] uppercase font-bold font-mono px-2 py-0.5 rounded-full border ${typeInfo.color}`}>
+                                {typeInfo.label}
+                              </span>
+                              {sum.period_or_date && (
+                                <span className="text-[10px] font-mono text-slate-400 bg-slate-900 px-2 py-0.5 rounded border border-slate-800">
+                                  {sum.period_or_date}
+                                </span>
+                              )}
+                              {sum.management_tone && (
+                                <span className="text-[10px] font-medium bg-emerald-500/10 text-emerald-300 border border-emerald-500/20 px-2 py-0.5 rounded">
+                                  Tone: {sum.management_tone}
+                                </span>
+                              )}
+                            </div>
+                            <h5 className="text-sm font-bold text-white pt-1">{sum.doc_title}</h5>
+                          </div>
+                          {sum.doc_url && (
+                            <a
+                              href={sum.doc_url}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="text-xs font-semibold text-emerald-400 hover:underline flex items-center gap-1 self-start sm:self-auto bg-slate-900 px-3 py-1.5 rounded-xl border border-slate-800"
+                            >
+                              <span>Official PDF</span>
+                              <ExternalLink className="w-3 h-3" />
+                            </a>
+                          )}
+                        </div>
+
+                        {/* Key Takeaways */}
+                        {sum.key_takeaways && sum.key_takeaways.length > 0 && (
+                          <div className="bg-slate-950/70 p-4 rounded-2xl border border-slate-800/80 space-y-2">
+                            <span className="text-[10px] uppercase font-bold tracking-wider text-emerald-400 block">
+                              Core Filing Takeaways
+                            </span>
+                            <ul className="space-y-1.5 text-xs text-slate-200">
+                              {sum.key_takeaways.map((t, tIdx) => (
+                                <li key={tIdx} className="flex items-start gap-2">
+                                  <span className="text-emerald-400 font-bold">•</span>
+                                  <span>{t}</span>
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
+
+                        {/* Document Specific Breakdown Grid */}
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
+                          {sum.strategic_priorities && (
+                            <div className="bg-slate-900/60 p-3.5 rounded-xl border border-slate-800/80 space-y-1">
+                              <span className="text-[10px] uppercase font-bold text-cyan-400 block">Strategic Priorities</span>
+                              <p className="text-slate-300">{sum.strategic_priorities}</p>
+                            </div>
+                          )}
+                          {sum.capex_and_expansion && (
+                            <div className="bg-slate-900/60 p-3.5 rounded-xl border border-slate-800/80 space-y-1">
+                              <span className="text-[10px] uppercase font-bold text-amber-400 block">Capex & Capacity Expansion</span>
+                              <p className="text-slate-300">{sum.capex_and_expansion}</p>
+                            </div>
+                          )}
+                          {sum.management_guidance && (
+                            <div className="bg-slate-900/60 p-3.5 rounded-xl border border-slate-800/80 space-y-1">
+                              <span className="text-[10px] uppercase font-bold text-purple-400 block">Quarterly Guidance</span>
+                              <p className="text-slate-300">{sum.management_guidance}</p>
+                            </div>
+                          )}
+                          {sum.demand_and_orders && (
+                            <div className="bg-slate-900/60 p-3.5 rounded-xl border border-slate-800/80 space-y-1">
+                              <span className="text-[10px] uppercase font-bold text-emerald-400 block">Demand & Order Intake</span>
+                              <p className="text-slate-300">{sum.demand_and_orders}</p>
+                            </div>
+                          )}
+                          {sum.margin_outlook && (
+                            <div className="bg-slate-900/60 p-3.5 rounded-xl border border-slate-800/80 space-y-1">
+                              <span className="text-[10px] uppercase font-bold text-cyan-400 block">Margin Outlook</span>
+                              <p className="text-slate-300">{sum.margin_outlook}</p>
+                            </div>
+                          )}
+                          {sum.expansion_roadmap && (
+                            <div className="bg-slate-900/60 p-3.5 rounded-xl border border-slate-800/80 space-y-1">
+                              <span className="text-[10px] uppercase font-bold text-amber-400 block">Expansion Roadmap</span>
+                              <p className="text-slate-300">{sum.expansion_roadmap}</p>
+                            </div>
+                          )}
+                          {sum.forward_targets && (
+                            <div className="bg-slate-900/60 p-3.5 rounded-xl border border-slate-800/80 space-y-1">
+                              <span className="text-[10px] uppercase font-bold text-purple-400 block">Forward Targets</span>
+                              <p className="text-slate-300">{sum.forward_targets}</p>
+                            </div>
+                          )}
+                          {sum.fundamental_importance && (
+                            <div className="bg-slate-900/60 p-3.5 rounded-xl border border-slate-800/80 space-y-1">
+                              <span className="text-[10px] uppercase font-bold text-emerald-400 block">Fundamental Significance</span>
+                              <p className="text-slate-300">{sum.fundamental_importance}</p>
+                            </div>
+                          )}
+                          {sum.business_and_financial_impact && (
+                            <div className="bg-slate-900/60 p-3.5 rounded-xl border border-slate-800/80 space-y-1">
+                              <span className="text-[10px] uppercase font-bold text-cyan-400 block">Business & Financial Impact</span>
+                              <p className="text-slate-300">{sum.business_and_financial_impact}</p>
+                            </div>
+                          )}
+                          {sum.long_term_targets && (
+                            <div className="bg-slate-900/60 p-3.5 rounded-xl border border-slate-800/80 space-y-1">
+                              <span className="text-[10px] uppercase font-bold text-purple-400 block">Long-Term Targets</span>
+                              <p className="text-slate-300">{sum.long_term_targets}</p>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* SUB-VIEW 6: SOURCED FILINGS REPOSITORY */}
           {outlookSubTab === 'filings' && (
             <div className="space-y-6">
               
@@ -2156,7 +2347,80 @@ export const StockDetailView: React.FC<StockDetailViewProps> = ({ stock, onBack,
           {financialSubTab === 'quarters' && renderStatementTable(stock.quarters)}
           {financialSubTab === 'pl' && renderStatementTable(stock.profit_loss)}
           {financialSubTab === 'balance_sheet' && renderStatementTable(stock.balance_sheet)}
-          {financialSubTab === 'cash_flow' && renderStatementTable(stock.cash_flow)}
+          {financialSubTab === 'cash_flow' && (
+            <div className="space-y-6">
+              {renderStatementTable(stock.cash_flow)}
+
+              {/* Free Cash Flow Reconciliation & Capex Methodology Breakdown */}
+              {stock.analytics?.cash_flow_quality?.fcf_trends && stock.analytics.cash_flow_quality.fcf_trends.length > 0 && (
+                <div className="glass-panel rounded-2xl p-5 border border-slate-800 space-y-4">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                    <div>
+                      <h4 className="text-sm font-bold text-white flex items-center gap-2">
+                        <TrendingUp className="w-4 h-4 text-emerald-400" />
+                        <span>Deterministic Free Cash Flow (FCF = CFO - Capex) Breakdown</span>
+                      </h4>
+                      <p className="text-xs text-slate-400">
+                        Code-derived Free Cash Flow tracking reported Operating Cash Flow vs Capital Expenditures.
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => setSelectedFormulaKey('free_cash_flow')}
+                      className="text-xs font-semibold text-cyan-400 hover:underline flex items-center gap-1 bg-cyan-950/40 px-3 py-1.5 rounded-xl border border-cyan-800/40 self-start sm:self-auto"
+                    >
+                      <Info className="w-3.5 h-3.5" />
+                      <span>Formula & Inputs</span>
+                    </button>
+                  </div>
+
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-xs text-left border-collapse font-mono">
+                      <thead>
+                        <tr className="border-b border-slate-800 text-[11px] text-slate-400">
+                          <th className="py-2.5 px-3 font-semibold">Period</th>
+                          <th className="py-2.5 px-3 font-semibold text-right text-cyan-400">Reported CFO (₹ Cr)</th>
+                          <th className="py-2.5 px-3 font-semibold text-right text-slate-300">Reported PAT (₹ Cr)</th>
+                          <th className="py-2.5 px-3 font-semibold text-right text-amber-400">Capex (₹ Cr)</th>
+                          <th className="py-2.5 px-3 font-semibold text-right text-emerald-400">Stocker FCF (₹ Cr)</th>
+                          <th className="py-2.5 px-3 font-semibold text-right text-slate-300">CFO / PAT %</th>
+                          <th className="py-2.5 px-3 font-semibold text-slate-400">Capex Methodology</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-800/60">
+                        {stock.analytics.cash_flow_quality.fcf_trends.map((row, idx) => (
+                          <tr key={idx} className="hover:bg-slate-900/50 transition-colors">
+                            <td className="py-2.5 px-3 font-bold text-slate-200">{row.period}</td>
+                            <td className="py-2.5 px-3 text-right text-cyan-300 font-bold">
+                              {row.reported_cfo_cr !== null && row.reported_cfo_cr !== undefined ? row.reported_cfo_cr.toLocaleString('en-IN') : '-'}
+                            </td>
+                            <td className="py-2.5 px-3 text-right text-slate-300">
+                              {row.reported_pat_cr !== null && row.reported_pat_cr !== undefined ? row.reported_pat_cr.toLocaleString('en-IN') : '-'}
+                            </td>
+                            <td className="py-2.5 px-3 text-right text-amber-300">
+                              {row.capex_cr !== null && row.capex_cr !== undefined ? row.capex_cr.toLocaleString('en-IN') : '-'}
+                            </td>
+                            <td className={`py-2.5 px-3 text-right font-bold ${
+                              (row.stocker_derived_fcf_cr || 0) >= 0 ? 'text-emerald-400' : 'text-rose-400'
+                            }`}>
+                              {row.stocker_derived_fcf_cr !== null && row.stocker_derived_fcf_cr !== undefined ? row.stocker_derived_fcf_cr.toLocaleString('en-IN') : '-'}
+                            </td>
+                            <td className="py-2.5 px-3 text-right text-slate-300">
+                              {row.cfo_to_pat_pct !== null && row.cfo_to_pat_pct !== undefined ? `${row.cfo_to_pat_pct}%` : '-'}
+                            </td>
+                            <td className="py-2.5 px-3 text-slate-400 text-[11px] font-sans">
+                              <span className="px-2 py-0.5 rounded bg-slate-900 border border-slate-800 text-slate-300">
+                                {row.capex_methodology || 'Derived'}
+                              </span>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
         </div>
       )}
 
@@ -2534,6 +2798,90 @@ export const StockDetailView: React.FC<StockDetailViewProps> = ({ stock, onBack,
                 <span>Get Free Key</span>
                 <ExternalLink className="w-3 h-3" />
               </a>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Interactive Formula & Calculation Transparency Modal */}
+      {selectedFormulaKey && stock.analytics?.formula_transparency?.[selectedFormulaKey] && (
+        <div className="fixed inset-0 bg-slate-950/85 backdrop-blur-md z-50 flex items-center justify-center p-4">
+          <div className="bg-slate-900 border border-slate-700 rounded-3xl p-6 md:p-8 max-w-lg w-full space-y-5 shadow-2xl animate-in fade-in zoom-in duration-200">
+            <div className="flex items-start justify-between gap-3 border-b border-slate-800 pb-4">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-cyan-500/10 text-cyan-400 flex items-center justify-center border border-cyan-500/30 shrink-0">
+                  <Calculator className="w-5 h-5" />
+                </div>
+                <div>
+                  <h4 className="text-base font-bold text-white">
+                    {stock.analytics.formula_transparency[selectedFormulaKey].metric_name}
+                  </h4>
+                  <span className="text-xs text-slate-400 font-mono">Mathematical Formula & Structured Verification</span>
+                </div>
+              </div>
+              <button
+                onClick={() => setSelectedFormulaKey(null)}
+                className="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800 text-sm font-bold"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="space-y-4 text-xs">
+              {/* Calculated Value */}
+              <div className="bg-slate-950/80 p-4 rounded-2xl border border-slate-800 flex items-center justify-between">
+                <span className="text-slate-400 font-medium uppercase tracking-wider text-[10px]">Calculated Output</span>
+                <span className="text-xl font-extrabold text-emerald-400 font-mono">
+                  {stock.analytics.formula_transparency[selectedFormulaKey].value !== null && stock.analytics.formula_transparency[selectedFormulaKey].value !== undefined
+                    ? (typeof stock.analytics.formula_transparency[selectedFormulaKey].value === 'number'
+                        ? `${stock.analytics.formula_transparency[selectedFormulaKey].value.toLocaleString('en-IN')}${stock.analytics.formula_transparency[selectedFormulaKey].metric_name.includes('%') || stock.analytics.formula_transparency[selectedFormulaKey].metric_name.includes('CAGR') ? '%' : ''}`
+                        : stock.analytics.formula_transparency[selectedFormulaKey].value)
+                    : 'N/A'}
+                </span>
+              </div>
+
+              {/* Mathematical Formula */}
+              <div className="bg-slate-950/80 p-4 rounded-2xl border border-slate-800 space-y-1.5">
+                <span className="text-slate-400 font-medium uppercase tracking-wider text-[10px] block">Formula Used</span>
+                <code className="text-xs text-cyan-300 font-mono block bg-slate-900 px-3 py-2 rounded-xl border border-slate-800">
+                  {stock.analytics.formula_transparency[selectedFormulaKey].formula}
+                </code>
+              </div>
+
+              {/* Exact Inputs Used */}
+              <div className="bg-slate-950/80 p-4 rounded-2xl border border-slate-800 space-y-2">
+                <span className="text-slate-400 font-medium uppercase tracking-wider text-[10px] block">Inputs Extracted from Statements</span>
+                <div className="space-y-1.5 font-mono text-[11px]">
+                  {Object.entries(stock.analytics.formula_transparency[selectedFormulaKey].inputs).map(([k, v]) => (
+                    <div key={k} className="flex items-center justify-between py-1 border-b border-slate-900/60 last:border-0">
+                      <span className="text-slate-400">{k}:</span>
+                      <span className="text-slate-200 font-bold">
+                        {v !== null && v !== undefined ? (typeof v === 'number' ? `${v.toLocaleString('en-IN')}` : String(v)) : 'N/A'}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Plain English Explanation */}
+              <div className="bg-slate-950/80 p-4 rounded-2xl border border-slate-800 space-y-1.5">
+                <span className="text-slate-400 font-medium uppercase tracking-wider text-[10px] block">Plain-English Meaning</span>
+                <p className="text-slate-200 leading-relaxed text-xs">
+                  {stock.analytics.formula_transparency[selectedFormulaKey].explanation}
+                </p>
+                <span className="text-[10px] text-slate-500 font-mono block pt-1">
+                  Source: {stock.analytics.formula_transparency[selectedFormulaKey].source}
+                </span>
+              </div>
+            </div>
+
+            <div className="pt-2 text-right">
+              <button
+                onClick={() => setSelectedFormulaKey(null)}
+                className="px-5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs font-bold text-white transition-colors"
+              >
+                Close
+              </button>
             </div>
           </div>
         </div>
