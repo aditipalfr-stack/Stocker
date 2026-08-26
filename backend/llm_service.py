@@ -149,14 +149,14 @@ def test_ai_key_connectivity() -> Dict[str, Any]:
     masked_key = f"{key[:6]}...{key[-4:]}" if len(key) > 10 else "***"
     
     if provider == "gemini":
-        test_url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={key}"
+        test_url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent?key={key}"
         payload = {"contents": [{"parts": [{"text": "Reply with OK"}]}]}
         try:
             r = requests.post(test_url, json=payload, headers={"Content-Type": "application/json"}, timeout=8)
             if r.status_code == 200:
                 return {
                     "configured": True,
-                    "provider": "Google Gemini (gemini-2.0-flash)",
+                    "provider": "Google Gemini (gemini-3.6-flash)",
                     "status": "active",
                     "key_preview": masked_key,
                     "message": "Gemini API key is verified and fully operational."
@@ -239,21 +239,46 @@ def format_pages_for_prompt(pages: List[Tuple[int, str]]) -> str:
     return "\n".join(formatted_chunks)
 
 def call_gemini_api(api_key: str, prompt: str) -> Dict[str, Any]:
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={api_key}"
-    payload = {
-        "contents": [{"parts": [{"text": prompt}]}],
-        "systemInstruction": {"parts": [{"text": SYSTEM_PROMPT}]},
-        "generationConfig": {
-            "responseMimeType": "application/json",
-            "temperature": 0.1
+    """Calls Gemini API with automatic model cascade (gemini-3.6-flash -> gemini-3.5-flash -> gemini-flash-latest)."""
+    models_to_try = [
+        "gemini-3.6-flash",
+        "gemini-3.5-flash",
+        "gemini-3.7-flash",
+        "gemini-flash-latest",
+        "gemini-2.5-flash",
+        "gemini-2.0-flash"
+    ]
+    last_err = None
+    for model in models_to_try:
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={api_key}"
+        payload = {
+            "contents": [{"parts": [{"text": prompt}]}],
+            "systemInstruction": {"parts": [{"text": SYSTEM_PROMPT}]},
+            "generationConfig": {
+                "responseMimeType": "application/json",
+                "temperature": 0.1
+            }
         }
-    }
-    resp = requests.post(url, json=payload, headers={"Content-Type": "application/json"}, timeout=60)
-    if resp.status_code != 200:
-        raise RuntimeError(f"Gemini API error ({resp.status_code}): {resp.text}")
-    data = resp.json()
-    raw_text = data["candidates"][0]["content"]["parts"][0]["text"]
-    return json.loads(raw_text)
+        try:
+            resp = requests.post(url, json=payload, headers={"Content-Type": "application/json"}, timeout=60)
+            if resp.status_code == 200:
+                data = resp.json()
+                raw_text = data["candidates"][0]["content"]["parts"][0]["text"]
+                return json.loads(raw_text)
+            elif resp.status_code == 404:
+                last_err = f"Model {model} 404 Not Found: {resp.text[:100]}"
+                continue
+            else:
+                raise RuntimeError(f"Gemini API error ({resp.status_code}): {resp.text[:250]}")
+        except json.JSONDecodeError as je:
+            raise RuntimeError(f"Failed to parse Gemini JSON output: {je}")
+        except Exception as e:
+            if "404" in str(e):
+                last_err = str(e)
+                continue
+            raise e
+            
+    raise RuntimeError(f"All Gemini models failed. Last error: {last_err}")
 
 def call_openai_api(api_key: str, prompt: str) -> Dict[str, Any]:
     url = "https://api.openai.com/v1/chat/completions"
