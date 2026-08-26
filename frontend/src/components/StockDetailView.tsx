@@ -1012,25 +1012,6 @@ export const StockDetailView: React.FC<StockDetailViewProps> = ({ stock, onBack,
                 </div>
               </div>
             )}
-
-            {/* Analyzed Documents Header Badges */}
-            {docIntel?.source_documents && docIntel.source_documents.length > 0 && (
-              <div className="flex items-center gap-2 flex-wrap text-xs">
-                <span className="text-slate-400 font-semibold text-[11px] uppercase tracking-wider">Source Filings:</span>
-                {docIntel.source_documents.map((doc, idx) => (
-                  <a
-                    key={idx}
-                    href={doc.url}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="bg-slate-900 hover:bg-slate-800 text-slate-300 hover:text-white border border-slate-800 px-2.5 py-1 rounded-lg flex items-center gap-1.5 transition-colors"
-                  >
-                    <span>{doc.title}</span>
-                    <ExternalLink className="w-3 h-3 text-emerald-400" />
-                  </a>
-                ))}
-              </div>
-            )}
           </div>
 
           {/* Sub-Navigation Bar within Outlook & Filings */}
