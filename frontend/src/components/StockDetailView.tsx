@@ -1159,10 +1159,109 @@ export const StockDetailView: React.FC<StockDetailViewProps> = ({ stock, onBack,
             </button>
           </div>
 
+          {/* Loading Indicator */}
+          {loadingDocIntel && (
+            <div className="p-8 text-center bg-slate-950/80 rounded-3xl border border-slate-800 space-y-3">
+              <RefreshCw className="w-6 h-6 text-emerald-400 animate-spin mx-auto" />
+              <p className="text-xs font-medium text-slate-300">Loading document intelligence and sourced filings...</p>
+            </div>
+          )}
+
           {/* SUB-VIEW 1: EXECUTIVE VERDICT & SUMMARY */}
-          {outlookSubTab === 'summary' && (
+          {outlookSubTab === 'summary' && !loadingDocIntel && (
             <div className="space-y-6">
               
+              {/* If Not Analyzed Yet: Render Informative Document Corpus & Quick Action Hub */}
+              {(!docIntel?.stocker_view?.investor_summary && (!docIntel?.what_changed_recently || docIntel.what_changed_recently.length === 0)) && (
+                <div className="glass-panel rounded-3xl p-6 md:p-8 border border-slate-800 space-y-6">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800 pb-4">
+                    <div>
+                      <h4 className="text-base font-bold text-white flex items-center gap-2">
+                        <Compass className="w-5 h-5 text-emerald-400" />
+                        <span>Corporate Filings & AI Intelligence Hub</span>
+                      </h4>
+                      <p className="text-xs text-slate-400">
+                        Official primary documents sourced directly from BSE India, NSE India, and Screener for {stock.name}.
+                      </p>
+                    </div>
+                    <button
+                      onClick={handleGenerateIntel}
+                      disabled={generatingDocIntel}
+                      className="px-4 py-2 bg-emerald-500 hover:bg-emerald-400 disabled:bg-slate-800 text-slate-950 font-bold text-xs rounded-xl flex items-center gap-1.5 transition-all shadow-md self-start sm:self-auto"
+                    >
+                      <Zap className={`w-3.5 h-3.5 ${generatingDocIntel ? 'animate-spin' : ''}`} />
+                      <span>{generatingDocIntel ? 'Synthesizing...' : 'Run Live AI Synthesis'}</span>
+                    </button>
+                  </div>
+
+                  {/* Sourced Document Stats Grid */}
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                    <div className="bg-slate-950/80 p-4 rounded-2xl border border-slate-800 space-y-1 text-center">
+                      <span className="text-[10px] text-slate-400 uppercase font-bold tracking-wider block">Annual Reports</span>
+                      <span className="text-xl font-extrabold text-emerald-400 font-mono">
+                        {stock.documents?.annual_reports?.length || 0}
+                      </span>
+                    </div>
+                    <div className="bg-slate-950/80 p-4 rounded-2xl border border-slate-800 space-y-1 text-center">
+                      <span className="text-[10px] text-slate-400 uppercase font-bold tracking-wider block">Concall Transcripts</span>
+                      <span className="text-xl font-extrabold text-cyan-400 font-mono">
+                        {stock.documents?.concalls?.length || 0}
+                      </span>
+                    </div>
+                    <div className="bg-slate-950/80 p-4 rounded-2xl border border-slate-800 space-y-1 text-center">
+                      <span className="text-[10px] text-slate-400 uppercase font-bold tracking-wider block">Investor PPTs</span>
+                      <span className="text-xl font-extrabold text-purple-400 font-mono">
+                        {stock.documents?.presentations?.length || 0}
+                      </span>
+                    </div>
+                    <div className="bg-slate-950/80 p-4 rounded-2xl border border-slate-800 space-y-1 text-center">
+                      <span className="text-[10px] text-slate-400 uppercase font-bold tracking-wider block">Announcements</span>
+                      <span className="text-xl font-extrabold text-amber-400 font-mono">
+                        {stock.documents?.material_announcements?.length || 0}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Feature preview cards */}
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3.5 text-xs">
+                    <div className="bg-slate-900/60 p-4 rounded-2xl border border-slate-800 space-y-1.5">
+                      <span className="font-bold text-amber-400 flex items-center gap-1.5">
+                        <Target className="w-3.5 h-3.5" /> 1. Promise vs. Delivery
+                      </span>
+                      <p className="text-slate-400 text-[11px] leading-relaxed">
+                        Tracks what management guided in historical concalls vs subsequent audited financial statements.
+                      </p>
+                    </div>
+                    <div className="bg-slate-900/60 p-4 rounded-2xl border border-slate-800 space-y-1.5">
+                      <span className="font-bold text-cyan-400 flex items-center gap-1.5">
+                        <Layers className="w-3.5 h-3.5" /> 2. Growth Pipeline & Capex
+                      </span>
+                      <p className="text-slate-400 text-[11px] leading-relaxed">
+                        Extracts capacity expansions, giga-factories, new product pipelines, and target commissioning dates.
+                      </p>
+                    </div>
+                    <div className="bg-slate-900/60 p-4 rounded-2xl border border-slate-800 space-y-1.5">
+                      <span className="font-bold text-rose-400 flex items-center gap-1.5">
+                        <ShieldAlert className="w-3.5 h-3.5" /> 3. Demand & Balance Sheet Risks
+                      </span>
+                      <p className="text-slate-400 text-[11px] leading-relaxed">
+                        Identifies working capital stretch, receivables aging, margin cost headwinds, and regulatory risks.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="pt-2 text-center">
+                    <button
+                      onClick={() => setOutlookSubTab('filings')}
+                      className="text-xs font-semibold text-emerald-400 hover:underline inline-flex items-center gap-1.5"
+                    >
+                      <FileText className="w-3.5 h-3.5" />
+                      <span>Browse all {stock.documents?.diagnostics?.ai_ready_documents_count || 0} sourced official PDFs in the Filings Archive →</span>
+                    </button>
+                  </div>
+                </div>
+              )}
+
               {/* Hero Stocker Institutional Verdict */}
               {docIntel?.stocker_view && (docIntel.promise_vs_delivery?.length > 0 || docIntel.what_changed_recently?.length > 0) && (
                 <div className="glass-panel rounded-3xl p-6 md:p-8 border border-slate-800 space-y-6">

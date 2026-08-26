@@ -172,15 +172,6 @@ export interface StockSummary {
   fetched_at?: string;
 }
 
-export interface FormulaTransparencyItem {
-  metric_name: string;
-  value?: number | string | null;
-  formula: string;
-  inputs: Record<string, any>;
-  source: string;
-  explanation: string;
-}
-
 export interface StockDetail {
   symbol: string;
   name: string;
@@ -229,23 +220,11 @@ export interface StockDetail {
       cfo_to_pat_5yr_pct?: number;
       cash_conversion_quality?: string;
       is_cash_conversion_superior?: boolean;
-      fcf_trends?: Array<{
-        period: string;
-        reported_cfo_cr?: number;
-        reported_pat_cr?: number;
-        capex_cr?: number;
-        capex_methodology?: string;
-        stocker_derived_fcf_cr?: number;
         cfo_to_pat_pct?: number;
       }>;
     };
     balance_sheet_efficiency: {
       latest_debt_to_equity?: number;
-      latest_cwip_to_net_block_pct?: number;
-      has_significant_capex_trigger?: boolean;
-      bs_trends?: Array<{
-        period: string;
-        total_equity_cr?: number;
         borrowings_cr?: number;
         fixed_assets_cr?: number;
         cwip_cr?: number;
@@ -254,10 +233,6 @@ export interface StockDetail {
       }>;
     };
     formula_transparency?: Record<string, FormulaTransparencyItem>;
-  };
-  projection: ProjectionResult;
-  score: ScoreBreakdown;
-}
 
 export interface ComparisonItem {
   symbol: string;
@@ -265,15 +240,8 @@ export interface ComparisonItem {
   sector: string;
   current_price: number;
   market_cap_cr: number;
-  pe_ratio: number;
-  roce_pct: number;
-  roe_pct: number;
-  fcf_yield_pct: number;
-  debt_to_equity: number;
-  interest_coverage: number;
   sales_cagr_3yr: number;
   cfo_to_pat_5yr: number;
-  cwip_to_fixed_assets: number;
   composite_score: number;
   verdict: string;
   dcf_upside_pct: number;
@@ -394,6 +362,27 @@ export interface DocumentSummaryItem {
   guidance_and_capex?: string;
   risks_and_headwinds?: string[];
   capex_or_guidance_highlight?: string;
+  
+  // Document-Type Specialized Extractions
+  strategic_priorities?: string;
+  capex_and_expansion?: string;
+  cash_debt_working_capital?: string;
+  major_risks?: string[];
+  long_term_targets?: string;
+  management_guidance?: string;
+  demand_and_orders?: string;
+  margin_outlook?: string;
+  capex_and_execution?: string;
+  quarterly_shifts?: string;
+  major_kpis?: string[];
+  expansion_roadmap?: string;
+  segment_highlights?: string[];
+  forward_targets?: string;
+  event_summary?: string;
+  fundamental_importance?: string;
+  business_and_financial_impact?: string;
+  guidance_impact?: string;
+
   concall_specific?: ConcallSpecificSummary;
   presentation_specific?: PresentationSpecificSummary;
   announcement_specific?: AnnouncementSpecificSummary;

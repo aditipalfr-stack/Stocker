@@ -148,6 +148,27 @@ class DocumentSummaryItem(BaseModel):
     guidance_and_capex: Optional[str] = Field(default=None, description="Important forward-looking guidance or capex roadmap")
     risks_and_headwinds: List[str] = Field(default_factory=list, description="Important risks or execution issues")
     capex_or_guidance_highlight: Optional[str] = Field(default=None, description="Legacy alias for guidance_and_capex")
+    
+    # Document-Type Specialized Extractions
+    strategic_priorities: Optional[str] = None
+    capex_and_expansion: Optional[str] = None
+    cash_debt_working_capital: Optional[str] = None
+    major_risks: List[str] = Field(default_factory=list)
+    long_term_targets: Optional[str] = None
+    management_guidance: Optional[str] = None
+    demand_and_orders: Optional[str] = None
+    margin_outlook: Optional[str] = None
+    capex_and_execution: Optional[str] = None
+    quarterly_shifts: Optional[str] = None
+    major_kpis: List[str] = Field(default_factory=list)
+    expansion_roadmap: Optional[str] = None
+    segment_highlights: List[str] = Field(default_factory=list)
+    forward_targets: Optional[str] = None
+    event_summary: Optional[str] = None
+    fundamental_importance: Optional[str] = None
+    business_and_financial_impact: Optional[str] = None
+    guidance_impact: Optional[str] = None
+
     concall_specific: Optional[ConcallSpecificSummary] = None
     presentation_specific: Optional[PresentationSpecificSummary] = None
     announcement_specific: Optional[AnnouncementSpecificSummary] = None
