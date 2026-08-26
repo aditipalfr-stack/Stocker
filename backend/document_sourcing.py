@@ -180,51 +180,93 @@ def extract_period_or_date(text: str) -> Optional[str]:
         
     return None
 
+from concurrent.futures import ThreadPoolExecutor
+
+def verify_document_network_and_content(
+    title: str,
+    url: str,
+    doc_type: str,
+    symbol: str,
+    check_network: bool = True
+) -> Tuple[bool, Optional[int], str]:
+    """
+    True document validation:
+    1. Rejects fake/placeholder URLs (ending with #documents or # or internal anchors).
+    2. Enforces valid http/https URL and non-empty title.
+    3. Rejects generic homepages.
+    4. When check_network is True:
+       - Sends HTTP GET stream request (first 512 bytes) with official headers.
+       - Verifies HTTP 200 status code (rejects 404, 403, 500).
+       - Confirms the response is NOT an HTML error/access-denied page disguised as a PDF.
+       - Verifies PDF magic bytes (%PDF) for PDF documents.
+       - Extracts exact file size in bytes from Content-Length.
+    Returns: (is_valid: bool, file_size_bytes: Optional[int], status_reason: str)
+    """
+    if not url or not title:
+        return False, None, "Empty URL or Title"
+        
+    url_clean = url.strip()
+    if url_clean.endswith("#documents") or url_clean.endswith("#") or "/#/" in url_clean or url_clean.startswith("#"):
+        return False, None, "Rejected: Fake placeholder or anchor link"
+        
+    if not url_clean.startswith("http://") and not url_clean.startswith("https://"):
+        return False, None, "Rejected: Invalid protocol (must be http/https)"
+        
+    parsed = urlparse(url_clean)
+    host = parsed.netloc.lower()
+    
+    # Generic homepages are not documents
+    path = parsed.path.strip("/")
+    if not path or path in ("", "index.html", "home", "company", "investors", "investor-relations"):
+        return False, None, "Rejected: Generic homepage link"
+
+    if not check_network:
+        return True, None, "Passed Syntax Checks"
+
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        "Referer": f"https://{host}/" if host else "https://www.bseindia.com/"
+    }
+
+    try:
+        with requests.get(url_clean, headers=headers, stream=True, timeout=6, allow_redirects=True) as resp:
+            if resp.status_code != 200:
+                return False, None, f"HTTP {resp.status_code} Error"
+                
+            content_type = resp.headers.get("Content-Type", "").lower()
+            content_length = resp.headers.get("Content-Length")
+            file_size = int(content_length) if content_length and content_length.isdigit() else None
+            
+            # Read first 512 bytes
+            chunk = resp.raw.read(512)
+            
+            # Check if an HTML error page is returned instead of a filing
+            if b"<html" in chunk.lower() or b"<!doctype html" in chunk.lower() or b"<title>404" in chunk.lower() or b"access denied" in chunk.lower():
+                # Allow only if it's an announcement web page on BSE/NSE
+                if doc_type != "announcement" or "pdf" in url_clean.lower():
+                    return False, None, "Rejected: HTML error page returned instead of document"
+                    
+            # For PDF documents, verify magic bytes (%PDF)
+            is_pdf = url_clean.lower().endswith(".pdf") or ".pdf" in url_clean.lower() or "pdf" in content_type
+            if is_pdf and doc_type in ("annual_report", "concall_transcript", "presentation"):
+                if not chunk.startswith(b"%PDF") and b"%PDF" not in chunk[:128]:
+                    return False, None, "Rejected: File missing valid %PDF magic header"
+                    
+            return True, file_size, "Verified Live Document"
+    except requests.exceptions.Timeout:
+        return False, None, "Connection timed out during validation"
+    except Exception as e:
+        return False, None, f"Network validation failed: {str(e)[:40]}"
+
 def validate_document_candidate(
     title: str,
     url: str,
     doc_type: str,
     symbol: str
 ) -> Tuple[bool, str]:
-    """
-    Strict validation rule:
-    1. Rejects fake/placeholder URLs (ending with #documents or #)
-    2. Must be http/https
-    3. Must have a valid title
-    4. Must not be a generic homepage
-    """
-    if not url or not title:
-        return False, "Empty URL or Title"
-        
-    url_clean = url.strip()
-    if url_clean.endswith("#documents") or url_clean.endswith("#") or "/#/" in url_clean:
-        return False, "Fake placeholder URL ending with #documents"
-        
-    if not url_clean.startswith("http://") and not url_clean.startswith("https://"):
-        return False, "Invalid protocol (must be http/https)"
-        
-    parsed = urlparse(url_clean)
-    host = parsed.netloc.lower()
-    
-    # Generic homepages are not valid document links
-    path = parsed.path.strip("/")
-    if not path or path in ("", "index.html", "home", "company"):
-        return False, "URL points to generic homepage rather than specific document"
-
-    # Known reputable exchange / corporate filing domains
-    valid_hosts = [
-        "bseindia.com", "nseindia.com", "screener.in",
-        "ril.com", "tcs.com", "infosys.com", "larsentoubro.com",
-        "hdfcbank.com", "airtel.in", "hul.co.in", "tatamotors.com",
-        "itcportal.com", "tatasteel.com", "icicibank.com"
-    ]
-    
-    # Allow if host is in valid hosts or is a direct PDF
-    is_direct_pdf = url_clean.lower().endswith(".pdf") or ".pdf" in url_clean.lower()
-    if not is_direct_pdf and not any(h in host for h in valid_hosts):
-        return False, f"Untrusted host '{host}' without direct PDF file"
-        
-    return True, "Valid"
+    """Fast pre-validation syntax check."""
+    is_valid, _, reason = verify_document_network_and_content(title, url, doc_type, symbol, check_network=False)
+    return is_valid, reason
 
 def discover_documents_screener(soup: BeautifulSoup, symbol: str, company_name: str) -> List[DocumentItem]:
     """Stage 1: Discover documents from Screener's #documents section."""
@@ -277,6 +319,7 @@ def discover_documents_screener(soup: BeautifulSoup, symbol: str, company_name: 
             ticker=symbol,
             company_name=company_name,
             title=raw_title,
+            name=raw_title,
             url=href,
             doc_type=doc_type,
             period_or_date=period,
@@ -339,6 +382,7 @@ def discover_documents_bse_fallback(symbol: str, company_name: str, needed_types
                         ticker=symbol,
                         company_name=company_name,
                         title=headline[:120],
+                        name=headline[:120],
                         url=direct_url,
                         doc_type=doc_type,
                         period_or_date=period,
@@ -395,9 +439,10 @@ def discover_documents_nse_fallback(symbol: str, company_name: str, needed_types
                         ticker=symbol,
                         company_name=company_name,
                         title=desc[:120],
+                        name=desc[:120],
                         url=pdf_url,
                         doc_type=doc_type,
-                        period_or_date=period or dt[:10],
+                        period_or_date=period,
                         discovery_source="NSE India",
                         actual_source_host="nseindia.com",
                         actual_source_url=pdf_url,
@@ -409,33 +454,78 @@ def discover_documents_nse_fallback(symbol: str, company_name: str, needed_types
     return found
 
 def discover_documents_company_ir_fallback(symbol: str, company_name: str, needed_types: List[str]) -> List[DocumentItem]:
-    """Stage 4: Discover verified documents from Company Investor Relations registry."""
+    """
+    Stage 4: Discover verified documents directly from live Company Investor Relations websites.
+    NEVER creates guessed/synthetic URLs. Only parses real anchor tags from the live IR page.
+    """
     found: List[DocumentItem] = []
     ir_info = COMPANY_IR_DOMAINS.get(symbol.upper())
     if not ir_info:
         return found
         
+    ir_url = ir_info.get("ir_url")
+    if not ir_url:
+        return found
+        
     domain = ir_info["domain"]
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        "Referer": ir_url
+    }
     
-    # Generate verified direct IR repository entries
-    current_year = 2026
-    for yr in range(current_year, current_year - 3, -1):
-        if "annual_report" in needed_types or not needed_types:
-            ar_url = f"{ir_info['ar_prefix']}/Annual_Report_{yr}.pdf" if "download" in ir_info.get("ar_prefix", "") else f"{ir_info['ir_url']}#annual-report-{yr}"
-            found.append(DocumentItem(
-                ticker=symbol,
-                company_name=company_name,
-                title=f"{company_name} Integrated Annual Report FY{yr}",
-                url=ar_url,
-                doc_type="annual_report",
-                period_or_date=f"FY{yr}",
-                discovery_source="Company IR",
-                actual_source_host=domain,
-                actual_source_url=ar_url,
-                is_direct_pdf=ar_url.endswith(".pdf"),
-                validation_status="Valid"
-            ))
+    try:
+        resp = requests.get(ir_url, headers=headers, timeout=5)
+        if resp.status_code != 200:
+            return found
             
+        soup = BeautifulSoup(resp.text, "html.parser")
+        from urllib.parse import urljoin
+        
+        for a in soup.find_all("a", href=True):
+            href = a["href"].strip()
+            text = re.sub(r"\s+", " ", a.text).strip()
+            if not href or not text or len(text) < 3:
+                continue
+                
+            full_url = urljoin(ir_url, href)
+            is_pdf = full_url.lower().endswith(".pdf") or ".pdf" in full_url.lower()
+            if not is_pdf:
+                continue
+                
+            lower_t = text.lower()
+            doc_type = "general"
+            if "annual report" in lower_t or "integrated report" in lower_t:
+                doc_type = "annual_report"
+            elif "transcript" in lower_t or "concall" in lower_t:
+                doc_type = "concall_transcript"
+            elif "presentation" in lower_t or "deck" in lower_t:
+                doc_type = "presentation"
+            else:
+                doc_type = "announcement"
+                
+            if needed_types and doc_type not in needed_types:
+                continue
+                
+            period = extract_period_or_date(text) or extract_period_or_date(full_url)
+            is_valid, _ = validate_document_candidate(text, full_url, doc_type, symbol)
+            if is_valid:
+                found.append(DocumentItem(
+                    ticker=symbol,
+                    company_name=company_name,
+                    title=f"{company_name} {text}" if len(text) < 30 else text,
+                    name=f"{company_name} {text}" if len(text) < 30 else text,
+                    url=full_url,
+                    doc_type=doc_type,
+                    period_or_date=period,
+                    discovery_source="Company IR",
+                    actual_source_host=domain,
+                    actual_source_url=full_url,
+                    is_direct_pdf=True,
+                    validation_status="Valid"
+                ))
+    except Exception:
+        pass
+        
     return found
 
 def execute_document_sourcing_waterfall(
@@ -444,11 +534,12 @@ def execute_document_sourcing_waterfall(
     screener_soup: Optional[BeautifulSoup] = None
 ) -> DocumentLinks:
     """
-    Executes the multi-source waterfall:
+    Executes the multi-source waterfall with TRUE network & content validation:
     1. Screener.in (Primary Discovery Layer)
     2. BSE India (Direct Exchange Filings Fallback)
     3. NSE India (Exchange Announcements Fallback)
-    4. Company IR (Official Repository Fallback)
+    4. Company IR (Official Live Repository Fallback - No Guessed URLs)
+    5. Parallel Network & PDF Signature Validation
     """
     clean_sym = symbol.upper().strip()
     all_raw_docs: List[DocumentItem] = []
@@ -458,11 +549,7 @@ def execute_document_sourcing_waterfall(
     # 1. Primary Discovery: Screener.in
     if screener_soup:
         screener_docs = discover_documents_screener(screener_soup, clean_sym, company_name)
-        for doc in screener_docs:
-            if doc.validation_status == "Valid":
-                all_raw_docs.append(doc)
-            else:
-                invalid_links_count += 1
+        all_raw_docs.extend(screener_docs)
 
     # Check category counts
     ar_count = sum(1 for d in all_raw_docs if d.doc_type == "annual_report")
@@ -480,11 +567,7 @@ def execute_document_sourcing_waterfall(
         bse_docs = discover_documents_bse_fallback(clean_sym, company_name, needed_types)
         if bse_docs:
             fallback_sources_used.append("BSE India")
-            for doc in bse_docs:
-                if doc.validation_status == "Valid":
-                    all_raw_docs.append(doc)
-                else:
-                    invalid_links_count += 1
+            all_raw_docs.extend(bse_docs)
 
     # 3. Stage 3: NSE India Fallback
     ann_count = sum(1 for d in all_raw_docs if d.doc_type == "announcement")
@@ -492,20 +575,15 @@ def execute_document_sourcing_waterfall(
         nse_docs = discover_documents_nse_fallback(clean_sym, company_name, ["announcement"])
         if nse_docs:
             fallback_sources_used.append("NSE India")
-            for doc in nse_docs:
-                if doc.validation_status == "Valid":
-                    all_raw_docs.append(doc)
-                else:
-                    invalid_links_count += 1
+            all_raw_docs.extend(nse_docs)
                     
-    # 4. Stage 4: Company IR Fallback
+    # 4. Stage 4: Company IR Fallback (Real web parsing only, never guessed URLs)
     ar_count = sum(1 for d in all_raw_docs if d.doc_type == "annual_report")
     if ar_count < 2:
         ir_docs = discover_documents_company_ir_fallback(clean_sym, company_name, ["annual_report", "presentation"])
         if ir_docs:
             fallback_sources_used.append("Company IR")
-            for doc in ir_docs:
-                all_raw_docs.append(doc)
+            all_raw_docs.extend(ir_docs)
 
     # Deduplicate by actual_source_url
     seen_urls = set()
@@ -515,17 +593,37 @@ def execute_document_sourcing_waterfall(
         if norm_url not in seen_urls:
             seen_urls.add(norm_url)
             deduped_docs.append(doc)
+
+    # 5. True Network & Signature Validation in Parallel
+    def _validate_document(doc: DocumentItem) -> DocumentItem:
+        is_valid, size_bytes, _ = verify_document_network_and_content(
+            title=doc.title,
+            url=doc.url,
+            doc_type=doc.doc_type,
+            symbol=doc.ticker,
+            check_network=True
+        )
+        doc.validation_status = "Valid" if is_valid else "Invalid"
+        if size_bytes:
+            doc.file_size_bytes = size_bytes
+        return doc
+
+    with ThreadPoolExecutor(max_workers=8) as executor:
+        validated_candidates = list(executor.map(_validate_document, deduped_docs))
+
+    # Keep only truly verified Valid documents
+    final_valid_docs: List[DocumentItem] = []
+    for doc in validated_candidates:
+        if doc.validation_status == "Valid":
+            final_valid_docs.append(doc)
+        else:
+            invalid_links_count += 1
             
     # Group by category and limit to target history
-    # Target history:
-    # - Annual Reports: last 3 FYs
-    # - Concalls: last 6 quarters
-    # - Presentations: last 6 quarters
-    # - Announcements: last 8-12
-    annual_reports = [d for d in deduped_docs if d.doc_type == "annual_report"][:3]
-    concalls = [d for d in deduped_docs if d.doc_type == "concall_transcript"][:6]
-    presentations = [d for d in deduped_docs if d.doc_type == "presentation"][:6]
-    announcements = [d for d in deduped_docs if d.doc_type == "announcement"][:8]
+    annual_reports = [d for d in final_valid_docs if d.doc_type == "annual_report"][:3]
+    concalls = [d for d in final_valid_docs if d.doc_type == "concall_transcript"][:6]
+    presentations = [d for d in final_valid_docs if d.doc_type == "presentation"][:6]
+    announcements = [d for d in final_valid_docs if d.doc_type == "announcement"][:8]
     
     total_ai_ready = len(annual_reports) + len(concalls) + len(presentations) + len(announcements)
     overall_status = "Ready" if total_ai_ready >= 4 else ("Partial" if total_ai_ready > 0 else "Missing")

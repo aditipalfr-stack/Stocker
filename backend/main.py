@@ -263,17 +263,17 @@ def generate_stock_doc_intelligence(symbol: str):
     
     if concalls:
         latest_url = concalls[0].url
-        latest_title = f"{detail.name} {concalls[0].name}"
+        latest_title = concalls[0].title or f"{detail.name} Latest Concall"
         if len(concalls) > 1:
             older_url = concalls[1].url
-            older_title = f"{detail.name} {concalls[1].name}"
+            older_title = concalls[1].title or f"{detail.name} Previous Concall"
     elif annual_reports:
         latest_url = annual_reports[0].url
-        latest_title = f"{detail.name} {annual_reports[0].name}"
+        latest_title = annual_reports[0].title or f"{detail.name} Latest Annual Report"
         is_ar = True
         if len(annual_reports) > 1:
             older_url = annual_reports[1].url
-            older_title = f"{detail.name} {annual_reports[1].name}"
+            older_title = annual_reports[1].title or f"{detail.name} Previous Annual Report"
             
     if not latest_url:
         raise HTTPException(status_code=404, detail=f"No PDF filings found under #documents for {clean_sym}")

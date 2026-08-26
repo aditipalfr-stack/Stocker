@@ -49,8 +49,9 @@ class AnnualReportInsight(BaseModel):
 class DocumentItem(BaseModel):
     ticker: str = ""
     company_name: str = ""
-    title: str
-    url: str
+    title: str = ""
+    name: Optional[str] = None # Backward compatibility alias for title
+    url: str = ""
     doc_type: str = "general" # "annual_report", "concall_transcript", "presentation", "announcement"
     period_or_date: Optional[str] = None
     discovery_source: str = "Screener.in" # "Screener.in", "BSE", "NSE", "Company IR"
@@ -61,6 +62,14 @@ class DocumentItem(BaseModel):
     file_size_bytes: Optional[int] = None
     fetched_date: Optional[str] = None
     checksum_sha256: Optional[str] = None
+
+    def model_post_init(self, __context: Any) -> None:
+        if not self.title and self.name:
+            self.title = self.name
+        elif not self.name and self.title:
+            self.name = self.title
+        if not self.actual_source_url and self.url:
+            self.actual_source_url = self.url
 
 class DocumentDiscoveryDiagnostics(BaseModel):
     target_annual_reports_count: int = 3
