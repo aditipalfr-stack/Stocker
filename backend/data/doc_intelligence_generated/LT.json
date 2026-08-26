@@ -1,0 +1,542 @@
+{
+  "symbol": "LT",
+  "company_name": "Larsen & Toubro Ltd",
+  "latest_document_period": "LT Annual Report 2026",
+  "older_document_period": "LT Annual Report 2025",
+  "source_documents": [
+    {
+      "title": "LT Annual Report 2026",
+      "url": "https://www.bseindia.com/xml-data/corpfiling/AttachHis/825f9859-e7f2-4e90-8583-01a38850f795.pdf",
+      "type": "annual_report",
+      "period": "FY2026"
+    },
+    {
+      "title": "LT Annual Report 2025",
+      "url": "https://www.bseindia.com/xml-data/corpfiling/AttachHis/63959ce8-b641-4bd4-9a62-43ab52301856.pdf",
+      "type": "annual_report",
+      "period": "FY2025"
+    },
+    {
+      "title": "LT Annual Report 2024",
+      "url": "https://www.bseindia.com/xml-data/corpfiling/AttachHis/b59765b4-ed42-48bd-afad-7caa4417d85d.pdf",
+      "type": "annual_report",
+      "period": "FY2024"
+    },
+    {
+      "title": "LT Jul 2026 Earnings Call Transcript",
+      "url": "https://investors.larsentoubro.com/upload/Analysttrans/FY2027AnalysttransL&T-Earnings-Jul28-2026.pdf",
+      "type": "concall_transcript",
+      "period": "Jul 2026"
+    },
+    {
+      "title": "LT May 2026 Earnings Call Transcript",
+      "url": "https://investors.larsentoubro.com/upload/Analysttrans/FY2026AnalysttransL&T%20Q4%20FY26%20Earnings%20Call%20Transcript.pdf",
+      "type": "concall_transcript",
+      "period": "May 2026"
+    },
+    {
+      "title": "LT Jan 2026 Earnings Call Transcript",
+      "url": "https://investors.larsentoubro.com/upload/Analysttrans/FY2026AnalysttransL&T%20Transcript%20Q3FY26.pdf",
+      "type": "concall_transcript",
+      "period": "Jan 2026"
+    },
+    {
+      "title": "LT Oct 2025 Earnings Call Transcript",
+      "url": "https://investors.larsentoubro.com/upload/Analysttrans/FY2026AnalysttransL&T%20Q2FY26%20Earnings%20Call%20Transcript%20.pdf",
+      "type": "concall_transcript",
+      "period": "Oct 2025"
+    },
+    {
+      "title": "LT Jul 2025 Earnings Call Transcript",
+      "url": "https://investors.larsentoubro.com/upload/Analysttrans/FY2026AnalysttransL&T%20Earnings%20Call%20Transcript%20Q1FY26.pdf",
+      "type": "concall_transcript",
+      "period": "Jul 2025"
+    },
+    {
+      "title": "LT May 2025 Earnings Call Transcript",
+      "url": "https://investors.larsentoubro.com/upload/Analysttrans/FY2025AnalysttransL&T%20Q4FY25%20Earnings%20Call%20Transcript.pdf",
+      "type": "concall_transcript",
+      "period": "May 2025"
+    },
+    {
+      "title": "LT Jul 2026 Investor Presentation",
+      "url": "https://www.bseindia.com/stockinfo/AnnPdfOpen.aspx?Pname=a4d1bc4e-1492-4448-b203-5d6041b48a0e.pdf",
+      "type": "presentation",
+      "period": "Jul 2026"
+    },
+    {
+      "title": "LT May 2026 Investor Presentation",
+      "url": "https://www.bseindia.com/stockinfo/AnnPdfOpen.aspx?Pname=d2095c57-89e5-4a19-adb3-0d074ac96126.pdf",
+      "type": "presentation",
+      "period": "May 2026"
+    },
+    {
+      "title": "LT Jan 2026 Investor Presentation",
+      "url": "https://www.bseindia.com/stockinfo/AnnPdfOpen.aspx?Pname=d35018aa-6e52-4d2f-a36e-82205456c0de.pdf",
+      "type": "presentation",
+      "period": "Jan 2026"
+    },
+    {
+      "title": "LT Oct 2025 Investor Presentation",
+      "url": "https://www.bseindia.com/stockinfo/AnnPdfOpen.aspx?Pname=79d47adc-e94d-4ae2-9f11-2053b053b389.pdf",
+      "type": "presentation",
+      "period": "Oct 2025"
+    },
+    {
+      "title": "LT Jul 2025 Investor Presentation",
+      "url": "https://www.bseindia.com/stockinfo/AnnPdfOpen.aspx?Pname=ce24f0b7-3769-4f7f-ba0b-8b700d2de060.pdf",
+      "type": "presentation",
+      "period": "Jul 2025"
+    },
+    {
+      "title": "LT May 2025 Investor Presentation",
+      "url": "https://www.bseindia.com/stockinfo/AnnPdfOpen.aspx?Pname=d4a102eb-f822-40cd-b836-0590ea3f2229.pdf",
+      "type": "presentation",
+      "period": "May 2025"
+    },
+    {
+      "title": "Announcement under Regulation 30 (LODR)-Award_of_Order_Receipt_of_Order 25 Aug - L&T wins major order for three Middle East BESS projects totaling 6 GWh.",
+      "url": "https://www.bseindia.com/stockinfo/AnnPdfOpen.aspx?Pname=d3455341-be3a-4584-a9a6-1a5b91e51ad3.pdf",
+      "type": "announcement",
+      "period": "25 Aug 2026"
+    },
+    {
+      "title": "Announcement under Regulation 30 (LODR)-Award_of_Order_Receipt_of_Order 24 Aug - L&T signs ultra-mega gas compression EPC project in the Middle East, including two 230 kV substations.",
+      "url": "https://www.bseindia.com/stockinfo/AnnPdfOpen.aspx?Pname=f6d19ffd-960f-4ea5-9406-e6c718117b81.pdf",
+      "type": "announcement",
+      "period": "24 Aug 2026"
+    },
+    {
+      "title": "Announcement under Regulation 30 (LODR)-Award_of_Order_Receipt_of_Order 20 Aug - L&T wins large order for Dubai Al Maktoum Airport Automated People Mover System.",
+      "url": "https://www.bseindia.com/stockinfo/AnnPdfOpen.aspx?Pname=dd1be844-e6e6-449c-9fd4-9de1fae93ff9.pdf",
+      "type": "announcement",
+      "period": "20 Aug 2026"
+    },
+    {
+      "title": "Announcement under Regulation 30 (LODR)-Award_of_Order_Receipt_of_Order 17 Aug - L&T secured an ultra-mega offshore EPCIC order in the Middle East on August 17, 2026.",
+      "url": "https://www.bseindia.com/stockinfo/AnnPdfOpen.aspx?Pname=308d30bd-d92d-4677-8986-a065b1d0fcd4.pdf",
+      "type": "announcement",
+      "period": "17 Aug 2026"
+    },
+    {
+      "title": "Announcement under Regulation 30 (LODR)-Award_of_Order_Receipt_of_Order 13 Aug - L&T secures mega order with Together AI to build India\u2019s largest NVIDIA B300 AI Factory in Chennai.",
+      "url": "https://www.bseindia.com/stockinfo/AnnPdfOpen.aspx?Pname=435071c8-de1b-4040-9829-fd867d04b5f9.pdf",
+      "type": "announcement",
+      "period": "13 Aug 2026"
+    },
+    {
+      "title": "Announcement under Regulation 30 (LODR)-Award_of_Order_Receipt_of_Order",
+      "url": "https://www.bseindia.com/xml-data/corpfiling/AttachHis/dd1be844-e6e6-449c-9fd4-9de1fae93ff9.pdf",
+      "type": "announcement",
+      "period": "20 Aug 2026"
+    },
+    {
+      "title": "Announcement under Regulation 30 (LODR)-Award_of_Order_Receipt_of_Order",
+      "url": "https://www.bseindia.com/xml-data/corpfiling/AttachHis/308d30bd-d92d-4677-8986-a065b1d0fcd4.pdf",
+      "type": "announcement",
+      "period": "17 Aug 2026"
+    },
+    {
+      "title": "Announcement under Regulation 30 (LODR)-Award_of_Order_Receipt_of_Order",
+      "url": "https://www.bseindia.com/xml-data/corpfiling/AttachHis/435071c8-de1b-4040-9829-fd867d04b5f9.pdf",
+      "type": "announcement",
+      "period": "13 Aug 2026"
+    }
+  ],
+  "ai_provider_used": "GEMINI",
+  "model_version": "gemini-3.6-flash",
+  "extraction_timestamp": "2026-08-26T15:47:48.532089+00:00",
+  "status": null,
+  "message": null,
+  "what_changed_recently": [
+    {
+      "headline": "Strategic Realignment under Lakshya 2031",
+      "category": "Strategic / M&A",
+      "detail": "L&T realigned its reporting segments effective April 1, 2026, to enhance capital allocation, including renaming segments and separating Realty as a standalone reportable segment.",
+      "source_doc": "LT Jul 2026 Earnings Call Transcript",
+      "source_page": 2,
+      "source_url": "https://investors.larsentoubro.com/upload/Analysttrans/FY2027AnalysttransL&T-Earnings-Jul28-2026.pdf"
+    },
+    {
+      "headline": "Divestment of Non-Core Assets",
+      "category": "Strategic / M&A",
+      "detail": "Completed divestment of Nabha Power Limited on June 25, 2026, and signed an agreement to divest L&T Metro Rail Hyderabad Limited, expected to close by September 30, 2026.",
+      "source_doc": "LT Jul 2026 Earnings Call Transcript",
+      "source_page": 2,
+      "source_url": "https://investors.larsentoubro.com/upload/Analysttrans/FY2027AnalysttransL&T-Earnings-Jul28-2026.pdf"
+    }
+  ],
+  "growth_drivers": [
+    {
+      "driver_title": "Offshore Wind Energy",
+      "driver_type": "Large Contract / Deal",
+      "description": "Secured ultra-mega orders under TenneT North Sea HVDC program, reinforcing presence in European energy transition.",
+      "target_timeline": "4-5 year execution cycle",
+      "stated_outlay_or_value": "\u20b957,000 - 60,000 Cr order book",
+      "execution_status": "In Progress",
+      "expected_impact": "Better margins than traditional Middle East EPC business.",
+      "source_page": 15,
+      "source_quote": "This will get executed over a four to five years period... the margin will be better than what we have normally in our EPC business in the Middle East.",
+      "source_url": "https://investors.larsentoubro.com/upload/Analysttrans/FY2027AnalysttransL&T-Earnings-Jul28-2026.pdf",
+      "confidence": 0.95
+    }
+  ],
+  "promise_vs_delivery": [
+    {
+      "area": "FY26 Revenue Growth",
+      "management_promise": "Guided for 15% revenue growth in FY26.",
+      "promised_in_period": "FY2026",
+      "promise_source_page": 5,
+      "promise_quote": "The revenue front, growth for FY26 stood at 12% compared to our guidance of 15%.",
+      "actual_outcome": "Delivered 12% revenue growth.",
+      "actual_in_period": "FY2026",
+      "actual_source_page": 10,
+      "actual_quote": "The L&T Group recorded Revenue of \u20b9 2.86 lakh crore during the year, registering a modest growth of 12%.",
+      "status": "Missed",
+      "stocker_analysis": "Missed guidance due to supply chain disruptions in the Middle East and execution delays in domestic water projects.",
+      "financial_numbers_check": "Promised 15% growth; audited FY26 P&L shows revenue of \u20b92,85,874 Cr, representing 12% YoY growth.",
+      "source_url_promise": "https://investors.larsentoubro.com/upload/Analysttrans/FY2026AnalysttransL&T%20Q4%20FY26%20Earnings%20Call%20Transcript.pdf",
+      "source_url_actual": "https://www.bseindia.com/xml-data/corpfiling/AttachHis/825f9859-e7f2-4e90-8583-01a38850f795.pdf",
+      "confidence": 1.0
+    }
+  ],
+  "demand_momentum": {
+    "summary": "Robust demand environment with a record order book, though execution in the Middle East faces temporary logistical headwinds.",
+    "company_specific_metrics": [
+      {
+        "metric": "Order Book",
+        "value": "\u20b97.79 Lakh Cr"
+      },
+      {
+        "metric": "Prospect Pipeline",
+        "value": "\u20b915.07 Lakh Cr"
+      }
+    ],
+    "segment_trends": [
+      {
+        "segment": "Infrastructure & Utilities",
+        "trend": "Strong private sector capex demand"
+      }
+    ],
+    "market_share_and_pricing": "Pricing power remains intact with active cost-escalation negotiations with clients.",
+    "headwinds_and_risks": [
+      "Geopolitical conflict in the Middle East",
+      "Supply chain and logistics disruptions",
+      "Higher ECL provisions"
+    ],
+    "source_page": 6,
+    "source_quote": "The performance during the quarter reflected the execution stage of the order book across both domestic and international markets, as well as supply chain and logistic constraints.",
+    "source_url": "https://investors.larsentoubro.com/upload/Analysttrans/FY2027AnalysttransL&T-Earnings-Jul28-2026.pdf",
+    "confidence": 0.95
+  },
+  "risks_and_cash": {
+    "working_capital_and_receivables": "NWC to Sales ratio improved to 4.9% in June 2026 from 10.1% in June 2025.",
+    "debt_and_capex_burden": "Net Debt:Equity ratio improved to 0.35:1 in FY2026 from 0.6:1 in FY2025.",
+    "margin_and_cost_pressures": "EBITDA margin impacted by lower execution levels, forex variations, and higher ECL provisions.",
+    "execution_and_bottlenecks": [
+      "Supply chain constraints in the Middle East",
+      "Logistics and insurance cost increases"
+    ],
+    "regulatory_or_legal_headwinds": [
+      "Geopolitical instability impacting project timelines"
+    ],
+    "reported_numbers_comparison": null,
+    "source_page": 6,
+    "source_quote": "The decline in EBITDA margin is mainly reflective of lower execution in the PPM business, forex variation in the IT subsidiaries, and higher ECL or credit provisions.",
+    "source_url": "https://investors.larsentoubro.com/upload/Analysttrans/FY2027AnalysttransL&T-Earnings-Jul28-2026.pdf",
+    "confidence": 0.95
+  },
+  "stocker_view": {
+    "execution_verdict": "Strong Execution",
+    "positive_triggers": [
+      "Record order book providing multi-year visibility",
+      "Successful divestment of non-core assets",
+      "Strong balance sheet with low net debt"
+    ],
+    "main_risks": [
+      "Geopolitical conflict in the Middle East",
+      "Potential cost overruns in fixed-price contracts",
+      "Supply chain volatility"
+    ],
+    "what_to_watch_next": [
+      "Closure of Hyderabad Metro divestment by Sept 2026",
+      "Margin recovery in Energy segment",
+      "Execution progress in European offshore wind projects"
+    ],
+    "investor_summary": "L&T continues to demonstrate strong execution capability and order book growth, supported by a strategic shift toward high-tech and green energy. While near-term margins are pressured by geopolitical headwinds and ECL provisions, the company's balance sheet remains robust, and the divestment of non-core assets is enhancing capital efficiency."
+  },
+  "document_summaries": [
+    {
+      "doc_title": "LT Annual Report 2026",
+      "doc_url": "https://www.bseindia.com/xml-data/corpfiling/AttachHis/825f9859-e7f2-4e90-8583-01a38850f795.pdf",
+      "doc_type": "annual_report",
+      "period_or_date": "FY2026",
+      "analyzed_at": "2026-08-26T15:46:02.124270+00:00",
+      "key_takeaways": [
+        "Record financial performance with Group Order Inflows at \u20b94.36 lakh crore (up 22% YoY) and an all-time high Order Book of \u20b97.40 lakh crore.",
+        "Strategic focus on divestment of non-core assets, including signed agreements for Hyderabad Metro Rail and Nabha Power Limited.",
+        "Strong balance sheet improvement with Group Net Debt:Equity ratio declining to 0.35:1 in FY2026 from 0.6:1 in FY2025."
+      ],
+      "management_tone": "Bullish / Confident",
+      "guidance_and_capex": "The company maintains a focus on multi-year revenue visibility and strategic capital allocation, with standalone capex payments of \u20b91,915 crore reported for FY2026.",
+      "risks_and_headwinds": [
+        "Commodity price volatility impacting project margins, particularly for fixed-price bids.",
+        "Exceptional items including one-time impact of gratuity liability revision and impairment of investment in LTMRHL."
+      ],
+      "capex_or_guidance_highlight": "The company maintains a focus on multi-year revenue visibility and strategic capital allocation, with standalone capex payments of \u20b91,915 crore reported for FY2026.",
+      "concall_specific": {
+        "demand_commentary": "Robust growth driven by Infrastructure and Energy sectors, with international order inflows surpassing domestic wins for the third consecutive year.",
+        "order_book_or_pipeline": "Order Book at record high of \u20b97.40 lakh crore, with 52% contribution from international orders.",
+        "margin_outlook": "Improved profitability through superior working capital management and cost efficiency initiatives.",
+        "execution_updates": "Strong execution momentum supported by technology as an accelerator; international revenue share in standalone business increased to 33%.",
+        "quarterly_changes_or_shifts": "Shift toward strategic divestments and reduction in gross debt-to-equity ratio to 0.16:1 at the standalone level."
+      },
+      "presentation_specific": {
+        "major_kpis": [
+          "Group Revenue: \u20b92.86 lakh crore (12% YoY growth)",
+          "Recurring PAT: \u20b917,238 crore (18% YoY growth)",
+          "Net Debt:Equity Ratio: 0.35:1"
+        ],
+        "expansion_roadmap": "Focus on new-age digital businesses and strategic collaborations in AI, green ammonia, and defense manufacturing.",
+        "segment_highlights": [
+          "Infrastructure and Energy sectors remain primary drivers of order inflows.",
+          "Significant international expansion with 52% of the total order book now international."
+        ],
+        "forward_targets": "Continued focus on shareholder value creation through prudent capital allocation and divestment of non-core assets."
+      },
+      "announcement_specific": {
+        "event_summary": "Signed agreements for the divestment of 100% stake in Nabha Power Limited to Torrent Power Limited for an enterprise value of \u20b96,889 crore.",
+        "fundamental_importance": "Aligns with the company's strategy to divest non-core assets and improve capital efficiency.",
+        "business_impact": "Reduces capital intensity and supports the objective of strengthening the balance sheet.",
+        "changes_management_guidance": "No specific modification to previous guidance noted; divestment is part of ongoing strategic portfolio optimization."
+      }
+    },
+    {
+      "doc_title": "LT Annual Report 2025",
+      "doc_url": "https://www.bseindia.com/xml-data/corpfiling/AttachHis/63959ce8-b641-4bd4-9a62-43ab52301856.pdf",
+      "doc_type": "annual_report",
+      "period_or_date": "FY2025",
+      "analyzed_at": "2026-08-26T15:46:54.559368+00:00",
+      "key_takeaways": [
+        "L&T achieved strong growth in FY2025 with Group Order Inflows of \u20b93.57 lakh crore (up 18% YoY) and an Order Book of \u20b95.79 lakh crore (up 22% YoY).",
+        "International markets remain a primary growth driver, with international order inflows accounting for 58% of the total and international orders now constituting 46% of the total Order Book.",
+        "The company maintains a robust financial position with a net debt-to-equity ratio of 0.60:1 and has prioritized capital allocation toward green energy, data centers, and semiconductor design."
+      ],
+      "management_tone": "Bullish / Confident",
+      "guidance_and_capex": "The company continues to prioritize strong cash generation, prudent capital allocation, and maintaining healthy leverage. Future growth focus includes L&T Realty, green energy, data centers, and semiconductor design.",
+      "risks_and_headwinds": [
+        "Economic slowdowns, budget constraints, or shifts in government priorities impacting EPC project timelines.",
+        "Intense competition and aggressive pricing in government tenders exerting pressure on margins.",
+        "Geopolitical risks and supply chain volatility, particularly in Middle East operations.",
+        "Commodity price volatility affecting EPC project costs."
+      ],
+      "capex_or_guidance_highlight": "The company continues to prioritize strong cash generation, prudent capital allocation, and maintaining healthy leverage. Future growth focus includes L&T Realty, green energy, data centers, and semiconductor design.",
+      "concall_specific": {
+        "demand_commentary": "Strong investment momentum in the Middle East (especially Saudi Arabia) and a sustained capex push by the Government of India.",
+        "order_book_or_pipeline": "Order book reached \u20b95.79 lakh crore; international orders now constitute 46% of the total.",
+        "margin_outlook": "Infrastructure segment operating margin improved marginally to 6.4% from 6.2% in the previous year.",
+        "execution_updates": "Strong execution momentum driven by an expanding order book; Infrastructure segment revenue grew 15.2% YoY.",
+        "quarterly_changes_or_shifts": "Increased focus on international markets (58% of inflows) and strategic divestment of non-core assets like L&T IDPL."
+      },
+      "presentation_specific": {
+        "major_kpis": [
+          "Group Revenue: \u20b92.56 lakh crore (16% growth)",
+          "Group PAT: \u20b915,037 crore (15% growth)",
+          "Gross Debt-to-Equity: 1.12:1",
+          "Net Debt-to-Equity: 0.60:1"
+        ],
+        "expansion_roadmap": "Expansion into fabless semiconductor design (acquisition of SiliConch Systems) and cloud/AI innovation (partnership with E2E Networks).",
+        "segment_highlights": [
+          "Infrastructure: Revenue growth of 15.2% driven by project execution ramp-up.",
+          "Financial Services: 97% retailised loan book; entry into gold loan business.",
+          "New-age Businesses: Scaling L&T-Cloudfiniti (32 MW capacity) and L&T Semiconductor Technologies."
+        ],
+        "forward_targets": "Targeting long-term value creation through digital platforms, energy transition initiatives, and emerging businesses."
+      },
+      "announcement_specific": {
+        "event_summary": "Release of FY2025 Annual Report highlighting strong financial performance, strategic acquisitions in semiconductors and financial services, and dividend recommendation.",
+        "fundamental_importance": "Demonstrates successful execution of the 'Lakshya' strategy, improved return ratios, and reduced capital intensity.",
+        "business_impact": "Strengthened balance sheet and diversified portfolio provide resilience against macroeconomic cycles.",
+        "changes_management_guidance": "Board recommended a final dividend of \u20b934/- per share for FY2024-25."
+      }
+    },
+    {
+      "doc_title": "LT Jul 2026 Earnings Call Transcript",
+      "doc_url": "https://investors.larsentoubro.com/upload/Analysttrans/FY2027AnalysttransL&T-Earnings-Jul28-2026.pdf",
+      "doc_type": "concall_transcript",
+      "period_or_date": "Jul 2026",
+      "analyzed_at": "2026-08-26T15:47:01.553960+00:00",
+      "key_takeaways": [
+        "Group order inflows grew 14% YoY to Rs. 1,080 billion, supported by strong international demand and private sector investment in India.",
+        "Management maintained FY27 guidance of 10-12% growth for both order inflows and revenue, despite geopolitical challenges in the Middle East.",
+        "The company successfully realigned its reporting segments under the 'Lakshya 2031' strategic plan to improve capital allocation and operational focus."
+      ],
+      "management_tone": "Confident",
+      "guidance_and_capex": "Maintained FY27 guidance: 10-12% growth for order inflows and revenue; PPM EBITDA margin target of ~7.8%; Working capital guidance of ~10%.",
+      "risks_and_headwinds": [
+        "Geopolitical conflict in the Middle East causing supply chain and logistics disruptions.",
+        "Higher ECL (Expected Credit Loss) provisions impacting short-term margins.",
+        "Potential for project delays if cost escalation negotiations with clients are not resolved."
+      ],
+      "capex_or_guidance_highlight": "Maintained FY27 guidance: 10-12% growth for order inflows and revenue; PPM EBITDA margin target of ~7.8%; Working capital guidance of ~10%.",
+      "concall_specific": {
+        "demand_commentary": "Resilient domestic demand with increasing private sector participation; international demand remains robust, particularly in Middle East infrastructure and European offshore wind.",
+        "order_book_or_pipeline": "Total order book at Rs. 7.79 trillion (up 27% YoY); Prospect pipeline for remaining 9 months of FY27 is Rs. 15.07 trillion.",
+        "margin_outlook": "Targeting ~7.8% EBITDA margin for the PPM portfolio; Q1 margins impacted by lower execution, forex variations, and higher ECL provisions.",
+        "execution_updates": "Offshore wind business secured 8 GW cumulative capacity; Middle East projects are being managed via alternative supply routes; Hyderabad Metro divestment expected by Sept 30, 2026.",
+        "quarterly_changes_or_shifts": "Realigned reporting segments (e.g., Infrastructure and Utilities, Energy-Green, Manufacturing and Products) effective April 1, 2026."
+      },
+      "presentation_specific": null,
+      "announcement_specific": null
+    },
+    {
+      "doc_title": "LT May 2026 Earnings Call Transcript",
+      "doc_url": "https://investors.larsentoubro.com/upload/Analysttrans/FY2026AnalysttransL&T%20Q4%20FY26%20Earnings%20Call%20Transcript.pdf",
+      "doc_type": "concall_transcript",
+      "period_or_date": "May 2026",
+      "analyzed_at": "2026-08-26T15:47:15.167423+00:00",
+      "key_takeaways": [
+        "L&T achieved a record order book of Rs 7.40 trillion (up 28% YoY) and launched 'Lakshya 31', a 5-year strategic plan targeting 12-15% revenue CAGR and 16-17% ROE.",
+        "FY26 revenue growth of 12% missed the 15% guidance due to supply chain disruptions in the Middle East and execution delays in domestic water projects.",
+        "The company is aggressively pivoting toward new growth engines including Green Hydrogen (Rs 150B capex), Data Centers (Rs 100B capex), and Industrial Electronics/Semiconductors (Rs 80B combined capex)."
+      ],
+      "management_tone": "Confident",
+      "guidance_and_capex": "FY27 guidance: 10-12% order inflow growth, 10-12% revenue growth, and stable PP&M margins of 7.8%. Working capital to normalize to 10%.",
+      "risks_and_headwinds": [
+        "Geopolitical instability in the Middle East impacting supply chains and logistics costs.",
+        "Execution risks related to labor availability and potential cost overruns in fixed-price contracts.",
+        "Weather-related uncertainties (e.g., El Nino) affecting domestic output."
+      ],
+      "capex_or_guidance_highlight": "FY27 guidance: 10-12% order inflow growth, 10-12% revenue growth, and stable PP&M margins of 7.8%. Working capital to normalize to 10%.",
+      "concall_specific": {
+        "demand_commentary": "Strong demand in Middle East for national infrastructure and energy transition; domestic private sector capex is selective but structural.",
+        "order_book_or_pipeline": "Order book at Rs 7.40 trillion; FY27 prospects pipeline at Rs 17.8 trillion.",
+        "margin_outlook": "Stable PP&M margins of 7.8% guided for FY27; legacy project closeouts in Energy expected to support margin recovery.",
+        "execution_updates": "Middle East project sites remain operational with no cancellations; focus on alternate logistics routes to mitigate supply chain constraints.",
+        "quarterly_changes_or_shifts": "Reclassification of segments into 'Projects, Products and Manufacturing' (PP&M) and 'Development Projects'; Realty now a standalone segment."
+      },
+      "presentation_specific": {
+        "major_kpis": [
+          "Order Book: Rs 7.40 trillion",
+          "ROE: 15.5% (trailing 12-month)",
+          "NWC to Revenue: 4.1%"
+        ],
+        "expansion_roadmap": "Scaling Data Center capacity to 200 MW; Realty business targeting 100 million sq. ft. development over 5 years.",
+        "segment_highlights": [
+          "Energy segment order inflow crossed Rs 1 trillion annually.",
+          "Realty pre-sales doubled to Rs 94 billion in FY26.",
+          "Infrastructure segment order book at Rs 4.23 trillion."
+        ],
+        "forward_targets": "Lakshya 31 targets: 10-12% order inflow CAGR, 12-15% revenue CAGR, 16-17% ROE."
+      },
+      "announcement_specific": {
+        "event_summary": "Q4 FY26 earnings release and announcement of the 5-year 'Lakshya 31' strategic plan.",
+        "fundamental_importance": "Signals a transition from legacy concession-based assets to high-tech, green energy, and manufacturing-led growth.",
+        "business_impact": "Divestment of Hyderabad Metro and Nabha Power expected to close in Q1 FY27, removing legacy drag.",
+        "changes_management_guidance": "FY27 revenue guidance set at 10-12% with a cautious H1 outlook due to Middle East disruptions."
+      }
+    },
+    {
+      "doc_title": "LT Jul 2026 Investor Presentation",
+      "doc_url": "https://www.bseindia.com/stockinfo/AnnPdfOpen.aspx?Pname=a4d1bc4e-1492-4448-b203-5d6041b48a0e.pdf",
+      "doc_type": "presentation",
+      "period_or_date": "Jul 2026",
+      "analyzed_at": "2026-08-26T15:47:27.899477+00:00",
+      "key_takeaways": [
+        "Strong order inflow growth of 14% YoY to \u20b91080 bn, supported by ultra-mega offshore wind orders and domestic private sector demand.",
+        "Order book reached a record \u20b97790 bn, with 52% of the book comprised of international orders, providing long-term revenue visibility.",
+        "Reported PAT grew 14% YoY to \u20b941 bn, despite a 3% decline in EBITDA, aided by higher other income and reduced finance costs."
+      ],
+      "management_tone": "Confident",
+      "guidance_and_capex": "The company highlighted a strong addressable prospects pipeline of approximately \u20b915 trillion for the near term.",
+      "risks_and_headwinds": [
+        "Supply chain constraints in the Middle East impacting execution levels.",
+        "Currency and commodity volatility alongside geopolitical risks affecting trade and investment flows.",
+        "Fiscal slippage risks in India due to subsidy outlays amid global conflict."
+      ],
+      "capex_or_guidance_highlight": "The company highlighted a strong addressable prospects pipeline of approximately \u20b915 trillion for the near term.",
+      "concall_specific": {
+        "demand_commentary": "Demand remains robust with a broadening recovery in private capex and a continued tech capex supercycle (AI, cloud, data centers).",
+        "order_book_or_pipeline": "Order book at \u20b97790 bn (27% YoY growth); addressable prospects pipeline of ~\u20b915 trillion.",
+        "margin_outlook": "EBITDA margin at 9.0% (vs 9.9% in Q1 FY26), impacted by lower execution levels, forex variation in IT subsidiaries, and higher ECL provisions.",
+        "execution_updates": "Revenue growth of 7% YoY; execution impacted by supply chain constraints in the Middle East and the current stage of the order book.",
+        "quarterly_changes_or_shifts": "Divestment of Nabha Power completed; SPA signed to divest LTMRHL stake; increased focus on energy transition and digital infrastructure."
+      },
+      "presentation_specific": {
+        "major_kpis": [
+          "Order Inflow: \u20b91080 bn (+14% YoY)",
+          "Order Book: \u20b97790 bn (+27% YoY)",
+          "PAT: \u20b941 bn (+14% YoY)",
+          "NWC to Revenue: 4.9% (520 bps improvement)"
+        ],
+        "expansion_roadmap": "Continued expansion into NCR (Realty) with 20 acres of land acquisition in Gurgaon; focus on electrolyser manufacturing and green energy assets.",
+        "segment_highlights": [
+          "Infrastructure & Utilities: Robust order inflow growth led by domestic private sector.",
+          "Technology, Platforms & Services: 15% YoY revenue growth driven by LTM and LTTS sustainability segment.",
+          "Financial Services: 27% growth in book size with RoA at 2.48%."
+        ],
+        "forward_targets": "Not explicitly provided as numerical guidance, but emphasized a \u20b915 trillion addressable pipeline."
+      },
+      "announcement_specific": {
+        "event_summary": "Release of Q1 FY27 Analyst Presentation.",
+        "fundamental_importance": "Provides transparency on L&T's strategic shift toward green energy, technology services, and divestment of non-core assets like Nabha Power and Hyderabad Metro.",
+        "business_impact": "Improved balance sheet efficiency through divestments and working capital management (NWC at 4.9%).",
+        "changes_management_guidance": "None."
+      }
+    },
+    {
+      "doc_title": "Announcement under Regulation 30 (LODR)-Award_of_Order_Receipt_of_Order 25 Aug - L&T wins major order for three Middle East BESS projects totaling 6 GWh.",
+      "doc_url": "https://www.bseindia.com/stockinfo/AnnPdfOpen.aspx?Pname=d3455341-be3a-4584-a9a6-1a5b91e51ad3.pdf",
+      "doc_type": "announcement",
+      "period_or_date": "25 Aug 2026",
+      "analyzed_at": "2026-08-26T15:47:30.850411+00:00",
+      "key_takeaways": [
+        "L&T's Renewables business secured a 'Major' order for three Battery Energy Storage System (BESS) projects in the Middle East.",
+        "The projects total 6 GWh of storage capacity, featuring 4-hour BESS solutions with liquid cooling technology.",
+        "Scope includes grid interconnections, pooling substations, and underground cabling, reinforcing L&T's position in the energy storage EPC sector."
+      ],
+      "management_tone": "Confident",
+      "guidance_and_capex": null,
+      "risks_and_headwinds": [
+        "Stringent requirements regarding plant performance, safety, and project timelines.",
+        "Operational complexities associated with large-scale grid modernization and energy storage integration."
+      ],
+      "capex_or_guidance_highlight": null,
+      "concall_specific": null,
+      "presentation_specific": null,
+      "announcement_specific": {
+        "event_summary": "L&T won a 'Major' order (valued between \u20b95,000 Cr and \u20b910,000 Cr) for three BESS projects in the Middle East totaling 6 GWh.",
+        "fundamental_importance": "Validates L&T's engineering capabilities in the high-growth global energy storage and grid modernization market.",
+        "business_impact": "Significant order inflow in the Renewables vertical, contributing to the company's international EPC project portfolio.",
+        "changes_management_guidance": "No change to previous guidance mentioned."
+      }
+    },
+    {
+      "doc_title": "Announcement under Regulation 30 (LODR)-Award_of_Order_Receipt_of_Order 24 Aug - L&T signs ultra-mega gas compression EPC project in the Middle East, including two 230 kV substations.",
+      "doc_url": "https://www.bseindia.com/stockinfo/AnnPdfOpen.aspx?Pname=f6d19ffd-960f-4ea5-9406-e6c718117b81.pdf",
+      "doc_type": "announcement",
+      "period_or_date": "24 Aug 2026",
+      "analyzed_at": "2026-08-26T15:47:33.306395+00:00",
+      "key_takeaways": [
+        "L&T Energy Hydrocarbon Onshore (LTEH) secured an 'ultra-mega' EPC contract for a gas compression project in the Middle East.",
+        "The project scope includes gas inlet facilities, compression systems, condensate/water handling, propane refrigeration, and associated utilities for sour gas processing.",
+        "L&T\u2019s Power Transmission & Distribution business will support the project by constructing two 230 kV extra-high-voltage substations."
+      ],
+      "management_tone": "Bullish / Confident",
+      "guidance_and_capex": null,
+      "risks_and_headwinds": [
+        "Execution risks associated with complex sour gas applications.",
+        "Geopolitical and operational risks inherent in Middle East infrastructure projects."
+      ],
+      "capex_or_guidance_highlight": null,
+      "concall_specific": null,
+      "presentation_specific": null,
+      "announcement_specific": {
+        "event_summary": "L&T signed an EPC contract for an ultra-mega gas compression project in the Middle East, following a letter of award received in FY26.",
+        "fundamental_importance": "Reinforces L&T's leadership in complex hydrocarbon EPC and demonstrates the company's ability to provide integrated solutions across business segments (Hydrocarbon and Power T&D).",
+        "business_impact": "The 'ultra-mega' classification indicates a project value exceeding \u20b915,000 crore, providing a significant boost to the company's order book.",
+        "changes_management_guidance": "No change to guidance; the project was previously accounted for as a letter of award in FY26."
+      }
+    }
+  ]
+}

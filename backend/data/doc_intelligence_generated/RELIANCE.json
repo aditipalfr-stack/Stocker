@@ -1,192 +1,545 @@
 {
   "symbol": "RELIANCE",
-  "company_name": "Reliance Industries Limited",
-  "status": "ai_unavailable",
-  "message": "AI Analysis Unavailable: No LLM API key detected in the environment. To enable live AI document extraction, please set either GEMINI_API_KEY (for Google Gemini) or OPENAI_API_KEY (for OpenAI) in your environment.",
-  "required_env_vars": [
-    "GEMINI_API_KEY",
-    "OPENAI_API_KEY"
-  ],
-  "latest_document": {
-    "title": "Reliance Industries Integrated Annual Report 2025-26",
-    "url": "https://www.bseindia.com/xml-data/corpfiling/AttachHis/cc08294f-ec68-4f15-aaa4-c14a3c4bdfb2.pdf",
-    "total_pages": 187,
-    "pages_selected_for_analysis": 41,
-    "selected_page_numbers": [
-      2,
-      3,
-      4,
-      5,
-      15,
-      16,
-      17,
-      35,
-      36,
-      37,
-      40,
-      41,
-      42,
-      43,
-      44,
-      45,
-      46,
-      47,
-      51,
-      52,
-      53,
-      54,
-      55,
-      56,
-      70,
-      71,
-      72,
-      80,
-      81,
-      82,
-      83,
-      90,
-      91,
-      92,
-      94,
-      95,
-      96,
-      167,
-      168,
-      169,
-      170
-    ],
-    "selection_themes": {
-      "3": [
-        "contingent_and_related_party: 'Related Party Transactions'"
-      ],
-      "4": [
-        "contingent_and_related_party: 'Related Party Transactions'"
-      ],
-      "16": [
-        "contingent_and_related_party: 'Related Party Transactions'"
-      ],
-      "17": [
-        "contingent_and_related_party: 'Related Party Transactions'"
-      ],
-      "36": [
-        "risks_and_bottlenecks: 'Risk Management'"
-      ],
-      "41": [
-        "demand_and_orders: 'Subscribers'"
-      ],
-      "42": [
-        "demand_and_orders: 'Subscribers'"
-      ],
-      "43": [
-        "cash_and_liquidity: 'Capital Allocation'"
-      ],
-      "44": [
-        "mda_and_strategy: 'Management Discussion and Analysis'",
-        "capex_and_cwip: 'Capital Expenditure'",
-        "cash_and_liquidity: 'Capital Allocation'",
-        "debt_and_borrowings: 'Net Debt'"
-      ],
-      "45": [
-        "mda_and_strategy: 'Management Discussion and Analysis'",
-        "capex_and_cwip: 'CWIP'",
-        "demand_and_orders: 'Customer Base'",
-        "cash_and_liquidity: 'Capital Allocation'",
-        "debt_and_borrowings: 'Credit Rating'"
-      ],
-      "46": [
-        "mda_and_strategy: 'Management Discussion and Analysis'",
-        "demand_and_orders: 'Customer Base'",
-        "risks_and_bottlenecks: 'Risk Management'"
-      ],
-      "47": [
-        "mda_and_strategy: 'Management Discussion and Analysis'",
-        "demand_and_orders: 'Market Share'"
-      ],
-      "51": [
-        "mda_and_strategy: 'Management Discussion and Analysis'"
-      ],
-      "52": [
-        "mda_and_strategy: 'Management Discussion and Analysis'",
-        "capex_and_cwip: 'Capacity Expansion'"
-      ],
-      "53": [
-        "mda_and_strategy: 'Management Discussion and Analysis'",
-        "working_capital_audit: 'Inventories'"
-      ],
-      "54": [
-        "capex_and_cwip: 'Commissioning'",
-        "risks_and_bottlenecks: 'Risk Management'"
-      ],
-      "55": [
-        "mda_and_strategy: 'Management Discussion and Analysis'",
-        "demand_and_orders: 'Market Share'",
-        "debt_and_borrowings: 'Borrowings'",
-        "risks_and_bottlenecks: 'Risk Management'"
-      ],
-      "56": [
-        "mda_and_strategy: 'Management Discussion and Analysis'"
-      ],
-      "71": [
-        "demand_and_orders: 'Order Book'",
-        "working_capital_audit: 'Inventories'",
-        "debt_and_borrowings: 'Credit Rating'",
-        "risks_and_bottlenecks: 'Risk Management'"
-      ],
-      "72": [
-        "contingent_and_related_party: 'Related Party Transactions'"
-      ],
-      "80": [
-        "mda_and_strategy: 'Management Discussion and Analysis'",
-        "demand_and_orders: 'Subscribers'",
-        "contingent_and_related_party: 'Commitments'"
-      ],
-      "81": [
-        "debt_and_borrowings: 'Credit Rating'",
-        "auditor_opinion: 'Internal Financial Controls'",
-        "contingent_and_related_party: 'Related Party Transactions'"
-      ],
-      "82": [
-        "auditor_opinion: 'Internal Financial Controls'",
-        "risks_and_bottlenecks: 'Risk Management'"
-      ],
-      "83": [
-        "risks_and_bottlenecks: 'Risk Management'"
-      ],
-      "90": [
-        "demand_and_orders: 'Market Share'"
-      ],
-      "91": [
-        "cash_and_liquidity: 'Statement of Cash Flows'",
-        "auditor_opinion: 'Basis for Opinion'"
-      ],
-      "92": [
-        "auditor_opinion: 'Internal Financial Controls'"
-      ],
-      "94": [
-        "auditor_opinion: 'Internal Financial Controls'"
-      ],
-      "95": [
-        "capex_and_cwip: 'Property, Plant and Equipment'",
-        "working_capital_audit: 'Inventories'"
-      ],
-      "96": [
-        "debt_and_borrowings: 'Borrowings'"
-      ],
-      "167": [
-        "working_capital_audit: 'Inventories'",
-        "debt_and_borrowings: 'Borrowings'",
-        "contingent_and_related_party: 'Commitments'"
-      ],
-      "168": [
-        "capex_and_cwip: 'Capital Expenditure'",
-        "debt_and_borrowings: 'Borrowings'",
-        "segment_performance: 'Segment Reporting'"
-      ],
-      "169": [
-        "capex_and_cwip: 'Capital Expenditure'",
-        "segment_performance: 'Segment Revenue'"
-      ]
+  "company_name": "Reliance Industries Ltd",
+  "latest_document_period": "RELIANCE Annual Report 2026",
+  "older_document_period": "RELIANCE Annual Report 2025",
+  "source_documents": [
+    {
+      "title": "RELIANCE Annual Report 2026",
+      "url": "https://www.bseindia.com/xml-data/corpfiling/AttachHis/cc08294f-ec68-4f15-aaa4-c14a3c4bdfb2.pdf",
+      "type": "annual_report",
+      "period": "FY2026"
+    },
+    {
+      "title": "RELIANCE Annual Report 2025",
+      "url": "https://www.bseindia.com/xml-data/corpfiling/AttachHis/468b09a3-a212-4066-bbaa-4b0ba524d2ce.pdf",
+      "type": "annual_report",
+      "period": "FY2025"
+    },
+    {
+      "title": "RELIANCE Annual Report 2024",
+      "url": "https://www.bseindia.com/xml-data/corpfiling/AttachHis/d473280d-1c2b-4037-8ff9-dfbb82aa2c7e.pdf",
+      "type": "annual_report",
+      "period": "FY2024"
+    },
+    {
+      "title": "RELIANCE Jul 2026 Earnings Call Transcript",
+      "url": "https://www.bseindia.com/stockinfo/AnnPdfOpen.aspx?Pname=c9d3d96a-8b04-4b41-b454-3f98d1f90702.pdf",
+      "type": "concall_transcript",
+      "period": "Jul 2026"
+    },
+    {
+      "title": "RELIANCE Apr 2026 Earnings Call Transcript",
+      "url": "https://www.bseindia.com/stockinfo/AnnPdfOpen.aspx?Pname=971d8c86-397a-4780-b843-5a84d3006d0b.pdf",
+      "type": "concall_transcript",
+      "period": "Apr 2026"
+    },
+    {
+      "title": "RELIANCE Jan 2026 Earnings Call Transcript",
+      "url": "https://www.bseindia.com/stockinfo/AnnPdfOpen.aspx?Pname=26290395-526a-441f-a347-c8ac12e4adf3.pdf",
+      "type": "concall_transcript",
+      "period": "Jan 2026"
+    },
+    {
+      "title": "RELIANCE Oct 2025 Earnings Call Transcript",
+      "url": "https://www.bseindia.com/stockinfo/AnnPdfOpen.aspx?Pname=f2454c0f-aad9-4d23-add0-dfe3d49aa8d6.pdf",
+      "type": "concall_transcript",
+      "period": "Oct 2025"
+    },
+    {
+      "title": "RELIANCE Jul 2025 Earnings Call Transcript",
+      "url": "https://www.bseindia.com/stockinfo/AnnPdfOpen.aspx?Pname=38a33049-ed9e-4544-ace5-a92e5f984f23.pdf",
+      "type": "concall_transcript",
+      "period": "Jul 2025"
+    },
+    {
+      "title": "RELIANCE Apr 2025 Earnings Call Transcript",
+      "url": "https://www.bseindia.com/stockinfo/AnnPdfOpen.aspx?Pname=b6203612-be21-4d28-ace9-6496cd3fb8b2.pdf",
+      "type": "concall_transcript",
+      "period": "Apr 2025"
+    },
+    {
+      "title": "RELIANCE Jul 2026 Investor Presentation",
+      "url": "https://www.bseindia.com/stockinfo/AnnPdfOpen.aspx?Pname=01d1656c-cf53-4d52-94c3-7ed0edd50271.pdf",
+      "type": "presentation",
+      "period": "Jul 2026"
+    },
+    {
+      "title": "RELIANCE Apr 2026 Investor Presentation",
+      "url": "https://www.bseindia.com/stockinfo/AnnPdfOpen.aspx?Pname=5145c56f-ff81-4812-9663-f9b2461c4b2c.pdf",
+      "type": "presentation",
+      "period": "Apr 2026"
+    },
+    {
+      "title": "RELIANCE Jan 2026 Investor Presentation",
+      "url": "https://www.bseindia.com/stockinfo/AnnPdfOpen.aspx?Pname=d0e06e07-5a3e-4bc0-a6a6-76635bc53238.pdf",
+      "type": "presentation",
+      "period": "Jan 2026"
+    },
+    {
+      "title": "RELIANCE Oct 2025 Investor Presentation",
+      "url": "https://www.bseindia.com/stockinfo/AnnPdfOpen.aspx?Pname=b74bb5fb-c15b-42f1-b853-34231e587f46.pdf",
+      "type": "presentation",
+      "period": "Oct 2025"
+    },
+    {
+      "title": "RELIANCE Oct 2025 Investor Presentation",
+      "url": "https://www.bseindia.com/stockinfo/AnnPdfOpen.aspx?Pname=7a050d55-ad53-4d57-8735-cbcf20bb412b.pdf",
+      "type": "presentation",
+      "period": "Oct 2025"
+    },
+    {
+      "title": "RELIANCE Jul 2025 Investor Presentation",
+      "url": "https://www.bseindia.com/stockinfo/AnnPdfOpen.aspx?Pname=49a01d99-854c-4c3a-b62c-e1fb3619029f.pdf",
+      "type": "presentation",
+      "period": "Jul 2025"
+    },
+    {
+      "title": "Announcement under Regulation 30 (LODR)-Amendments to Memorandum & Articles of Association 21 Aug - Postal ballot approved material related-party transactions and MOA expansion into ammonia, explosives and fertilizers businesses.",
+      "url": "https://www.bseindia.com/stockinfo/AnnPdfOpen.aspx?Pname=0a4fcd8b-8527-4e96-9b39-22429d3c8b38.pdf",
+      "type": "announcement",
+      "period": "21 Aug 2026"
+    },
+    {
+      "title": "Announcement under Regulation 30 (LODR)-Amendments to Memorandum & Articles of Association",
+      "url": "https://www.bseindia.com/xml-data/corpfiling/AttachHis/0a4fcd8b-8527-4e96-9b39-22429d3c8b38.pdf",
+      "type": "announcement",
+      "period": "21 Aug 2026"
+    },
+    {
+      "title": " Shareholder Meeting / Postal Ballot-Scrutinizer\"s Report",
+      "url": "https://www.bseindia.com/xml-data/corpfiling/AttachHis/2acaed98-3653-4056-a280-054732511a9f.pdf",
+      "type": "general",
+      "period": "21 Aug 2026"
+    },
+    {
+      "title": "Update On Institutional Investors'' Meeting - Motilal Oswal''s 22Nd Annual Global Investor Conference",
+      "url": "https://www.bseindia.com/xml-data/corpfiling/AttachHis/27647703-eded-4e63-a04e-5778b54afcb8.pdf",
+      "type": "announcement",
+      "period": "18 Aug 2026"
+    },
+    {
+      "title": "News Clarification - \"SC Slaps Rs 10 Lakh Fine On Reliance Industries For Delaying NTPC Gas Supply Suit'",
+      "url": "https://www.bseindia.com/xml-data/corpfiling/AttachHis/316b5fc6-c19f-4ec6-ab07-43cef96d8be3.pdf",
+      "type": "announcement",
+      "period": "18 Aug 2026"
+    },
+    {
+      "title": "Media Release - 'Reliance Industries And Rolls-Royce Announce Strategic Intent To Partner And Develop India''s Indigenou",
+      "url": "https://www.bseindia.com/xml-data/corpfiling/AttachHis/c97374ee-7904-4c1e-83ee-6cac42c0eaff.pdf",
+      "type": "announcement",
+      "period": "14 Aug 2026"
+    },
+    {
+      "title": "Announcement under Regulation 30 (LODR)-Analyst / Investor Meet - Intimation",
+      "url": "https://www.bseindia.com/xml-data/corpfiling/AttachHis/caefdcb0-a92e-40cc-9875-66a71c5e7cce.pdf",
+      "type": "announcement",
+      "period": "13 Aug 2026"
+    },
+    {
+      "title": "Update On Institutional Investors'' Meeting - Emkay Confluence 2026",
+      "url": "https://www.bseindia.com/xml-data/corpfiling/AttachHis/b14db185-53b9-413b-b8c0-94faa95df316.pdf",
+      "type": "announcement",
+      "period": "12 Aug 2026"
     }
+  ],
+  "ai_provider_used": "GEMINI",
+  "model_version": "gemini-3.6-flash",
+  "extraction_timestamp": "2026-08-26T15:44:59.843352+00:00",
+  "status": null,
+  "message": null,
+  "what_changed_recently": [
+    {
+      "headline": "Expansion into Ammonia, Explosives, and Fertilizers",
+      "category": "Strategic / M&A",
+      "detail": "Shareholders approved the alteration of the Memorandum of Association to formally enter the manufacturing and trading of ammonia, nitric acid, ammonium nitrate, industrial/defense explosives, and fertilizers.",
+      "source_doc": "Announcement under Regulation 30 (LODR)-Amendments to Memorandum & Articles of Association 21 Aug - Postal ballot approved material related-party transactions and MOA expansion into ammonia, explosives and fertilizers businesses.",
+      "source_page": 1,
+      "source_url": "https://www.bseindia.com/stockinfo/AnnPdfOpen.aspx?Pname=0a4fcd8b-8527-4e96-9b39-22429d3c8b38.pdf"
+    },
+    {
+      "headline": "S&P Rating Upgrade to A-",
+      "category": "Debt / Cash",
+      "detail": "S&P raised RIL's rating from BBB+ to A- in December 2025, reflecting the rising contribution of less cyclical, consumer-facing businesses and improved earnings stability.",
+      "source_doc": "RELIANCE Annual Report 2026",
+      "source_page": 24,
+      "source_url": "https://www.bseindia.com/xml-data/corpfiling/AttachHis/cc08294f-ec68-4f15-aaa4-c14a3c4bdfb2.pdf"
+    }
+  ],
+  "growth_drivers": [
+    {
+      "driver_title": "New Energy Giga Complex",
+      "driver_type": "Capacity / Plant",
+      "description": "Integrated ecosystem for solar PV, battery storage, electrolysers, and green chemical pathways at Jamnagar.",
+      "target_timeline": "2030 (100 GW renewable target)",
+      "stated_outlay_or_value": "Not explicitly stated as a single total, but FY26 capex was \u20b91,44,271 Cr",
+      "execution_status": "Solar PV manufacturing operational (200 MWp HJT modules produced); battery gigafactory commissioning in phases from 2026-27.",
+      "expected_impact": "Net Carbon Zero by 2035; 3 MMTPA of green hydrogen equivalent capacity by 2032.",
+      "source_page": 58,
+      "source_quote": "The battery giga-factory, targeted for commissioning from 2026, will initially deliver 40 GWh of annual capacity, scalable to 100 GWh",
+      "source_url": "https://www.bseindia.com/xml-data/corpfiling/AttachHis/cc08294f-ec68-4f15-aaa4-c14a3c4bdfb2.pdf",
+      "confidence": 0.95
+    }
+  ],
+  "promise_vs_delivery": [
+    {
+      "area": "Retail EBITDA Growth",
+      "management_promise": "Target to double absolute retail EBITDA over the next three years.",
+      "promised_in_period": "Jul 2026",
+      "promise_source_page": 3,
+      "promise_quote": "target to double absolute retail EBITDA over the next three years.",
+      "actual_outcome": "Retail EBITDA grew from \u20b925,094 Cr in FY25 to \u20b927,034 Cr in FY26 (7.7% YoY growth).",
+      "actual_in_period": "FY2026",
+      "actual_source_page": 46,
+      "actual_quote": "EBITDA for the year stood at H 27,034 crore, translating into an EBITDA margin of 8.2%",
+      "status": "In Progress",
+      "stocker_analysis": "The target is a 3-year goal; current growth is positive but requires acceleration to meet the doubling target.",
+      "financial_numbers_check": "Retail EBITDA grew 7.7% YoY in FY26. OPM moderated by 40 bps due to hyperlocal commerce investments.",
+      "source_url_promise": "https://www.bseindia.com/stockinfo/AnnPdfOpen.aspx?Pname=c9d3d96a-8b04-4b41-b454-3f98d1f90702.pdf",
+      "source_url_actual": "https://www.bseindia.com/xml-data/corpfiling/AttachHis/cc08294f-ec68-4f15-aaa4-c14a3c4bdfb2.pdf",
+      "confidence": 0.95
+    }
+  ],
+  "demand_momentum": {
+    "summary": "Robust domestic demand across consumer segments (Jio, Retail) despite global energy market volatility and supply chain shocks.",
+    "company_specific_metrics": [
+      {
+        "metric": "Jio Subscribers",
+        "value": "533 Million"
+      },
+      {
+        "metric": "Retail Stores",
+        "value": "20,160"
+      }
+    ],
+    "segment_trends": [
+      {
+        "segment": "Digital Services",
+        "trend": "12% YoY revenue growth, 150 bps EBITDA margin expansion"
+      },
+      {
+        "segment": "Retail",
+        "trend": "12.1% YoY revenue growth, 7.7% EBITDA growth"
+      }
+    ],
+    "market_share_and_pricing": "Jio maintains leadership in 5G adoption; Retail is expanding dark store networks to capture hyperlocal market share.",
+    "headwinds_and_risks": [
+      "Geopolitical instability in Middle East",
+      "Supply chain dislocations",
+      "Energy market shocks"
+    ],
+    "source_page": 44,
+    "source_quote": "RIL successfully navigated complex global scenarios, benefitting from its diversified business portfolio, operational agility and robust Indian market demand.",
+    "source_url": "https://www.bseindia.com/xml-data/corpfiling/AttachHis/cc08294f-ec68-4f15-aaa4-c14a3c4bdfb2.pdf",
+    "confidence": 0.95
   },
-  "older_document": {}
+  "risks_and_cash": {
+    "working_capital_and_receivables": "Working capital cycle managed via diverse trade financing; trade receivables increased to \u20b958,491 Cr in FY26 from \u20b942,121 Cr in FY25.",
+    "debt_and_capex_burden": "Net debt stood at \u20b91,24,717 Cr as of Mar 2026; FY26 capex of \u20b91,44,271 Cr funded by internal cash profits.",
+    "margin_and_cost_pressures": "Retail margins pressured by hyperlocal commerce investments; O2C margins optimized via feedstock sourcing despite energy volatility.",
+    "execution_and_bottlenecks": [
+      "Planned refinery turnarounds",
+      "LPG diversion requirements",
+      "Supply chain disruptions"
+    ],
+    "regulatory_or_legal_headwinds": [
+      "DPDPA compliance",
+      "SAED on fuel products"
+    ],
+    "reported_numbers_comparison": null,
+    "source_page": 44,
+    "source_quote": "RIL maintained a robust balance sheet with strong internal cash-flow generation, disciplined capital allocation and prudent leverage management.",
+    "source_url": "https://www.bseindia.com/xml-data/corpfiling/AttachHis/cc08294f-ec68-4f15-aaa4-c14a3c4bdfb2.pdf",
+    "confidence": 0.95
+  },
+  "stocker_view": {
+    "execution_verdict": "Strong Execution",
+    "positive_triggers": [
+      "Jio IPO",
+      "New Energy commissioning",
+      "FMCG scale-up"
+    ],
+    "main_risks": [
+      "Geopolitical energy shocks",
+      "Retail margin dilution",
+      "Regulatory changes"
+    ],
+    "what_to_watch_next": [
+      "Jio IPO timeline",
+      "Battery gigafactory commissioning",
+      "FMCG revenue growth"
+    ],
+    "investor_summary": "Reliance continues to demonstrate operational resilience by leveraging its diversified portfolio. Consumer businesses (Jio/Retail) are now the primary growth engines, contributing over 55% of EBITDA. The company is successfully funding aggressive capex in New Energy and digital infrastructure through strong internal cash flows while maintaining a conservative net debt-to-EBITDA ratio."
+  },
+  "document_summaries": [
+    {
+      "doc_title": "RELIANCE Annual Report 2026",
+      "doc_url": "https://www.bseindia.com/xml-data/corpfiling/AttachHis/cc08294f-ec68-4f15-aaa4-c14a3c4bdfb2.pdf",
+      "doc_type": "annual_report",
+      "period_or_date": "FY2026",
+      "analyzed_at": "2026-08-26T15:43:18.716017+00:00",
+      "key_takeaways": [
+        "Record financial performance with consolidated revenue growing 9.8% Y-o-Y to \u20b911,75,919 crore and PAT rising 17.8% to \u20b995,754 crore.",
+        "Strong segment performance led by Digital Services (EBITDA up 17.8%) and Media & Entertainment (EBITDA up 218.7%), alongside resilient Retail growth.",
+        "Strategic focus on New Energy transition with significant progress at the Jamnagar Giga Energy Complex, including operational solar PV module manufacturing and upcoming battery/electrolyser gigafactories."
+      ],
+      "management_tone": "Confident",
+      "guidance_and_capex": "FY2025-26 Capex stood at \u20b91,44,271 crore (US$ 15.2 billion), funded by internal cash profits, directed towards O2C, New Energy, Digital Services, and Retail.",
+      "risks_and_headwinds": [
+        "Geopolitical disruptions and Middle East conflict causing energy market volatility and supply-side disruptions.",
+        "Macroeconomic volatility affecting consumer sentiment and discretionary spending, alongside potential regulatory compliance risks (e.g., DPDPA).",
+        "Natural decline in production in the KG D6 block and softer gas prices impacting the Oil and Gas segment."
+      ],
+      "capex_or_guidance_highlight": "FY2025-26 Capex stood at \u20b91,44,271 crore (US$ 15.2 billion), funded by internal cash profits, directed towards O2C, New Energy, Digital Services, and Retail.",
+      "concall_specific": {
+        "demand_commentary": "Robust Indian market demand supported by favorable demographics and recovery in consumption demand.",
+        "order_book_or_pipeline": "Not explicitly stated as a single number; however, significant expansion in retail footprint (20,160 stores) and New Energy capacity (100 GW renewable target by 2030).",
+        "margin_outlook": "Retail EBITDA margin saw a slight moderation (40 bps) due to the growing contribution of hyper-local commerce; O2C profitability optimized through feedstock sourcing.",
+        "execution_updates": "Successful ramp-up of solar PV module manufacturing (200 MWp HJT modules); battery and electrolyser gigafactories on track for 2026-27 commissioning.",
+        "quarterly_changes_or_shifts": "RBI shifted monetary policy stance from accommodative to neutral in the second half of the year, impacting domestic yields."
+      },
+      "presentation_specific": {
+        "major_kpis": [
+          "Consolidated EBITDA: \u20b92,07,911 crore",
+          "Net Debt: \u20b91,24,717 crore",
+          "Retail Store Count: 20,160",
+          "Registered Customer Base: 387 million"
+        ],
+        "expansion_roadmap": "Targeting 100 GW renewable energy capacity by 2030; Jamnagar complex scaling solar PV to 20 GWp; battery capacity scalable to 100 GWh.",
+        "segment_highlights": [
+          "Digital Services: Driven by 5G adoption and broadband traction.",
+          "Retail: Rapid scale-up of quick hyperlocal deliveries and fast fashion.",
+          "Media & Entertainment: Record viewership and industry-leading engagement."
+        ],
+        "forward_targets": "Net Carbon Zero target by 2035; 3 MMTPA of green hydrogen equivalent capacity by 2032."
+      },
+      "announcement_specific": {
+        "event_summary": "Annual Report 2025-26 release detailing financial and operational performance.",
+        "fundamental_importance": "Reflects RIL's transition toward a diversified, consumer-facing, and sustainable energy-focused conglomerate.",
+        "business_impact": "S&P rating upgrade to A- in Dec 2025 enhances access to capital; strong cash flow generation supports ongoing aggressive capex.",
+        "changes_management_guidance": "None explicitly stated; maintains long-term strategic focus on New Energy and digital ecosystem expansion."
+      }
+    },
+    {
+      "doc_title": "RELIANCE Annual Report 2025",
+      "doc_url": "https://www.bseindia.com/xml-data/corpfiling/AttachHis/468b09a3-a212-4066-bbaa-4b0ba524d2ce.pdf",
+      "doc_type": "annual_report",
+      "period_or_date": "FY2025",
+      "analyzed_at": "2026-08-26T15:44:02.765822+00:00",
+      "key_takeaways": [
+        "Consolidated revenue grew 7.1% to \u20b910,71,174 crore, while EBITDA increased 2.9% to \u20b91,83,422 crore, with consumer businesses contributing over 50% of consolidated EBITDA.",
+        "Oil to Chemicals (O2C) segment faced significant headwinds, with EBITDA declining 11.9% due to weaker fuel cracks and lower petrochemical margins, partially offset by domestic demand.",
+        "The company maintains a robust balance sheet with net debt of \u20b91,17,083 crore (US$ 13.7 billion) and continues to invest heavily in New Energy, Retail, and Digital Services infrastructure."
+      ],
+      "management_tone": "Confident",
+      "guidance_and_capex": "FY 2024-25 capex stood at \u20b91,31,107 crore (US$ 15.3 billion), directed towards new O2C projects, Retail store expansion, Digital Services infrastructure, and New Energy manufacturing assets.",
+      "risks_and_headwinds": [
+        "Geopolitical tensions and trade tariffs impacting global energy demand and refining margins.",
+        "Global overcapacity in polymers and polyester putting pressure on chemical margins.",
+        "Increased freight exposure and volatile feedstock prices affecting profitability.",
+        "Regulatory scrutiny and cybersecurity risks associated with rapid digital scaling."
+      ],
+      "capex_or_guidance_highlight": "FY 2024-25 capex stood at \u20b91,31,107 crore (US$ 15.3 billion), directed towards new O2C projects, Retail store expansion, Digital Services infrastructure, and New Energy manufacturing assets.",
+      "concall_specific": null,
+      "presentation_specific": null,
+      "announcement_specific": null
+    },
+    {
+      "doc_title": "RELIANCE Jul 2026 Earnings Call Transcript",
+      "doc_url": "https://www.bseindia.com/stockinfo/AnnPdfOpen.aspx?Pname=c9d3d96a-8b04-4b41-b454-3f98d1f90702.pdf",
+      "doc_type": "concall_transcript",
+      "period_or_date": "Jul 2026",
+      "analyzed_at": "2026-08-26T15:44:09.178605+00:00",
+      "key_takeaways": [
+        "Reliance reported an extraordinary quarter with 25% revenue growth and 10% EBITDA growth, despite significant macro volatility, supply chain dislocations, and energy market shocks.",
+        "Jio Platforms and Retail continue to scale, with Jio reaching 533 million subscribers (285 million on 5G) and Retail focusing on aggressive digital commerce expansion via dark stores.",
+        "The O2C segment maintained high throughput (96-97%) despite crude sourcing challenges, leveraging ethane cracking advantages and agile logistics to navigate Middle East supply disruptions."
+      ],
+      "management_tone": "Confident",
+      "guidance_and_capex": "Capex for the quarter was approximately Rs 39,000 Crores. Management maintains a disciplined approach to capex, prioritizing balance sheet health and credit ratings while scaling New Energy and digital infrastructure.",
+      "risks_and_headwinds": [
+        "Geopolitical instability in the Middle East (Strait of Hormuz) impacting crude sourcing and logistics costs.",
+        "High volatility in raw material prices and freight rates affecting O2C margins.",
+        "Under-recoveries in retail fuel sales and regulatory constraints on gas/LPG availability."
+      ],
+      "capex_or_guidance_highlight": "Capex for the quarter was approximately Rs 39,000 Crores. Management maintains a disciplined approach to capex, prioritizing balance sheet health and credit ratings while scaling New Energy and digital infrastructure.",
+      "concall_specific": {
+        "demand_commentary": "Domestic fuel demand remains robust; however, global demand for petroleum products has seen a decline due to high prices, with a rebound expected next year.",
+        "order_book_or_pipeline": "JioStar reported 530 million+ users; Retail is expanding dark store networks; New Energy projects (Kutch ecosystem, Jamnagar Giga Complex) are progressing toward commissioning.",
+        "margin_outlook": "Retail EBITDA margins are currently pressured by investments in digital commerce and hyperlocal delivery infrastructure, with a target to double absolute EBITDA over the next three years.",
+        "execution_updates": "Jio 5G assets are fully capitalized; New Energy projects are moving from strategy to execution with solar module and battery manufacturing scaling up.",
+        "quarterly_changes_or_shifts": "Shift toward digital commerce in Retail; increased reliance on liquid fuels for refining due to gas diversion; strategic focus on AI and data center infrastructure (168MW project with Meta)."
+      },
+      "presentation_specific": {
+        "major_kpis": [
+          "533 million Jio subscribers",
+          "285 million 5G users",
+          "11.6% underlying retail revenue growth",
+          "96-97% refinery throughput"
+        ],
+        "expansion_roadmap": "Aggressive expansion of dark store network for next 12 months; scaling solar PV manufacturing to 20GW and battery capacity to 120GWh.",
+        "segment_highlights": [
+          "Jio: 20% growth in digital services outpacing connectivity.",
+          "Retail: Grocery digital orders up 116% YoY.",
+          "FMCG: Revenue doubled YoY to Rs 8,600 Crores."
+        ],
+        "forward_targets": "Target to reach Rs 1 lakh Crores in FMCG revenue by FY2030; double absolute retail EBITDA over the next three years."
+      },
+      "announcement_specific": {
+        "event_summary": "Transcript of the Q1 FY2026-27 analyst meet held on July 17, 2026.",
+        "fundamental_importance": "Provides transparency on how the company navigated the Q1 energy market shocks and its strategic pivot toward digital-first retail and AI-led infrastructure.",
+        "business_impact": "Confirms resilience of the integrated business model and continued capital allocation toward high-growth digital and green energy sectors.",
+        "changes_management_guidance": "No formal change to previous guidance, but emphasized disciplined, market-by-market investment in quick commerce."
+      }
+    },
+    {
+      "doc_title": "RELIANCE Apr 2026 Earnings Call Transcript",
+      "doc_url": "https://www.bseindia.com/stockinfo/AnnPdfOpen.aspx?Pname=971d8c86-397a-4780-b843-5a84d3006d0b.pdf",
+      "doc_type": "concall_transcript",
+      "period_or_date": "Apr 2026",
+      "analyzed_at": "2026-08-26T15:44:16.945703+00:00",
+      "key_takeaways": [
+        "Reliance reported a resilient performance despite a significant energy supply shock in March 2026 caused by the Strait of Hormuz blockage, which impacted crude availability and logistics costs.",
+        "Consumer businesses (Jio and Retail) now contribute over 55% of total EBITDA, providing a hedge against volatility in the energy (O2C) segment.",
+        "Jio Platforms achieved strong growth with 524 million subscribers and 268 million 5G users, while Retail reached record revenues of Rs 98,000 Crores despite margin pressure from rapid hyperlocal e-commerce expansion."
+      ],
+      "management_tone": "Confident",
+      "guidance_and_capex": "Management emphasized accelerated project execution for the vinyl and PTA projects in the O2C segment and continued expansion of 5G and home broadband infrastructure. No specific numerical forward guidance was provided, though the IPO for Jio is described as 'imminent'.",
+      "risks_and_headwinds": [
+        "Geopolitical instability in the Middle East causing supply chain disruptions, elevated freight/insurance costs, and crude volatility.",
+        "Introduction of Special Additional Excise Duty (SAED) on fuel products impacting refining margins.",
+        "Margin dilution in the Retail segment due to the rapid scaling of lower-margin hyperlocal/quick commerce operations."
+      ],
+      "capex_or_guidance_highlight": "Management emphasized accelerated project execution for the vinyl and PTA projects in the O2C segment and continued expansion of 5G and home broadband infrastructure. No specific numerical forward guidance was provided, though the IPO for Jio is described as 'imminent'.",
+      "concall_specific": {
+        "demand_commentary": "Domestic demand remains robust across fuel and consumer segments, though March saw some impact from supply shocks. FMCG and grocery demand are showing strong double-digit growth.",
+        "order_book_or_pipeline": "Jio reported 524 million subscribers with 36.3 million net adds in FY26. Retail crossed 20,000 stores. New Energy signed a major green ammonia contract with Samsung C&T.",
+        "margin_outlook": "Jio EBITDA margins improved to 56.2% (up 230 bps). Retail margins are currently pressured by the mix shift toward quick commerce, with management prioritizing wallet share over immediate margin expansion.",
+        "execution_updates": "Jio successfully deployed non-line-of-sight (NLOS) technology for AirFiber. O2C segment successfully diversified crude sourcing to include Venezuela, Russia, Brazil, and Mexico to mitigate Middle East supply risks.",
+        "quarterly_changes_or_shifts": "Significant shift in crude sourcing strategy to maintain refinery throughput; reintroduction of SAED on diesel; increased focus on AI-first network and content-commerce integration (e.g., Swiggy on JioHotstar)."
+      },
+      "presentation_specific": {
+        "major_kpis": [
+          "Jio ARPU: Rs 214",
+          "Jio 5G user base: 268 million",
+          "Retail Revenue: Rs 98,000 Crores (Q4)",
+          "JioStar MAU: 550 million"
+        ],
+        "expansion_roadmap": "Scaling battery manufacturing to 100 GWh; expanding solar generation complex in Kutch; continued store footprint expansion in Tier-2+ cities.",
+        "segment_highlights": [
+          "Jio: Largest 5G subscriber base outside China.",
+          "Retail: Fastest global rollout to 1,000 big-box hypermarkets.",
+          "FMCG: Campa brand became the 4th largest carbonated soft drink brand in India."
+        ],
+        "forward_targets": "Management indicated the Jio IPO is imminent; focus remains on gaining market share in mobility, home broadband, and enterprise segments."
+      },
+      "announcement_specific": {
+        "event_summary": "Analyst meet held on April 24, 2026, to discuss audited financial results for the quarter and year ended March 31, 2026.",
+        "fundamental_importance": "Provides transparency on how the group navigated the Q4 energy supply crisis and the strategic pivot toward consumer-led growth.",
+        "business_impact": "Demonstrates operational agility in O2C and sustained growth momentum in digital and retail, despite external macro headwinds.",
+        "changes_management_guidance": "No formal change to previous long-term guidance, but highlighted the 'imminent' nature of the Jio IPO."
+      }
+    },
+    {
+      "doc_title": "RELIANCE Jul 2026 Investor Presentation",
+      "doc_url": "https://www.bseindia.com/stockinfo/AnnPdfOpen.aspx?Pname=01d1656c-cf53-4d52-94c3-7ed0edd50271.pdf",
+      "doc_type": "presentation",
+      "period_or_date": "Jul 2026",
+      "analyzed_at": "2026-08-26T15:44:31.637112+00:00",
+      "key_takeaways": [
+        "Jio Platforms delivered strong growth with 12% YoY revenue increase and 150 bps EBITDA margin expansion, supported by 533 million subscribers and 285 million 5G users.",
+        "O2C segment achieved a 4-year high EBITDA of \u20b917,010 crore, driven by record middle distillate cracks and crude basket diversification, despite a 10% volume decline due to planned turnarounds.",
+        "Reliance Consumer Products (RCPL) demonstrated rapid scaling with 2.1x YoY revenue growth, achieving over \u20b98,600 crore in Q1 sales through strong performance in Independence and Campa brands."
+      ],
+      "management_tone": "Bullish / Confident",
+      "guidance_and_capex": "Capex for Q1 FY27 stood at \u20b938,682 crore, focused on new energy, retail network expansion, and O2C projects, while maintaining a conservative net debt to EBITDA ratio of <1x.",
+      "risks_and_headwinds": [
+        "Geopolitical volatility impacting fuel supply economics and crude sourcing.",
+        "Higher finance costs due to 5G asset capitalization impacting net profit growth.",
+        "Operational constraints including planned refinery turnarounds and LPG diversion requirements."
+      ],
+      "capex_or_guidance_highlight": "Capex for Q1 FY27 stood at \u20b938,682 crore, focused on new energy, retail network expansion, and O2C projects, while maintaining a conservative net debt to EBITDA ratio of <1x.",
+      "concall_specific": null,
+      "presentation_specific": {
+        "major_kpis": [
+          "Jio Platforms EBITDA: \u20b920,865 crore (+15.1% YoY)",
+          "O2C Revenue: \u20b9201,803 crore (+30.4% YoY)",
+          "Jio 5G Subscribers: 285 million",
+          "Net Debt to LTM EBITDA: 0.60x"
+        ],
+        "expansion_roadmap": "Continued pan-India distribution scale-up for FMCG (5,000+ distributors) and ongoing multi-lateral well campaign for CBM gas production.",
+        "segment_highlights": [
+          "Digital Services: 20% YoY revenue growth driven by content, cloud compute, and IoT.",
+          "Beverages: Campa achieved >50% of FY26 sales in Q1 with double-digit market share in key states.",
+          "Oil & Gas: KGD6 gas production averaged 24.8 MMSCMD."
+        ],
+        "forward_targets": "Maintain net debt to EBITDA below 1x while scaling digital services and FMCG distribution."
+      },
+      "announcement_specific": null
+    },
+    {
+      "doc_title": "Announcement under Regulation 30 (LODR)-Amendments to Memorandum & Articles of Association 21 Aug - Postal ballot approved material related-party transactions and MOA expansion into ammonia, explosives and fertilizers businesses.",
+      "doc_url": "https://www.bseindia.com/stockinfo/AnnPdfOpen.aspx?Pname=0a4fcd8b-8527-4e96-9b39-22429d3c8b38.pdf",
+      "doc_type": "announcement",
+      "period_or_date": "21 Aug 2026",
+      "analyzed_at": "2026-08-26T15:44:34.479279+00:00",
+      "key_takeaways": [
+        "Shareholders approved the alteration of the Memorandum of Association (MOA) to expand business operations into ammonia, explosives, and fertilizers.",
+        "The company received approval for material related-party transactions for both the parent company and its subsidiaries.",
+        "All resolutions were passed with the requisite majority via remote e-voting, concluding on August 20, 2026."
+      ],
+      "management_tone": "Neutral",
+      "guidance_and_capex": null,
+      "risks_and_headwinds": [
+        "Regulatory approval required from the Registrar of Companies for the MOA amendment.",
+        "Execution risks associated with entering new industrial segments including defense explosives and agro-chemicals."
+      ],
+      "capex_or_guidance_highlight": null,
+      "concall_specific": null,
+      "presentation_specific": null,
+      "announcement_specific": {
+        "event_summary": "Reliance Industries Limited successfully concluded a postal ballot process to approve material related-party transactions and an expansion of the company's business objects clause.",
+        "fundamental_importance": "The expansion of the Objects Clause allows the company to formally enter the manufacturing, processing, and marketing of ammonia, nitric acid, ammonium nitrate, industrial/defense explosives, and fertilizers.",
+        "business_impact": "Provides legal authorization for the company to diversify into high-growth chemical and agro-industrial sectors, potentially signaling future capital allocation toward these segments.",
+        "changes_management_guidance": "None"
+      }
+    },
+    {
+      "doc_title": "Announcement under Regulation 30 (LODR)-Amendments to Memorandum & Articles of Association",
+      "doc_url": "https://www.bseindia.com/xml-data/corpfiling/AttachHis/0a4fcd8b-8527-4e96-9b39-22429d3c8b38.pdf",
+      "doc_type": "announcement",
+      "period_or_date": "21 Aug 2026",
+      "analyzed_at": "2026-08-26T15:44:43.406743+00:00",
+      "key_takeaways": [
+        "Shareholders approved the alteration of the Objects Clause of the Memorandum of Association to include the manufacturing and trading of explosives, fertilizers, and related chemical derivatives.",
+        "The company received approval for Material Related Party Transactions for both the parent company and its subsidiaries.",
+        "All resolutions were passed with the requisite majority via remote e-voting, concluding on August 20, 2026."
+      ],
+      "management_tone": "Neutral",
+      "guidance_and_capex": null,
+      "risks_and_headwinds": [
+        "Regulatory approval required from the Registrar of Companies for the amendment to the Memorandum of Association."
+      ],
+      "capex_or_guidance_highlight": null,
+      "concall_specific": {
+        "demand_commentary": null,
+        "order_book_or_pipeline": null,
+        "margin_outlook": null,
+        "execution_updates": null,
+        "quarterly_changes_or_shifts": null
+      },
+      "presentation_specific": {
+        "major_kpis": [],
+        "expansion_roadmap": null,
+        "segment_highlights": [],
+        "forward_targets": null
+      },
+      "announcement_specific": {
+        "event_summary": "Reliance Industries Limited successfully passed three resolutions via postal ballot: approval of material related party transactions (parent and subsidiaries) and the expansion of the company's business objects to include explosives and fertilizers.",
+        "fundamental_importance": "The amendment to the Objects Clause allows the company to formally enter the business of manufacturing and trading ammonia, ammonium nitrate, industrial/defence explosives, and various fertilizers, signaling a strategic diversification into the agro-chemical and explosives sectors.",
+        "business_impact": "Enables the company to legally undertake operations in the explosives and fertilizer value chain, potentially opening new revenue streams in industrial and defence sectors.",
+        "changes_management_guidance": "No change to previous financial guidance."
+      }
+    }
+  ]
 }

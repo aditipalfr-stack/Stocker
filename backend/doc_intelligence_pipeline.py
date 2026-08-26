@@ -464,10 +464,26 @@ def run_multi_document_ai_pipeline(
     older_doc_url = older_ar.url if older_ar else None
 
     # 2. Tier 1: Generate or retrieve Per-Document AI Summaries (Cached in SQLite)
-    print(f"  • Generating/Retrieving Per-Document AI Summaries for {len(candidate_docs)} filings...")
+    # Focus initial LLM summarization on top core filings to prevent HTTP 429 rate limits
+    core_docs_for_summary: List[DocumentItem] = []
+    if latest_ar: core_docs_for_summary.append(latest_ar)
+    if older_ar and older_ar.url != latest_doc_url: core_docs_for_summary.append(older_ar)
+    core_docs_for_summary.extend([d for d in candidate_docs if d.doc_type == "concall_transcript"][:2])
+    core_docs_for_summary.extend([d for d in candidate_docs if d.doc_type == "presentation"][:1])
+    core_docs_for_summary.extend([d for d in candidate_docs if d.doc_type == "announcement"][:2])
+    
+    # Deduplicate core docs
+    seen_summary_urls = set()
+    deduped_core_summary_docs = []
+    for d in core_docs_for_summary:
+        if d.url not in seen_summary_urls:
+            seen_summary_urls.add(d.url)
+            deduped_core_summary_docs.append(d)
+            
+    print(f"  • Generating/Retrieving Per-Document AI Summaries for {len(deduped_core_summary_docs)} core filings...")
     doc_summaries_list: List[Dict[str, Any]] = []
     
-    for doc in candidate_docs:
+    for doc in deduped_core_summary_docs:
         print(f"    - Processing [{doc.doc_type}]: {doc.title}")
         doc_sum = get_or_generate_document_summary(clean_sym, company_name, doc)
         if doc_sum:

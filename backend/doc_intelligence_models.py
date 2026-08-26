@@ -10,6 +10,18 @@ class RecentChange(BaseModel):
     source_page: Optional[int] = None
     source_url: Optional[str] = None
 
+    @model_validator(mode="before")
+    @classmethod
+    def adapt_recent_change(cls, values: Any) -> Any:
+        if isinstance(values, dict):
+            if "source_doc_title" in values and not values.get("source_doc"):
+                values["source_doc"] = values["source_doc_title"]
+            if "delta_headline" in values and not values.get("headline"):
+                values["headline"] = values["delta_headline"]
+            if "page_number" in values and not values.get("source_page"):
+                values["source_page"] = values["page_number"]
+        return values
+
 # 2. MANAGEMENT PLAN & GROWTH DRIVERS
 class GrowthDriver(BaseModel):
     driver_title: str = Field(description="Initiative / plant / program / market expansion name")
@@ -23,6 +35,16 @@ class GrowthDriver(BaseModel):
     source_quote: Optional[str] = None
     source_url: Optional[str] = None
     confidence: float = Field(default=1.0, ge=0.0, le=1.0)
+
+    @model_validator(mode="before")
+    @classmethod
+    def adapt_growth_driver(cls, values: Any) -> Any:
+        if isinstance(values, dict):
+            if "page_number" in values and not values.get("source_page"):
+                values["source_page"] = values["page_number"]
+            if "quote" in values and not values.get("source_quote"):
+                values["source_quote"] = values["quote"]
+        return values
 
 # 3. PROMISE VS DELIVERY
 class PromiseVsDeliveryItem(BaseModel):

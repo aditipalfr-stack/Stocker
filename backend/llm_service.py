@@ -208,14 +208,14 @@ def test_ai_key_connectivity() -> Dict[str, Any]:
     masked_key = f"{key[:6]}...{key[-4:]}" if len(key) > 10 else "***"
     
     if provider == "gemini":
-        test_url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent?key={key}"
+        test_url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite:generateContent?key={key}"
         payload = {"contents": [{"parts": [{"text": "Reply with OK"}]}]}
         try:
             r = requests.post(test_url, json=payload, headers={"Content-Type": "application/json"}, timeout=8)
             if r.status_code == 200:
                 return {
                     "configured": True,
-                    "provider": "Google Gemini (gemini-3.6-flash)",
+                    "provider": "Google Gemini (gemini-3.1-flash-lite)",
                     "status": "active",
                     "key_preview": masked_key,
                     "message": "Gemini API key is verified and fully operational."
@@ -301,11 +301,12 @@ def call_gemini_api(api_key: str, prompt: str, system_prompt: str = SYSTEM_PROMP
     """Calls Gemini API with resilient multi-model fallback cascade."""
     import time
     models_to_try = [
+        "gemini-3.1-flash-lite",
+        "gemini-3.5-flash-lite",
+        "gemini-flash-lite-latest",
         "gemini-3.6-flash",
         "gemini-3.5-flash",
-        "gemini-flash-latest",
-        "gemini-3.7-flash",
-        "gemini-2.5-flash"
+        "gemini-3.7-flash"
     ]
     last_err = None
     for model in models_to_try:
@@ -320,7 +321,7 @@ def call_gemini_api(api_key: str, prompt: str, system_prompt: str = SYSTEM_PROMP
         }
         try:
             print(f"    • Invoking Gemini model: {model}...")
-            resp = requests.post(url, json=payload, headers={"Content-Type": "application/json"}, timeout=180)
+            resp = requests.post(url, json=payload, headers={"Content-Type": "application/json"}, timeout=40)
             if resp.status_code == 200:
                 data = resp.json()
                 raw_text = data["candidates"][0]["content"]["parts"][0]["text"]
@@ -598,28 +599,74 @@ SYNTHESIS INSTRUCTIONS:
                 pass
             return None
 
+        # 1. RecentChange: headline, category, detail, source_doc, source_page, source_url
         for c in result.what_changed_recently:
-            c.source_url, c.source_doc_title = _sanitize_citation(c.source_url, c.source_doc_title)
-            page_match = _verify_page(c.source_url, getattr(c, "quote", None), c.delta_headline)
+            c.source_url, matched_doc = _sanitize_citation(c.source_url, c.source_doc)
+            if matched_doc:
+                c.source_doc = matched_doc
+            elif not c.source_url:
+                c.source_doc = None
+            page_match = _verify_page(c.source_url, None, f"{c.headline} {c.detail}")
             if page_match:
-                c.page_number = page_match
+                c.source_page = page_match
+            elif not c.source_url:
+                c.source_page = None
                 
+        # 2. GrowthDriver: driver_title, driver_type, description, target_timeline, stated_outlay_or_value, execution_status, expected_impact, source_page, source_quote, source_url, confidence
         for g in result.growth_drivers:
-            g.source_url, g.source_doc_title = _sanitize_citation(g.source_url, g.source_doc_title)
-            page_match = _verify_page(g.source_url, getattr(g, "quote", None), g.driver_title)
+            g.source_url, _ = _sanitize_citation(g.source_url, None)
+            page_match = _verify_page(g.source_url, g.source_quote, f"{g.driver_title} {g.description}")
             if page_match:
-                g.page_number = page_match
+                g.source_page = page_match
+            elif not g.source_url:
+                g.source_page = None
+                g.source_quote = None
                 
+        # 3. PromiseVsDeliveryItem: area, management_promise, promised_in_period, promise_source_page, promise_quote, actual_outcome, actual_in_period, actual_source_page, actual_quote, status, stocker_analysis, financial_numbers_check, source_url_promise, source_url_actual, confidence
         for p in result.promise_vs_delivery:
-            p.source_url_actual, _ = _sanitize_citation(p.source_url_actual, getattr(p, "source_doc_actual", None))
-            p.source_url_promise, _ = _sanitize_citation(p.source_url_promise, getattr(p, "source_doc_promise", None))
+            p.source_url_actual, _ = _sanitize_citation(p.source_url_actual, p.actual_in_period)
+            p.source_url_promise, _ = _sanitize_citation(p.source_url_promise, p.promised_in_period)
+            
+            if p.source_url_actual:
+                act_page = _verify_page(p.source_url_actual, p.actual_quote, p.actual_outcome)
+                if act_page:
+                    p.actual_source_page = act_page
+            else:
+                p.actual_source_page = None
+                p.actual_quote = None
+                
+            if p.source_url_promise:
+                prom_page = _verify_page(p.source_url_promise, p.promise_quote, p.management_promise)
+                if prom_page:
+                    p.promise_source_page = prom_page
+            else:
+                p.promise_source_page = None
+                p.promise_quote = None
+                
             if not p.source_url_promise or not p.source_url_actual:
                 p.status = "Not Enough Evidence"
                 
+        # 4. DemandMomentum: summary, company_specific_metrics, segment_trends, market_share_and_pricing, headwinds_and_risks, source_page, source_quote, source_url, confidence
         if result.demand_momentum:
             result.demand_momentum.source_url, _ = _sanitize_citation(result.demand_momentum.source_url, None)
+            if result.demand_momentum.source_url:
+                d_page = _verify_page(result.demand_momentum.source_url, result.demand_momentum.source_quote, result.demand_momentum.summary)
+                if d_page:
+                    result.demand_momentum.source_page = d_page
+            else:
+                result.demand_momentum.source_page = None
+                result.demand_momentum.source_quote = None
+
+        # 5. RisksAndCashIssues: working_capital_and_receivables, debt_and_capex_burden, margin_and_cost_pressures, execution_and_bottlenecks, regulatory_or_legal_headwinds, reported_numbers_comparison, source_page, source_quote, source_url, confidence
         if result.risks_and_cash:
             result.risks_and_cash.source_url, _ = _sanitize_citation(result.risks_and_cash.source_url, None)
+            if result.risks_and_cash.source_url:
+                r_page = _verify_page(result.risks_and_cash.source_url, result.risks_and_cash.source_quote, None)
+                if r_page:
+                    result.risks_and_cash.source_page = r_page
+            else:
+                result.risks_and_cash.source_page = None
+                result.risks_and_cash.source_quote = None
             
         return True, result, "Extraction succeeded"
     except Exception as e:

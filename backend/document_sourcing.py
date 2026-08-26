@@ -698,10 +698,9 @@ def discover_historical_document(
     When Promise vs Delivery or a multi-year capex verification requires an older filing
     (e.g., FY21/FY22 Annual Report or older Concall) that is not in the default working set,
     this function performs targeted live waterfall discovery across trusted archives:
-    1. BSE Dedicated Annual Reports Archive API
+    1. BSE Dedicated Historical Annual Reports Archive API (10-15 year archive)
     2. BSE Paginated Corporate Announcements API (pages 1-4)
-    3. NSE Corporate Announcements Historical Search
-    4. Company IR Annual Reports Repository
+    3. Company IR Historical Repository (official company investor pages)
     Stop as soon as a correctly validated document is found.
     """
     clean_sym = symbol.upper().strip()
