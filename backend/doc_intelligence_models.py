@@ -96,14 +96,49 @@ class StockerView(BaseModel):
     investor_summary: str = Field(default="", description="Concise, plain-English synthesis for fundamental investors")
 
 # 7. PER-DOCUMENT EXECUTIVE SUMMARY
+class ConcallSpecificSummary(BaseModel):
+    demand_commentary: Optional[str] = None
+    order_book_or_pipeline: Optional[str] = None
+    margin_outlook: Optional[str] = None
+    execution_updates: Optional[str] = None
+    quarterly_changes_or_shifts: Optional[str] = None
+
+class PresentationSpecificSummary(BaseModel):
+    major_kpis: List[str] = Field(default_factory=list)
+    expansion_roadmap: Optional[str] = None
+    segment_highlights: List[str] = Field(default_factory=list)
+    forward_targets: Optional[str] = None
+
+class AnnouncementSpecificSummary(BaseModel):
+    event_summary: Optional[str] = None
+    fundamental_importance: Optional[str] = None
+    business_impact: Optional[str] = None
+    changes_management_guidance: Optional[str] = None
+
 class DocumentSummaryItem(BaseModel):
     doc_title: str
     doc_url: str
     doc_type: Optional[str] = None
     period_or_date: Optional[str] = None
+    analyzed_at: Optional[str] = None
     key_takeaways: List[str] = Field(default_factory=list, description="3-5 bullet executive takeaways")
-    management_tone: Optional[str] = Field(default=None, description="Tone e.g. Confident, Prudent, Cautious")
-    capex_or_guidance_highlight: Optional[str] = Field(default=None, description="Most important capex, growth, or guidance milestone")
+    management_tone: Optional[str] = Field(default=None, description="Tone e.g. Confident, Prudent, Cautious, Neutral")
+    guidance_and_capex: Optional[str] = Field(default=None, description="Important forward-looking guidance or capex roadmap")
+    risks_and_headwinds: List[str] = Field(default_factory=list, description="Important risks or execution issues")
+    capex_or_guidance_highlight: Optional[str] = Field(default=None, description="Legacy alias for guidance_and_capex")
+    concall_specific: Optional[ConcallSpecificSummary] = None
+    presentation_specific: Optional[PresentationSpecificSummary] = None
+    announcement_specific: Optional[AnnouncementSpecificSummary] = None
+
+    @model_validator(mode="before")
+    @classmethod
+    def adapt_summary_fields(cls, values: Any) -> Any:
+        if isinstance(values, dict):
+            if not values.get("guidance_and_capex") and values.get("capex_or_guidance_highlight"):
+                values["guidance_and_capex"] = values.get("capex_or_guidance_highlight")
+            elif not values.get("capex_or_guidance_highlight") and values.get("guidance_and_capex"):
+                values["capex_or_guidance_highlight"] = values.get("guidance_and_capex")
+        return values
 
 # ROOT DOCUMENT INTELLIGENCE OBJECT
 class BusinessOutlookResult(BaseModel):

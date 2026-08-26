@@ -204,7 +204,7 @@ def get_stock_detail(symbol: str):
 import database
 from doc_intelligence_engine import get_company_doc_intelligence
 from llm_service import is_llm_available, get_available_llm_provider
-from doc_intelligence_pipeline import run_generic_document_pipeline
+from doc_intelligence_pipeline import run_generic_document_pipeline, select_default_document_working_set, fetch_historical_evidence_document
 
 @app.get("/api/stocks/{symbol}/doc-intelligence")
 def get_stock_doc_intelligence(symbol: str):
@@ -219,19 +219,11 @@ def get_stock_doc_intelligence(symbol: str):
         company_name = detail.name
         database.save_stock_cache(clean_sym, detail.name, detail.sector, detail.industry, data)
         
-        # Collect queued source documents
-        if detail.documents.annual_reports:
-            queued_docs.extend(detail.documents.annual_reports)
-        if detail.documents.concalls:
-            queued_docs.extend(detail.documents.concalls[:2])
-        if detail.documents.presentations:
-            queued_docs.extend(detail.documents.presentations[:1])
-        if detail.documents.material_announcements:
-            queued_docs.extend(detail.documents.material_announcements[:2])
+        # Collect default visible working set
+        queued_docs = select_default_document_working_set(detail.documents)
             
     doc_intel = get_company_doc_intelligence(clean_sym, financial_analytics=analytics)
     if not doc_intel:
-        llm_avail = is_llm_available()
         return {
             "symbol": clean_sym,
             "company_name": company_name,
@@ -260,6 +252,22 @@ def get_stock_document_summaries(symbol: str):
     """Returns AI executive summaries for all individual documents of a stock."""
     clean_sym = symbol.upper().strip()
     return database.get_document_summaries(clean_sym)
+
+@app.post("/api/stocks/{symbol}/fetch-historical-document")
+def retrieve_historical_document(symbol: str, payload: Dict[str, str]):
+    """Fetches an older filing on demand when checking long-term promises or capex history."""
+    clean_sym = symbol.upper().strip()
+    doc_type = payload.get("doc_type", "annual_report")
+    period_or_year = payload.get("period_or_year", "")
+    
+    data = fetch_stock_from_screener(clean_sym, force_refresh=False)
+    detail = build_full_stock_detail(data) if data else None
+    all_docs = detail.documents if detail else None
+    
+    doc = fetch_historical_evidence_document(clean_sym, doc_type, period_or_year, all_available_documents=all_docs)
+    if not doc:
+        raise HTTPException(status_code=404, detail=f"No historical filing found for {clean_sym} ({doc_type}, {period_or_year})")
+    return doc.model_dump()
 
 @app.get("/api/ai/status")
 def get_ai_status():

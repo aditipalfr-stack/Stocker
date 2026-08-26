@@ -196,18 +196,40 @@ def save_cached_document_pages(symbol: str, doc_url: str, pages: List[Tuple[int,
 # PER-DOCUMENT AI SUMMARIES HELPERS
 # ---------------------------------------------------------
 
+def get_document_summary(doc_url: str) -> Optional[Dict[str, Any]]:
+    """Retrieves a single document's cached AI summary by doc_url."""
+    conn = get_db_connection()
+    try:
+        cur = conn.cursor()
+        cur.execute("SELECT summary_json, generated_at FROM ai_document_summaries WHERE doc_url = ?", (doc_url,))
+        row = cur.fetchone()
+        if row:
+            try:
+                data = json.loads(row["summary_json"])
+                if "analyzed_at" not in data or not data["analyzed_at"]:
+                    data["analyzed_at"] = row["generated_at"]
+                return data
+            except Exception:
+                pass
+        return None
+    finally:
+        conn.close()
+
 def get_document_summaries(symbol: str) -> Dict[str, Dict[str, Any]]:
     """Returns a dict mapping doc_url -> summary_json dict for a symbol."""
     clean_sym = symbol.upper().strip()
     conn = get_db_connection()
     try:
         cur = conn.cursor()
-        cur.execute("SELECT doc_url, summary_json FROM ai_document_summaries WHERE symbol = ?", (clean_sym,))
+        cur.execute("SELECT doc_url, summary_json, generated_at FROM ai_document_summaries WHERE symbol = ?", (clean_sym,))
         rows = cur.fetchall()
         res = {}
         for r in rows:
             try:
-                res[r["doc_url"]] = json.loads(r["summary_json"])
+                data = json.loads(r["summary_json"])
+                if "analyzed_at" not in data or not data["analyzed_at"]:
+                    data["analyzed_at"] = r["generated_at"]
+                res[r["doc_url"]] = data
             except Exception:
                 pass
         return res
@@ -218,6 +240,8 @@ def save_document_summary(symbol: str, doc_url: str, doc_title: str, summary_dat
     """Saves per-document executive summary in SQLite."""
     clean_sym = symbol.upper().strip()
     now_iso = datetime.now(timezone.utc).isoformat()
+    if "analyzed_at" not in summary_data or not summary_data["analyzed_at"]:
+        summary_data["analyzed_at"] = now_iso
     conn = get_db_connection()
     try:
         with conn:

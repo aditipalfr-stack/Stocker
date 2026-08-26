@@ -352,14 +352,42 @@ export interface StockerView {
   investor_summary: string;
 }
 
+export interface ConcallSpecificSummary {
+  demand_commentary?: string;
+  order_book_or_pipeline?: string;
+  margin_outlook?: string;
+  execution_updates?: string;
+  quarterly_changes_or_shifts?: string;
+}
+
+export interface PresentationSpecificSummary {
+  major_kpis?: string[];
+  expansion_roadmap?: string;
+  segment_highlights?: string[];
+  forward_targets?: string;
+}
+
+export interface AnnouncementSpecificSummary {
+  event_summary?: string;
+  fundamental_importance?: string;
+  business_impact?: string;
+  changes_management_guidance?: string;
+}
+
 export interface DocumentSummaryItem {
   doc_title: string;
   doc_url: string;
   doc_type?: string;
   period_or_date?: string;
+  analyzed_at?: string;
   key_takeaways: string[];
   management_tone?: string;
+  guidance_and_capex?: string;
+  risks_and_headwinds?: string[];
   capex_or_guidance_highlight?: string;
+  concall_specific?: ConcallSpecificSummary;
+  presentation_specific?: PresentationSpecificSummary;
+  announcement_specific?: AnnouncementSpecificSummary;
 }
 
 export interface BusinessOutlookIntelligence {

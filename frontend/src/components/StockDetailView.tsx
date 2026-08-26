@@ -1810,30 +1810,43 @@ export const StockDetailView: React.FC<StockDetailViewProps> = ({ stock, onBack,
                                   </div>
                                   <p className="text-xs font-semibold text-slate-200 line-clamp-2">{doc.title}</p>
                                   
-                                  {/* AI Per-Document Summary Card */}
+                                  {/* AI Per-Document Summary Card - Annual Report */}
                                   {summary && summary.key_takeaways && summary.key_takeaways.length > 0 && (
-                                    <div className="bg-slate-900/80 p-3 rounded-xl border border-slate-800 space-y-2 text-xs font-sans">
+                                    <div className="bg-slate-900/90 p-3.5 rounded-xl border border-slate-800 space-y-2.5 text-xs font-sans">
                                       <div className="flex items-center justify-between">
                                         <span className="text-[10px] uppercase font-bold text-emerald-400 tracking-wider flex items-center gap-1">
                                           <Sparkles className="w-3 h-3" /> AI Summary
                                         </span>
-                                        {summary.management_tone && (
-                                          <span className="text-[10px] bg-emerald-500/10 text-emerald-300 border border-emerald-500/20 px-2 py-0.2 rounded font-medium">
-                                            {summary.management_tone}
-                                          </span>
-                                        )}
+                                        <div className="flex items-center gap-1.5">
+                                          {summary.management_tone && (
+                                            <span className="text-[10px] bg-emerald-500/10 text-emerald-300 border border-emerald-500/20 px-2 py-0.5 rounded font-medium">
+                                              {summary.management_tone}
+                                            </span>
+                                          )}
+                                          {summary.analyzed_at && (
+                                            <span className="text-[9px] font-mono text-slate-400">
+                                              {new Date(summary.analyzed_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}
+                                            </span>
+                                          )}
+                                        </div>
                                       </div>
                                       <ul className="space-y-1 text-slate-300 text-[11px]">
                                         {summary.key_takeaways.map((t, tIdx) => (
                                           <li key={tIdx} className="flex items-start gap-1.5">
-                                            <span className="text-emerald-400">•</span>
+                                            <span className="text-emerald-400 font-bold">•</span>
                                             <span>{t}</span>
                                           </li>
                                         ))}
                                       </ul>
-                                      {summary.capex_or_guidance_highlight && (
-                                        <div className="pt-1.5 border-t border-slate-800 text-[11px] text-amber-300 font-medium">
-                                          🎯 {summary.capex_or_guidance_highlight}
+                                      {(summary.guidance_and_capex || summary.capex_or_guidance_highlight) && (
+                                        <div className="pt-1.5 border-t border-slate-800 text-[11px] text-amber-300 font-medium flex items-start gap-1">
+                                          <span>🎯</span>
+                                          <span>{summary.guidance_and_capex || summary.capex_or_guidance_highlight}</span>
+                                        </div>
+                                      )}
+                                      {summary.risks_and_headwinds && summary.risks_and_headwinds.length > 0 && (
+                                        <div className="text-[10px] text-rose-300/90 font-medium">
+                                          ⚠️ <span className="text-slate-400">Key Risks:</span> {summary.risks_and_headwinds.join(', ')}
                                         </div>
                                       )}
                                     </div>
@@ -1849,7 +1862,7 @@ export const StockDetailView: React.FC<StockDetailViewProps> = ({ stock, onBack,
                                   href={doc.url}
                                   target="_blank"
                                   rel="noreferrer"
-                                  className="w-full py-2 px-3 bg-slate-900 hover:bg-slate-800 text-slate-200 text-xs font-bold rounded-xl border border-slate-800 text-center flex items-center justify-center gap-1.5 transition-colors"
+                                  className="w-full py-2 px-3 bg-slate-900 hover:bg-slate-800 text-slate-200 text-xs font-bold rounded-xl border border-slate-800 text-center flex items-center justify-center gap-1.5 transition-colors mt-2"
                                 >
                                   <span>Open Official Document</span>
                                   <ExternalLink className="w-3 h-3" />
@@ -1891,30 +1904,53 @@ export const StockDetailView: React.FC<StockDetailViewProps> = ({ stock, onBack,
                                   </div>
                                   <p className="text-xs font-semibold text-slate-200 line-clamp-2">{doc.title}</p>
                                   
-                                  {/* AI Per-Document Summary Card */}
+                                  {/* AI Per-Document Summary Card - Concall */}
                                   {summary && summary.key_takeaways && summary.key_takeaways.length > 0 && (
-                                    <div className="bg-slate-900/80 p-3 rounded-xl border border-slate-800 space-y-2 text-xs font-sans">
+                                    <div className="bg-slate-900/90 p-3.5 rounded-xl border border-slate-800 space-y-2.5 text-xs font-sans">
                                       <div className="flex items-center justify-between">
                                         <span className="text-[10px] uppercase font-bold text-cyan-400 tracking-wider flex items-center gap-1">
                                           <Sparkles className="w-3 h-3" /> Concall Highlights
                                         </span>
-                                        {summary.management_tone && (
-                                          <span className="text-[10px] bg-cyan-500/10 text-cyan-300 border border-cyan-500/20 px-2 py-0.2 rounded font-medium">
-                                            {summary.management_tone}
-                                          </span>
-                                        )}
+                                        <div className="flex items-center gap-1.5">
+                                          {summary.management_tone && (
+                                            <span className="text-[10px] bg-cyan-500/10 text-cyan-300 border border-cyan-500/20 px-2 py-0.5 rounded font-medium">
+                                              {summary.management_tone}
+                                            </span>
+                                          )}
+                                          {summary.analyzed_at && (
+                                            <span className="text-[9px] font-mono text-slate-400">
+                                              {new Date(summary.analyzed_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}
+                                            </span>
+                                          )}
+                                        </div>
                                       </div>
                                       <ul className="space-y-1 text-slate-300 text-[11px]">
                                         {summary.key_takeaways.map((t, tIdx) => (
                                           <li key={tIdx} className="flex items-start gap-1.5">
-                                            <span className="text-cyan-400">•</span>
+                                            <span className="text-cyan-400 font-bold">•</span>
                                             <span>{t}</span>
                                           </li>
                                         ))}
                                       </ul>
-                                      {summary.capex_or_guidance_highlight && (
-                                        <div className="pt-1.5 border-t border-slate-800 text-[11px] text-amber-300 font-medium">
-                                          🎯 {summary.capex_or_guidance_highlight}
+                                      {summary.concall_specific?.demand_commentary && (
+                                        <div className="text-[11px] text-slate-300">
+                                          <strong className="text-cyan-300 font-mono text-[10px]">DEMAND:</strong> {summary.concall_specific.demand_commentary}
+                                        </div>
+                                      )}
+                                      {summary.concall_specific?.order_book_or_pipeline && (
+                                        <div className="text-[11px] text-slate-300">
+                                          <strong className="text-cyan-300 font-mono text-[10px]">PIPELINE:</strong> {summary.concall_specific.order_book_or_pipeline}
+                                        </div>
+                                      )}
+                                      {summary.concall_specific?.margin_outlook && (
+                                        <div className="text-[11px] text-slate-300">
+                                          <strong className="text-cyan-300 font-mono text-[10px]">MARGINS:</strong> {summary.concall_specific.margin_outlook}
+                                        </div>
+                                      )}
+                                      {(summary.guidance_and_capex || summary.capex_or_guidance_highlight) && (
+                                        <div className="pt-1.5 border-t border-slate-800 text-[11px] text-amber-300 font-medium flex items-start gap-1">
+                                          <span>🎯</span>
+                                          <span>{summary.guidance_and_capex || summary.capex_or_guidance_highlight}</span>
                                         </div>
                                       )}
                                     </div>
@@ -1930,7 +1966,7 @@ export const StockDetailView: React.FC<StockDetailViewProps> = ({ stock, onBack,
                                   href={doc.url}
                                   target="_blank"
                                   rel="noreferrer"
-                                  className="w-full py-2 px-3 bg-slate-900 hover:bg-slate-800 text-slate-200 text-xs font-bold rounded-xl border border-slate-800 text-center flex items-center justify-center gap-1.5 transition-colors"
+                                  className="w-full py-2 px-3 bg-slate-900 hover:bg-slate-800 text-slate-200 text-xs font-bold rounded-xl border border-slate-800 text-center flex items-center justify-center gap-1.5 transition-colors mt-2"
                                 >
                                   <span>Open Transcript</span>
                                   <ExternalLink className="w-3 h-3" />
@@ -1972,27 +2008,50 @@ export const StockDetailView: React.FC<StockDetailViewProps> = ({ stock, onBack,
                                   </div>
                                   <p className="text-xs font-semibold text-slate-200 line-clamp-2">{doc.title}</p>
                                   
-                                  {/* AI Per-Document Summary Card */}
+                                  {/* AI Per-Document Summary Card - Presentation */}
                                   {summary && summary.key_takeaways && summary.key_takeaways.length > 0 && (
-                                    <div className="bg-slate-900/80 p-3 rounded-xl border border-slate-800 space-y-2 text-xs font-sans">
+                                    <div className="bg-slate-900/90 p-3.5 rounded-xl border border-slate-800 space-y-2.5 text-xs font-sans">
                                       <div className="flex items-center justify-between">
                                         <span className="text-[10px] uppercase font-bold text-amber-400 tracking-wider flex items-center gap-1">
                                           <Sparkles className="w-3 h-3" /> PPT Highlights
                                         </span>
-                                        {summary.management_tone && (
-                                          <span className="text-[10px] bg-amber-500/10 text-amber-300 border border-amber-500/20 px-2 py-0.2 rounded font-medium">
-                                            {summary.management_tone}
-                                          </span>
-                                        )}
+                                        <div className="flex items-center gap-1.5">
+                                          {summary.management_tone && (
+                                            <span className="text-[10px] bg-amber-500/10 text-amber-300 border border-amber-500/20 px-2 py-0.5 rounded font-medium">
+                                              {summary.management_tone}
+                                            </span>
+                                          )}
+                                          {summary.analyzed_at && (
+                                            <span className="text-[9px] font-mono text-slate-400">
+                                              {new Date(summary.analyzed_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}
+                                            </span>
+                                          )}
+                                        </div>
                                       </div>
                                       <ul className="space-y-1 text-slate-300 text-[11px]">
                                         {summary.key_takeaways.map((t, tIdx) => (
                                           <li key={tIdx} className="flex items-start gap-1.5">
-                                            <span className="text-amber-400">•</span>
+                                            <span className="text-amber-400 font-bold">•</span>
                                             <span>{t}</span>
                                           </li>
                                         ))}
                                       </ul>
+                                      {summary.presentation_specific?.expansion_roadmap && (
+                                        <div className="text-[11px] text-slate-300">
+                                          <strong className="text-amber-300 font-mono text-[10px]">EXPANSION:</strong> {summary.presentation_specific.expansion_roadmap}
+                                        </div>
+                                      )}
+                                      {summary.presentation_specific?.forward_targets && (
+                                        <div className="text-[11px] text-slate-300">
+                                          <strong className="text-amber-300 font-mono text-[10px]">TARGETS:</strong> {summary.presentation_specific.forward_targets}
+                                        </div>
+                                      )}
+                                      {(summary.guidance_and_capex || summary.capex_or_guidance_highlight) && (
+                                        <div className="pt-1.5 border-t border-slate-800 text-[11px] text-amber-300 font-medium flex items-start gap-1">
+                                          <span>🎯</span>
+                                          <span>{summary.guidance_and_capex || summary.capex_or_guidance_highlight}</span>
+                                        </div>
+                                      )}
                                     </div>
                                   )}
 
@@ -2006,7 +2065,7 @@ export const StockDetailView: React.FC<StockDetailViewProps> = ({ stock, onBack,
                                   href={doc.url}
                                   target="_blank"
                                   rel="noreferrer"
-                                  className="w-full py-2 px-3 bg-slate-900 hover:bg-slate-800 text-slate-200 text-xs font-bold rounded-xl border border-slate-800 text-center flex items-center justify-center gap-1.5 transition-colors"
+                                  className="w-full py-2 px-3 bg-slate-900 hover:bg-slate-800 text-slate-200 text-xs font-bold rounded-xl border border-slate-800 text-center flex items-center justify-center gap-1.5 transition-colors mt-2"
                                 >
                                   <span>Open Presentation</span>
                                   <ExternalLink className="w-3 h-3" />
@@ -2033,35 +2092,73 @@ export const StockDetailView: React.FC<StockDetailViewProps> = ({ stock, onBack,
                         </div>
 
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                          {stock.documents.material_announcements.map((doc, idx) => (
-                            <div key={idx} className="bg-slate-950/70 p-4 rounded-2xl border border-slate-800/80 space-y-2 flex flex-col justify-between">
-                              <div>
-                                <div className="flex items-center justify-between text-[11px] font-mono">
-                                  <span className="px-2 py-0.5 rounded bg-purple-500/10 text-purple-400 border border-purple-500/20 font-bold">
-                                    {doc.period_or_date || 'Announcement'}
-                                  </span>
-                                  <span className="px-2 py-0.5 rounded bg-slate-900 text-slate-300 border border-slate-700 text-[10px]">
-                                    Discovered via: <strong className="text-purple-300">{doc.discovery_source}</strong>
-                                  </span>
-                                </div>
-                                <p className="text-xs font-semibold text-slate-200 line-clamp-2 mt-1.5">{doc.title}</p>
-                                <div className="text-[11px] text-slate-400 mt-1 flex items-center justify-between">
-                                  <span>PDF Host: <strong className="text-slate-300">{doc.actual_source_host}</strong></span>
-                                  {doc.is_direct_pdf && <span className="text-purple-400 font-bold">● Direct PDF</span>}
-                                </div>
-                              </div>
+                          {stock.documents.material_announcements.map((doc, idx) => {
+                            const summary = getDocSummary(doc.url);
+                            return (
+                              <div key={idx} className="bg-slate-950/70 p-4 rounded-2xl border border-slate-800/80 space-y-2.5 flex flex-col justify-between">
+                                <div>
+                                  <div className="flex items-center justify-between text-[11px] font-mono">
+                                    <span className="px-2 py-0.5 rounded bg-purple-500/10 text-purple-400 border border-purple-500/20 font-bold">
+                                      {doc.period_or_date || 'Announcement'}
+                                    </span>
+                                    <span className="px-2 py-0.5 rounded bg-slate-900 text-slate-300 border border-slate-700 text-[10px]">
+                                      Discovered via: <strong className="text-purple-300">{doc.discovery_source}</strong>
+                                    </span>
+                                  </div>
+                                  <p className="text-xs font-semibold text-slate-200 line-clamp-2 mt-1.5">{doc.title}</p>
+                                  
+                                  {/* AI Per-Document Summary Card - Announcement */}
+                                  {summary && summary.key_takeaways && summary.key_takeaways.length > 0 && (
+                                    <div className="bg-slate-900/90 p-3 rounded-xl border border-slate-800 space-y-2 text-xs font-sans mt-2">
+                                      <div className="flex items-center justify-between">
+                                        <span className="text-[10px] uppercase font-bold text-purple-400 tracking-wider flex items-center gap-1">
+                                          <Sparkles className="w-3 h-3" /> Filing Takeaways
+                                        </span>
+                                        {summary.analyzed_at && (
+                                          <span className="text-[9px] font-mono text-slate-400">
+                                            {new Date(summary.analyzed_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}
+                                          </span>
+                                        )}
+                                      </div>
+                                      <ul className="space-y-1 text-slate-300 text-[11px]">
+                                        {summary.key_takeaways.map((t, tIdx) => (
+                                          <li key={tIdx} className="flex items-start gap-1.5">
+                                            <span className="text-purple-400 font-bold">•</span>
+                                            <span>{t}</span>
+                                          </li>
+                                        ))}
+                                      </ul>
+                                      {summary.announcement_specific?.fundamental_importance && (
+                                        <div className="text-[11px] text-purple-200/90 pt-1 border-t border-slate-800 font-medium">
+                                          📌 <strong className="text-purple-300">Why It Matters:</strong> {summary.announcement_specific.fundamental_importance}
+                                        </div>
+                                      )}
+                                      {summary.announcement_specific?.business_impact && (
+                                        <div className="text-[10px] text-slate-300">
+                                          📊 <strong className="text-purple-300">Impact:</strong> {summary.announcement_specific.business_impact}
+                                        </div>
+                                      )}
+                                    </div>
+                                  )}
 
-                              <a
-                                href={doc.url}
-                                target="_blank"
-                                rel="noreferrer"
-                                className="py-1.5 px-3 bg-slate-900 hover:bg-slate-800 text-slate-200 text-xs font-bold rounded-xl border border-slate-800 text-center flex items-center justify-center gap-1.5 transition-colors mt-2"
-                              >
-                                <span>View Filing</span>
-                                <ExternalLink className="w-3 h-3" />
-                              </a>
-                            </div>
-                          ))}
+                                  <div className="text-[11px] text-slate-400 mt-2 flex items-center justify-between">
+                                    <span>PDF Host: <strong className="text-slate-300">{doc.actual_source_host}</strong></span>
+                                    {doc.is_direct_pdf && <span className="text-purple-400 font-bold">● Direct PDF</span>}
+                                  </div>
+                                </div>
+
+                                <a
+                                  href={doc.url}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="py-1.5 px-3 bg-slate-900 hover:bg-slate-800 text-slate-200 text-xs font-bold rounded-xl border border-slate-800 text-center flex items-center justify-center gap-1.5 transition-colors mt-2"
+                                >
+                                  <span>View Filing</span>
+                                  <ExternalLink className="w-3 h-3" />
+                                </a>
+                              </div>
+                            );
+                          })}
                         </div>
                       </div>
                     )}
