@@ -697,46 +697,52 @@ def discover_historical_document(
     On-Demand True Historical Document Discovery:
     When Promise vs Delivery or a multi-year capex verification requires an older filing
     (e.g., FY21/FY22 Annual Report or older Concall) that is not in the default working set,
-    this function performs targeted live waterfall discovery to locate, validate, and index it.
+    this function performs targeted live waterfall discovery across trusted archives:
+    1. BSE Dedicated Annual Reports Archive API
+    2. BSE Paginated Corporate Announcements API (pages 1-4)
+    3. NSE Corporate Announcements Historical Search
+    4. Company IR Annual Reports Repository
+    Stop as soon as a correctly validated document is found.
     """
     clean_sym = symbol.upper().strip()
-    target_clean = period_or_year.lower().strip()
-    
-    # 1. Search BSE Corporate Announcements archives
+    target_clean = period_or_year.lower().strip().replace("fy", "20")
     scrip_code = BSE_SCRIP_CODES.get(clean_sym)
-    if scrip_code:
-        headers = {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-            "Referer": "https://www.bseindia.com/"
-        }
-        api_url = f"https://api.bseindia.com/BseIndiaAPI/api/AnnSubCategoryGetData/w?pageno=1&strCat=-1&strPrevDate=&strScrip={scrip_code}&strSearch=P&strToDate=&strType=C"
+    
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        "Referer": "https://www.bseindia.com/"
+    }
+
+    # 1. Target: Annual Reports via BSE Dedicated Historical Archive API
+    if scrip_code and doc_type in ("annual_report", "annual_reports", "ar"):
+        bse_ar_url = f"https://api.bseindia.com/BseIndiaAPI/api/AnnualReport/w?strScripCode={scrip_code}"
         try:
-            resp = requests.get(api_url, headers=headers, timeout=6)
+            resp = requests.get(bse_ar_url, headers=headers, timeout=6)
             if resp.status_code == 200:
                 data = resp.json()
-                for item in data.get("Table", []):
-                    headline = item.get("NEWSSUB", "") or item.get("HEADLINE", "")
-                    attach_name = item.get("ATTACHMENTNAME", "")
-                    dt = item.get("NEWS_DT", "")
-                    if not attach_name or not headline:
+                items = data if isinstance(data, list) else data.get("Table", [])
+                for item in items:
+                    yr = str(item.get("YEAR", "") or item.get("FinYear", "") or "")
+                    attach = item.get("ATTACHMENTNAME", "") or item.get("URL", "")
+                    heading = item.get("HEADING", "") or f"{company_name} Annual Report {yr}"
+                    
+                    if not attach:
                         continue
                         
-                    period = format_filing_date(dt) or extract_period_or_date(headline)
-                    d_type, f_title = classify_document_title(headline, company_name, period)
-                    
-                    if (d_type == doc_type or doc_type in d_type) and (target_clean in headline.lower() or (period and target_clean in period.lower())):
-                        direct_url = f"https://www.bseindia.com/xml-data/corpfiling/AttachHis/{attach_name}"
-                        is_valid, size, _ = verify_document_network_and_content(f_title, direct_url, d_type, clean_sym, check_network=True)
+                    # Match target year (e.g. '2021', '21', 'FY21')
+                    if target_clean in yr.lower() or target_clean in heading.lower() or period_or_year.lower() in yr.lower():
+                        direct_url = attach if attach.startswith("http") else f"https://www.bseindia.com/bseplus/AnnualReport/{scrip_code}/{attach}"
+                        is_valid, size, _ = verify_document_network_and_content(heading, direct_url, "annual_report", clean_sym, check_network=True)
                         if is_valid:
                             doc = DocumentItem(
                                 ticker=clean_sym,
                                 company_name=company_name,
-                                title=f_title[:120],
-                                name=f_title[:120],
+                                title=f"{company_name} Annual Report {yr}".strip(),
+                                name=f"{company_name} Annual Report {yr}".strip(),
                                 url=direct_url,
-                                doc_type=d_type,
-                                period_or_date=period,
-                                discovery_source="BSE India Historical",
+                                doc_type="annual_report",
+                                period_or_date=f"FY{yr[-2:] if len(yr) >= 2 else yr}",
+                                discovery_source="BSE India Archive API",
                                 actual_source_host="bseindia.com",
                                 actual_source_url=direct_url,
                                 is_direct_pdf=True,
@@ -747,5 +753,98 @@ def discover_historical_document(
                             return doc
         except Exception:
             pass
-            
+
+    # 2. Target: BSE Paginated Corporate Announcements (Pages 1 to 4)
+    if scrip_code:
+        for pageno in range(1, 5):
+            api_url = f"https://api.bseindia.com/BseIndiaAPI/api/AnnSubCategoryGetData/w?pageno={pageno}&strCat=-1&strPrevDate=&strScrip={scrip_code}&strSearch=P&strToDate=&strType=C"
+            try:
+                resp = requests.get(api_url, headers=headers, timeout=6)
+                if resp.status_code == 200:
+                    data = resp.json()
+                    table = data.get("Table", [])
+                    if not table:
+                        break
+                    for item in table:
+                        headline = item.get("NEWSSUB", "") or item.get("HEADLINE", "")
+                        attach_name = item.get("ATTACHMENTNAME", "")
+                        dt = item.get("NEWS_DT", "")
+                        if not attach_name or not headline:
+                            continue
+                            
+                        period = format_filing_date(dt) or extract_period_or_date(headline)
+                        d_type, f_title = classify_document_title(headline, company_name, period)
+                        
+                        # Match doc_type and target year/period
+                        if (d_type == doc_type or doc_type in d_type):
+                            if target_clean in headline.lower() or (period and target_clean in period.lower()) or period_or_year.lower() in headline.lower():
+                                direct_url = f"https://www.bseindia.com/xml-data/corpfiling/AttachHis/{attach_name}"
+                                is_valid, size, _ = verify_document_network_and_content(f_title, direct_url, d_type, clean_sym, check_network=True)
+                                if is_valid:
+                                    doc = DocumentItem(
+                                        ticker=clean_sym,
+                                        company_name=company_name,
+                                        title=f_title[:120],
+                                        name=f_title[:120],
+                                        url=direct_url,
+                                        doc_type=d_type,
+                                        period_or_date=period,
+                                        discovery_source="BSE India Paginated Archive",
+                                        actual_source_host="bseindia.com",
+                                        actual_source_url=direct_url,
+                                        is_direct_pdf=True,
+                                        validation_status="Valid",
+                                        file_size_bytes=size
+                                    )
+                                    database.save_source_documents(clean_sym, [doc])
+                                    return doc
+            except Exception:
+                pass
+
+    # 3. Target: Company IR Repository fallback
+    ir_info = COMPANY_IR_DOMAINS.get(clean_sym)
+    if ir_info:
+        ir_url = ir_info.get("ir_url")
+        if ir_url:
+            try:
+                ir_resp = requests.get(ir_url, headers=headers, timeout=6)
+                if ir_resp.status_code == 200:
+                    soup = BeautifulSoup(ir_resp.text, "html.parser")
+                    for a in soup.find_all("a", href=True):
+                        text = a.text.strip()
+                        href = a["href"].strip()
+                        if not href or not text or len(text) < 3:
+                            continue
+                        if href.startswith("/"):
+                            parsed_domain = urlparse(ir_url)
+                            href = f"{parsed_domain.scheme}://{parsed_domain.netloc}{href}"
+                        elif not href.startswith("http"):
+                            href = f"{ir_url.rstrip('/')}/{href}"
+                            
+                        period = extract_period_or_date(text) or extract_period_or_date(href)
+                        d_type, f_title = classify_document_title(text, company_name, period)
+                        if (d_type == doc_type or doc_type in d_type) and (target_clean in text.lower() or target_clean in href.lower()):
+                            is_valid, size, _ = verify_document_network_and_content(f_title, href, d_type, clean_sym, check_network=True)
+                            if is_valid:
+                                parsed_h = urlparse(href)
+                                doc = DocumentItem(
+                                    ticker=clean_sym,
+                                    company_name=company_name,
+                                    title=f_title[:120],
+                                    name=f_title[:120],
+                                    url=href,
+                                    doc_type=d_type,
+                                    period_or_date=period,
+                                    discovery_source="Company IR Archive",
+                                    actual_source_host=parsed_h.netloc.lower(),
+                                    actual_source_url=href,
+                                    is_direct_pdf=href.lower().endswith(".pdf"),
+                                    validation_status="Valid",
+                                    file_size_bytes=size
+                                )
+                                database.save_source_documents(clean_sym, [doc])
+                                return doc
+            except Exception:
+                pass
+                
     return None

@@ -37,7 +37,7 @@ class PromiseVsDeliveryItem(BaseModel):
     actual_source_page: Optional[int] = None
     actual_quote: Optional[str] = None
     
-    status: Literal["Delivered", "In Progress", "Delayed", "Missed", "Not Enough Data"] = Field(default="Not Enough Data")
+    status: Literal["Delivered", "In Progress", "Delayed", "Missed", "Not Enough Data", "Not Enough Evidence"] = Field(default="Not Enough Evidence")
     stocker_analysis: str = Field(default="", description="STOCKER INTERPRETATION: Concise variance analysis explaining why target was met/delayed/missed")
     financial_numbers_check: Optional[str] = Field(default=None, description="REPORTED NUMBERS: Comparison against actual reported financial statement metrics")
     source_url_promise: Optional[str] = None
@@ -58,8 +58,8 @@ class PromiseVsDeliveryItem(BaseModel):
                 values["actual_in_period"] = values.get("source_document", "Latest Audited Results")
             if "variance_analysis" in values and not values.get("stocker_analysis"):
                 values["stocker_analysis"] = values["variance_analysis"]
-            if values.get("status") == "Not enough data":
-                values["status"] = "Not Enough Data"
+            if values.get("status") in ("Not enough data", "Not Enough Data", "Not enough evidence", "Not Enough Evidence"):
+                values["status"] = "Not Enough Evidence"
         return values
 
 # 4. DEMAND / BUSINESS MOMENTUM

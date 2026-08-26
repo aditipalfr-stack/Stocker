@@ -201,7 +201,8 @@ def fetch_screener_html(symbol: str) -> Optional[Tuple[str, str, str]]:
     return None
 
 def hydrate_stock_data(cached_dict: Dict[str, Any]) -> Dict[str, Any]:
-    """Hydrates JSON cache dictionary into typed models and structures."""
+    """Hydrates JSON cache dictionary into typed models and structures with dynamic re-classification."""
+    from document_sourcing import classify_document_title
     data = dict(cached_dict)
     data["ratios"] = KeyRatios(**data["ratios"])
     data["quarters"] = FinancialStatement(**data["quarters"])
@@ -210,17 +211,52 @@ def hydrate_stock_data(cached_dict: Dict[str, Any]) -> Dict[str, Any]:
     data["cash_flow"] = FinancialStatement(**data["cash_flow"])
     data["concall_insights"] = [ConcallInsight(**c) for c in data.get("concall_insights", [])]
     data["annual_report_insights"] = [AnnualReportInsight(**a) for a in data.get("annual_report_insights", [])]
-    doc_links = DocumentLinks(**data.get("documents", {}))
+    
+    # Dynamically re-classify all documents to guarantee strict categorization
+    raw_docs_dict = cached_dict.get("documents", {})
+    all_raw_items: List[DocumentItem] = []
+    if isinstance(raw_docs_dict, dict):
+        for k in ["annual_reports", "concalls", "presentations", "material_announcements"]:
+            for item in raw_docs_dict.get(k, []):
+                all_raw_items.append(DocumentItem(**item) if isinstance(item, dict) else item)
+                
+    ar_list: List[DocumentItem] = []
+    cc_list: List[DocumentItem] = []
+    ppt_list: List[DocumentItem] = []
+    ann_list: List[DocumentItem] = []
+    seen_urls = set()
+    
+    company_name = data.get("name", "")
+    for doc in all_raw_items:
+        u = doc.url.strip()
+        if u in seen_urls:
+            continue
+        seen_urls.add(u)
+        
+        dtype, ftitle = classify_document_title(doc.title, company_name, doc.period_or_date)
+        doc.doc_type = dtype
+        doc.title = ftitle
+        if dtype == "annual_report":
+            ar_list.append(doc)
+        elif dtype == "concall_transcript":
+            cc_list.append(doc)
+        elif dtype == "presentation":
+            ppt_list.append(doc)
+        else:
+            ann_list.append(doc)
+            
+    doc_links = DocumentLinks(
+        annual_reports=ar_list[:3],
+        concalls=cc_list[:6],
+        presentations=ppt_list[:6],
+        material_announcements=ann_list[:8]
+    )
     data["documents"] = doc_links
     
-    # Sync documents into SQLite source_documents index
+    # Sync re-classified documents into SQLite source_documents index
     clean_sym = data.get("symbol", "").upper().strip()
-    if clean_sym and doc_links:
-        all_docs = []
-        if doc_links.annual_reports: all_docs.extend(doc_links.annual_reports)
-        if doc_links.concalls: all_docs.extend(doc_links.concalls)
-        if doc_links.presentations: all_docs.extend(doc_links.presentations)
-        if doc_links.material_announcements: all_docs.extend(doc_links.material_announcements)
+    if clean_sym:
+        all_docs = ar_list + cc_list + ppt_list + ann_list
         if all_docs:
             try:
                 database.save_source_documents(clean_sym, all_docs)

@@ -448,6 +448,16 @@ def run_multi_document_ai_pipeline(
     latest_ar = next((d for d in candidate_docs if d.doc_type == "annual_report"), candidate_docs[0])
     older_ar = historical_baseline_doc or (documents.annual_reports[1] if len(documents.annual_reports) > 1 else None)
     
+    # Auto-retrieve historical baseline for Promise vs Delivery if only 1 AR was in working set
+    if not older_ar or older_ar.url == latest_ar.url:
+        for target_yr in ["FY23", "FY22", "FY21"]:
+            older_doc = fetch_historical_evidence_document(clean_sym, "annual_report", target_yr, all_available_documents=documents, company_name=company_name)
+            if older_doc and older_doc.url != latest_ar.url:
+                older_ar = older_doc
+                if older_ar.url not in [d.url for d in candidate_docs]:
+                    candidate_docs.append(older_ar)
+                break
+    
     latest_doc_title = latest_ar.title
     latest_doc_url = latest_ar.url
     older_doc_title = older_ar.title if older_ar else None

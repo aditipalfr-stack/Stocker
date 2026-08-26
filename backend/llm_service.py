@@ -5,6 +5,8 @@ import requests
 from typing import List, Tuple, Dict, Any, Optional
 from pathlib import Path
 
+import database
+
 try:
     from dotenv import load_dotenv
     env_path = Path(__file__).parent.parent / ".env"
@@ -553,30 +555,65 @@ SYNTHESIS INSTRUCTIONS:
         def _sanitize_citation(url: Optional[str], doc_title: Optional[str]) -> Tuple[Optional[str], Optional[str]]:
             if not url and not doc_title:
                 return None, None
-            # If URL is in verified corpus
+            # 1. Exact URL match in verified corpus
             if url and url in valid_urls_map:
                 return url, valid_urls_map[url]
-            # Try matching title to verified documents
+            # 2. Confident title match in verified corpus
             if doc_title:
+                clean_title = doc_title.lower().strip()
                 for v_url, v_title in valid_urls_map.items():
-                    if doc_title.lower() in v_title.lower() or v_title.lower() in doc_title.lower():
+                    clean_v = v_title.lower().strip()
+                    if clean_title == clean_v or (len(clean_title) > 8 and clean_title in clean_v) or (len(clean_v) > 8 and clean_v in clean_title):
                         return v_url, v_title
-            # If URL matches latest_doc_url or older_doc_url
+            # 3. Exact URL match to primary baseline documents
             if url and url == latest_doc_url:
                 return latest_doc_url, latest_doc_title
             if url and url == older_doc_url:
                 return older_doc_url, older_doc_title
-            # Do NOT guess or default blindly to latest annual report
-            return url or None, doc_title or None
+            # 4. Strictly reject unmapped / hallucinated URLs or titles
+            return None, None
+
+        def _verify_page(doc_url: Optional[str], quote: Optional[str], text_claim: Optional[str]) -> Optional[int]:
+            if not doc_url:
+                return None
+            try:
+                cached_pages = database.get_cached_document_pages(doc_url)
+                if not cached_pages:
+                    return None
+                if quote and len(quote.strip()) >= 10:
+                    q_clean = quote.lower().strip()
+                    q_snippet = q_clean[:25]
+                    for p_num, p_text in cached_pages:
+                        if q_clean in p_text.lower() or q_snippet in p_text.lower():
+                            return p_num
+                if text_claim and len(text_claim.strip()) >= 15:
+                    words = [w.strip() for w in text_claim.lower().split() if len(w) > 4]
+                    if len(words) >= 3:
+                        for p_num, p_text in cached_pages:
+                            t_low = p_text.lower()
+                            matches = sum(1 for w in words if w in t_low)
+                            if matches >= min(3, len(words)):
+                                return p_num
+            except Exception:
+                pass
+            return None
 
         for c in result.what_changed_recently:
             c.source_url, c.source_doc_title = _sanitize_citation(c.source_url, c.source_doc_title)
+            page_match = _verify_page(c.source_url, getattr(c, "quote", None), c.delta_headline)
+            if page_match:
+                c.page_number = page_match
+                
         for g in result.growth_drivers:
             g.source_url, g.source_doc_title = _sanitize_citation(g.source_url, g.source_doc_title)
+            page_match = _verify_page(g.source_url, getattr(g, "quote", None), g.driver_title)
+            if page_match:
+                g.page_number = page_match
+                
         for p in result.promise_vs_delivery:
-            p.source_url_actual, _ = _sanitize_citation(p.source_url_actual, None)
-            p.source_url_promise, _ = _sanitize_citation(p.source_url_promise, None)
-            if not p.source_url_promise and not p.quote_or_target_promise:
+            p.source_url_actual, _ = _sanitize_citation(p.source_url_actual, getattr(p, "source_doc_actual", None))
+            p.source_url_promise, _ = _sanitize_citation(p.source_url_promise, getattr(p, "source_doc_promise", None))
+            if not p.source_url_promise or not p.source_url_actual:
                 p.status = "Not Enough Evidence"
                 
         if result.demand_momentum:

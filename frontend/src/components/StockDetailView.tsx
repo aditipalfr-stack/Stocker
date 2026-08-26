@@ -1310,7 +1310,8 @@ export const StockDetailView: React.FC<StockDetailViewProps> = ({ stock, onBack,
                       'In Progress': { bg: 'bg-amber-500/20', text: 'text-amber-300', border: 'border-amber-500/40' },
                       'Delayed': { bg: 'bg-orange-500/20', text: 'text-orange-300', border: 'border-orange-500/40' },
                       'Missed': { bg: 'bg-rose-500/20', text: 'text-rose-300', border: 'border-rose-500/40' },
-                      'Not Enough Data': { bg: 'bg-slate-800', text: 'text-slate-400', border: 'border-slate-700' }
+                      'Not Enough Data': { bg: 'bg-slate-800', text: 'text-slate-400', border: 'border-slate-700' },
+                      'Not Enough Evidence': { bg: 'bg-slate-800', text: 'text-slate-400', border: 'border-slate-700' }
                     };
                     const color = statusColors[item.status] || statusColors['Not Enough Data'];
 
