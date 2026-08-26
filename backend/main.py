@@ -74,8 +74,11 @@ def build_full_stock_detail(stock_data: Dict[str, Any], custom_assumptions: Opti
     # 2. Projections & DCF Valuation
     projection = run_projections(ratios, pl, bs, cf, assumptions=custom_assumptions)
     
-    # 3. Multi-Factor Scoring & Thesis
-    score = compute_stock_score(symbol, name, ratios, analytics, projection, sector=sector)
+    # 3. Document Intelligence (if available)
+    doc_intel = get_company_doc_intelligence(symbol, financial_analytics=analytics)
+    
+    # 4. Multi-Factor Scoring & Thesis
+    score = compute_stock_score(symbol, name, ratios, analytics, projection, sector=sector, doc_intel=doc_intel)
     
     return StockDetail(
         symbol=symbol,
@@ -291,6 +294,19 @@ def project_stock_future(symbol: str, assumptions: ProjectionAssumption):
     bs = data["balance_sheet"]
     cf = data["cash_flow"]
     return run_projections(ratios, pl, bs, cf, assumptions=assumptions)
+
+from projection_engine import generate_scenario_suite
+
+@app.get("/api/stocks/{symbol}/scenario-suite")
+def get_stock_scenario_suite(symbol: str):
+    data = fetch_stock_from_screener(symbol, force_refresh=False)
+    if not data:
+        raise HTTPException(status_code=404, detail=f"Stock {symbol} not found")
+    ratios = data["ratios"]
+    pl = data["profit_loss"]
+    bs = data["balance_sheet"]
+    cf = data["cash_flow"]
+    return generate_scenario_suite(ratios, pl, bs, cf)
 
 @app.post("/api/stocks/scrape/{symbol}")
 def scrape_new_stock(symbol: str):

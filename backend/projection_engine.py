@@ -49,7 +49,6 @@ def run_projections(
         
     # Net Debt
     borrowings = get_row_values(bs, "Borrowings")
-    other_assets = get_row_values(bs, "Other Assets")
     investments = get_row_values(bs, "Investments")
     latest_bs_p = bs.periods[-1] if bs.periods else ""
     debt = borrowings.get(latest_bs_p, 0.0) or 0.0
@@ -74,7 +73,7 @@ def run_projections(
             target_exit_pe=max(min(ratios.stock_pe, 45.0), 18.0) if ratios.stock_pe > 0 else 22.0
         )
         
-    # Apply scenario adjustments if specified
+    # Apply scenario adjustments
     growth_rate = assumptions.revenue_growth_rate_pct
     opm_rate = assumptions.target_opm_pct
     capex_rate = assumptions.capex_pct_of_sales
@@ -91,8 +90,6 @@ def run_projections(
     projections: List[YearlyProjection] = []
     pv_fcf_sum = 0.0
     prev_rev = latest_sales
-    
-    # Starting year naming
     start_fy = 2026
     
     for yr in range(1, 6):
@@ -104,7 +101,6 @@ def run_projections(
         proj_dep = round(proj_rev * dep_rate, 1)
         proj_ebit = max(0.0, proj_ebitda - proj_dep)
         
-        # Interest decreases slightly as debt is paid
         proj_int = round(latest_int * max(0.2, (1.0 - (yr - 1) * 0.1)), 1)
         proj_pbt = max(0.0, proj_ebit - proj_int)
         proj_tax = round(proj_pbt * (tax_rate / 100.0), 1)
@@ -112,12 +108,10 @@ def run_projections(
         
         proj_eps = round(proj_pat / shares_outstanding_cr, 2)
         
-        # CFO ~ PAT + Depreciation - minor WC drag
         proj_cfo = round(proj_pat + proj_dep * 0.9, 1)
         proj_capex = round(proj_rev * (capex_rate / 100.0), 1)
         proj_fcf = round(proj_cfo - proj_capex, 1)
         
-        # Discount FCF
         discount_factor = (1.0 + wacc) ** yr
         pv_fcf_sum += (proj_fcf / discount_factor)
         
@@ -171,3 +165,48 @@ def run_projections(
         scenario_type=scenario_type
     )
 
+def generate_scenario_suite(
+    ratios: KeyRatios,
+    pl: FinancialStatement,
+    bs: FinancialStatement,
+    cf: FinancialStatement
+) -> Dict[str, Any]:
+    """Generates Base, Bull, and Bear scenarios side-by-side."""
+    base_res = run_projections(ratios, pl, bs, cf, scenario_type="Base Case")
+    
+    # Bull Case: +3% growth, +1.5% OPM, +15% exit PE
+    bull_assump = ProjectionAssumption(
+        revenue_growth_rate_pct=base_res.assumptions.revenue_growth_rate_pct + 3.0,
+        target_opm_pct=base_res.assumptions.target_opm_pct + 1.5,
+        capex_pct_of_sales=base_res.assumptions.capex_pct_of_sales,
+        effective_tax_rate_pct=base_res.assumptions.effective_tax_rate_pct,
+        terminal_growth_rate_pct=base_res.assumptions.terminal_growth_rate_pct + 0.5,
+        discount_rate_wacc_pct=base_res.assumptions.discount_rate_wacc_pct - 0.5,
+        target_exit_pe=round(base_res.assumptions.target_exit_pe * 1.15, 1)
+    )
+    bull_res = run_projections(ratios, pl, bs, cf, assumptions=bull_assump, scenario_type="Bull Case")
+    
+    # Bear Case: -4% growth, -2.0% OPM, -20% exit PE
+    bear_assump = ProjectionAssumption(
+        revenue_growth_rate_pct=max(3.0, base_res.assumptions.revenue_growth_rate_pct - 4.0),
+        target_opm_pct=max(5.0, base_res.assumptions.target_opm_pct - 2.0),
+        capex_pct_of_sales=base_res.assumptions.capex_pct_of_sales,
+        effective_tax_rate_pct=base_res.assumptions.effective_tax_rate_pct,
+        terminal_growth_rate_pct=max(3.0, base_res.assumptions.terminal_growth_rate_pct - 1.0),
+        discount_rate_wacc_pct=base_res.assumptions.discount_rate_wacc_pct + 1.0,
+        target_exit_pe=round(base_res.assumptions.target_exit_pe * 0.8, 1)
+    )
+    bear_res = run_projections(ratios, pl, bs, cf, assumptions=bear_assump, scenario_type="Bear Case")
+    
+    return {
+        "base_case": base_res,
+        "bull_case": bull_res,
+        "bear_case": bear_res,
+        "current_price": ratios.current_price,
+        "valuation_bridge": {
+            "bear_target": bear_res.target_price_exit_pe,
+            "base_target": base_res.target_price_exit_pe,
+            "bull_target": bull_res.target_price_exit_pe,
+            "fair_value_dcf": base_res.dcf_fair_value_per_share
+        }
+    }

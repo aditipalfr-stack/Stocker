@@ -33,13 +33,13 @@ def clean_metric_name(text: str) -> str:
 def parse_num(val_str: Optional[str]) -> Optional[float]:
     if not val_str:
         return None
-    val_str = val_str.strip().replace(",", "").replace("%", "").replace("₹", "").replace("Rs.", "").strip()
+    val_str = val_str.strip().replace(",", "").replace("%", "").replace("₹", "").replace("Rs.", "").replace("Cr.", "").replace("Cr", "").strip()
     if not val_str or val_str in ("-", "--", "N/A", "NA", "None", "null"):
         return None
     try:
         # Check parentheses for negative numbers e.g. (1,234)
         if val_str.startswith("(") and val_str.endswith(")"):
-            return -float(val_str[1:-1])
+            return -float(val_str[1:-1].strip())
         return float(val_str)
     except Exception:
         return None

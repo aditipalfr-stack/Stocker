@@ -1,5 +1,6 @@
-from typing import Dict, List, Any
+from typing import Dict, List, Any, Optional
 from models import KeyRatios, ProjectionResult, ScoreBreakdown
+from doc_intelligence_models import BusinessOutlookResult
 
 def compute_stock_score(
     symbol: str,
@@ -7,7 +8,8 @@ def compute_stock_score(
     ratios: KeyRatios,
     analytics: Dict[str, Any],
     projection: ProjectionResult,
-    sector: str = ""
+    sector: str = "",
+    doc_intel: Optional[BusinessOutlookResult] = None
 ) -> ScoreBreakdown:
     # 1. Growth & Momentum (20%)
     sales_cagr = analytics.get("growth_rates", {}).get("sales_cagr_3yr") or ratios.sales_growth_3yr_cagr or 10.0
@@ -41,7 +43,6 @@ def compute_stock_score(
     is_banking = "bank" in sector.lower() or "financial" in sector.lower()
     
     if is_banking:
-        # For banking, use ROA / ROE / NPA stability proxy
         cash_score = 80.0 if ratios.roe_pct >= 15.0 else 65.0
     else:
         cash_score = 40.0
@@ -86,7 +87,7 @@ def compute_stock_score(
         eff_score += 5.0
     eff_score = max(10.0, min(100.0, eff_score))
 
-    # 4. Balance Sheet Safety (15%)
+    # 4. Balance Sheet Safety & Capex Trigger (15%)
     debt_eq = ratios.debt_to_equity or 0.0
     int_cov = ratios.interest_coverage or 10.0
     cwip_trigger = analytics.get("balance_sheet_efficiency", {}).get("has_significant_capex_trigger", False)
@@ -152,6 +153,17 @@ def compute_stock_score(
         1
     )
 
+    # Management Execution Alignment Bonus / Penalty
+    if doc_intel and doc_intel.promise_vs_delivery:
+        delivered = sum(1 for p in doc_intel.promise_vs_delivery if p.status == "Delivered")
+        missed = sum(1 for p in doc_intel.promise_vs_delivery if p.status == "Missed")
+        total = len(doc_intel.promise_vs_delivery)
+        if total >= 2:
+            if (delivered / total) >= 0.75:
+                composite = min(100.0, round(composite + 2.0, 1))
+            elif (missed / total) >= 0.5:
+                composite = max(10.0, round(composite - 4.0, 1))
+
     # Verdict & Investment Thesis Generation
     catalysts = []
     risks = []
@@ -167,7 +179,6 @@ def compute_stock_score(
     else:
         verdict = "Avoid"
 
-    # Dynamic Thesis construction
     thesis_parts = []
     if eff_score >= 80.0:
         thesis_parts.append(f"Industry-leading capital efficiency (ROCE: {roce}%, ROE: {roe}%)")
@@ -206,4 +217,3 @@ def compute_stock_score(
         key_catalysts=catalysts,
         key_risks=risks
     )
-

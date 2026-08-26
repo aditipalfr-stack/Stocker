@@ -8,10 +8,10 @@
     "source_name": "Screener.in",
     "source_url": "https://www.screener.in/company/RELIANCE/consolidated/",
     "statement_type": "consolidated",
-    "fetched_at": "2026-08-26T07:55:30.072092+00:00",
+    "fetched_at": "2026-08-26T09:10:43.383899+00:00",
     "ratios": {
-      "market_cap_cr": 0.0,
-      "current_price": 1305.0,
+      "market_cap_cr": 1763560.0,
+      "current_price": 1303.0,
       "high_low": "\u20b9 1,612 / 1,250",
       "stock_pe": 23.6,
       "book_value": 668.0,
@@ -1114,10 +1114,10 @@
     "source_name": "Screener.in",
     "source_url": "https://www.screener.in/company/TCS/consolidated/",
     "statement_type": "consolidated",
-    "fetched_at": "2026-08-26T07:55:34.847041+00:00",
+    "fetched_at": "2026-08-26T09:10:49.655801+00:00",
     "ratios": {
-      "market_cap_cr": 0.0,
-      "current_price": 2272.0,
+      "market_cap_cr": 821686.0,
+      "current_price": 2271.0,
       "high_low": "\u20b9 3,350 / 1,976",
       "stock_pe": 15.4,
       "book_value": 296.0,
@@ -2187,15 +2187,15 @@
     "symbol": "INFY",
     "name": "Infosys Ltd",
     "sector": "Information Technology",
-    "industry": "IT Services & Software Consulting",
+    "industry": "IT Services & Cloud Digital Transformation",
     "about": "Infosys Ltd provides consulting, technology, outsourcing and next-generation digital services to enable clients to execute strategies for their digital transformation.[1] It is the 2nd largest Information Technology company in India behind TCS.[2]",
     "source_name": "Screener.in",
     "source_url": "https://www.screener.in/company/INFY/consolidated/",
     "statement_type": "consolidated",
-    "fetched_at": "2026-08-26T07:55:31.238081+00:00",
+    "fetched_at": "2026-08-26T09:10:47.274622+00:00",
     "ratios": {
-      "market_cap_cr": 0.0,
-      "current_price": 1121.0,
+      "market_cap_cr": 455659.0,
+      "current_price": 1123.0,
       "high_low": "\u20b9 1,728 / 982",
       "stock_pe": 14.6,
       "book_value": 225.0,
@@ -3234,12 +3234,12 @@
     "source_name": "Screener.in",
     "source_url": "https://www.screener.in/company/LT/consolidated/",
     "statement_type": "consolidated",
-    "fetched_at": "2026-08-26T07:55:32.460134+00:00",
+    "fetched_at": "2026-08-26T09:10:47.728295+00:00",
     "ratios": {
-      "market_cap_cr": 0.0,
-      "current_price": 4053.0,
+      "market_cap_cr": 559565.0,
+      "current_price": 4067.0,
       "high_low": "\u20b9 4,440 / 3,288",
-      "stock_pe": 31.6,
+      "stock_pe": 31.7,
       "book_value": 794.0,
       "dividend_yield_pct": 0.92,
       "roce_pct": 14.6,
@@ -4487,14 +4487,14 @@
     "symbol": "ITC",
     "name": "ITC Ltd",
     "sector": "Consumer Goods / FMCG",
-    "industry": "FMCG / Cigarettes / Paperboards / Agri",
+    "industry": "FMCG / Cigarettes / Paperboards / Hotels / Agri",
     "about": "Established in 1910, ITC is the largest cigarette manufacturer and seller in the country. ITC operates in four business segments at present \u2014 FMCG Cigarettes, FMCG Others, Paperboards, Paper and Packaging, and Agri Business. [1]",
     "source_name": "Screener.in",
     "source_url": "https://www.screener.in/company/ITC/consolidated/",
     "statement_type": "consolidated",
-    "fetched_at": "2026-08-26T07:55:33.114466+00:00",
+    "fetched_at": "2026-08-26T09:10:48.177584+00:00",
     "ratios": {
-      "market_cap_cr": 0.0,
+      "market_cap_cr": 339181.0,
       "current_price": 271.0,
       "high_low": "\u20b9 427 / 265",
       "stock_pe": 17.2,
@@ -5502,12 +5502,12 @@
     "source_name": "Screener.in",
     "source_url": "https://www.screener.in/company/HINDUNILVR/consolidated/",
     "statement_type": "consolidated",
-    "fetched_at": "2026-08-26T07:55:33.743460+00:00",
+    "fetched_at": "2026-08-26T09:10:48.751856+00:00",
     "ratios": {
-      "market_cap_cr": 0.0,
-      "current_price": 2026.0,
+      "market_cap_cr": 475275.0,
+      "current_price": 2023.0,
       "high_low": "\u20b9 2,660 / 2,006",
-      "stock_pe": 43.2,
+      "stock_pe": 43.1,
       "book_value": 207.0,
       "dividend_yield_pct": 2.02,
       "roce_pct": 28.4,
@@ -6776,12 +6776,12 @@
     "source_name": "Screener.in",
     "source_url": "https://www.screener.in/company/TMPV/consolidated/",
     "statement_type": "consolidated",
-    "fetched_at": "2026-08-26T07:55:34.303871+00:00",
+    "fetched_at": "2026-08-26T09:10:49.153780+00:00",
     "ratios": {
-      "market_cap_cr": 0.0,
+      "market_cap_cr": 115901.0,
       "current_price": 315.0,
       "high_low": "\u20b9 447 / 294",
-      "stock_pe": 117.0,
+      "stock_pe": 116.0,
       "book_value": 304.0,
       "dividend_yield_pct": 0.95,
       "roce_pct": 2.73,
@@ -7910,9 +7910,9 @@
     "source_name": "Screener.in",
     "source_url": "https://www.screener.in/company/HDFCBANK/consolidated/",
     "statement_type": "consolidated",
-    "fetched_at": "2026-08-26T06:44:03.622518+00:00",
+    "fetched_at": "2026-08-26T09:10:20.782585+00:00",
     "ratios": {
-      "market_cap_cr": 0.0,
+      "market_cap_cr": 1122084.0,
       "current_price": 728.0,
       "high_low": "\u20b9 1,020 / 715",
       "stock_pe": 14.2,
@@ -8741,49 +8741,8 @@
         }
       ]
     },
-    "concall_insights": [
-      {
-        "period": "Latest Earnings Call",
-        "transcript_url": "https://www.screener.in/company/HDFCBANK/consolidated/#documents",
-        "presentation_url": "https://www.screener.in/company/HDFCBANK/consolidated/#documents",
-        "audio_url": null,
-        "cfo_and_fcf_analysis": "CFO generation for HDFC Bank Ltd is backed by operating cash flows and disciplined capital allocation. Free Cash Flow yield is currently at 3.2%.",
-        "demand_drivers": [
-          "Sustained domestic market demand across core business lines for HDFC Bank Ltd.",
-          "Expansion into digital omnichannel distribution and high-margin product verticals.",
-          "Healthy order book execution and recurring client engagement."
-        ],
-        "supply_and_capex": [
-          "Planned debottlenecking, modernization, and capacity expansion programs progressing on schedule.",
-          "Disciplined raw material cost management protecting operating margins."
-        ],
-        "management_guidance": "Management guided for healthy growth trajectory with focus on return ratios (Target ROCE > 7.02%).",
-        "risks_and_headwinds": [
-          "Broader macroeconomic demand moderation.",
-          "Input cost fluctuations and competitive intensity."
-        ],
-        "analyst_sentiment": "Constructive"
-      }
-    ],
-    "annual_report_insights": [
-      {
-        "year": "Latest Financial Year",
-        "report_url": "https://www.screener.in/company/HDFCBANK/consolidated/#documents",
-        "cfo_fcf_performance": "Operational cash flows supported capital expenditure and continuous dividend payouts.",
-        "capex_cwip_summary": "Capital allocation focused on high-ROIC assets with prudent leverage management (Debt/Equity: 0.0x).",
-        "strategic_priorities": [
-          "Digital transformation and operational productivity enhancement.",
-          "Sustainability and ESG benchmark adherence.",
-          "Strengthening core moat and customer lifetime value."
-        ],
-        "forensic_checklist": {
-          "promoter_pledge": "0.0% (Zero pledge)",
-          "auditor_qualification": "Unmodified / Clean Audit Report",
-          "related_party_transactions": "Standard operating business disclosures",
-          "contingent_liabilities": "Within manageable thresholds"
-        }
-      }
-    ],
+    "concall_insights": [],
+    "annual_report_insights": [],
     "documents": {
       "annual_reports": [
         {
@@ -11075,12 +11034,12 @@
     "source_name": "Screener.in",
     "source_url": "https://www.screener.in/company/ICICIBANK/consolidated/",
     "statement_type": "consolidated",
-    "fetched_at": "2026-08-26T06:44:10.661451+00:00",
+    "fetched_at": "2026-08-26T09:10:21.333393+00:00",
     "ratios": {
-      "market_cap_cr": 0.0,
-      "current_price": 1438.0,
+      "market_cap_cr": 1030198.0,
+      "current_price": 1436.0,
       "high_low": "\u20b9 1,480 / 1,188",
-      "stock_pe": 18.4,
+      "stock_pe": 18.3,
       "book_value": 527.0,
       "dividend_yield_pct": 0.83,
       "roce_pct": 7.18,
@@ -11906,49 +11865,8 @@
         }
       ]
     },
-    "concall_insights": [
-      {
-        "period": "Latest Earnings Call",
-        "transcript_url": "https://www.screener.in/company/ICICIBANK/consolidated/#documents",
-        "presentation_url": "https://www.screener.in/company/ICICIBANK/consolidated/#documents",
-        "audio_url": null,
-        "cfo_and_fcf_analysis": "CFO generation for ICICI Bank Ltd is backed by operating cash flows and disciplined capital allocation. Free Cash Flow yield is currently at 3.2%.",
-        "demand_drivers": [
-          "Sustained domestic market demand across core business lines for ICICI Bank Ltd.",
-          "Expansion into digital omnichannel distribution and high-margin product verticals.",
-          "Healthy order book execution and recurring client engagement."
-        ],
-        "supply_and_capex": [
-          "Planned debottlenecking, modernization, and capacity expansion programs progressing on schedule.",
-          "Disciplined raw material cost management protecting operating margins."
-        ],
-        "management_guidance": "Management guided for healthy growth trajectory with focus on return ratios (Target ROCE > 7.18%).",
-        "risks_and_headwinds": [
-          "Broader macroeconomic demand moderation.",
-          "Input cost fluctuations and competitive intensity."
-        ],
-        "analyst_sentiment": "Constructive"
-      }
-    ],
-    "annual_report_insights": [
-      {
-        "year": "Latest Financial Year",
-        "report_url": "https://www.screener.in/company/ICICIBANK/consolidated/#documents",
-        "cfo_fcf_performance": "Operational cash flows supported capital expenditure and continuous dividend payouts.",
-        "capex_cwip_summary": "Capital allocation focused on high-ROIC assets with prudent leverage management (Debt/Equity: 0.0x).",
-        "strategic_priorities": [
-          "Digital transformation and operational productivity enhancement.",
-          "Sustainability and ESG benchmark adherence.",
-          "Strengthening core moat and customer lifetime value."
-        ],
-        "forensic_checklist": {
-          "promoter_pledge": "0.0% (Zero pledge)",
-          "auditor_qualification": "Unmodified / Clean Audit Report",
-          "related_party_transactions": "Standard operating business disclosures",
-          "contingent_liabilities": "Within manageable thresholds"
-        }
-      }
-    ],
+    "concall_insights": [],
+    "annual_report_insights": [],
     "documents": {
       "annual_reports": [
         {
@@ -12370,6 +12288,1180 @@
         {
           "name": "PPT",
           "url": "https://www.bseindia.com/stockinfo/AnnPdfOpen.aspx?Pname=EAB4DA7C_4CFB_409E_B4A6_8D5938EA97AF_201748.pdf"
+        }
+      ]
+    }
+  },
+  "TATASTEEL": {
+    "symbol": "TATASTEEL",
+    "name": "Tata Steel Ltd",
+    "sector": "Metals & Mining",
+    "industry": "Steel Manufacturing & Value-Added Products",
+    "about": "Tata Steel Ltd is Asia's first integrated private steel company setup in 1907.[1] The company has presence across the entire value chain of steel manufacturing from mining and processing iron ore and coal to producing and distributing finished products.[2] The company has a target to increase domestic steelmaking capacity to 30 MnTPA by 2025.[3]",
+    "source_name": "Screener.in",
+    "source_url": "https://www.screener.in/company/TATASTEEL/consolidated/",
+    "statement_type": "consolidated",
+    "fetched_at": "2026-08-26T09:10:23.017210+00:00",
+    "ratios": {
+      "market_cap_cr": 232693.0,
+      "current_price": 186.0,
+      "high_low": "\u20b9 224 / 153",
+      "stock_pe": 19.7,
+      "book_value": 81.8,
+      "dividend_yield_pct": 2.14,
+      "roce_pct": 12.5,
+      "roe_pct": 11.7,
+      "face_value": 1.0,
+      "industry_pe": null,
+      "debt_to_equity": 0.0,
+      "interest_coverage": 0.0,
+      "fcf_yield_pct": 0.0,
+      "sales_growth_3yr_cagr": 0.0,
+      "profit_growth_3yr_cagr": 0.0
+    },
+    "quarters": {
+      "periods": [
+        "Jun 2023",
+        "Sep 2023",
+        "Dec 2023",
+        "Mar 2024",
+        "Jun 2024",
+        "Sep 2024",
+        "Dec 2024",
+        "Mar 2025",
+        "Jun 2025",
+        "Sep 2025",
+        "Dec 2025",
+        "Mar 2026",
+        "Jun 2026"
+      ],
+      "rows": [
+        {
+          "metric": "Sales",
+          "values": {
+            "Jun 2023": 59490.0,
+            "Sep 2023": 55682.0,
+            "Dec 2023": 55312.0,
+            "Mar 2024": 58687.0,
+            "Jun 2024": 54771.0,
+            "Sep 2024": 53905.0,
+            "Dec 2024": 53648.0,
+            "Mar 2025": 56218.0,
+            "Jun 2025": 53178.0,
+            "Sep 2025": 58689.0,
+            "Dec 2025": 57002.0,
+            "Mar 2026": 63270.0,
+            "Jun 2026": 60794.0
+          }
+        },
+        {
+          "metric": "Expenses",
+          "values": {
+            "Jun 2023": 54587.0,
+            "Sep 2023": 51414.0,
+            "Dec 2023": 49048.0,
+            "Mar 2024": 52087.0,
+            "Jun 2024": 48077.0,
+            "Sep 2024": 47789.0,
+            "Dec 2024": 47745.0,
+            "Mar 2025": 49659.0,
+            "Jun 2025": 45751.0,
+            "Sep 2025": 49793.0,
+            "Dec 2025": 48803.0,
+            "Mar 2026": 53441.0,
+            "Jun 2026": 51530.0
+          }
+        },
+        {
+          "metric": "Operating Profit",
+          "values": {
+            "Jun 2023": 4903.0,
+            "Sep 2023": 4268.0,
+            "Dec 2023": 6264.0,
+            "Mar 2024": 6601.0,
+            "Jun 2024": 6694.0,
+            "Sep 2024": 6116.0,
+            "Dec 2024": 5903.0,
+            "Mar 2025": 6559.0,
+            "Jun 2025": 7428.0,
+            "Sep 2025": 8897.0,
+            "Dec 2025": 8200.0,
+            "Mar 2026": 9829.0,
+            "Jun 2026": 9264.0
+          }
+        },
+        {
+          "metric": "OPM %",
+          "values": {
+            "Jun 2023": 8.0,
+            "Sep 2023": 8.0,
+            "Dec 2023": 11.0,
+            "Mar 2024": 11.0,
+            "Jun 2024": 12.0,
+            "Sep 2024": 11.0,
+            "Dec 2024": 11.0,
+            "Mar 2025": 12.0,
+            "Jun 2025": 14.0,
+            "Sep 2025": 15.0,
+            "Dec 2025": 14.0,
+            "Mar 2026": 16.0,
+            "Jun 2026": 15.0
+          }
+        },
+        {
+          "metric": "Other Income",
+          "values": {
+            "Jun 2023": 1190.0,
+            "Sep 2023": -6568.0,
+            "Dec 2023": -33.0,
+            "Mar 2024": -382.0,
+            "Jun 2024": -6.0,
+            "Sep 2024": 617.0,
+            "Dec 2024": 142.0,
+            "Mar 2025": 149.0,
+            "Jun 2025": 236.0,
+            "Sep 2025": -6.0,
+            "Dec 2025": 465.0,
+            "Mar 2026": 42.0,
+            "Jun 2026": -17.0
+          }
+        },
+        {
+          "metric": "Interest",
+          "values": {
+            "Jun 2023": 1825.0,
+            "Sep 2023": 1959.0,
+            "Dec 2023": 1881.0,
+            "Mar 2024": 1842.0,
+            "Jun 2024": 1777.0,
+            "Sep 2024": 1971.0,
+            "Dec 2024": 1804.0,
+            "Mar 2025": 1789.0,
+            "Jun 2025": 1852.0,
+            "Sep 2025": 1775.0,
+            "Dec 2025": 1747.0,
+            "Mar 2026": 1792.0,
+            "Jun 2026": 1771.0
+          }
+        },
+        {
+          "metric": "Depreciation",
+          "values": {
+            "Jun 2023": 2412.0,
+            "Sep 2023": 2480.0,
+            "Dec 2023": 2422.0,
+            "Mar 2024": 2568.0,
+            "Jun 2024": 2535.0,
+            "Sep 2024": 2597.0,
+            "Dec 2024": 2569.0,
+            "Mar 2025": 2720.0,
+            "Jun 2025": 2744.0,
+            "Sep 2025": 2893.0,
+            "Dec 2025": 3049.0,
+            "Mar 2026": 3268.0,
+            "Jun 2026": 3640.0
+          }
+        },
+        {
+          "metric": "Profit before tax",
+          "values": {
+            "Jun 2023": 1855.0,
+            "Sep 2023": -6739.0,
+            "Dec 2023": 1928.0,
+            "Mar 2024": 1809.0,
+            "Jun 2024": 2377.0,
+            "Sep 2024": 2164.0,
+            "Dec 2024": 1672.0,
+            "Mar 2025": 2200.0,
+            "Jun 2025": 3067.0,
+            "Sep 2025": 4222.0,
+            "Dec 2025": 3869.0,
+            "Mar 2026": 4810.0,
+            "Jun 2026": 3838.0
+          }
+        },
+        {
+          "metric": "Tax %",
+          "values": {
+            "Jun 2023": 72.0,
+            "Sep 2023": -3.0,
+            "Dec 2023": 73.0,
+            "Mar 2024": 69.0,
+            "Jun 2024": 61.0,
+            "Sep 2024": 65.0,
+            "Dec 2024": 82.0,
+            "Mar 2025": 45.0,
+            "Jun 2025": 35.0,
+            "Sep 2025": 25.0,
+            "Dec 2025": 29.0,
+            "Mar 2026": 38.0,
+            "Jun 2026": 38.0
+          }
+        },
+        {
+          "metric": "Net Profit",
+          "values": {
+            "Jun 2023": 525.0,
+            "Sep 2023": -6511.0,
+            "Dec 2023": 522.0,
+            "Mar 2024": 555.0,
+            "Jun 2024": 919.0,
+            "Sep 2024": 759.0,
+            "Dec 2024": 295.0,
+            "Mar 2025": 1201.0,
+            "Jun 2025": 2007.0,
+            "Sep 2025": 3183.0,
+            "Dec 2025": 2730.0,
+            "Mar 2026": 2965.0,
+            "Jun 2026": 2385.0
+          }
+        },
+        {
+          "metric": "EPS in Rs",
+          "values": {
+            "Jun 2023": 0.52,
+            "Sep 2023": -5.07,
+            "Dec 2023": 0.42,
+            "Mar 2024": 0.49,
+            "Jun 2024": 0.77,
+            "Sep 2024": 0.67,
+            "Dec 2024": 0.26,
+            "Mar 2025": 1.04,
+            "Jun 2025": 1.66,
+            "Sep 2025": 2.48,
+            "Dec 2025": 2.15,
+            "Mar 2026": 2.34,
+            "Jun 2026": 1.86
+          }
+        }
+      ]
+    },
+    "profit_loss": {
+      "periods": [
+        "Mar 2015",
+        "Mar 2016",
+        "Mar 2017",
+        "Mar 2018",
+        "Mar 2019",
+        "Mar 2020",
+        "Mar 2021",
+        "Mar 2022",
+        "Mar 2023",
+        "Mar 2024",
+        "Mar 2025",
+        "Mar 2026",
+        "TTM"
+      ],
+      "rows": [
+        {
+          "metric": "Sales",
+          "values": {
+            "Mar 2015": 139504.0,
+            "Mar 2016": 101965.0,
+            "Mar 2017": 112299.0,
+            "Mar 2018": 123249.0,
+            "Mar 2019": 157669.0,
+            "Mar 2020": 139817.0,
+            "Mar 2021": 156477.0,
+            "Mar 2022": 243959.0,
+            "Mar 2023": 243353.0,
+            "Mar 2024": 229171.0,
+            "Mar 2025": 218543.0,
+            "Mar 2026": 232140.0,
+            "TTM": 239756.0
+          }
+        },
+        {
+          "metric": "Expenses",
+          "values": {
+            "Mar 2015": 136095.0,
+            "Mar 2016": 102590.0,
+            "Mar 2017": 99156.0,
+            "Mar 2018": 101816.0,
+            "Mar 2019": 128351.0,
+            "Mar 2020": 122354.0,
+            "Mar 2021": 125973.0,
+            "Mar 2022": 180469.0,
+            "Mar 2023": 211053.0,
+            "Mar 2024": 206923.0,
+            "Mar 2025": 193244.0,
+            "Mar 2026": 197788.0,
+            "TTM": 203567.0
+          }
+        },
+        {
+          "metric": "Operating Profit",
+          "values": {
+            "Mar 2015": 3409.0,
+            "Mar 2016": -625.0,
+            "Mar 2017": 13144.0,
+            "Mar 2018": 21433.0,
+            "Mar 2019": 29318.0,
+            "Mar 2020": 17463.0,
+            "Mar 2021": 30504.0,
+            "Mar 2022": 63490.0,
+            "Mar 2023": 32300.0,
+            "Mar 2024": 22248.0,
+            "Mar 2025": 25298.0,
+            "Mar 2026": 34352.0,
+            "TTM": 36189.0
+          }
+        },
+        {
+          "metric": "OPM %",
+          "values": {
+            "Mar 2015": 2.4,
+            "Mar 2016": -0.6,
+            "Mar 2017": 12.0,
+            "Mar 2018": 17.0,
+            "Mar 2019": 19.0,
+            "Mar 2020": 12.0,
+            "Mar 2021": 19.0,
+            "Mar 2022": 26.0,
+            "Mar 2023": 13.0,
+            "Mar 2024": 10.0,
+            "Mar 2025": 12.0,
+            "Mar 2026": 15.0,
+            "TTM": 15.0
+          }
+        },
+        {
+          "metric": "Other Income",
+          "values": {
+            "Mar 2015": 5994.0,
+            "Mar 2016": 10346.0,
+            "Mar 2017": -3789.0,
+            "Mar 2018": 10898.0,
+            "Mar 2019": 1524.0,
+            "Mar 2020": -2884.0,
+            "Mar 2021": 180.0,
+            "Mar 2022": 1300.0,
+            "Mar 2023": 1569.0,
+            "Mar 2024": -6005.0,
+            "Mar 2025": 877.0,
+            "Mar 2026": 738.0,
+            "TTM": 485.0
+          }
+        },
+        {
+          "metric": "Interest",
+          "values": {
+            "Mar 2015": 4848.0,
+            "Mar 2016": 4221.0,
+            "Mar 2017": 5072.0,
+            "Mar 2018": 5455.0,
+            "Mar 2019": 7660.0,
+            "Mar 2020": 7533.0,
+            "Mar 2021": 7607.0,
+            "Mar 2022": 5462.0,
+            "Mar 2023": 6299.0,
+            "Mar 2024": 7508.0,
+            "Mar 2025": 7341.0,
+            "Mar 2026": 7167.0,
+            "TTM": 7085.0
+          }
+        },
+        {
+          "metric": "Depreciation",
+          "values": {
+            "Mar 2015": 5944.0,
+            "Mar 2016": 5306.0,
+            "Mar 2017": 5673.0,
+            "Mar 2018": 5742.0,
+            "Mar 2019": 7342.0,
+            "Mar 2020": 8441.0,
+            "Mar 2021": 9234.0,
+            "Mar 2022": 9101.0,
+            "Mar 2023": 9335.0,
+            "Mar 2024": 9882.0,
+            "Mar 2025": 10421.0,
+            "Mar 2026": 11955.0,
+            "TTM": 12850.0
+          }
+        },
+        {
+          "metric": "Profit before tax",
+          "values": {
+            "Mar 2015": -1388.0,
+            "Mar 2016": 193.0,
+            "Mar 2017": -1391.0,
+            "Mar 2018": 21135.0,
+            "Mar 2019": 15841.0,
+            "Mar 2020": -1395.0,
+            "Mar 2021": 13844.0,
+            "Mar 2022": 50227.0,
+            "Mar 2023": 18235.0,
+            "Mar 2024": -1147.0,
+            "Mar 2025": 8413.0,
+            "Mar 2026": 15969.0,
+            "TTM": 16739.0
+          }
+        },
+        {
+          "metric": "Tax %",
+          "values": {
+            "Mar 2015": 185.0,
+            "Mar 2016": 358.0,
+            "Mar 2017": 200.0,
+            "Mar 2018": 16.0,
+            "Mar 2019": 42.0,
+            "Mar 2020": -184.0,
+            "Mar 2021": 41.0,
+            "Mar 2022": 17.0,
+            "Mar 2023": 56.0,
+            "Mar 2024": 328.0,
+            "Mar 2025": 62.0,
+            "Mar 2026": 32.0,
+            "TTM": null
+          }
+        },
+        {
+          "metric": "Net Profit",
+          "values": {
+            "Mar 2015": -3939.0,
+            "Mar 2016": -497.0,
+            "Mar 2017": -4169.0,
+            "Mar 2018": 17743.0,
+            "Mar 2019": 9122.0,
+            "Mar 2020": 1174.0,
+            "Mar 2021": 8190.0,
+            "Mar 2022": 41749.0,
+            "Mar 2023": 8075.0,
+            "Mar 2024": -4910.0,
+            "Mar 2025": 3174.0,
+            "Mar 2026": 10886.0,
+            "TTM": 11264.0
+          }
+        },
+        {
+          "metric": "EPS in Rs",
+          "values": {
+            "Mar 2015": -3.48,
+            "Mar 2016": -0.34,
+            "Mar 2017": -3.76,
+            "Mar 2018": 11.93,
+            "Mar 2019": 9.07,
+            "Mar 2020": 1.38,
+            "Mar 2021": 6.26,
+            "Mar 2022": 32.88,
+            "Mar 2023": 7.17,
+            "Mar 2024": -3.55,
+            "Mar 2025": 2.74,
+            "Mar 2026": 8.65,
+            "TTM": 8.83
+          }
+        },
+        {
+          "metric": "Dividend Payout %",
+          "values": {
+            "Mar 2015": -20.0,
+            "Mar 2016": -203.0,
+            "Mar 2017": -23.0,
+            "Mar 2018": 9.0,
+            "Mar 2019": 15.0,
+            "Mar 2020": 74.0,
+            "Mar 2021": 40.0,
+            "Mar 2022": 16.0,
+            "Mar 2023": 50.0,
+            "Mar 2024": -101.0,
+            "Mar 2025": 131.0,
+            "Mar 2026": 46.0,
+            "TTM": null
+          }
+        }
+      ]
+    },
+    "balance_sheet": {
+      "periods": [
+        "Mar 2015",
+        "Mar 2016",
+        "Mar 2017",
+        "Mar 2018",
+        "Mar 2019",
+        "Mar 2020",
+        "Mar 2021",
+        "Mar 2022",
+        "Mar 2023",
+        "Mar 2024",
+        "Mar 2025",
+        "Mar 2026"
+      ],
+      "rows": [
+        {
+          "metric": "Equity Capital",
+          "values": {
+            "Mar 2015": 971.0,
+            "Mar 2016": 970.0,
+            "Mar 2017": 970.0,
+            "Mar 2018": 1145.0,
+            "Mar 2019": 1145.0,
+            "Mar 2020": 1145.0,
+            "Mar 2021": 1198.0,
+            "Mar 2022": 1221.0,
+            "Mar 2023": 1221.0,
+            "Mar 2024": 1247.0,
+            "Mar 2025": 1247.0,
+            "Mar 2026": 1247.0
+          }
+        },
+        {
+          "metric": "Reserves",
+          "values": {
+            "Mar 2015": 30378.0,
+            "Mar 2016": 42762.0,
+            "Mar 2017": 36849.0,
+            "Mar 2018": 59726.0,
+            "Mar 2019": 67780.0,
+            "Mar 2020": 72431.0,
+            "Mar 2021": 73041.0,
+            "Mar 2022": 113222.0,
+            "Mar 2023": 101861.0,
+            "Mar 2024": 90788.0,
+            "Mar 2025": 89922.0,
+            "Mar 2026": 100920.0
+          }
+        },
+        {
+          "metric": "Borrowings",
+          "values": {
+            "Mar 2015": 80701.0,
+            "Mar 2016": 81987.0,
+            "Mar 2017": 83014.0,
+            "Mar 2018": 92147.0,
+            "Mar 2019": 100816.0,
+            "Mar 2020": 116328.0,
+            "Mar 2021": 88501.0,
+            "Mar 2022": 75561.0,
+            "Mar 2023": 84893.0,
+            "Mar 2024": 87082.0,
+            "Mar 2025": 94801.0,
+            "Mar 2026": 92382.0
+          }
+        },
+        {
+          "metric": "Other Liabilities",
+          "values": {
+            "Mar 2015": 47059.0,
+            "Mar 2016": 51165.0,
+            "Mar 2017": 51614.0,
+            "Mar 2018": 55704.0,
+            "Mar 2019": 63032.0,
+            "Mar 2020": 59245.0,
+            "Mar 2021": 81169.0,
+            "Mar 2022": 92417.0,
+            "Mar 2023": 97421.0,
+            "Mar 2024": 90195.0,
+            "Mar 2025": 89488.0,
+            "Mar 2026": 101965.0
+          }
+        },
+        {
+          "metric": "Total Liabilities",
+          "values": {
+            "Mar 2015": 159109.0,
+            "Mar 2016": 176884.0,
+            "Mar 2017": 172447.0,
+            "Mar 2018": 208722.0,
+            "Mar 2019": 232773.0,
+            "Mar 2020": 249149.0,
+            "Mar 2021": 243909.0,
+            "Mar 2022": 282422.0,
+            "Mar 2023": 285396.0,
+            "Mar 2024": 269312.0,
+            "Mar 2025": 275459.0,
+            "Mar 2026": 296515.0
+          }
+        },
+        {
+          "metric": "Fixed Assets",
+          "values": {
+            "Mar 2015": 68100.0,
+            "Mar 2016": 72200.0,
+            "Mar 2017": 92007.0,
+            "Mar 2018": 96105.0,
+            "Mar 2019": 124442.0,
+            "Mar 2020": 134551.0,
+            "Mar 2021": 135775.0,
+            "Mar 2022": 133288.0,
+            "Mar 2023": 146621.0,
+            "Mar 2024": 148814.0,
+            "Mar 2025": 150914.0,
+            "Mar 2026": 179908.0
+          }
+        },
+        {
+          "metric": "CWIP",
+          "values": {
+            "Mar 2015": 28678.0,
+            "Mar 2016": 35996.0,
+            "Mar 2017": 15784.0,
+            "Mar 2018": 16614.0,
+            "Mar 2019": 18641.0,
+            "Mar 2020": 19497.0,
+            "Mar 2021": 19007.0,
+            "Mar 2022": 22046.0,
+            "Mar 2023": 31213.0,
+            "Mar 2024": 34356.0,
+            "Mar 2025": 41622.0,
+            "Mar 2026": 28497.0
+          }
+        },
+        {
+          "metric": "Investments",
+          "values": {
+            "Mar 2015": 3455.0,
+            "Mar 2016": 10714.0,
+            "Mar 2017": 12457.0,
+            "Mar 2018": 17899.0,
+            "Mar 2019": 5738.0,
+            "Mar 2020": 6285.0,
+            "Mar 2021": 10682.0,
+            "Mar 2022": 13140.0,
+            "Mar 2023": 8410.0,
+            "Mar 2024": 6258.0,
+            "Mar 2025": 6194.0,
+            "Mar 2026": 7089.0
+          }
+        },
+        {
+          "metric": "Other Assets",
+          "values": {
+            "Mar 2015": 58876.0,
+            "Mar 2016": 57974.0,
+            "Mar 2017": 52200.0,
+            "Mar 2018": 78103.0,
+            "Mar 2019": 83952.0,
+            "Mar 2020": 88816.0,
+            "Mar 2021": 78445.0,
+            "Mar 2022": 113948.0,
+            "Mar 2023": 99151.0,
+            "Mar 2024": 79885.0,
+            "Mar 2025": 76728.0,
+            "Mar 2026": 81021.0
+          }
+        },
+        {
+          "metric": "Total Assets",
+          "values": {
+            "Mar 2015": 159109.0,
+            "Mar 2016": 176884.0,
+            "Mar 2017": 172447.0,
+            "Mar 2018": 208722.0,
+            "Mar 2019": 232773.0,
+            "Mar 2020": 249149.0,
+            "Mar 2021": 243909.0,
+            "Mar 2022": 282422.0,
+            "Mar 2023": 285396.0,
+            "Mar 2024": 269312.0,
+            "Mar 2025": 275459.0,
+            "Mar 2026": 296515.0
+          }
+        }
+      ]
+    },
+    "cash_flow": {
+      "periods": [
+        "Mar 2015",
+        "Mar 2016",
+        "Mar 2017",
+        "Mar 2018",
+        "Mar 2019",
+        "Mar 2020",
+        "Mar 2021",
+        "Mar 2022",
+        "Mar 2023",
+        "Mar 2024",
+        "Mar 2025",
+        "Mar 2026"
+      ],
+      "rows": [
+        {
+          "metric": "Cash from Operating Activity",
+          "values": {
+            "Mar 2015": 11880.0,
+            "Mar 2016": 11455.0,
+            "Mar 2017": 10824.0,
+            "Mar 2018": 8023.0,
+            "Mar 2019": 25336.0,
+            "Mar 2020": 20169.0,
+            "Mar 2021": 44327.0,
+            "Mar 2022": 44381.0,
+            "Mar 2023": 21683.0,
+            "Mar 2024": 20301.0,
+            "Mar 2025": 23138.0,
+            "Mar 2026": 35064.0
+          }
+        },
+        {
+          "metric": "Cash from Investing Activity",
+          "values": {
+            "Mar 2015": -9021.0,
+            "Mar 2016": -8794.0,
+            "Mar 2017": -9490.0,
+            "Mar 2018": -11730.0,
+            "Mar 2019": -29176.0,
+            "Mar 2020": -14012.0,
+            "Mar 2021": -9437.0,
+            "Mar 2022": -10905.0,
+            "Mar 2023": -18179.0,
+            "Mar 2024": -14253.0,
+            "Mar 2025": -13611.0,
+            "Mar 2026": -14397.0
+          }
+        },
+        {
+          "metric": "Cash from Financing Activity",
+          "values": {
+            "Mar 2015": -2617.0,
+            "Mar 2016": -4729.0,
+            "Mar 2017": -2579.0,
+            "Mar 2018": 6640.0,
+            "Mar 2019": -673.0,
+            "Mar 2020": -1695.0,
+            "Mar 2021": -37090.0,
+            "Mar 2022": -23401.0,
+            "Mar 2023": -6981.0,
+            "Mar 2024": -11097.0,
+            "Mar 2025": -7002.0,
+            "Mar 2026": -21387.0
+          }
+        },
+        {
+          "metric": "Net Cash Flow",
+          "values": {
+            "Mar 2015": 241.0,
+            "Mar 2016": -2068.0,
+            "Mar 2017": -1245.0,
+            "Mar 2018": 2933.0,
+            "Mar 2019": -4513.0,
+            "Mar 2020": 4462.0,
+            "Mar 2021": -2200.0,
+            "Mar 2022": 10075.0,
+            "Mar 2023": -3477.0,
+            "Mar 2024": -5049.0,
+            "Mar 2025": 2524.0,
+            "Mar 2026": -720.0
+          }
+        },
+        {
+          "metric": "Free Cash Flow",
+          "values": {
+            "Mar 2015": -169.0,
+            "Mar 2016": 1523.0,
+            "Mar 2017": 3397.0,
+            "Mar 2018": 724.0,
+            "Mar 2019": 16712.0,
+            "Mar 2020": 10156.0,
+            "Mar 2021": 37793.0,
+            "Mar 2022": 34428.0,
+            "Mar 2023": 7868.0,
+            "Mar 2024": 2569.0,
+            "Mar 2025": 8731.0,
+            "Mar 2026": 21906.0
+          }
+        },
+        {
+          "metric": "CFO/OP",
+          "values": {
+            "Mar 2015": 420.0,
+            "Mar 2016": -2078.0,
+            "Mar 2017": 96.0,
+            "Mar 2018": 51.0,
+            "Mar 2019": 104.0,
+            "Mar 2020": 128.0,
+            "Mar 2021": 148.0,
+            "Mar 2022": 89.0,
+            "Mar 2023": 84.0,
+            "Mar 2024": 115.0,
+            "Mar 2025": 103.0,
+            "Mar 2026": 115.0
+          }
+        }
+      ]
+    },
+    "concall_insights": [],
+    "annual_report_insights": [],
+    "documents": {
+      "annual_reports": [
+        {
+          "name": "Annual Report 2026\n      \n        from bse",
+          "url": "https://www.bseindia.com/xml-data/corpfiling/AttachHis/eb836c3a-cf5f-427d-bc71-e368d5861e02.pdf"
+        },
+        {
+          "name": "Annual Report 2025\n      \n        from bse",
+          "url": "https://www.bseindia.com/xml-data/corpfiling/AttachHis/8fcf51ce-ba80-4b6a-90cf-1ce556bbf3ed.pdf"
+        },
+        {
+          "name": "Annual Report 2024\n      \n        from bse",
+          "url": "https://www.bseindia.com/xml-data/corpfiling/AttachHis/4259054b-0c8e-4eaf-950a-56b318b34256.pdf"
+        },
+        {
+          "name": "Annual Report 2023\n      \n        from bse",
+          "url": "https://www.bseindia.com/xml-data/corpfiling/AttachHis/ceb63cf5-e23c-4a80-8a6b-42d71afc754c.pdf"
+        },
+        {
+          "name": "Annual Report 2022\n      \n        from bse",
+          "url": "https://www.bseindia.com/bseplus/AnnualReport/500470/73142500470.pdf"
+        },
+        {
+          "name": "Annual Report 2021\n      \n        from bse",
+          "url": "https://www.bseindia.com/bseplus/AnnualReport/500470/68536500470.pdf"
+        },
+        {
+          "name": "Annual Report 2020\n      \n        from bse",
+          "url": "https://www.bseindia.com/bseplus/AnnualReport/500470/5004700320.pdf"
+        },
+        {
+          "name": "Annual Report 2019\n      \n        from bse",
+          "url": "https://www.bseindia.com/bseplus/AnnualReport/500470/5004700319.pdf"
+        },
+        {
+          "name": "Annual Report 2018\n      \n        from bse",
+          "url": "https://www.bseindia.com/bseplus/AnnualReport/500470/5004700318.pdf"
+        },
+        {
+          "name": "Annual Report 2017\n      \n        from bse",
+          "url": "https://www.bseindia.com/bseplus/AnnualReport/500470/5004700317.pdf"
+        },
+        {
+          "name": "Annual Report 2016\n      \n        from bse",
+          "url": "https://www.bseindia.com/bseplus/AnnualReport/500470/5004700316.pdf"
+        },
+        {
+          "name": "Annual Report 2015\n      \n        from bse",
+          "url": "https://www.bseindia.com/bseplus/AnnualReport/500470/5004700315.pdf"
+        },
+        {
+          "name": "Annual Report 2014\n      \n        from bse",
+          "url": "https://www.bseindia.com/bseplus/AnnualReport/500470/5004700314.pdf"
+        },
+        {
+          "name": "Annual Report 2013\n      \n        from bse",
+          "url": "https://www.bseindia.com/bseplus/AnnualReport/500470/5004700313.pdf"
+        },
+        {
+          "name": "Annual Report 2012\n      \n        from bse",
+          "url": "https://www.bseindia.com/bseplus/AnnualReport/500470/5004700312.pdf"
+        }
+      ],
+      "concalls": [
+        {
+          "name": "Transcript",
+          "url": "https://www.bseindia.com/stockinfo/AnnPdfOpen.aspx?Pname=6d6e2d40-e300-4aae-94bc-b1dc1136656c.pdf"
+        },
+        {
+          "name": "Transcript",
+          "url": "https://www.bseindia.com/stockinfo/AnnPdfOpen.aspx?Pname=7e178a2e-ea18-4b55-8e55-56e03dc5bea5.pdf"
+        },
+        {
+          "name": "Transcript",
+          "url": "https://www.bseindia.com/stockinfo/AnnPdfOpen.aspx?Pname=816939c9-f6c8-404b-afce-29aee1c980ed.pdf"
+        },
+        {
+          "name": "Transcript",
+          "url": "https://www.bseindia.com/stockinfo/AnnPdfOpen.aspx?Pname=536435e3-b37b-4fca-98bf-d611bc8a4416.pdf"
+        },
+        {
+          "name": "Transcript",
+          "url": "https://www.bseindia.com/stockinfo/AnnPdfOpen.aspx?Pname=7f425b16-21e6-48ac-bfe7-27a5b6117095.pdf"
+        },
+        {
+          "name": "Transcript",
+          "url": "https://www.bseindia.com/stockinfo/AnnPdfOpen.aspx?Pname=0fb45195-081f-436c-aa0a-909a6306d88e.pdf"
+        },
+        {
+          "name": "Transcript",
+          "url": "https://www.tatasteel.com/media/22471/2qfy2025-transcript-v7.pdf"
+        },
+        {
+          "name": "Transcript",
+          "url": "https://www.tatasteel.com/media/21718/1qfy2025-transcript.pdf"
+        },
+        {
+          "name": "Transcript",
+          "url": "https://www.tatasteel.com/media/19542/2qfy24-transcript-v7.pdf"
+        },
+        {
+          "name": "Transcript",
+          "url": "https://www.tatasteel.com/media/18677/1qfy24-transcript-v7.pdf"
+        },
+        {
+          "name": "Transcript",
+          "url": "https://www.tatasteel.com/media/18022/4qfy23-and-fy23-transcript-v7.pdf"
+        },
+        {
+          "name": "Transcript",
+          "url": "https://www.tatasteel.com/media/17447/3qfy23-transcript.pdf"
+        },
+        {
+          "name": "Transcript",
+          "url": "https://www.tatasteel.com/media/16797/2qfy23-transcript.pdf"
+        },
+        {
+          "name": "Transcript",
+          "url": "https://www.tatasteel.com/media/16242/1qfy23-transcript.pdf"
+        }
+      ],
+      "presentations": [
+        {
+          "name": "PPT",
+          "url": "https://www.bseindia.com/stockinfo/AnnPdfOpen.aspx?Pname=63e5dca7-ef35-405c-b2ef-7044e356d873.pdf"
+        },
+        {
+          "name": "PPT",
+          "url": "https://www.bseindia.com/stockinfo/AnnPdfOpen.aspx?Pname=42e1b521-5f11-46c5-b3b1-bb7c269524e9.pdf"
+        },
+        {
+          "name": "PPT",
+          "url": "https://www.bseindia.com/stockinfo/AnnPdfOpen.aspx?Pname=33960741-5849-4d90-951d-5733a2d40f46.pdf"
+        },
+        {
+          "name": "PPT",
+          "url": "https://www.bseindia.com/stockinfo/AnnPdfOpen.aspx?Pname=4390fd0f-eb71-4d34-81f0-615195bb519b.pdf"
+        },
+        {
+          "name": "PPT",
+          "url": "https://www.bseindia.com/stockinfo/AnnPdfOpen.aspx?Pname=85350610-bed3-4627-a46d-9471960f8c7d.pdf"
+        },
+        {
+          "name": "PPT",
+          "url": "https://www.bseindia.com/stockinfo/AnnPdfOpen.aspx?Pname=28738faa-17b9-402b-aa1c-a74fc8f01c65.pdf"
+        },
+        {
+          "name": "PPT",
+          "url": "https://www.bseindia.com/stockinfo/AnnPdfOpen.aspx?Pname=e0a1ae78-3def-4931-9964-78fccb7b1163.pdf"
+        },
+        {
+          "name": "PPT",
+          "url": "https://www.bseindia.com/stockinfo/AnnPdfOpen.aspx?Pname=0fe02ad7-ca57-4b01-94b7-92428b91a3af.pdf"
+        },
+        {
+          "name": "PPT",
+          "url": "https://www.bseindia.com/stockinfo/AnnPdfOpen.aspx?Pname=06069496-e5b6-4d6f-bb5a-1ce119eb1e02.pdf"
+        },
+        {
+          "name": "PPT",
+          "url": "https://www.bseindia.com/stockinfo/AnnPdfOpen.aspx?Pname=80d4f439-4696-4d87-ad35-c1fd2ef766d1.pdf"
+        },
+        {
+          "name": "PPT",
+          "url": "https://www.tatasteel.com/media/23351/3qfy25-results-presentation.pdf"
+        },
+        {
+          "name": "PPT",
+          "url": "https://www.bseindia.com/stockinfo/AnnPdfOpen.aspx?Pname=f7411ac9-3bf1-48ca-a89b-41531a4ad064.pdf"
+        },
+        {
+          "name": "PPT",
+          "url": "https://www.bseindia.com/stockinfo/AnnPdfOpen.aspx?Pname=6ab180d0-2ff6-45b3-a6a9-aef99d713c6d.pdf"
+        },
+        {
+          "name": "PPT",
+          "url": "https://www.bseindia.com/stockinfo/AnnPdfOpen.aspx?Pname=79ed35be-7052-40b9-bdf8-a7ddeffe4a5d.pdf"
+        },
+        {
+          "name": "PPT",
+          "url": "https://www.bseindia.com/stockinfo/AnnPdfOpen.aspx?Pname=61e28e39-13d1-443c-bcb6-95090f464f16.pdf"
+        },
+        {
+          "name": "PPT",
+          "url": "https://www.bseindia.com/stockinfo/AnnPdfOpen.aspx?Pname=1751901f-3da7-4ef9-9a83-b428601cb3df.pdf"
+        },
+        {
+          "name": "PPT",
+          "url": "https://www.bseindia.com/stockinfo/AnnPdfOpen.aspx?Pname=23dae557-0854-4e52-95dd-dd9c118f59d7.pdf"
+        },
+        {
+          "name": "PPT",
+          "url": "https://www.bseindia.com/stockinfo/AnnPdfOpen.aspx?Pname=94c8d5aa-ef6f-4ee6-9389-6fc8e0202c72.pdf"
+        },
+        {
+          "name": "PPT",
+          "url": "https://www.bseindia.com/stockinfo/AnnPdfOpen.aspx?Pname=07a8b2e9-a276-4413-8351-cb22e2618c6f.pdf"
+        },
+        {
+          "name": "PPT",
+          "url": "https://www.bseindia.com/stockinfo/AnnPdfOpen.aspx?Pname=f5d5f9a0-c179-4c22-844f-e45c78e48bcf.pdf"
+        },
+        {
+          "name": "PPT",
+          "url": "https://www.bseindia.com/stockinfo/AnnPdfOpen.aspx?Pname=e1b9e934-cca1-4c1c-9cf9-aef13ca92e0d.pdf"
+        },
+        {
+          "name": "PPT",
+          "url": "https://www.bseindia.com/stockinfo/AnnPdfOpen.aspx?Pname=36716ba4-0e53-4154-a0f8-c00fb5ff1c93.pdf"
+        },
+        {
+          "name": "PPT",
+          "url": "https://www.bseindia.com/stockinfo/AnnPdfOpen.aspx?Pname=8cf79e43-35c1-4c63-9fbc-06ca4f714317.pdf"
+        },
+        {
+          "name": "PPT",
+          "url": "https://www.bseindia.com/stockinfo/AnnPdfOpen.aspx?Pname=0f7d57f9-77a2-49d6-b990-988d033dea52.pdf"
+        },
+        {
+          "name": "PPT",
+          "url": "https://www.bseindia.com/stockinfo/AnnPdfOpen.aspx?Pname=ca52d9d2-a495-4f15-9c04-f0b490a86a53.pdf"
+        },
+        {
+          "name": "PPT",
+          "url": "https://www.bseindia.com/stockinfo/AnnPdfOpen.aspx?Pname=dd5f2c38-b828-40ef-8de3-42e6865b76b9.pdf"
+        },
+        {
+          "name": "PPT",
+          "url": "https://www.bseindia.com/stockinfo/AnnPdfOpen.aspx?Pname=dcd68b32-9a98-46bd-b4c1-cef3cd13e68b.pdf"
+        },
+        {
+          "name": "PPT",
+          "url": "https://www.bseindia.com/stockinfo/AnnPdfOpen.aspx?Pname=d4519975-0226-4d63-896c-66f463f367ca.pdf"
+        },
+        {
+          "name": "PPT",
+          "url": "https://www.bseindia.com/stockinfo/AnnPdfOpen.aspx?Pname=9032eb54-061a-43bf-8193-222dc876b65c.pdf"
+        },
+        {
+          "name": "PPT",
+          "url": "https://www.bseindia.com/stockinfo/AnnPdfOpen.aspx?Pname=0cc0f96c-d198-4a94-bbfa-ceb7ddeac40a.pdf"
+        },
+        {
+          "name": "PPT",
+          "url": "https://www.bseindia.com/stockinfo/AnnPdfOpen.aspx?Pname=fdde7b5d-ecca-42e0-a1cc-474ac3a4fdbe.pdf"
+        },
+        {
+          "name": "PPT",
+          "url": "https://www.bseindia.com/stockinfo/AnnPdfOpen.aspx?Pname=1e2a6d4d-20cf-40e9-953b-fd725981d6a9.pdf"
+        },
+        {
+          "name": "PPT",
+          "url": "https://www.bseindia.com/stockinfo/AnnPdfOpen.aspx?Pname=92eac8d5-dc42-4565-b4e3-bea0b038ce58.pdf"
+        },
+        {
+          "name": "PPT",
+          "url": "https://www.bseindia.com/stockinfo/AnnPdfOpen.aspx?Pname=b8001b10-1a8d-4364-ab67-8c37e24c72ea.pdf"
+        },
+        {
+          "name": "PPT",
+          "url": "https://www.bseindia.com/stockinfo/AnnPdfOpen.aspx?Pname=04899d16-d68e-4c4e-ab19-7b76f5756d98.pdf"
+        },
+        {
+          "name": "PPT",
+          "url": "https://www.bseindia.com/stockinfo/AnnPdfOpen.aspx?Pname=fadbe349-153f-42ad-a35f-425433b14f79.pdf"
+        },
+        {
+          "name": "PPT",
+          "url": "https://www.bseindia.com/stockinfo/AnnPdfOpen.aspx?Pname=667eeb6e-bbf2-4a0c-b750-25bd9e797f6a.pdf"
+        },
+        {
+          "name": "PPT",
+          "url": "https://www.bseindia.com/stockinfo/AnnPdfOpen.aspx?Pname=4d9aa73a-b951-4995-8850-a73cb770742a.pdf"
+        },
+        {
+          "name": "PPT",
+          "url": "https://www.bseindia.com/stockinfo/AnnPdfOpen.aspx?Pname=f25207d3-cb97-4e6a-89e4-8fa0a31fa524.pdf"
+        },
+        {
+          "name": "PPT",
+          "url": "https://www.bseindia.com/stockinfo/AnnPdfOpen.aspx?Pname=eb5a4e9d-7218-456a-981b-87c7d0c6c60a.pdf"
+        },
+        {
+          "name": "PPT",
+          "url": "https://www.bseindia.com/stockinfo/AnnPdfOpen.aspx?Pname=1b9b2e05-36c9-4dd2-be44-956ac3165664.pdf"
+        },
+        {
+          "name": "PPT",
+          "url": "https://www.bseindia.com/stockinfo/AnnPdfOpen.aspx?Pname=3a73c07b-b8c6-437e-bccb-2f75c6da48c6.pdf"
+        },
+        {
+          "name": "PPT",
+          "url": "https://www.bseindia.com/stockinfo/AnnPdfOpen.aspx?Pname=bb2a172b-ba81-4d27-9993-aa7b0d3c4c20.pdf"
+        },
+        {
+          "name": "PPT",
+          "url": "https://www.bseindia.com/stockinfo/AnnPdfOpen.aspx?Pname=ec2ea2d0-16c2-4892-a8f0-6aecb5ed3b68.pdf"
+        },
+        {
+          "name": "PPT",
+          "url": "https://www.bseindia.com/stockinfo/AnnPdfOpen.aspx?Pname=d6cd176e-c72e-4824-b3fe-6070091fcefe.pdf"
+        },
+        {
+          "name": "PPT",
+          "url": "https://www.bseindia.com/stockinfo/AnnPdfOpen.aspx?Pname=11b727f3-3c9f-48f5-9e01-063e30f15602.pdf"
+        },
+        {
+          "name": "PPT",
+          "url": "https://www.bseindia.com/stockinfo/AnnPdfOpen.aspx?Pname=4fb10ba6-3f39-46fb-b627-908dde74eb4d.pdf"
+        },
+        {
+          "name": "PPT",
+          "url": "https://www.bseindia.com/stockinfo/AnnPdfOpen.aspx?Pname=d553f629-a7d2-4381-ba45-282230866c2e.pdf"
+        },
+        {
+          "name": "PPT",
+          "url": "https://www.bseindia.com/stockinfo/AnnPdfOpen.aspx?Pname=30ed54d1-7265-4fe5-a1ba-062291fa752f.pdf"
+        },
+        {
+          "name": "PPT",
+          "url": "https://www.bseindia.com/stockinfo/AnnPdfOpen.aspx?Pname=48b43b1a-e66a-48e4-8a2e-b0a3a6736a2b.pdf"
+        },
+        {
+          "name": "PPT",
+          "url": "https://www.bseindia.com/stockinfo/AnnPdfOpen.aspx?Pname=5bcead84-91b2-4e8d-b234-55700b1d63a3.pdf"
+        },
+        {
+          "name": "PPT",
+          "url": "https://www.bseindia.com/stockinfo/AnnPdfOpen.aspx?Pname=6981b75c-7bb8-4fab-8a04-8abe07db3fe1.pdf"
+        },
+        {
+          "name": "PPT",
+          "url": "https://www.bseindia.com/stockinfo/AnnPdfOpen.aspx?Pname=c4c7c947-d481-410c-a78d-82dc5e4217ad.pdf"
+        },
+        {
+          "name": "PPT",
+          "url": "https://www.bseindia.com/stockinfo/AnnPdfOpen.aspx?Pname=1a9454d7-da52-407d-9bdd-d174da2a62ed.pdf"
+        },
+        {
+          "name": "PPT",
+          "url": "https://www.bseindia.com/stockinfo/AnnPdfOpen.aspx?Pname=b9d2868e-8f22-45c1-b913-cb94a96ff003.pdf"
+        },
+        {
+          "name": "PPT",
+          "url": "https://www.bseindia.com/stockinfo/AnnPdfOpen.aspx?Pname=b2752a60-a3c9-4dba-af9a-a37e824a083f.pdf"
+        },
+        {
+          "name": "PPT",
+          "url": "https://www.bseindia.com/stockinfo/AnnPdfOpen.aspx?Pname=0e75d74d-f364-4655-af02-fc1ceb60eac2.pdf"
+        },
+        {
+          "name": "PPT",
+          "url": "https://www.bseindia.com/stockinfo/AnnPdfOpen.aspx?Pname=6c5d8f7d-1e65-497f-935f-86c4ed280100.pdf"
+        },
+        {
+          "name": "PPT",
+          "url": "https://www.bseindia.com/stockinfo/AnnPdfOpen.aspx?Pname=125f8295-a72d-48e9-bb8b-25f2a485616f.pdf"
+        },
+        {
+          "name": "PPT",
+          "url": "https://www.bseindia.com/stockinfo/AnnPdfOpen.aspx?Pname=9c300522-5673-4820-85a8-7b1a16f8b031.pdf"
+        },
+        {
+          "name": "PPT",
+          "url": "https://www.bseindia.com/stockinfo/AnnPdfOpen.aspx?Pname=2b6336cd-8ad7-48d7-ab9b-393b4d574736.pdf"
+        },
+        {
+          "name": "PPT",
+          "url": "https://www.bseindia.com/stockinfo/AnnPdfOpen.aspx?Pname=f9c79a35-f691-4274-951e-a010d33c7374.pdf"
+        },
+        {
+          "name": "PPT",
+          "url": "https://www.bseindia.com/stockinfo/AnnPdfOpen.aspx?Pname=e870f0dd-df7c-4407-8067-7f473de1cbd6.pdf"
+        },
+        {
+          "name": "PPT",
+          "url": "https://www.bseindia.com/stockinfo/AnnPdfOpen.aspx?Pname=d380cc7e-e4fb-4bbf-bc12-ba1ea9d1730a.pdf"
+        },
+        {
+          "name": "PPT",
+          "url": "https://www.bseindia.com/stockinfo/AnnPdfOpen.aspx?Pname=1FDB8016_039C_4614_B0A0_0A62D89F7FC9_173346.pdf"
         }
       ]
     }

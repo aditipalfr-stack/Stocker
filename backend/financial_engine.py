@@ -14,6 +14,12 @@ def get_row_values(stmt: FinancialStatement, metric_name: str) -> Dict[str, Opti
     for row in stmt.rows:
         if row.metric.strip().lower() == metric_name.strip().lower():
             return row.values
+    # Fallback fuzzy match
+    target = metric_name.strip().lower()
+    for row in stmt.rows:
+        r_met = row.metric.strip().lower()
+        if target in r_met or r_met in target:
+            return row.values
     return {}
 
 def compute_financial_analytics(quarters: FinancialStatement, pl: FinancialStatement, bs: FinancialStatement, cf: FinancialStatement) -> Dict[str, Any]:
@@ -22,7 +28,9 @@ def compute_financial_analytics(quarters: FinancialStatement, pl: FinancialState
         "annual_analysis": {},
         "cash_flow_quality": {},
         "balance_sheet_efficiency": {},
+        "working_capital_audit": {},
         "du_pont_analysis": {},
+        "forensic_checklist": {},
         "growth_rates": {}
     }
     
@@ -127,10 +135,9 @@ def compute_financial_analytics(quarters: FinancialStatement, pl: FinancialState
         cfo = cfo_vals.get(p, 0.0) or 0.0
         pat = y_pat.get(p, 0.0) or 0.0
         
-        # Estimate capex from Fixed assets purchased or CFI proxy
+        # Capex from direct line or CFI
         capex = fixed_assets_purchased.get(p)
         if capex is None:
-            # check CFI as negative
             cfi = cfi_vals.get(p, 0.0) or 0.0
             capex = abs(cfi) if cfi < 0 else 0.0
         else:
@@ -170,7 +177,6 @@ def compute_financial_analytics(quarters: FinancialStatement, pl: FinancialState
     equity_cap = get_row_values(bs, "Equity Capital")
     fixed_assets = get_row_values(bs, "Fixed Assets")
     cwip = get_row_values(bs, "CWIP")
-    investments = get_row_values(bs, "Investments")
     other_assets = get_row_values(bs, "Other Assets")
     total_assets = get_row_values(bs, "Total Assets")
     
@@ -180,7 +186,7 @@ def compute_financial_analytics(quarters: FinancialStatement, pl: FinancialState
         debt = borrowings.get(p, 0.0) or 0.0
         fa = fixed_assets.get(p, 0.0) or 0.0
         c_work = cwip.get(p, 0.0) or 0.0
-        inv = investments.get(p, 0.0) or 0.0
+        tot_a = total_assets.get(p, 0.0) or 0.0
         
         debt_to_equity = round(debt / eq, 2) if eq > 0 else 0.0
         cwip_to_fa_pct = round((c_work / fa) * 100.0, 2) if fa > 0 else 0.0
@@ -191,17 +197,55 @@ def compute_financial_analytics(quarters: FinancialStatement, pl: FinancialState
             "borrowings_cr": debt,
             "fixed_assets_cr": fa,
             "cwip_cr": c_work,
+            "total_assets_cr": tot_a,
             "cwip_to_fixed_assets_pct": cwip_to_fa_pct,
             "debt_to_equity": debt_to_equity
         })
         
     latest_bs = bs_trends[-1] if bs_trends else {}
+    cwip_pct = latest_bs.get("cwip_to_fixed_assets_pct", 0.0) or 0.0
+    debt_eq = latest_bs.get("debt_to_equity", 0.0) or 0.0
+
     analytics["balance_sheet_efficiency"] = {
-        "latest_debt_to_equity": latest_bs.get("debt_to_equity", 0.0),
-        "latest_cwip_to_net_block_pct": latest_bs.get("cwip_to_fixed_assets_pct", 0.0),
-        "has_significant_capex_trigger": (latest_bs.get("cwip_to_fixed_assets_pct", 0.0) or 0.0) > 12.0,
+        "latest_debt_to_equity": debt_eq,
+        "latest_cwip_to_net_block_pct": cwip_pct,
+        "has_significant_capex_trigger": cwip_pct >= 12.0,
         "bs_trends": bs_trends
+    }
+
+    # 5. DuPont Analysis (Latest Year)
+    if y_periods and bs.periods:
+        lp_y = y_periods[-1]
+        lp_b = bs.periods[-1]
+        sales_val = y_sales.get(lp_y, 0.0) or 0.0
+        pat_val = y_pat.get(lp_y, 0.0) or 0.0
+        eq_val = (equity_cap.get(lp_b, 0.0) or 0.0) + (reserves.get(lp_b, 0.0) or 0.0)
+        assets_val = total_assets.get(lp_b, 0.0) or (eq_val + (borrowings.get(lp_b, 0.0) or 0.0))
+
+        net_margin = round((pat_val / sales_val) * 100.0, 2) if sales_val > 0 else 0.0
+        asset_turnover = round(sales_val / assets_val, 2) if assets_val > 0 else 0.0
+        financial_leverage = round(assets_val / eq_val, 2) if eq_val > 0 else 1.0
+        roe_dupont = round((pat_val / eq_val) * 100.0, 2) if eq_val > 0 else 0.0
+
+        analytics["du_pont_analysis"] = {
+            "period": lp_y,
+            "net_profit_margin_pct": net_margin,
+            "asset_turnover_ratio": asset_turnover,
+            "financial_leverage_multiplier": financial_leverage,
+            "calculated_roe_pct": roe_dupont
+        }
+
+    # 6. Forensic Checklist & Early Warning Signals
+    pat_3y_cagr = analytics["growth_rates"].get("pat_cagr_3yr")
+    sales_3y_cagr = analytics["growth_rates"].get("sales_cagr_3yr")
+    
+    analytics["forensic_checklist"] = {
+        "cash_flow_health": "Superior" if cfo_to_pat_5yr >= 100.0 else ("Adequate" if cfo_to_pat_5yr >= 75.0 else "Weak"),
+        "cfo_to_pat_5yr_pct": cfo_to_pat_5yr,
+        "debt_burden_level": "Safe" if debt_eq < 0.8 else ("Moderate" if debt_eq < 1.5 else "High Leverage"),
+        "cwip_capex_catalyst": cwip_pct >= 12.0,
+        "sales_growth_sustainable": (sales_3y_cagr is not None and sales_3y_cagr >= 10.0),
+        "earnings_quality_flag": "High" if (cfo_to_pat_5yr >= 80.0 and debt_eq < 1.0) else "Moderate / Watch"
     }
     
     return analytics
-
