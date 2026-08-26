@@ -8,12 +8,12 @@
     "source_name": "Screener.in",
     "source_url": "https://www.screener.in/company/RELIANCE/consolidated/",
     "statement_type": "consolidated",
-    "fetched_at": "2026-08-26T07:15:35.039425+00:00",
+    "fetched_at": "2026-08-26T07:55:30.072092+00:00",
     "ratios": {
       "market_cap_cr": 0.0,
-      "current_price": 1307.0,
+      "current_price": 1305.0,
       "high_low": "\u20b9 1,612 / 1,250",
-      "stock_pe": 23.7,
+      "stock_pe": 23.6,
       "book_value": 668.0,
       "dividend_yield_pct": 0.46,
       "roce_pct": 10.3,
@@ -786,49 +786,8 @@
         }
       ]
     },
-    "concall_insights": [
-      {
-        "period": "Latest Earnings Call",
-        "transcript_url": "https://www.screener.in/company/RELIANCE/consolidated/#documents",
-        "presentation_url": "https://www.screener.in/company/RELIANCE/consolidated/#documents",
-        "audio_url": null,
-        "cfo_and_fcf_analysis": "CFO generation for Reliance Industries Ltd is backed by operating cash flows and disciplined capital allocation. Free Cash Flow yield is currently at 3.2%.",
-        "demand_drivers": [
-          "Sustained domestic market demand across core business lines for Reliance Industries Ltd.",
-          "Expansion into digital omnichannel distribution and high-margin product verticals.",
-          "Healthy order book execution and recurring client engagement."
-        ],
-        "supply_and_capex": [
-          "Planned debottlenecking, modernization, and capacity expansion programs progressing on schedule.",
-          "Disciplined raw material cost management protecting operating margins."
-        ],
-        "management_guidance": "Management guided for healthy growth trajectory with focus on return ratios (Target ROCE > 10.3%).",
-        "risks_and_headwinds": [
-          "Broader macroeconomic demand moderation.",
-          "Input cost fluctuations and competitive intensity."
-        ],
-        "analyst_sentiment": "Constructive"
-      }
-    ],
-    "annual_report_insights": [
-      {
-        "year": "Latest Financial Year",
-        "report_url": "https://www.screener.in/company/RELIANCE/consolidated/#documents",
-        "cfo_fcf_performance": "Operational cash flows supported capital expenditure and continuous dividend payouts.",
-        "capex_cwip_summary": "Capital allocation focused on high-ROIC assets with prudent leverage management (Debt/Equity: 0.0x).",
-        "strategic_priorities": [
-          "Digital transformation and operational productivity enhancement.",
-          "Sustainability and ESG benchmark adherence.",
-          "Strengthening core moat and customer lifetime value."
-        ],
-        "forensic_checklist": {
-          "promoter_pledge": "0.0% (Zero pledge)",
-          "auditor_qualification": "Unmodified / Clean Audit Report",
-          "related_party_transactions": "Standard operating business disclosures",
-          "contingent_liabilities": "Within manageable thresholds"
-        }
-      }
-    ],
+    "concall_insights": [],
+    "annual_report_insights": [],
     "documents": {
       "annual_reports": [
         {
@@ -1155,10 +1114,10 @@
     "source_name": "Screener.in",
     "source_url": "https://www.screener.in/company/TCS/consolidated/",
     "statement_type": "consolidated",
-    "fetched_at": "2026-08-26T07:15:38.202001+00:00",
+    "fetched_at": "2026-08-26T07:55:34.847041+00:00",
     "ratios": {
       "market_cap_cr": 0.0,
-      "current_price": 2270.0,
+      "current_price": 2272.0,
       "high_low": "\u20b9 3,350 / 1,976",
       "stock_pe": 15.4,
       "book_value": 296.0,
@@ -1933,49 +1892,8 @@
         }
       ]
     },
-    "concall_insights": [
-      {
-        "period": "Latest Earnings Call",
-        "transcript_url": "https://www.screener.in/company/TCS/consolidated/#documents",
-        "presentation_url": "https://www.screener.in/company/TCS/consolidated/#documents",
-        "audio_url": null,
-        "cfo_and_fcf_analysis": "CFO generation for Tata Consultancy Services Ltd is backed by operating cash flows and disciplined capital allocation. Free Cash Flow yield is currently at 3.2%.",
-        "demand_drivers": [
-          "Sustained domestic market demand across core business lines for Tata Consultancy Services Ltd.",
-          "Expansion into digital omnichannel distribution and high-margin product verticals.",
-          "Healthy order book execution and recurring client engagement."
-        ],
-        "supply_and_capex": [
-          "Planned debottlenecking, modernization, and capacity expansion programs progressing on schedule.",
-          "Disciplined raw material cost management protecting operating margins."
-        ],
-        "management_guidance": "Management guided for healthy growth trajectory with focus on return ratios (Target ROCE > 63.0%).",
-        "risks_and_headwinds": [
-          "Broader macroeconomic demand moderation.",
-          "Input cost fluctuations and competitive intensity."
-        ],
-        "analyst_sentiment": "Constructive"
-      }
-    ],
-    "annual_report_insights": [
-      {
-        "year": "Latest Financial Year",
-        "report_url": "https://www.screener.in/company/TCS/consolidated/#documents",
-        "cfo_fcf_performance": "Operational cash flows supported capital expenditure and continuous dividend payouts.",
-        "capex_cwip_summary": "Capital allocation focused on high-ROIC assets with prudent leverage management (Debt/Equity: 0.0x).",
-        "strategic_priorities": [
-          "Digital transformation and operational productivity enhancement.",
-          "Sustainability and ESG benchmark adherence.",
-          "Strengthening core moat and customer lifetime value."
-        ],
-        "forensic_checklist": {
-          "promoter_pledge": "0.0% (Zero pledge)",
-          "auditor_qualification": "Unmodified / Clean Audit Report",
-          "related_party_transactions": "Standard operating business disclosures",
-          "contingent_liabilities": "Within manageable thresholds"
-        }
-      }
-    ],
+    "concall_insights": [],
+    "annual_report_insights": [],
     "documents": {
       "annual_reports": [
         {
@@ -2274,10 +2192,10 @@
     "source_name": "Screener.in",
     "source_url": "https://www.screener.in/company/INFY/consolidated/",
     "statement_type": "consolidated",
-    "fetched_at": "2026-08-26T07:15:35.903479+00:00",
+    "fetched_at": "2026-08-26T07:55:31.238081+00:00",
     "ratios": {
       "market_cap_cr": 0.0,
-      "current_price": 1122.0,
+      "current_price": 1121.0,
       "high_low": "\u20b9 1,728 / 982",
       "stock_pe": 14.6,
       "book_value": 225.0,
@@ -3052,49 +2970,8 @@
         }
       ]
     },
-    "concall_insights": [
-      {
-        "period": "Latest Earnings Call",
-        "transcript_url": "https://www.screener.in/company/INFY/consolidated/#documents",
-        "presentation_url": "https://www.screener.in/company/INFY/consolidated/#documents",
-        "audio_url": null,
-        "cfo_and_fcf_analysis": "CFO generation for Infosys Ltd is backed by operating cash flows and disciplined capital allocation. Free Cash Flow yield is currently at 3.2%.",
-        "demand_drivers": [
-          "Sustained domestic market demand across core business lines for Infosys Ltd.",
-          "Expansion into digital omnichannel distribution and high-margin product verticals.",
-          "Healthy order book execution and recurring client engagement."
-        ],
-        "supply_and_capex": [
-          "Planned debottlenecking, modernization, and capacity expansion programs progressing on schedule.",
-          "Disciplined raw material cost management protecting operating margins."
-        ],
-        "management_guidance": "Management guided for healthy growth trajectory with focus on return ratios (Target ROCE > 40.0%).",
-        "risks_and_headwinds": [
-          "Broader macroeconomic demand moderation.",
-          "Input cost fluctuations and competitive intensity."
-        ],
-        "analyst_sentiment": "Constructive"
-      }
-    ],
-    "annual_report_insights": [
-      {
-        "year": "Latest Financial Year",
-        "report_url": "https://www.screener.in/company/INFY/consolidated/#documents",
-        "cfo_fcf_performance": "Operational cash flows supported capital expenditure and continuous dividend payouts.",
-        "capex_cwip_summary": "Capital allocation focused on high-ROIC assets with prudent leverage management (Debt/Equity: 0.0x).",
-        "strategic_priorities": [
-          "Digital transformation and operational productivity enhancement.",
-          "Sustainability and ESG benchmark adherence.",
-          "Strengthening core moat and customer lifetime value."
-        ],
-        "forensic_checklist": {
-          "promoter_pledge": "0.0% (Zero pledge)",
-          "auditor_qualification": "Unmodified / Clean Audit Report",
-          "related_party_transactions": "Standard operating business disclosures",
-          "contingent_liabilities": "Within manageable thresholds"
-        }
-      }
-    ],
+    "concall_insights": [],
+    "annual_report_insights": [],
     "documents": {
       "annual_reports": [
         {
@@ -3357,12 +3234,12 @@
     "source_name": "Screener.in",
     "source_url": "https://www.screener.in/company/LT/consolidated/",
     "statement_type": "consolidated",
-    "fetched_at": "2026-08-26T07:15:36.472095+00:00",
+    "fetched_at": "2026-08-26T07:55:32.460134+00:00",
     "ratios": {
       "market_cap_cr": 0.0,
-      "current_price": 4060.0,
+      "current_price": 4053.0,
       "high_low": "\u20b9 4,440 / 3,288",
-      "stock_pe": 31.7,
+      "stock_pe": 31.6,
       "book_value": 794.0,
       "dividend_yield_pct": 0.92,
       "roce_pct": 14.6,
@@ -4135,49 +4012,8 @@
         }
       ]
     },
-    "concall_insights": [
-      {
-        "period": "Latest Earnings Call",
-        "transcript_url": "https://www.screener.in/company/LT/consolidated/#documents",
-        "presentation_url": "https://www.screener.in/company/LT/consolidated/#documents",
-        "audio_url": null,
-        "cfo_and_fcf_analysis": "CFO generation for Larsen & Toubro Ltd is backed by operating cash flows and disciplined capital allocation. Free Cash Flow yield is currently at 3.2%.",
-        "demand_drivers": [
-          "Sustained domestic market demand across core business lines for Larsen & Toubro Ltd.",
-          "Expansion into digital omnichannel distribution and high-margin product verticals.",
-          "Healthy order book execution and recurring client engagement."
-        ],
-        "supply_and_capex": [
-          "Planned debottlenecking, modernization, and capacity expansion programs progressing on schedule.",
-          "Disciplined raw material cost management protecting operating margins."
-        ],
-        "management_guidance": "Management guided for healthy growth trajectory with focus on return ratios (Target ROCE > 14.6%).",
-        "risks_and_headwinds": [
-          "Broader macroeconomic demand moderation.",
-          "Input cost fluctuations and competitive intensity."
-        ],
-        "analyst_sentiment": "Constructive"
-      }
-    ],
-    "annual_report_insights": [
-      {
-        "year": "Latest Financial Year",
-        "report_url": "https://www.screener.in/company/LT/consolidated/#documents",
-        "cfo_fcf_performance": "Operational cash flows supported capital expenditure and continuous dividend payouts.",
-        "capex_cwip_summary": "Capital allocation focused on high-ROIC assets with prudent leverage management (Debt/Equity: 0.0x).",
-        "strategic_priorities": [
-          "Digital transformation and operational productivity enhancement.",
-          "Sustainability and ESG benchmark adherence.",
-          "Strengthening core moat and customer lifetime value."
-        ],
-        "forensic_checklist": {
-          "promoter_pledge": "0.0% (Zero pledge)",
-          "auditor_qualification": "Unmodified / Clean Audit Report",
-          "related_party_transactions": "Standard operating business disclosures",
-          "contingent_liabilities": "Within manageable thresholds"
-        }
-      }
-    ],
+    "concall_insights": [],
+    "annual_report_insights": [],
     "documents": {
       "annual_reports": [
         {
@@ -4656,10 +4492,10 @@
     "source_name": "Screener.in",
     "source_url": "https://www.screener.in/company/ITC/consolidated/",
     "statement_type": "consolidated",
-    "fetched_at": "2026-08-26T07:15:36.873156+00:00",
+    "fetched_at": "2026-08-26T07:55:33.114466+00:00",
     "ratios": {
       "market_cap_cr": 0.0,
-      "current_price": 272.0,
+      "current_price": 271.0,
       "high_low": "\u20b9 427 / 265",
       "stock_pe": 17.2,
       "book_value": 57.9,
@@ -5434,49 +5270,8 @@
         }
       ]
     },
-    "concall_insights": [
-      {
-        "period": "Latest Earnings Call",
-        "transcript_url": "https://www.screener.in/company/ITC/consolidated/#documents",
-        "presentation_url": "https://www.screener.in/company/ITC/consolidated/#documents",
-        "audio_url": null,
-        "cfo_and_fcf_analysis": "CFO generation for ITC Ltd is backed by operating cash flows and disciplined capital allocation. Free Cash Flow yield is currently at 3.2%.",
-        "demand_drivers": [
-          "Sustained domestic market demand across core business lines for ITC Ltd.",
-          "Expansion into digital omnichannel distribution and high-margin product verticals.",
-          "Healthy order book execution and recurring client engagement."
-        ],
-        "supply_and_capex": [
-          "Planned debottlenecking, modernization, and capacity expansion programs progressing on schedule.",
-          "Disciplined raw material cost management protecting operating margins."
-        ],
-        "management_guidance": "Management guided for healthy growth trajectory with focus on return ratios (Target ROCE > 38.9%).",
-        "risks_and_headwinds": [
-          "Broader macroeconomic demand moderation.",
-          "Input cost fluctuations and competitive intensity."
-        ],
-        "analyst_sentiment": "Constructive"
-      }
-    ],
-    "annual_report_insights": [
-      {
-        "year": "Latest Financial Year",
-        "report_url": "https://www.screener.in/company/ITC/consolidated/#documents",
-        "cfo_fcf_performance": "Operational cash flows supported capital expenditure and continuous dividend payouts.",
-        "capex_cwip_summary": "Capital allocation focused on high-ROIC assets with prudent leverage management (Debt/Equity: 0.0x).",
-        "strategic_priorities": [
-          "Digital transformation and operational productivity enhancement.",
-          "Sustainability and ESG benchmark adherence.",
-          "Strengthening core moat and customer lifetime value."
-        ],
-        "forensic_checklist": {
-          "promoter_pledge": "0.0% (Zero pledge)",
-          "auditor_qualification": "Unmodified / Clean Audit Report",
-          "related_party_transactions": "Standard operating business disclosures",
-          "contingent_liabilities": "Within manageable thresholds"
-        }
-      }
-    ],
+    "concall_insights": [],
+    "annual_report_insights": [],
     "documents": {
       "annual_reports": [
         {
@@ -5707,10 +5502,10 @@
     "source_name": "Screener.in",
     "source_url": "https://www.screener.in/company/HINDUNILVR/consolidated/",
     "statement_type": "consolidated",
-    "fetched_at": "2026-08-26T07:15:37.383318+00:00",
+    "fetched_at": "2026-08-26T07:55:33.743460+00:00",
     "ratios": {
       "market_cap_cr": 0.0,
-      "current_price": 2030.0,
+      "current_price": 2026.0,
       "high_low": "\u20b9 2,660 / 2,006",
       "stock_pe": 43.2,
       "book_value": 207.0,
@@ -6485,49 +6280,8 @@
         }
       ]
     },
-    "concall_insights": [
-      {
-        "period": "Latest Earnings Call",
-        "transcript_url": "https://www.screener.in/company/HINDUNILVR/consolidated/#documents",
-        "presentation_url": "https://www.screener.in/company/HINDUNILVR/consolidated/#documents",
-        "audio_url": null,
-        "cfo_and_fcf_analysis": "CFO generation for Hindustan Unilever Ltd is backed by operating cash flows and disciplined capital allocation. Free Cash Flow yield is currently at 3.2%.",
-        "demand_drivers": [
-          "Sustained domestic market demand across core business lines for Hindustan Unilever Ltd.",
-          "Expansion into digital omnichannel distribution and high-margin product verticals.",
-          "Healthy order book execution and recurring client engagement."
-        ],
-        "supply_and_capex": [
-          "Planned debottlenecking, modernization, and capacity expansion programs progressing on schedule.",
-          "Disciplined raw material cost management protecting operating margins."
-        ],
-        "management_guidance": "Management guided for healthy growth trajectory with focus on return ratios (Target ROCE > 28.4%).",
-        "risks_and_headwinds": [
-          "Broader macroeconomic demand moderation.",
-          "Input cost fluctuations and competitive intensity."
-        ],
-        "analyst_sentiment": "Constructive"
-      }
-    ],
-    "annual_report_insights": [
-      {
-        "year": "Latest Financial Year",
-        "report_url": "https://www.screener.in/company/HINDUNILVR/consolidated/#documents",
-        "cfo_fcf_performance": "Operational cash flows supported capital expenditure and continuous dividend payouts.",
-        "capex_cwip_summary": "Capital allocation focused on high-ROIC assets with prudent leverage management (Debt/Equity: 0.0x).",
-        "strategic_priorities": [
-          "Digital transformation and operational productivity enhancement.",
-          "Sustainability and ESG benchmark adherence.",
-          "Strengthening core moat and customer lifetime value."
-        ],
-        "forensic_checklist": {
-          "promoter_pledge": "0.0% (Zero pledge)",
-          "auditor_qualification": "Unmodified / Clean Audit Report",
-          "related_party_transactions": "Standard operating business disclosures",
-          "contingent_liabilities": "Within manageable thresholds"
-        }
-      }
-    ],
+    "concall_insights": [],
+    "annual_report_insights": [],
     "documents": {
       "annual_reports": [
         {
@@ -7022,7 +6776,7 @@
     "source_name": "Screener.in",
     "source_url": "https://www.screener.in/company/TMPV/consolidated/",
     "statement_type": "consolidated",
-    "fetched_at": "2026-08-26T07:15:37.797078+00:00",
+    "fetched_at": "2026-08-26T07:55:34.303871+00:00",
     "ratios": {
       "market_cap_cr": 0.0,
       "current_price": 315.0,
@@ -7800,49 +7554,8 @@
         }
       ]
     },
-    "concall_insights": [
-      {
-        "period": "Latest Earnings Call",
-        "transcript_url": "https://www.screener.in/company/TMPV/consolidated/#documents",
-        "presentation_url": "https://www.screener.in/company/TMPV/consolidated/#documents",
-        "audio_url": null,
-        "cfo_and_fcf_analysis": "CFO generation for Tata Motors Passenger Vehicles Ltd is backed by operating cash flows and disciplined capital allocation. Free Cash Flow yield is currently at 3.2%.",
-        "demand_drivers": [
-          "Sustained domestic market demand across core business lines for Tata Motors Passenger Vehicles Ltd.",
-          "Expansion into digital omnichannel distribution and high-margin product verticals.",
-          "Healthy order book execution and recurring client engagement."
-        ],
-        "supply_and_capex": [
-          "Planned debottlenecking, modernization, and capacity expansion programs progressing on schedule.",
-          "Disciplined raw material cost management protecting operating margins."
-        ],
-        "management_guidance": "Management guided for healthy growth trajectory with focus on return ratios (Target ROCE > 2.73%).",
-        "risks_and_headwinds": [
-          "Broader macroeconomic demand moderation.",
-          "Input cost fluctuations and competitive intensity."
-        ],
-        "analyst_sentiment": "Constructive"
-      }
-    ],
-    "annual_report_insights": [
-      {
-        "year": "Latest Financial Year",
-        "report_url": "https://www.screener.in/company/TMPV/consolidated/#documents",
-        "cfo_fcf_performance": "Operational cash flows supported capital expenditure and continuous dividend payouts.",
-        "capex_cwip_summary": "Capital allocation focused on high-ROIC assets with prudent leverage management (Debt/Equity: 0.0x).",
-        "strategic_priorities": [
-          "Digital transformation and operational productivity enhancement.",
-          "Sustainability and ESG benchmark adherence.",
-          "Strengthening core moat and customer lifetime value."
-        ],
-        "forensic_checklist": {
-          "promoter_pledge": "0.0% (Zero pledge)",
-          "auditor_qualification": "Unmodified / Clean Audit Report",
-          "related_party_transactions": "Standard operating business disclosures",
-          "contingent_liabilities": "Within manageable thresholds"
-        }
-      }
-    ],
+    "concall_insights": [],
+    "annual_report_insights": [],
     "documents": {
       "annual_reports": [
         {

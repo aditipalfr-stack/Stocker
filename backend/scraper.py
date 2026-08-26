@@ -170,49 +170,6 @@ def parse_screener_documents(soup: BeautifulSoup, symbol: str, source_url: str) 
         })
     return doc_links
 
-def synthesize_qualitative_insights(symbol: str, company_name: str, ratios: KeyRatios, source_url: str) -> Tuple[List[ConcallInsight], List[AnnualReportInsight]]:
-    cfo_fcf_comment = f"CFO generation for {company_name} is backed by operating cash flows and disciplined capital allocation. Free Cash Flow yield is currently at {ratios.fcf_yield_pct or 3.2}%."
-    concall = ConcallInsight(
-        period="Latest Earnings Call",
-        transcript_url=f"{source_url}#documents",
-        presentation_url=f"{source_url}#documents",
-        cfo_and_fcf_analysis=cfo_fcf_comment,
-        demand_drivers=[
-            f"Sustained domestic market demand across core business lines for {company_name}.",
-            "Expansion into digital omnichannel distribution and high-margin product verticals.",
-            "Healthy order book execution and recurring client engagement."
-        ],
-        supply_and_capex=[
-            "Planned debottlenecking, modernization, and capacity expansion programs progressing on schedule.",
-            "Disciplined raw material cost management protecting operating margins."
-        ],
-        management_guidance=f"Management guided for healthy growth trajectory with focus on return ratios (Target ROCE > {ratios.roce_pct}%).",
-        risks_and_headwinds=[
-            "Broader macroeconomic demand moderation.",
-            "Input cost fluctuations and competitive intensity."
-        ],
-        analyst_sentiment="Constructive"
-    )
-    
-    annual_report = AnnualReportInsight(
-        year="Latest Financial Year",
-        report_url=f"{source_url}#documents",
-        cfo_fcf_performance="Operational cash flows supported capital expenditure and continuous dividend payouts.",
-        capex_cwip_summary=f"Capital allocation focused on high-ROIC assets with prudent leverage management (Debt/Equity: {ratios.debt_to_equity}x).",
-        strategic_priorities=[
-            "Digital transformation and operational productivity enhancement.",
-            "Sustainability and ESG benchmark adherence.",
-            "Strengthening core moat and customer lifetime value."
-        ],
-        forensic_checklist={
-            "promoter_pledge": "0.0% (Zero pledge)",
-            "auditor_qualification": "Unmodified / Clean Audit Report",
-            "related_party_transactions": "Standard operating business disclosures",
-            "contingent_liabilities": "Within manageable thresholds"
-        }
-    )
-    return [concall], [annual_report]
-
 def fetch_screener_html(symbol: str) -> Optional[Tuple[str, str, str]]:
     """
     Fetches the live HTML from Screener.in.
@@ -382,7 +339,8 @@ def fetch_stock_from_screener(symbol: str, force_refresh: bool = False) -> Optio
     elif not about_text:
         about_text = f"{company_name} is a listed company in the Indian stock market."
 
-    concall_insights, ar_insights = synthesize_qualitative_insights(clean_sym, company_name, ratios, source_url)
+    concall_insights: List[ConcallInsight] = []
+    ar_insights: List[AnnualReportInsight] = []
     fetched_at = datetime.now(timezone.utc).isoformat()
     
     stock_data = {

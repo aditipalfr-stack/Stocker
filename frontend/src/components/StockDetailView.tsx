@@ -760,7 +760,7 @@ export const StockDetailView: React.FC<StockDetailViewProps> = ({ stock, onBack,
               </div>
             </div>
 
-            {/* Error or Unavailable Notice */}
+            {/* Error Notice */}
             {docIntelError && (
               <div className="bg-rose-950/40 border border-rose-800/60 p-4 rounded-2xl flex items-start gap-3">
                 <AlertTriangle className="w-5 h-5 text-rose-400 shrink-0 mt-0.5" />
@@ -784,6 +784,17 @@ export const StockDetailView: React.FC<StockDetailViewProps> = ({ stock, onBack,
               </div>
             )}
 
+            {/* Empty / Unavailable State */}
+            {(!docIntel || docIntel.status === 'ai_unavailable' || (!docIntel.promise_vs_delivery?.length && !docIntel.plan_vs_reality?.length)) && (
+              <div className="bg-slate-950/80 border border-slate-800 p-6 rounded-2xl text-center space-y-3">
+                <HelpCircle className="w-8 h-8 text-slate-500 mx-auto" />
+                <p className="text-sm font-bold text-slate-200">AI Document Analysis Not Generated</p>
+                <p className="text-xs text-slate-400 max-w-md mx-auto leading-relaxed">
+                  Configure <code className="bg-slate-900 px-1.5 py-0.5 rounded text-emerald-400">GEMINI_API_KEY</code> or <code className="bg-slate-900 px-1.5 py-0.5 rounded text-emerald-400">OPENAI_API_KEY</code> in your <code className="bg-slate-900 px-1.5 py-0.5 rounded text-emerald-400">.env</code> file, then click <strong>Run Live AI Analysis</strong> above to automatically scan filings and generate fundamental intelligence.
+                </p>
+              </div>
+            )}
+
             {/* Analyzed Documents List */}
             {docIntel?.source_documents && docIntel.source_documents.length > 0 && (
               <div className="flex items-center gap-2 flex-wrap text-xs">
@@ -804,385 +815,480 @@ export const StockDetailView: React.FC<StockDetailViewProps> = ({ stock, onBack,
             )}
           </div>
 
-          {/* SECTION A: WHAT CHANGED RECENTLY */}
-          <div className="glass-panel rounded-3xl p-6 md:p-8 border border-slate-800 space-y-4">
-            <div className="flex items-center gap-2.5">
-              <Clock className="w-5 h-5 text-cyan-400" />
-              <h4 className="text-lg font-bold text-white">1. What Changed Recently</h4>
-            </div>
-            <p className="text-xs text-slate-400">Core operational and strategic developments synthesized from recent filings:</p>
-            
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div className="bg-slate-950/70 p-4 rounded-2xl border border-slate-800/80 space-y-2">
-                <div className="flex items-center justify-between">
-                  <span className="text-[10px] uppercase font-bold tracking-wider text-cyan-400">Capex & Capacity</span>
-                  <span className="text-[10px] text-slate-500 font-mono">Latest Update</span>
-                </div>
-                <p className="text-xs text-slate-200 leading-relaxed">
-                  {docIntel?.growth_pipeline?.[0]?.current_status || "Aggressive deployment across core expansion programs with milestone tracking."}
-                </p>
-              </div>
-
-              <div className="bg-slate-950/70 p-4 rounded-2xl border border-slate-800/80 space-y-2">
-                <div className="flex items-center justify-between">
-                  <span className="text-[10px] uppercase font-bold tracking-wider text-emerald-400">Demand & Volume</span>
-                  <span className="text-[10px] text-slate-500 font-mono">Order Book</span>
-                </div>
-                <p className="text-xs text-slate-200 leading-relaxed">
-                  {docIntel?.demand_and_orders?.order_book_or_tcv || docIntel?.demand_and_orders?.volume_and_pricing_trends || "Strong volume traction across key operating segments with expanding market footprint."}
-                </p>
-              </div>
-
-              <div className="bg-slate-950/70 p-4 rounded-2xl border border-slate-800/80 space-y-2">
-                <div className="flex items-center justify-between">
-                  <span className="text-[10px] uppercase font-bold tracking-wider text-amber-400">Working Capital & Debt</span>
-                  <span className="text-[10px] text-slate-500 font-mono">Cash Health</span>
-                </div>
-                <p className="text-xs text-slate-200 leading-relaxed">
-                  {docIntel?.cash_and_problems?.debt_and_leverage_status || "Disciplined balance sheet leverage and controlled debt servicing supported by operational cash generation."}
-                </p>
-              </div>
-            </div>
-          </div>
-
-          {/* SECTION B: PLAN VS REALITY */}
-          <div className="glass-panel rounded-3xl p-6 md:p-8 border border-slate-800 space-y-6">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-800 pb-4">
-              <div className="flex items-center gap-2.5">
-                <Target className="w-5 h-5 text-emerald-400" />
-                <div>
-                  <h4 className="text-lg font-bold text-white">2. Plan vs Reality (Historical Management Tracking)</h4>
-                  <p className="text-xs text-slate-400">Cross-period verification of management guidance against actual delivery</p>
-                </div>
-              </div>
-              <span className="text-xs text-slate-400 font-mono bg-slate-900 px-3 py-1 rounded-lg border border-slate-800 self-start sm:self-auto">
-                Comparing: {docIntel?.older_document_period || 'Baseline'} → {docIntel?.latest_document_period || 'Latest'}
-              </span>
-            </div>
-
-            {(!docIntel?.plan_vs_reality || docIntel.plan_vs_reality.length === 0) ? (
-              <p className="text-xs text-slate-400 italic py-4 text-center">No historical guidance comparison available for this period.</p>
-            ) : (
-              <div className="space-y-4">
-                {docIntel.plan_vs_reality.map((item, idx) => {
-                  const statusColors: Record<string, { bg: string; text: string; border: string }> = {
-                    'Delivered': { bg: 'bg-emerald-500/20', text: 'text-emerald-300', border: 'border-emerald-500/40' },
-                    'In Progress': { bg: 'bg-amber-500/20', text: 'text-amber-300', border: 'border-amber-500/40' },
-                    'Delayed': { bg: 'bg-orange-500/20', text: 'text-orange-300', border: 'border-orange-500/40' },
-                    'Missed': { bg: 'bg-rose-500/20', text: 'text-rose-300', border: 'border-rose-500/40' },
-                    'Not Enough Data': { bg: 'bg-slate-800', text: 'text-slate-400', border: 'border-slate-700' }
-                  };
-                  const color = statusColors[item.status] || statusColors['Not Enough Data'];
-
-                  return (
-                    <div key={idx} className="bg-slate-950/80 rounded-2xl border border-slate-800 p-5 space-y-4">
-                      {/* Top Row: Area & Status Badge */}
-                      <div className="flex items-start sm:items-center justify-between gap-3 flex-wrap">
-                        <span className="text-sm font-bold text-white font-sans">{item.area}</span>
-                        <span className={`${color.bg} ${color.text} ${color.border} border text-xs font-bold px-3 py-1 rounded-full flex items-center gap-1.5 shadow-sm`}>
-                          {item.status === 'Delivered' && '✓'}
-                          {item.status === 'In Progress' && '⚠'}
-                          {item.status === 'Delayed' && '⚠'}
-                          {item.status === 'Missed' && '✗'}
-                          {item.status === 'Not Enough Data' && '?'}
-                          <span>{item.status}</span>
-                        </span>
-                      </div>
-
-                      {/* Management Said vs Reported Result Grid */}
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        
-                        {/* MANAGEMENT SAID */}
-                        <div className="bg-blue-950/20 rounded-xl border border-blue-900/30 p-4 space-y-2">
-                          <div className="flex items-center justify-between">
-                            <span className="text-[10px] uppercase font-bold tracking-wider bg-blue-500/20 text-blue-300 border border-blue-500/30 px-2 py-0.5 rounded">
-                              MANAGEMENT SAID
+          {/* Render 6 Sections if Data Available */}
+          {docIntel && (docIntel.promise_vs_delivery?.length > 0 || docIntel.what_changed_recently?.length > 0) && (
+            <>
+              {/* SECTION 1: WHAT CHANGED RECENTLY */}
+              {docIntel.what_changed_recently && docIntel.what_changed_recently.length > 0 && (
+                <div className="glass-panel rounded-3xl p-6 md:p-8 border border-slate-800 space-y-4">
+                  <div className="flex items-center gap-2.5">
+                    <Clock className="w-5 h-5 text-cyan-400" />
+                    <h4 className="text-lg font-bold text-white">1. What Changed Recently</h4>
+                  </div>
+                  <p className="text-xs text-slate-400">Core operational and strategic developments synthesized from recent filings:</p>
+                  
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {docIntel.what_changed_recently.map((item, idx) => (
+                      <div key={idx} className="bg-slate-950/70 p-4 rounded-2xl border border-slate-800/80 space-y-2 flex flex-col justify-between">
+                        <div className="space-y-1.5">
+                          <div className="flex items-start justify-between gap-2">
+                            <h5 className="text-xs font-bold text-slate-100">{item.headline}</h5>
+                            <span className="text-[10px] uppercase font-bold tracking-wider bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 px-2 py-0.5 rounded shrink-0">
+                              {item.category}
                             </span>
-                            <span className="text-[10px] text-slate-400 font-mono">{item.promised_in_period}</span>
                           </div>
-                          <p className="text-xs text-slate-200 leading-relaxed italic">
-                            "{item.management_promise}"
-                          </p>
+                          <p className="text-xs text-slate-300 leading-relaxed">{item.detail}</p>
+                        </div>
+                        {item.source_page && (
+                          <div className="pt-2 border-t border-slate-900 text-[11px] text-slate-500 font-mono flex items-center justify-between">
+                            <span>Source: {item.source_doc} (Page {item.source_page})</span>
+                            {item.source_url && (
+                              <a href={item.source_url} target="_blank" rel="noreferrer" className="text-emerald-400 hover:underline flex items-center gap-1 font-sans">
+                                <span>PDF</span> <ExternalLink className="w-2.5 h-2.5" />
+                              </a>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* SECTION 2: MANAGEMENT PLAN & GROWTH DRIVERS */}
+              {docIntel.growth_drivers && docIntel.growth_drivers.length > 0 && (
+                <div className="glass-panel rounded-3xl p-6 md:p-8 border border-slate-800 space-y-6">
+                  <div className="flex items-center gap-2.5 border-b border-slate-800 pb-4">
+                    <Layers className="w-5 h-5 text-amber-400" />
+                    <div>
+                      <h4 className="text-lg font-bold text-white">2. Management Plan & Growth Drivers</h4>
+                      <p className="text-xs text-slate-400">Expansion projects, new products, acquisitions, and strategic growth drivers</p>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {docIntel.growth_drivers.map((driver, idx) => (
+                      <div key={idx} className="bg-slate-950/80 rounded-2xl border border-slate-800 p-5 space-y-3.5 flex flex-col justify-between">
+                        <div className="space-y-2.5">
+                          <div className="flex items-start justify-between gap-2">
+                            <h5 className="text-sm font-bold text-slate-100">{driver.driver_title}</h5>
+                            <span className="bg-amber-500/20 text-amber-300 border border-amber-500/30 text-[10px] font-bold px-2 py-0.5 rounded-full shrink-0">
+                              {driver.driver_type}
+                            </span>
+                          </div>
+
+                          <div className="grid grid-cols-2 gap-2 text-xs font-mono bg-slate-900/60 p-3 rounded-xl border border-slate-800/80">
+                            <div>
+                              <span className="text-[10px] text-slate-500 uppercase font-sans block">Target Timeline</span>
+                              <span className="text-slate-200 font-semibold">{driver.target_timeline || 'Ongoing'}</span>
+                            </div>
+                            <div>
+                              <span className="text-[10px] text-slate-500 uppercase font-sans block">Stated Outlay / Capex</span>
+                              <span className="text-emerald-400 font-semibold">
+                                {driver.stated_outlay_or_value ? (driver.stated_outlay_or_value.startsWith('₹') ? driver.stated_outlay_or_value : `₹${driver.stated_outlay_or_value} Cr`) : 'Not Stated'}
+                              </span>
+                            </div>
+                          </div>
+
+                          <div className="space-y-1.5 text-xs">
+                            <p className="text-slate-300 leading-relaxed">
+                              <strong className="text-slate-400 font-semibold">Plan:</strong> {driver.description}
+                            </p>
+                            {driver.expected_impact && (
+                              <p className="text-emerald-300/90 leading-relaxed">
+                                <strong className="text-emerald-400 font-semibold">Expected Impact:</strong> {driver.expected_impact}
+                              </p>
+                            )}
+                          </div>
                         </div>
 
-                        {/* REPORTED RESULT */}
-                        <div className="bg-emerald-950/20 rounded-xl border border-emerald-900/30 p-4 space-y-2">
-                          <div className="flex items-center justify-between">
-                            <span className="text-[10px] uppercase font-bold tracking-wider bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 px-2 py-0.5 rounded">
-                              REPORTED RESULT
-                            </span>
-                            <span className="text-[10px] text-slate-400 font-mono">{item.actual_in_period}</span>
+                        {/* Collapsible Evidence */}
+                        <details className="text-xs text-slate-400 group pt-2 border-t border-slate-900">
+                          <summary className="cursor-pointer font-medium text-slate-400 hover:text-emerald-400 flex items-center gap-1.5 transition-colors select-none">
+                            <ChevronRight className="w-3.5 h-3.5 group-open:rotate-90 transition-transform" />
+                            <span>Source Page & Citation</span>
+                          </summary>
+                          <div className="mt-2.5 bg-slate-900 p-3 rounded-xl border border-slate-800 font-mono text-[11px] space-y-1">
+                            {driver.source_page && <p className="text-slate-300">Source: Page {driver.source_page}</p>}
+                            {driver.source_quote && <p className="text-slate-400 italic">Quote: "{driver.source_quote}"</p>}
+                            {driver.source_url && (
+                              <a href={driver.source_url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-emerald-400 underline mt-1 font-sans">
+                                <span>Open Filing PDF</span> <ExternalLink className="w-3 h-3" />
+                              </a>
+                            )}
                           </div>
-                          <p className="text-xs text-slate-200 leading-relaxed">
-                            {item.actual_outcome}
-                          </p>
-                        </div>
-
+                        </details>
                       </div>
+                    ))}
+                  </div>
+                </div>
+              )}
 
-                      {/* STOCKER INTERPRETATION / VARIANCE */}
-                      {item.variance_analysis && (
-                        <div className="bg-purple-950/20 rounded-xl border border-purple-900/30 p-3.5 flex items-start gap-2.5">
-                          <span className="text-[10px] uppercase font-bold tracking-wider bg-purple-500/20 text-purple-300 border border-purple-500/30 px-2 py-0.5 rounded shrink-0">
-                            STOCKER INTERPRETATION
-                          </span>
-                          <p className="text-xs text-purple-200/90 leading-relaxed">
-                            {item.variance_analysis}
-                          </p>
+              {/* SECTION 3: PROMISE VS DELIVERY */}
+              {docIntel.promise_vs_delivery && docIntel.promise_vs_delivery.length > 0 && (
+                <div className="glass-panel rounded-3xl p-6 md:p-8 border border-slate-800 space-y-6">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-800 pb-4">
+                    <div className="flex items-center gap-2.5">
+                      <Target className="w-5 h-5 text-emerald-400" />
+                      <div>
+                        <h4 className="text-lg font-bold text-white">3. Promise vs Delivery (Historical Tracking)</h4>
+                        <p className="text-xs text-slate-400">Verifying historical management promises against actual subsequent outcomes</p>
+                      </div>
+                    </div>
+                    <span className="text-xs text-slate-400 font-mono bg-slate-900 px-3 py-1 rounded-lg border border-slate-800 self-start sm:self-auto">
+                      Comparing: {docIntel.older_document_period || 'Baseline'} → {docIntel.latest_document_period || 'Latest'}
+                    </span>
+                  </div>
+
+                  <div className="space-y-4">
+                    {docIntel.promise_vs_delivery.map((item, idx) => {
+                      const statusColors: Record<string, { bg: string; text: string; border: string }> = {
+                        'Delivered': { bg: 'bg-emerald-500/20', text: 'text-emerald-300', border: 'border-emerald-500/40' },
+                        'In Progress': { bg: 'bg-amber-500/20', text: 'text-amber-300', border: 'border-amber-500/40' },
+                        'Delayed': { bg: 'bg-orange-500/20', text: 'text-orange-300', border: 'border-orange-500/40' },
+                        'Missed': { bg: 'bg-rose-500/20', text: 'text-rose-300', border: 'border-rose-500/40' },
+                        'Not Enough Data': { bg: 'bg-slate-800', text: 'text-slate-400', border: 'border-slate-700' }
+                      };
+                      const color = statusColors[item.status] || statusColors['Not Enough Data'];
+
+                      return (
+                        <div key={idx} className="bg-slate-950/80 rounded-2xl border border-slate-800 p-5 space-y-4">
+                          {/* Top Row: Area & Status Badge */}
+                          <div className="flex items-start sm:items-center justify-between gap-3 flex-wrap">
+                            <span className="text-sm font-bold text-white font-sans">{item.area}</span>
+                            <span className={`${color.bg} ${color.text} ${color.border} border text-xs font-bold px-3 py-1 rounded-full flex items-center gap-1.5 shadow-sm`}>
+                              {item.status === 'Delivered' && '✓'}
+                              {item.status === 'In Progress' && '⚠'}
+                              {item.status === 'Delayed' && '⚠'}
+                              {item.status === 'Missed' && '✗'}
+                              {item.status === 'Not Enough Data' && '?'}
+                              <span>{item.status}</span>
+                            </span>
+                          </div>
+
+                          {/* Management Said vs Reported Result Grid */}
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            
+                            {/* MANAGEMENT SAID */}
+                            <div className="bg-blue-950/20 rounded-xl border border-blue-900/30 p-4 space-y-2">
+                              <div className="flex items-center justify-between">
+                                <span className="text-[10px] uppercase font-bold tracking-wider bg-blue-500/20 text-blue-300 border border-blue-500/30 px-2 py-0.5 rounded">
+                                  MANAGEMENT SAID
+                                </span>
+                                <span className="text-[10px] text-slate-400 font-mono">{item.promised_in_period}</span>
+                              </div>
+                              <p className="text-xs text-slate-200 leading-relaxed italic">
+                                "{item.management_promise}"
+                              </p>
+                            </div>
+
+                            {/* REPORTED RESULT */}
+                            <div className="bg-emerald-950/20 rounded-xl border border-emerald-900/30 p-4 space-y-2">
+                              <div className="flex items-center justify-between">
+                                <span className="text-[10px] uppercase font-bold tracking-wider bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 px-2 py-0.5 rounded">
+                                  REPORTED RESULT
+                                </span>
+                                <span className="text-[10px] text-slate-400 font-mono">{item.actual_in_period}</span>
+                              </div>
+                              <p className="text-xs text-slate-200 leading-relaxed">
+                                {item.actual_outcome}
+                              </p>
+                            </div>
+
+                          </div>
+
+                          {/* STOCKER INTERPRETATION */}
+                          {item.stocker_analysis && (
+                            <div className="bg-purple-950/20 rounded-xl border border-purple-900/30 p-3.5 flex items-start gap-2.5">
+                              <span className="text-[10px] uppercase font-bold tracking-wider bg-purple-500/20 text-purple-300 border border-purple-500/30 px-2 py-0.5 rounded shrink-0">
+                                STOCKER INTERPRETATION
+                              </span>
+                              <p className="text-xs text-purple-200/90 leading-relaxed">
+                                {item.stocker_analysis}
+                              </p>
+                            </div>
+                          )}
+
+                          {/* REPORTED NUMBERS CHECK */}
+                          {item.financial_numbers_check && (
+                            <div className="bg-cyan-950/20 rounded-xl border border-cyan-900/30 p-3.5 flex items-start gap-2.5 font-mono">
+                              <span className="text-[10px] uppercase font-bold tracking-wider bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 px-2 py-0.5 rounded shrink-0 font-sans">
+                                REPORTED NUMBERS
+                              </span>
+                              <p className="text-xs text-cyan-200/90 leading-relaxed">
+                                {item.financial_numbers_check}
+                              </p>
+                            </div>
+                          )}
+
+                          {/* Collapsible Evidence Details */}
+                          <details className="text-xs text-slate-400 group pt-1">
+                            <summary className="cursor-pointer font-medium text-slate-400 hover:text-emerald-400 flex items-center gap-1.5 transition-colors select-none">
+                              <ChevronRight className="w-3.5 h-3.5 group-open:rotate-90 transition-transform" />
+                              <span>View Verifiable Filing Evidence</span>
+                            </summary>
+                            <div className="mt-3 bg-slate-900/90 p-4 rounded-xl border border-slate-800 space-y-2 font-mono text-[11px]">
+                              {item.promise_source_page && (
+                                <p className="text-slate-300">
+                                  <strong className="text-slate-400 font-sans">Guidance Source:</strong> {item.promised_in_period} (Page {item.promise_source_page})
+                                  {item.promise_quote && <span className="block text-slate-400 mt-1 italic">Quote: "{item.promise_quote}"</span>}
+                                  {item.source_url_promise && (
+                                    <a href={item.source_url_promise} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-emerald-400 underline mt-1 font-sans">
+                                      <span>Open Filing PDF</span> <ExternalLink className="w-3 h-3" />
+                                    </a>
+                                  )}
+                                </p>
+                              )}
+                              {item.actual_source_page && (
+                                <p className="text-slate-300 pt-2 border-t border-slate-800/80">
+                                  <strong className="text-slate-400 font-sans">Delivery Source:</strong> {item.actual_in_period} (Page {item.actual_source_page})
+                                  {item.actual_quote && <span className="block text-slate-400 mt-1 italic">Quote: "{item.actual_quote}"</span>}
+                                  {item.source_url_actual && (
+                                    <a href={item.source_url_actual} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-emerald-400 underline mt-1 font-sans">
+                                      <span>Open Filing PDF</span> <ExternalLink className="w-3 h-3" />
+                                    </a>
+                                  )}
+                                </p>
+                              )}
+                            </div>
+                          </details>
+
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* SECTION 4: DEMAND / BUSINESS MOMENTUM */}
+              {docIntel.demand_momentum && (
+                <div className="glass-panel rounded-3xl p-6 md:p-8 border border-slate-800 space-y-6">
+                  <div className="flex items-center gap-2.5 border-b border-slate-800 pb-4">
+                    <TrendingUp className="w-5 h-5 text-cyan-400" />
+                    <div>
+                      <h4 className="text-lg font-bold text-white">4. Demand / Business Momentum</h4>
+                      <p className="text-xs text-slate-400">Order inflows, subscriber/volume traction, and industry demand environment</p>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    
+                    {/* Metrics Grid */}
+                    <div className="bg-slate-950/80 p-5 rounded-2xl border border-slate-800 space-y-4">
+                      <span className="text-xs font-bold uppercase tracking-wider text-cyan-400 flex items-center gap-1.5">
+                        <CheckCircle2 className="w-4 h-4" />
+                        Company-Relevant Demand Signals
+                      </span>
+
+                      {docIntel.demand_momentum.company_specific_metrics && docIntel.demand_momentum.company_specific_metrics.length > 0 && (
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                          {docIntel.demand_momentum.company_specific_metrics.map((m, idx) => (
+                            <div key={idx} className="bg-slate-900/60 p-3 rounded-xl border border-slate-800/80 space-y-0.5">
+                              <span className="text-[10px] text-slate-500 uppercase block font-sans">{m.metric}</span>
+                              <span className="text-xs font-bold text-slate-100 font-mono">{m.value}</span>
+                            </div>
+                          ))}
                         </div>
                       )}
 
-                      {/* Collapsible Evidence Details */}
-                      <details className="text-xs text-slate-400 group pt-1">
-                        <summary className="cursor-pointer font-medium text-slate-400 hover:text-emerald-400 flex items-center gap-1.5 transition-colors select-none">
-                          <ChevronRight className="w-3.5 h-3.5 group-open:rotate-90 transition-transform" />
-                          <span>View Verifiable Filing Evidence</span>
-                        </summary>
-                        <div className="mt-3 bg-slate-900/90 p-4 rounded-xl border border-slate-800 space-y-2 font-mono text-[11px]">
-                          {item.promise_source_page && (
-                            <p className="text-slate-300">
-                              <strong className="text-slate-400 font-sans">Guidance Source:</strong> {item.promised_in_period} (Page {item.promise_source_page})
-                              {item.promise_quote && <span className="block text-slate-400 mt-1 italic">Quote: "{item.promise_quote}"</span>}
-                              {item.source_url_promise && (
-                                <a href={item.source_url_promise} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-emerald-400 underline mt-1">
-                                  <span>Open Filing PDF</span> <ExternalLink className="w-3 h-3" />
-                                </a>
-                              )}
-                            </p>
-                          )}
-                          {item.actual_source_page && (
-                            <p className="text-slate-300 pt-2 border-t border-slate-800/80">
-                              <strong className="text-slate-400 font-sans">Delivery Source:</strong> {item.actual_in_period} (Page {item.actual_source_page})
-                              {item.actual_quote && <span className="block text-slate-400 mt-1 italic">Quote: "{item.actual_quote}"</span>}
-                              {item.source_url_actual && (
-                                <a href={item.source_url_actual} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-emerald-400 underline mt-1">
-                                  <span>Open Filing PDF</span> <ExternalLink className="w-3 h-3" />
-                                </a>
-                              )}
-                            </p>
-                          )}
+                      {docIntel.demand_momentum.segment_trends && docIntel.demand_momentum.segment_trends.length > 0 && (
+                        <div className="space-y-2 pt-2 border-t border-slate-900">
+                          <span className="text-[10px] uppercase font-bold text-slate-400 block">Segment Trends:</span>
+                          <ul className="space-y-1.5">
+                            {docIntel.demand_momentum.segment_trends.map((st, idx) => (
+                              <li key={idx} className="text-xs text-slate-300">
+                                <strong className="text-slate-200">{st.segment}:</strong> {st.trend}
+                              </li>
+                            ))}
+                          </ul>
                         </div>
-                      </details>
+                      )}
 
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-
-          {/* SECTION C: GROWTH PIPELINE */}
-          <div className="glass-panel rounded-3xl p-6 md:p-8 border border-slate-800 space-y-6">
-            <div className="flex items-center gap-2.5 border-b border-slate-800 pb-4">
-              <Layers className="w-5 h-5 text-amber-400" />
-              <div>
-                <h4 className="text-lg font-bold text-white">3. Growth Pipeline (Capacity, Capex & Projects)</h4>
-                <p className="text-xs text-slate-400">Ongoing expansions, plant commissioning dates, and new product programs</p>
-              </div>
-            </div>
-
-            {(!docIntel?.growth_pipeline || docIntel.growth_pipeline.length === 0) ? (
-              <p className="text-xs text-slate-400 italic py-4 text-center">No growth pipeline items extracted from recent filings.</p>
-            ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {docIntel.growth_pipeline.map((item, idx) => (
-                  <div key={idx} className="bg-slate-950/80 rounded-2xl border border-slate-800 p-5 space-y-3.5 flex flex-col justify-between">
-                    <div className="space-y-2.5">
-                      <div className="flex items-start justify-between gap-2">
-                        <h5 className="text-sm font-bold text-slate-100">{item.initiative}</h5>
-                        <span className="bg-amber-500/20 text-amber-300 border border-amber-500/30 text-[10px] font-bold px-2 py-0.5 rounded-full shrink-0">
-                          {item.type}
-                        </span>
-                      </div>
-
-                      <div className="grid grid-cols-2 gap-2 text-xs font-mono bg-slate-900/60 p-3 rounded-xl border border-slate-800/80">
-                        <div>
-                          <span className="text-[10px] text-slate-500 uppercase font-sans block">Target Timeline</span>
-                          <span className="text-slate-200 font-semibold">{item.target_commissioning || 'Ongoing'}</span>
-                        </div>
-                        <div>
-                          <span className="text-[10px] text-slate-500 uppercase font-sans block">Stated Capex</span>
-                          <span className="text-emerald-400 font-semibold">{item.outlay_cr ? `₹${item.outlay_cr} Cr` : 'Not Stated'}</span>
-                        </div>
-                      </div>
-
-                      <div className="space-y-1.5 text-xs">
-                        <p className="text-slate-300">
-                          <strong className="text-slate-400 font-semibold">Execution Status:</strong> {item.current_status}
+                      {docIntel.demand_momentum.market_share_and_pricing && (
+                        <p className="text-xs text-emerald-300 bg-emerald-950/20 p-3 rounded-xl border border-emerald-900/30">
+                          <strong>Market Position:</strong> {docIntel.demand_momentum.market_share_and_pricing}
                         </p>
-                        {item.expected_impact && (
-                          <p className="text-emerald-300/90">
-                            <strong className="text-emerald-400 font-semibold">Expected Impact:</strong> {item.expected_impact}
-                          </p>
-                        )}
-                      </div>
+                      )}
                     </div>
 
-                    {/* Collapsible Evidence */}
-                    <details className="text-xs text-slate-400 group pt-2 border-t border-slate-900">
-                      <summary className="cursor-pointer font-medium text-slate-400 hover:text-emerald-400 flex items-center gap-1.5 transition-colors select-none">
-                        <ChevronRight className="w-3.5 h-3.5 group-open:rotate-90 transition-transform" />
-                        <span>Source Page & Citation</span>
-                      </summary>
-                      <div className="mt-2.5 bg-slate-900 p-3 rounded-xl border border-slate-800 font-mono text-[11px] space-y-1">
-                        {item.source_page && <p className="text-slate-300">Source Page: Page {item.source_page}</p>}
-                        {item.source_quote && <p className="text-slate-400 italic">Quote: "{item.source_quote}"</p>}
-                        {item.source_url && (
-                          <a href={item.source_url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-emerald-400 underline mt-1">
-                            <span>Open PDF</span> <ExternalLink className="w-3 h-3" />
-                          </a>
-                        )}
-                      </div>
-                    </details>
+                    {/* Headwinds & Macro Risks */}
+                    <div className="bg-rose-950/20 p-5 rounded-2xl border border-rose-900/30 space-y-4">
+                      <span className="text-xs font-bold uppercase tracking-wider text-rose-400 flex items-center gap-1.5">
+                        <AlertTriangle className="w-4 h-4" />
+                        Stated Demand Headwinds & Headwinds
+                      </span>
+
+                      {(!docIntel.demand_momentum.headwinds_and_risks || docIntel.demand_momentum.headwinds_and_risks.length === 0) ? (
+                        <p className="text-xs text-slate-400 italic">No critical demand headwinds noted in recent disclosures.</p>
+                      ) : (
+                        <ul className="space-y-2.5">
+                          {docIntel.demand_momentum.headwinds_and_risks.map((risk, i) => (
+                            <li key={i} className="text-xs text-rose-200/90 flex items-start gap-2 leading-relaxed">
+                              <span className="w-1.5 h-1.5 rounded-full bg-rose-400 mt-1.5 shrink-0" />
+                              <span>{risk}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </div>
+
                   </div>
-                ))}
-              </div>
-            )}
-          </div>
-
-          {/* SECTION D: DEMAND & ORDERS */}
-          <div className="glass-panel rounded-3xl p-6 md:p-8 border border-slate-800 space-y-6">
-            <div className="flex items-center gap-2.5 border-b border-slate-800 pb-4">
-              <TrendingUp className="w-5 h-5 text-cyan-400" />
-              <div>
-                <h4 className="text-lg font-bold text-white">4. Demand, Order Book & Market Share</h4>
-                <p className="text-xs text-slate-400">Order inflows, subscriber/volume traction, and industry demand environment</p>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              
-              {/* Order Book & Growth Metrics */}
-              <div className="bg-slate-950/80 p-5 rounded-2xl border border-slate-800 space-y-4">
-                <span className="text-xs font-bold uppercase tracking-wider text-cyan-400 flex items-center gap-1.5">
-                  <CheckCircle2 className="w-4 h-4" />
-                  Order Book, Customers & Pricing
-                </span>
-
-                <div className="space-y-3 text-xs">
-                  {docIntel?.demand_and_orders?.order_book_or_tcv && (
-                    <div className="bg-slate-900/60 p-3 rounded-xl border border-slate-800/80">
-                      <span className="text-[10px] text-slate-500 uppercase block font-sans">Order Book / TCV</span>
-                      <span className="text-slate-100 font-semibold">{docIntel.demand_and_orders.order_book_or_tcv}</span>
-                    </div>
-                  )}
-
-                  {docIntel?.demand_and_orders?.customer_or_subscriber_growth && (
-                    <div className="bg-slate-900/60 p-3 rounded-xl border border-slate-800/80">
-                      <span className="text-[10px] text-slate-500 uppercase block font-sans">Customer / Subscriber Additions</span>
-                      <span className="text-slate-100 font-semibold">{docIntel.demand_and_orders.customer_or_subscriber_growth}</span>
-                    </div>
-                  )}
-
-                  {docIntel?.demand_and_orders?.volume_and_pricing_trends && (
-                    <div className="bg-slate-900/60 p-3 rounded-xl border border-slate-800/80">
-                      <span className="text-[10px] text-slate-500 uppercase block font-sans">Volume & Pricing Dynamics</span>
-                      <span className="text-slate-100 font-semibold">{docIntel.demand_and_orders.volume_and_pricing_trends}</span>
-                    </div>
-                  )}
-
-                  {docIntel?.demand_and_orders?.market_share_signals && (
-                    <div className="bg-slate-900/60 p-3 rounded-xl border border-slate-800/80">
-                      <span className="text-[10px] text-slate-500 uppercase block font-sans">Market Share & Position</span>
-                      <span className="text-emerald-400 font-semibold">{docIntel.demand_and_orders.market_share_signals}</span>
-                    </div>
-                  )}
                 </div>
-              </div>
+              )}
 
-              {/* Headwinds & Macro Risks */}
-              <div className="bg-rose-950/20 p-5 rounded-2xl border border-rose-900/30 space-y-4">
-                <span className="text-xs font-bold uppercase tracking-wider text-rose-400 flex items-center gap-1.5">
-                  <AlertTriangle className="w-4 h-4" />
-                  Stated Demand Headwinds & Risks
-                </span>
+              {/* SECTION 5: RISKS, CASH & EXECUTION ISSUES */}
+              {docIntel.risks_and_cash && (
+                <div className="glass-panel rounded-3xl p-6 md:p-8 border border-slate-800 space-y-6">
+                  <div className="flex items-center gap-2.5 border-b border-slate-800 pb-4">
+                    <DollarSign className="w-5 h-5 text-emerald-400" />
+                    <div>
+                      <h4 className="text-lg font-bold text-white">5. Risks, Cash Flow & Execution Issues</h4>
+                      <p className="text-xs text-slate-400">Auditing working capital, debt trajectory, and independent mathematical cross-checks</p>
+                    </div>
+                  </div>
 
-                {(!docIntel?.demand_and_orders?.headwinds_and_risks || docIntel.demand_and_orders.headwinds_and_risks.length === 0) ? (
-                  <p className="text-xs text-slate-400 italic">No critical demand headwinds noted in recent disclosures.</p>
-                ) : (
-                  <ul className="space-y-2.5">
-                    {docIntel.demand_and_orders.headwinds_and_risks.map((risk, i) => (
-                      <li key={i} className="text-xs text-rose-200/90 flex items-start gap-2 leading-relaxed">
-                        <span className="w-1.5 h-1.5 rounded-full bg-rose-400 mt-1.5 shrink-0" />
-                        <span>{risk}</span>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </div>
+                  <div className="space-y-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      
+                      <div className="bg-slate-950/80 p-5 rounded-2xl border border-slate-800 space-y-2">
+                        <span className="text-[10px] uppercase font-bold tracking-wider text-amber-400 block">
+                          Working Capital & Receivables
+                        </span>
+                        <p className="text-xs text-slate-200 leading-relaxed">
+                          {docIntel.risks_and_cash.working_capital_and_receivables || "Working capital cycle is tracking in line with business expansion."}
+                        </p>
+                      </div>
 
-            </div>
-          </div>
+                      <div className="bg-slate-950/80 p-5 rounded-2xl border border-slate-800 space-y-2">
+                        <span className="text-[10px] uppercase font-bold tracking-wider text-emerald-400 block">
+                          Debt & Capex Burden
+                        </span>
+                        <p className="text-xs text-slate-200 leading-relaxed">
+                          {docIntel.risks_and_cash.debt_and_capex_burden || "Debt servicing and capital allocation remain supported by operational cash flows."}
+                        </p>
+                      </div>
 
-          {/* SECTION E: CASH & PROBLEMS */}
-          <div className="glass-panel rounded-3xl p-6 md:p-8 border border-slate-800 space-y-6">
-            <div className="flex items-center gap-2.5 border-b border-slate-800 pb-4">
-              <DollarSign className="w-5 h-5 text-emerald-400" />
-              <div>
-                <h4 className="text-lg font-bold text-white">5. Cash Flow, Working Capital & Bottlenecks</h4>
-                <p className="text-xs text-slate-400">Auditing CFO drivers, working capital cycle, and independent forensic cross-checks</p>
-              </div>
-            </div>
+                    </div>
 
-            <div className="space-y-4">
-              
-              {/* Cash Flow & Working Capital Grid */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                
-                <div className="bg-slate-950/80 p-5 rounded-2xl border border-slate-800 space-y-2.5">
-                  <span className="text-[10px] uppercase font-bold tracking-wider text-emerald-400 block">
-                    Operating Cash Flow Drivers
-                  </span>
-                  <p className="text-xs text-slate-200 leading-relaxed">
-                    {docIntel?.cash_and_problems?.cfo_fcf_drivers || "Operating cash flow generated from core operations supported capital commitments and dividends."}
-                  </p>
+                    {/* REPORTED NUMBERS COMPARISON */}
+                    {docIntel.risks_and_cash.reported_numbers_comparison && (
+                      <div className="bg-cyan-950/20 p-5 rounded-2xl border border-cyan-900/40 space-y-2">
+                        <div className="flex items-center gap-2">
+                          <span className="text-[10px] uppercase font-bold tracking-wider bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 px-2 py-0.5 rounded">
+                            REPORTED NUMBERS
+                          </span>
+                          <span className="text-xs font-bold text-cyan-200">Mathematical Statement Verification</span>
+                        </div>
+                        <p className="text-xs text-cyan-100 leading-relaxed font-mono">
+                          {docIntel.risks_and_cash.reported_numbers_comparison}
+                        </p>
+                      </div>
+                    )}
+
+                    {/* Operational Bottlenecks */}
+                    {docIntel.risks_and_cash.execution_and_bottlenecks && docIntel.risks_and_cash.execution_and_bottlenecks.length > 0 && (
+                      <div className="bg-slate-900/60 p-4 rounded-2xl border border-slate-800 space-y-2">
+                        <span className="text-xs font-bold uppercase tracking-wider text-slate-400">
+                          Operational & Execution Bottlenecks
+                        </span>
+                        <ul className="space-y-1.5">
+                          {docIntel.risks_and_cash.execution_and_bottlenecks.map((b, i) => (
+                            <li key={i} className="text-xs text-slate-300 flex items-start gap-2">
+                              <span className="w-1.5 h-1.5 rounded-full bg-amber-400 mt-1.5 shrink-0" />
+                              <span>{b}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                  </div>
                 </div>
+              )}
 
-                <div className="bg-slate-950/80 p-5 rounded-2xl border border-slate-800 space-y-2.5">
-                  <span className="text-[10px] uppercase font-bold tracking-wider text-amber-400 block">
-                    Working Capital & Receivables (DSO)
-                  </span>
-                  <p className="text-xs text-slate-200 leading-relaxed">
-                    {docIntel?.cash_and_problems?.inventory_and_receivables_audit || "Working capital cycle and trade receivables remain in line with operational volume expansion."}
-                  </p>
-                </div>
-
-              </div>
-
-              {/* Stocker Independent Financial Cross-Check */}
-              {docIntel?.cash_and_problems?.financial_cross_check && (
-                <div className="bg-purple-950/20 p-5 rounded-2xl border border-purple-900/40 space-y-2">
-                  <div className="flex items-center gap-2">
-                    <span className="text-[10px] uppercase font-bold tracking-wider bg-purple-500/20 text-purple-300 border border-purple-500/30 px-2 py-0.5 rounded">
-                      STOCKER INTERPRETATION
+              {/* SECTION 6: STOCKER VIEW */}
+              {docIntel.stocker_view && (
+                <div className="glass-panel rounded-3xl p-6 md:p-8 border border-slate-800 space-y-6">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800 pb-4">
+                    <div className="flex items-center gap-2.5">
+                      <Sparkles className="w-5 h-5 text-purple-400" />
+                      <div>
+                        <h4 className="text-lg font-bold text-white">6. Stocker View</h4>
+                        <p className="text-xs text-slate-400">Independent fundamental takeaway, key future triggers & what to watch</p>
+                      </div>
+                    </div>
+                    <span className="bg-purple-500/20 text-purple-300 border border-purple-500/40 text-xs font-bold px-3 py-1 rounded-full self-start sm:self-auto">
+                      {docIntel.stocker_view.execution_verdict}
                     </span>
-                    <span className="text-xs font-bold text-purple-200">Mathematical Statement Cross-Check</span>
                   </div>
-                  <p className="text-xs text-purple-100 leading-relaxed font-mono">
-                    {docIntel.cash_and_problems.financial_cross_check}
-                  </p>
+
+                  <div className="space-y-4">
+                    {/* Investor Summary Box */}
+                    <div className="bg-slate-950/80 p-5 rounded-2xl border border-slate-800 space-y-2">
+                      <span className="text-[10px] uppercase font-bold tracking-wider text-purple-400 block">
+                        Institutional Investor Summary
+                      </span>
+                      <p className="text-xs text-slate-200 leading-relaxed font-sans">
+                        {docIntel.stocker_view.investor_summary}
+                      </p>
+                    </div>
+
+                    {/* Grid of Triggers vs Risks vs Watchlist */}
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      
+                      {/* Positive Triggers */}
+                      <div className="bg-emerald-950/20 p-4 rounded-2xl border border-emerald-900/30 space-y-2.5">
+                        <span className="text-[10px] uppercase font-bold tracking-wider text-emerald-400 flex items-center gap-1">
+                          <CheckCircle2 className="w-3.5 h-3.5" />
+                          Positive Future Triggers
+                        </span>
+                        <ul className="space-y-1.5">
+                          {docIntel.stocker_view.positive_triggers.map((t, idx) => (
+                            <li key={idx} className="text-xs text-emerald-200/90 flex items-start gap-1.5">
+                              <span className="text-emerald-400">•</span>
+                              <span>{t}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+
+                      {/* Main Risks */}
+                      <div className="bg-rose-950/20 p-4 rounded-2xl border border-rose-900/30 space-y-2.5">
+                        <span className="text-[10px] uppercase font-bold tracking-wider text-rose-400 flex items-center gap-1">
+                          <AlertTriangle className="w-3.5 h-3.5" />
+                          Main Risks to Monitor
+                        </span>
+                        <ul className="space-y-1.5">
+                          {docIntel.stocker_view.main_risks.map((r, idx) => (
+                            <li key={idx} className="text-xs text-rose-200/90 flex items-start gap-1.5">
+                              <span className="text-rose-400">•</span>
+                              <span>{r}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+
+                      {/* What to Watch Next */}
+                      <div className="bg-cyan-950/20 p-4 rounded-2xl border border-cyan-900/30 space-y-2.5">
+                        <span className="text-[10px] uppercase font-bold tracking-wider text-cyan-400 flex items-center gap-1">
+                          <Clock className="w-3.5 h-3.5" />
+                          What to Watch Next (2-4 Qtrs)
+                        </span>
+                        <ul className="space-y-1.5">
+                          {docIntel.stocker_view.what_to_watch_next.map((w, idx) => (
+                            <li key={idx} className="text-xs text-cyan-200/90 flex items-start gap-1.5">
+                              <span className="text-cyan-400">•</span>
+                              <span>{w}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+
+                    </div>
+                  </div>
                 </div>
               )}
-
-              {/* Operational Bottlenecks */}
-              {docIntel?.cash_and_problems?.operational_bottlenecks && docIntel.cash_and_problems.operational_bottlenecks.length > 0 && (
-                <div className="bg-slate-900/60 p-4 rounded-2xl border border-slate-800 space-y-2">
-                  <span className="text-xs font-bold uppercase tracking-wider text-slate-400">
-                    Operational & Execution Bottlenecks
-                  </span>
-                  <ul className="space-y-1.5">
-                    {docIntel.cash_and_problems.operational_bottlenecks.map((b, i) => (
-                      <li key={i} className="text-xs text-slate-300 flex items-start gap-2">
-                        <span className="w-1.5 h-1.5 rounded-full bg-amber-400 mt-1.5 shrink-0" />
-                        <span>{b}</span>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-
-            </div>
-          </div>
+            </>
+          )}
 
         </div>
       )}

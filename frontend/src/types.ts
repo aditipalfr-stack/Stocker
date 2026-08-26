@@ -233,7 +233,30 @@ export interface ComparisonItem {
   };
 }
 
-export interface PlanVsRealityItem {
+export interface RecentChange {
+  headline: string;
+  category: string;
+  detail: string;
+  source_doc?: string;
+  source_page?: number;
+  source_url?: string;
+}
+
+export interface GrowthDriver {
+  driver_title: string;
+  driver_type: string;
+  description: string;
+  target_timeline?: string;
+  stated_outlay_or_value?: string;
+  execution_status: string;
+  expected_impact?: string;
+  source_page?: number;
+  source_quote?: string;
+  source_url?: string;
+  confidence?: number;
+}
+
+export interface PromiseVsDeliveryItem {
   area: string;
   management_promise: string;
   promised_in_period: string;
@@ -244,32 +267,18 @@ export interface PlanVsRealityItem {
   actual_source_page?: number;
   actual_quote?: string;
   status: 'Delivered' | 'In Progress' | 'Delayed' | 'Missed' | 'Not Enough Data';
-  variance_analysis: string;
+  stocker_analysis: string;
+  financial_numbers_check?: string;
   source_url_promise?: string;
   source_url_actual?: string;
   confidence?: number;
 }
 
-export interface GrowthPipelineItem {
-  initiative: string;
-  type: 'Capacity / Plant' | 'Capex Program' | 'M&A / Acquisition' | 'New Product / Market';
-  outlay_cr?: string;
-  target_commissioning?: string;
-  current_status: string;
-  expected_impact?: string;
-  source_page?: number;
-  source_quote?: string;
-  source_url?: string;
-  confidence?: number;
-}
-
-export interface DemandAndOrders {
-  order_book_or_tcv?: string;
-  book_to_bill_ratio?: string;
-  customer_or_subscriber_growth?: string;
-  volume_and_pricing_trends?: string;
-  segment_demand_trends: Array<{ segment: string; trend: string }>;
-  market_share_signals?: string;
+export interface DemandMomentum {
+  summary: string;
+  company_specific_metrics: Array<{ metric: string; value: string }>;
+  segment_trends: Array<{ segment: string; trend: string }>;
+  market_share_and_pricing?: string;
   headwinds_and_risks: string[];
   source_page?: number;
   source_quote?: string;
@@ -277,16 +286,25 @@ export interface DemandAndOrders {
   confidence?: number;
 }
 
-export interface CashAndProblems {
-  cfo_fcf_drivers?: string;
-  inventory_and_receivables_audit?: string;
-  debt_and_leverage_status?: string;
-  operational_bottlenecks: string[];
-  financial_cross_check?: string;
+export interface RisksAndCashIssues {
+  working_capital_and_receivables?: string;
+  debt_and_capex_burden?: string;
+  margin_and_cost_pressures?: string;
+  execution_and_bottlenecks: string[];
+  regulatory_or_legal_headwinds: string[];
+  reported_numbers_comparison?: string;
   source_page?: number;
   source_quote?: string;
   source_url?: string;
   confidence?: number;
+}
+
+export interface StockerView {
+  execution_verdict: 'Strong Execution' | 'Mixed Execution' | 'Weak Execution' | 'Evolving / Watchlist';
+  positive_triggers: string[];
+  main_risks: string[];
+  what_to_watch_next: string[];
+  investor_summary: string;
 }
 
 export interface BusinessOutlookIntelligence {
@@ -299,10 +317,13 @@ export interface BusinessOutlookIntelligence {
   source_documents: Array<{ title: string; url: string; type?: string; period?: string }>;
   ai_provider_used: string;
   extraction_timestamp?: string;
-  plan_vs_reality: PlanVsRealityItem[];
-  growth_pipeline: GrowthPipelineItem[];
-  demand_and_orders: DemandAndOrders;
-  cash_and_problems: CashAndProblems;
+  what_changed_recently: RecentChange[];
+  growth_drivers: GrowthDriver[];
+  promise_vs_delivery: PromiseVsDeliveryItem[];
+  demand_momentum: DemandMomentum;
+  risks_and_cash: RisksAndCashIssues;
+  stocker_view: StockerView;
 }
+
 
 
