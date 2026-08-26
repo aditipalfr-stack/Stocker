@@ -77,27 +77,70 @@ COMPANY_IR_DOMAINS: Dict[str, Dict[str, str]] = {
     }
 }
 
-def extract_period_from_title(title: str) -> Optional[str]:
-    """Extracts FY or Quarter period string like 'FY26', 'Q1 FY27', 'FY 2025-26'."""
-    # Pattern for Q1/Q2/Q3/Q4 FYXX or FY20XX
-    q_match = re.search(r"(Q[1-4])\s*(?:FY)?\s*['\"]?(\d{2,4})", title, re.IGNORECASE)
+def extract_period_or_date(text: str) -> Optional[str]:
+    """Extracts exact Date (e.g. '24 Jul 2026'), Month-Year with Quarter (e.g. 'Jun 2026 (Q1 FY27)'), or Fiscal Year."""
+    if not text:
+        return None
+    
+    # 1. Exact Date with Day Month Year (e.g. '24 Jul 2026', '24-07-2026', '2026-07-24')
+    d_match = re.search(r"\b(\d{1,2})[-/ ]+(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*[-/ ]+(\d{4})\b", text, re.IGNORECASE)
+    if d_match:
+        day = d_match.group(1).zfill(2)
+        month = d_match.group(2).capitalize()
+        year = d_match.group(3)
+        return f"{day} {month} {year}"
+        
+    iso_date = re.search(r"\b(\d{4})-(\d{2})-(\d{2})\b", text)
+    if iso_date:
+        return f"{iso_date.group(3)}/{iso_date.group(2)}/{iso_date.group(1)}"
+
+    # 2. Date with Day Month (e.g. '18 Aug', '24 Jul' in recent announcements)
+    d_match_short = re.search(r"\b(\d{1,2})[-/ ]+(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\b", text, re.IGNORECASE)
+    if d_match_short:
+        day = d_match_short.group(1).zfill(2)
+        month = d_match_short.group(2).capitalize()
+        return f"{day} {month} 2026"
+
+    # 3. Month & Year pattern (e.g. 'Jun 2026', 'Mar 2026', 'December 2025')
+    m_match = re.search(r"\b(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\s*(\d{4})\b", text, re.IGNORECASE)
+    if m_match:
+        month = m_match.group(1).capitalize()
+        year = int(m_match.group(2))
+        yr_short = str(year)[2:]
+        next_yr_short = str(year + 1)[2:]
+        
+        # Standard Indian Financial Year Quarter Mapping
+        if month in ("Jun", "June"):
+            return f"Jun {year} (Q1 FY{next_yr_short})"
+        elif month in ("Sep", "Sept", "September"):
+            return f"Sep {year} (Q2 FY{next_yr_short})"
+        elif month in ("Dec", "December"):
+            return f"Dec {year} (Q3 FY{next_yr_short})"
+        elif month in ("Mar", "March"):
+            return f"Mar {year} (Q4 FY{yr_short})"
+        else:
+            return f"{month} {year}"
+
+    # 4. Quarter pattern (e.g. 'Q1 FY27' or 'Q4 FY26')
+    q_match = re.search(r"(Q[1-4])\s*(?:FY)?\s*['\"]?(\d{2,4})", text, re.IGNORECASE)
     if q_match:
         quarter = q_match.group(1).upper()
         yr = q_match.group(2)
         if len(yr) == 4:
             yr = yr[2:]
         return f"{quarter} FY{yr}"
-        
-    fy_match = re.search(r"FY\s*['\"]?(\d{2,4})(?:-\d{2,4})?", title, re.IGNORECASE)
+
+    # 5. FY pattern (e.g. 'FY 2025-26' or 'FY26')
+    fy_match = re.search(r"FY\s*['\"]?(\d{2,4})(?:-(\d{2,4}))?", text, re.IGNORECASE)
     if fy_match:
         yr = fy_match.group(1)
         if len(yr) == 2:
             yr = f"20{yr}"
         return f"FY{yr}"
         
-    year_match = re.search(r"\b(201\d|202\d)\b", title)
-    if year_match:
-        return f"FY{year_match.group(1)}"
+    y_match = re.search(r"\b(201\d|202\d)\b", text)
+    if y_match:
+        return f"FY{y_match.group(1)}"
         
     return None
 
@@ -167,19 +210,13 @@ def discover_documents_screener(soup: BeautifulSoup, symbol: str, company_name: 
         parsed = urlparse(href)
         host = parsed.netloc.lower()
         is_pdf = href.lower().endswith(".pdf") or ".pdf" in href.lower()
-        period = extract_period_from_title(raw_title)
         
-        # If period not in anchor text, check parent <li> or <tr>
+        # Check period from anchor or parent element (e.g. <li> or <tr>)
+        period = extract_period_or_date(raw_title)
         if not period:
             parent_el = a.find_parent(["li", "tr", "div"])
             if parent_el:
-                parent_text = parent_el.text
-                period = extract_period_from_title(parent_text)
-                if not period:
-                    # Check for month-year pattern like 'Jun 2026' or 'Mar 2026'
-                    m_match = re.search(r"\b(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s*(\d{4})\b", parent_text, re.IGNORECASE)
-                    if m_match:
-                        period = f"{m_match.group(1).capitalize()} {m_match.group(2)}"
+                period = extract_period_or_date(parent_el.text)
         
         lower_t = raw_title.lower()
         doc_type = "general"
@@ -246,7 +283,7 @@ def discover_documents_bse_fallback(symbol: str, company_name: str, needed_types
                     
                 direct_url = f"https://www.bseindia.com/xml-data/corpfiling/AttachHis/{attach_name}"
                 is_pdf = direct_url.lower().endswith(".pdf")
-                period = extract_period_from_title(headline)
+                period = extract_period_or_date(headline) or extract_period_or_date(dt) or dt[:10]
                 
                 lower_h = headline.lower()
                 doc_type = "announcement"
@@ -268,7 +305,7 @@ def discover_documents_bse_fallback(symbol: str, company_name: str, needed_types
                         title=headline[:120],
                         url=direct_url,
                         doc_type=doc_type,
-                        period_or_date=period or dt[:10],
+                        period_or_date=period,
                         discovery_source="BSE India",
                         actual_source_host="bseindia.com",
                         actual_source_url=direct_url,
@@ -305,7 +342,7 @@ def discover_documents_nse_fallback(symbol: str, company_name: str, needed_types
                 if not desc or not attach_file:
                     continue
                 pdf_url = attach_file if attach_file.startswith("http") else f"https://archives.nseindia.com/corporate/{attach_file}"
-                period = extract_period_from_title(desc)
+                period = extract_period_or_date(desc) or extract_period_or_date(dt) or dt[:10]
                 
                 doc_type = "announcement"
                 lower_d = desc.lower()
