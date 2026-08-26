@@ -34,6 +34,7 @@ export const StockDetailView: React.FC<StockDetailViewProps> = ({ stock, onBack,
   const [docIntel, setDocIntel] = useState<BusinessOutlookIntelligence | null>(null);
   const [loadingDocIntel, setLoadingDocIntel] = useState<boolean>(false);
   const [generatingDocIntel, setGeneratingDocIntel] = useState<boolean>(false);
+  const [docIntelError, setDocIntelError] = useState<string | null>(null);
   const [outlookSubTab, setOutlookSubTab] = useState<'summary' | 'promise_delivery' | 'growth_pipeline' | 'risks_demand' | 'filings_ai' | 'filings'>('summary');
   const [selectedFormulaKey, setSelectedFormulaKey] = useState<string | null>(null);
 
