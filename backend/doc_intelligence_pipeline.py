@@ -201,7 +201,11 @@ def run_multi_document_ai_pipeline(
     # Extract latest doc
     print(f"  • Ingesting Latest Document: {latest_doc_title}")
     latest_pages_raw = download_and_extract_pdf(latest_doc_url)
-    latest_sel, _ = select_relevant_sections(latest_pages_raw, is_full_annual_report=(len(latest_pages_raw) > 50))
+    latest_sel, _ = select_relevant_sections(
+        latest_pages_raw, 
+        is_full_annual_report=(len(latest_pages_raw) > 40),
+        max_pages_to_select=25
+    )
     all_latest_pages.extend(latest_sel)
     
     # Ingest recent concalls into latest context
@@ -210,7 +214,12 @@ def run_multi_document_ai_pipeline(
             print(f"  • Ingesting Concall: {cc.title}")
             try:
                 cc_pages = download_and_extract_pdf(cc.url)
-                all_latest_pages.extend(cc_pages[:25])
+                cc_sel, _ = select_relevant_sections(
+                    cc_pages,
+                    is_full_annual_report=False,
+                    max_pages_to_select=15
+                )
+                all_latest_pages.extend(cc_sel)
             except Exception as e:
                 print(f"    ⚠️ Failed to download concall {cc.url}: {e}")
 
@@ -219,7 +228,11 @@ def run_multi_document_ai_pipeline(
         print(f"  • Ingesting Historical Baseline Document: {older_doc_title}")
         try:
             older_pages_raw = download_and_extract_pdf(older_doc_url)
-            older_sel, _ = select_relevant_sections(older_pages_raw, is_full_annual_report=(len(older_pages_raw) > 50))
+            older_sel, _ = select_relevant_sections(
+                older_pages_raw, 
+                is_full_annual_report=(len(older_pages_raw) > 40),
+                max_pages_to_select=15
+            )
             all_older_pages.extend(older_sel)
         except Exception as e:
             print(f"    ⚠️ Failed to download older doc {older_doc_url}: {e}")

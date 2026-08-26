@@ -239,14 +239,14 @@ def format_pages_for_prompt(pages: List[Tuple[int, str]]) -> str:
     return "\n".join(formatted_chunks)
 
 def call_gemini_api(api_key: str, prompt: str) -> Dict[str, Any]:
-    """Calls Gemini API with automatic model cascade (gemini-3.6-flash -> gemini-3.5-flash -> gemini-flash-latest)."""
+    """Calls Gemini API with resilient multi-model fallback cascade."""
+    import time
     models_to_try = [
         "gemini-3.6-flash",
         "gemini-3.5-flash",
-        "gemini-3.7-flash",
         "gemini-flash-latest",
-        "gemini-2.5-flash",
-        "gemini-2.0-flash"
+        "gemini-3.7-flash",
+        "gemini-2.5-flash"
     ]
     last_err = None
     for model in models_to_try:
@@ -260,20 +260,30 @@ def call_gemini_api(api_key: str, prompt: str) -> Dict[str, Any]:
             }
         }
         try:
-            resp = requests.post(url, json=payload, headers={"Content-Type": "application/json"}, timeout=60)
+            print(f"    • Invoking Gemini model: {model}...")
+            resp = requests.post(url, json=payload, headers={"Content-Type": "application/json"}, timeout=180)
             if resp.status_code == 200:
                 data = resp.json()
                 raw_text = data["candidates"][0]["content"]["parts"][0]["text"]
                 return json.loads(raw_text)
-            elif resp.status_code == 404:
-                last_err = f"Model {model} 404 Not Found: {resp.text[:100]}"
+            elif resp.status_code in (404, 503, 429, 500, 502, 504):
+                last_err = f"Model {model} returned HTTP {resp.status_code}: {resp.text[:120]}"
+                print(f"      ⚠️ {last_err}. Falling back to next available model...")
+                time.sleep(1)
                 continue
             else:
                 raise RuntimeError(f"Gemini API error ({resp.status_code}): {resp.text[:250]}")
         except json.JSONDecodeError as je:
-            raise RuntimeError(f"Failed to parse Gemini JSON output: {je}")
+            last_err = f"Model {model} JSON parse error: {je}"
+            print(f"      ⚠️ {last_err}. Retrying with next model...")
+            continue
+        except requests.exceptions.RequestException as re:
+            last_err = f"Model {model} network/timeout error: {re}"
+            print(f"      ⚠️ {last_err}. Retrying with next model...")
+            time.sleep(1)
+            continue
         except Exception as e:
-            if "404" in str(e):
+            if any(code in str(e) for code in ["404", "503", "429", "timeout"]):
                 last_err = str(e)
                 continue
             raise e
