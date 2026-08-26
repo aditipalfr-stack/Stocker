@@ -9,7 +9,8 @@ import {
   ExternalLink, ArrowUpRight, ArrowDownRight, RefreshCw, 
   CheckCircle2, AlertTriangle, Sparkles, Building, Layers, 
   DollarSign, Activity, FileSpreadsheet, ChevronRight, HelpCircle,
-  Clock, Target, Compass, Search, Zap, Info, ChevronDown
+  Clock, Target, Compass, Search, Zap, Info, ChevronDown,
+  Mic, Presentation, Bell
 } from 'lucide-react';
 import { 
   ResponsiveContainer, AreaChart, Area, XAxis, YAxis, 
