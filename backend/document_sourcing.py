@@ -280,8 +280,63 @@ def discover_documents_bse_fallback(symbol: str, company_name: str, needed_types
         
     return found
 
+def discover_documents_nse_fallback(symbol: str, company_name: str, needed_types: List[str]) -> List[DocumentItem]:
+    """Stage 3: Discover verified direct exchange filings from NSE India."""
+    found: List[DocumentItem] = []
+    clean_sym = symbol.upper().strip()
+    
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        "Referer": "https://www.nseindia.com/companies-listing/corporate-filings-announcements",
+        "Accept": "application/json, text/plain, */*"
+    }
+    
+    api_url = f"https://www.nseindia.com/api/corporate-announcements?index=equities&symbol={clean_sym}"
+    try:
+        session = requests.Session()
+        session.get("https://www.nseindia.com", headers=headers, timeout=4)
+        resp = session.get(api_url, headers=headers, timeout=4)
+        if resp.status_code == 200:
+            items = resp.json()
+            for item in items[:12]:
+                desc = item.get("desc", "") or item.get("attchmntText", "")
+                attach_file = item.get("attchmntFile", "")
+                dt = item.get("an_dt", "")
+                if not desc or not attach_file:
+                    continue
+                pdf_url = attach_file if attach_file.startswith("http") else f"https://archives.nseindia.com/corporate/{attach_file}"
+                period = extract_period_from_title(desc)
+                
+                doc_type = "announcement"
+                lower_d = desc.lower()
+                if "annual report" in lower_d:
+                    doc_type = "annual_report"
+                elif "transcript" in lower_d or "concall" in lower_d:
+                    doc_type = "concall_transcript"
+                elif "presentation" in lower_d or "investor deck" in lower_d:
+                    doc_type = "presentation"
+                    
+                is_valid, _ = validate_document_candidate(desc, pdf_url, doc_type, symbol)
+                if is_valid:
+                    found.append(DocumentItem(
+                        ticker=symbol,
+                        company_name=company_name,
+                        title=desc[:120],
+                        url=pdf_url,
+                        doc_type=doc_type,
+                        period_or_date=period or dt[:10],
+                        discovery_source="NSE India",
+                        actual_source_host="nseindia.com",
+                        actual_source_url=pdf_url,
+                        is_direct_pdf=pdf_url.lower().endswith(".pdf"),
+                        validation_status="Valid"
+                    ))
+    except Exception:
+        pass
+    return found
+
 def discover_documents_company_ir_fallback(symbol: str, company_name: str, needed_types: List[str]) -> List[DocumentItem]:
-    """Stage 3: Discover verified documents from Company Investor Relations registry."""
+    """Stage 4: Discover verified documents from Company Investor Relations registry."""
     found: List[DocumentItem] = []
     ir_info = COMPANY_IR_DOMAINS.get(symbol.upper())
     if not ir_info:
@@ -317,15 +372,17 @@ def execute_document_sourcing_waterfall(
 ) -> DocumentLinks:
     """
     Executes the multi-source waterfall:
-    Screener.in -> BSE India -> NSE India -> Company IR.
-    Validates, deduplicates, and calculates discovery diagnostics.
+    1. Screener.in (Primary Discovery Layer)
+    2. BSE India (Direct Exchange Filings Fallback)
+    3. NSE India (Exchange Announcements Fallback)
+    4. Company IR (Official Repository Fallback)
     """
     clean_sym = symbol.upper().strip()
     all_raw_docs: List[DocumentItem] = []
     fallback_sources_used: List[str] = []
     invalid_links_count = 0
     
-    # 1. Screener.in Discovery
+    # 1. Primary Discovery: Screener.in
     if screener_soup:
         screener_docs = discover_documents_screener(screener_soup, clean_sym, company_name)
         for doc in screener_docs:
@@ -345,7 +402,7 @@ def execute_document_sourcing_waterfall(
     if ppt_count < 4: needed_types.append("presentation")
     needed_types.append("announcement")
     
-    # 2. BSE India Fallback
+    # 2. Stage 2: BSE India Fallback
     if needed_types:
         bse_docs = discover_documents_bse_fallback(clean_sym, company_name, needed_types)
         if bse_docs:
@@ -355,8 +412,20 @@ def execute_document_sourcing_waterfall(
                     all_raw_docs.append(doc)
                 else:
                     invalid_links_count += 1
+
+    # 3. Stage 3: NSE India Fallback
+    ann_count = sum(1 for d in all_raw_docs if d.doc_type == "announcement")
+    if ann_count < 4:
+        nse_docs = discover_documents_nse_fallback(clean_sym, company_name, ["announcement"])
+        if nse_docs:
+            fallback_sources_used.append("NSE India")
+            for doc in nse_docs:
+                if doc.validation_status == "Valid":
+                    all_raw_docs.append(doc)
+                else:
+                    invalid_links_count += 1
                     
-    # Recheck
+    # 4. Stage 4: Company IR Fallback
     ar_count = sum(1 for d in all_raw_docs if d.doc_type == "annual_report")
     if ar_count < 2:
         ir_docs = discover_documents_company_ir_fallback(clean_sym, company_name, ["annual_report", "presentation"])

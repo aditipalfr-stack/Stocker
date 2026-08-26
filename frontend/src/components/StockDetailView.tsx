@@ -1771,6 +1771,13 @@ export const StockDetailView: React.FC<StockDetailViewProps> = ({ stock, onBack,
                 <span className="text-[10px] text-emerald-400 block font-sans font-bold">✓ Verified</span>
               </div>
             </div>
+            {/* Sourcing Architecture Clarification Banner */}
+            <div className="bg-slate-950/60 p-4 rounded-2xl border border-slate-800 flex items-center gap-3 text-xs text-slate-300">
+              <Info className="w-4 h-4 text-emerald-400 shrink-0" />
+              <p>
+                <strong className="text-white">Waterfall Execution:</strong> Filings are discovered first via <span className="text-emerald-400 font-bold">Screener.in</span> and backed up via <span className="text-cyan-400 font-bold">BSE India</span> & <span className="text-purple-400 font-bold">NSE India</span> official feeds. Note that Screener indexes direct official exchange filings, so the PDF is hosted directly on exchange servers (<code className="text-slate-300">bseindia.com</code> / <code className="text-slate-300">nseindia.com</code>) or company IR domains.
+              </p>
+            </div>
           </div>
 
           {/* Section 1: Annual Reports */}
@@ -1791,12 +1798,14 @@ export const StockDetailView: React.FC<StockDetailViewProps> = ({ stock, onBack,
                       <span className="px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-bold">
                         {doc.period_or_date || 'Annual Filing'}
                       </span>
-                      <span className="text-slate-500">{doc.actual_source_host}</span>
+                      <span className="px-2 py-0.5 rounded bg-slate-900 text-slate-300 border border-slate-700 text-[10px]">
+                        Discovered via: <strong className="text-emerald-300">{doc.discovery_source}</strong>
+                      </span>
                     </div>
                     <p className="text-xs font-semibold text-slate-200 line-clamp-2">{doc.title}</p>
-                    <div className="text-[11px] text-slate-400 flex items-center gap-2">
-                      <span>Source: <strong className="text-slate-300">{doc.discovery_source}</strong></span>
-                      {doc.is_direct_pdf && <span className="text-emerald-400 font-bold">● PDF</span>}
+                    <div className="text-[11px] text-slate-400 flex items-center justify-between">
+                      <span>PDF Host: <strong className="text-slate-300">{doc.actual_source_host}</strong></span>
+                      {doc.is_direct_pdf && <span className="text-emerald-400 font-bold">● Direct PDF</span>}
                     </div>
                   </div>
 
@@ -1835,12 +1844,14 @@ export const StockDetailView: React.FC<StockDetailViewProps> = ({ stock, onBack,
                       <span className="px-2 py-0.5 rounded bg-cyan-500/10 text-cyan-400 border border-cyan-500/20 font-bold">
                         {doc.period_or_date || 'Earnings Call'}
                       </span>
-                      <span className="text-slate-500">{doc.actual_source_host}</span>
+                      <span className="px-2 py-0.5 rounded bg-slate-900 text-slate-300 border border-slate-700 text-[10px]">
+                        Discovered via: <strong className="text-cyan-300">{doc.discovery_source}</strong>
+                      </span>
                     </div>
                     <p className="text-xs font-semibold text-slate-200 line-clamp-2">{doc.title}</p>
-                    <div className="text-[11px] text-slate-400 flex items-center gap-2">
-                      <span>Source: <strong className="text-slate-300">{doc.discovery_source}</strong></span>
-                      {doc.is_direct_pdf && <span className="text-cyan-400 font-bold">● PDF</span>}
+                    <div className="text-[11px] text-slate-400 flex items-center justify-between">
+                      <span>PDF Host: <strong className="text-slate-300">{doc.actual_source_host}</strong></span>
+                      {doc.is_direct_pdf && <span className="text-cyan-400 font-bold">● Direct PDF</span>}
                     </div>
                   </div>
 
@@ -1879,12 +1890,14 @@ export const StockDetailView: React.FC<StockDetailViewProps> = ({ stock, onBack,
                       <span className="px-2 py-0.5 rounded bg-amber-500/10 text-amber-400 border border-amber-500/20 font-bold">
                         {doc.period_or_date || 'Investor PPT'}
                       </span>
-                      <span className="text-slate-500">{doc.actual_source_host}</span>
+                      <span className="px-2 py-0.5 rounded bg-slate-900 text-slate-300 border border-slate-700 text-[10px]">
+                        Discovered via: <strong className="text-amber-300">{doc.discovery_source}</strong>
+                      </span>
                     </div>
                     <p className="text-xs font-semibold text-slate-200 line-clamp-2">{doc.title}</p>
-                    <div className="text-[11px] text-slate-400 flex items-center gap-2">
-                      <span>Source: <strong className="text-slate-300">{doc.discovery_source}</strong></span>
-                      {doc.is_direct_pdf && <span className="text-amber-400 font-bold">● PDF</span>}
+                    <div className="text-[11px] text-slate-400 flex items-center justify-between">
+                      <span>PDF Host: <strong className="text-slate-300">{doc.actual_source_host}</strong></span>
+                      {doc.is_direct_pdf && <span className="text-amber-400 font-bold">● Direct PDF</span>}
                     </div>
                   </div>
 
@@ -1922,9 +1935,14 @@ export const StockDetailView: React.FC<StockDetailViewProps> = ({ stock, onBack,
                     <div>
                       <div className="flex items-center justify-between text-[11px] font-mono">
                         <span className="text-purple-400 font-bold">{doc.period_or_date || 'Announcement'}</span>
-                        <span className="text-slate-500">{doc.actual_source_host}</span>
+                        <span className="px-2 py-0.5 rounded bg-slate-900 text-slate-300 border border-slate-700 text-[10px]">
+                          Discovered via: <strong className="text-purple-300">{doc.discovery_source}</strong>
+                        </span>
                       </div>
                       <p className="text-xs font-semibold text-slate-200 line-clamp-2 mt-1">{doc.title}</p>
+                      <div className="text-[11px] text-slate-400 mt-1">
+                        <span>PDF Host: <strong className="text-slate-300">{doc.actual_source_host}</strong></span>
+                      </div>
                     </div>
 
                     <a
