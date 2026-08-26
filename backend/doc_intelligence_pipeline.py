@@ -2,6 +2,7 @@ import os
 import re
 import json
 import io
+import hashlib
 import requests
 from typing import List, Tuple, Dict, Any, Optional, Set
 from pathlib import Path
@@ -9,16 +10,21 @@ import pypdf
 from datetime import datetime, timezone
 
 from doc_intelligence_models import (
-    GenericDocumentIntelligenceResult, GenericPlanVsRealityItem,
-    GenericGrowthPipelineItem, GenericDemandAndOrders, GenericCashAndProblems
+    BusinessOutlookResult, WhatChangedItem, GrowthDriverItem,
+    PromiseVsDeliveryItem, DemandMomentum, RisksAndCash, StockerView
 )
+from models import DocumentLinks, DocumentItem
 from llm_service import extract_document_intelligence_with_llm, is_llm_available, get_available_llm_provider
 
 GENERATED_DIR = Path(__file__).parent / "data" / "doc_intelligence_generated"
 GENERATED_DIR.mkdir(parents=True, exist_ok=True)
 
+PDF_CACHE_DIR = Path(__file__).parent / "data" / "pdf_cache"
+PDF_CACHE_DIR.mkdir(parents=True, exist_ok=True)
+
 HEADERS = {
-    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+    "Referer": "https://www.bseindia.com/"
 }
 
 # Generic fundamental themes and keywords (strictly company-agnostic)
@@ -47,14 +53,6 @@ FUNDAMENTAL_THEMES: Dict[str, List[str]] = {
         "Borrowings", "Net Debt", "Debt to Equity", "Credit Rating",
         "Finance Costs", "Maturity Profile"
     ],
-    "auditor_opinion": [
-        "Independent Auditor's Report", "Basis for Opinion",
-        "Emphasis of Matter", "Key Audit Matters", "KAM", "Internal Financial Controls"
-    ],
-    "contingent_and_related_party": [
-        "Contingent Liabilities", "Related Party Disclosures",
-        "Related Party Transactions", "Disputed Demands", "Commitments"
-    ],
     "segment_performance": [
         "Segment Reporting", "Segment Revenue", "Segment Results", "Segment Assets"
     ],
@@ -66,97 +64,210 @@ FUNDAMENTAL_THEMES: Dict[str, List[str]] = {
 def download_and_extract_pdf(pdf_url: str) -> List[Tuple[int, str]]:
     """
     Downloads a PDF document from a direct URL and extracts text page-by-page.
-    Extracts text from ALL pages without arbitrary early stopping.
-    Returns a list of tuples: [(page_number, page_text), ...]
+    Uses local file cache based on URL hash to avoid redundant network downloads.
     """
+    url_hash = hashlib.md5(pdf_url.encode()).hexdigest()
+    cache_file = PDF_CACHE_DIR / f"{url_hash}.json"
+    
+    if cache_file.exists():
+        try:
+            with open(cache_file, "r", encoding="utf-8") as f:
+                data = json.load(f)
+                return [(item["page"], item["text"]) for item in data]
+        except Exception:
+            pass
+            
     resp = requests.get(pdf_url, headers=HEADERS, timeout=45)
     if resp.status_code != 200:
         raise ValueError(f"Failed to download PDF from {pdf_url}. Status code: {resp.status_code}")
         
     reader = pypdf.PdfReader(io.BytesIO(resp.content))
     pages: List[Tuple[int, str]] = []
+    cache_list = []
+    
     for idx, page in enumerate(reader.pages):
         text = page.extract_text() or ""
         clean_text = re.sub(r"[ \t]+", " ", text)
-        pages.append((idx + 1, clean_text))
+        page_num = idx + 1
+        pages.append((page_num, clean_text))
+        cache_list.append({"page": page_num, "text": clean_text})
+        
+    try:
+        with open(cache_file, "w", encoding="utf-8") as f:
+            json.dump(cache_list, f)
+    except Exception:
+        pass
         
     return pages
 
 def select_relevant_sections(
     all_pages: List[Tuple[int, str]],
     is_full_annual_report: bool = False,
-    max_pages_to_select: int = 45
+    max_pages_to_select: int = 40
 ) -> Tuple[List[Tuple[int, str]], Dict[int, List[str]]]:
-    """
-    Intelligently filters high-signal pages from a full annual report:
-    1. If short/medium document (e.g. concall transcript <= 55 pages), returns ALL pages.
-    2. If heavy full annual report (> 55 pages), indexes all pages by fundamental themes,
-       includes adjacent context pages [p-1, p, p+1], and deduplicates overlapping chunks.
-    Returns (selected_pages_list, selection_reasons_dict).
-    """
+    """Filters high-signal pages from heavy filings based on fundamental themes."""
     total_pages = len(all_pages)
     
-    # For concalls and shorter filings, analyze full document
-    if not is_full_annual_report and total_pages <= 55:
-        reasons = {p_num: ["Full Concall / Presentation Analysis"] for p_num, _ in all_pages}
-        return all_pages, reasons
-
-    # For heavy annual reports: generic fundamental theme scoring
-    scored_pages: Dict[int, List[str]] = {}
-    for p_num, text in all_pages:
-        reasons = []
-        for theme_name, keywords in FUNDAMENTAL_THEMES.items():
-            for kw in keywords:
-                if re.search(r"\b" + re.escape(kw) + r"\b", text, re.IGNORECASE):
-                    reasons.append(f"{theme_name}: '{kw}'")
-                    break
-        if reasons:
-            scored_pages[p_num] = reasons
-
-    # Priority selection of top pages across diverse themes
-    selected_page_numbers: Set[int] = set()
-    
-    # Ensure at least one representative section for each fundamental theme
-    for theme_name in FUNDAMENTAL_THEMES.keys():
-        theme_candidates = [
-            p for p, reasons in scored_pages.items()
-            if any(r.startswith(theme_name) for r in reasons)
-        ]
-        for p in theme_candidates[:3]:  # Top 3 pages per theme
-            selected_page_numbers.add(p)
-            # Add surrounding context
-            if p > 1:
-                selected_page_numbers.add(p - 1)
-            if p < total_pages:
-                selected_page_numbers.add(p + 1)
-
-    # Sort and cap to max_pages_to_select
-    sorted_p_nums = sorted(list(selected_page_numbers))[:max_pages_to_select]
-    
-    selected_pages = [(p, all_pages[p - 1][1]) for p in sorted_p_nums]
-    selection_reasons = {p: scored_pages.get(p, ["Context page"]) for p in sorted_p_nums}
-    
-    return selected_pages, selection_reasons
-
-def find_supporting_snippet(pages: List[Tuple[int, str]], target_page: int, keywords: List[str]) -> Tuple[bool, str]:
-    """
-    Validates whether supporting text exists on the specified page and returns a short excerpt.
-    """
-    if target_page < 1 or target_page > len(pages):
-        return False, "Page number out of range"
+    if not is_full_annual_report and total_pages <= 50:
+        return all_pages, {p: ["Full Document"] for p, _ in all_pages}
         
-    page_text = pages[target_page - 1][1]
-    matches = [k for k in keywords if re.search(re.escape(k), page_text, re.IGNORECASE)]
+    selected_page_indices: Set[int] = set()
+    page_reasons: Dict[int, List[str]] = {}
     
-    if matches:
-        m = re.search(re.escape(matches[0]), page_text, re.IGNORECASE)
-        if m:
-            start = max(0, m.start() - 50)
-            end = min(len(page_text), m.end() + 120)
-            snippet = "..." + page_text[start:end].replace("\n", " ").strip() + "..."
-            return True, snippet
+    compiled_patterns = {
+        theme: [re.compile(r"\b" + re.escape(kw) + r"\b", re.IGNORECASE) for kw in kws]
+        for theme, kws in FUNDAMENTAL_THEMES.items()
+    }
+    
+    for page_num, text in all_pages:
+        for theme, patterns in compiled_patterns.items():
+            if any(p.search(text) for p in patterns):
+                selected_page_indices.add(page_num)
+                page_reasons.setdefault(page_num, []).append(theme)
+                
+    # Add adjacent context pages
+    context_pages = set()
+    for p in selected_page_indices:
+        if p > 1:
+            context_pages.add(p - 1)
+        if p < total_pages:
+            context_pages.add(p + 1)
             
-    return False, "Keywords not found on specified page"
+    final_selected_indices = selected_page_indices.union(context_pages)
+    
+    if len(final_selected_indices) > max_pages_to_select:
+        scored_pages = sorted(
+            list(selected_page_indices),
+            key=lambda p: len(page_reasons.get(p, [])),
+            reverse=True
+        )
+        kept_indices = set(scored_pages[:max_pages_to_select])
+        final_selected_indices = kept_indices
+        
+    sorted_pages = [
+        (p, text) for p, text in all_pages if p in final_selected_indices
+    ]
+    
+    return sorted_pages, page_reasons
+
+def run_multi_document_ai_pipeline(
+    symbol: str,
+    company_name: str,
+    documents: DocumentLinks,
+    save_output: bool = True
+) -> Dict[str, Any]:
+    """
+    Downloads and extracts from the verified multi-document set:
+    - Latest Annual Report (and prior year for Promise vs Delivery)
+    - Last 2-3 Concall Transcripts
+    - Latest Investor Presentation
+    - Material Announcements
+    Compiles multi-document corpus and calls Gemini 2.0.
+    """
+    clean_sym = symbol.upper().strip()
+    print(f"\n==================================================")
+    print(f"  RUNNING MULTI-DOCUMENT AI PIPELINE: {company_name} ({clean_sym})")
+    print(f"==================================================")
+    
+    # 1. Select the target multi-document set
+    selected_docs: List[DocumentItem] = []
+    
+    latest_ar = documents.annual_reports[0] if documents.annual_reports else None
+    older_ar = documents.annual_reports[1] if len(documents.annual_reports) > 1 else None
+    
+    recent_concalls = documents.concalls[:2]
+    recent_ppt = documents.presentations[:1]
+    recent_ann = documents.material_announcements[:2]
+    
+    candidate_docs = []
+    if latest_ar: candidate_docs.append(latest_ar)
+    if older_ar: candidate_docs.append(older_ar)
+    candidate_docs.extend(recent_concalls)
+    candidate_docs.extend(recent_ppt)
+    candidate_docs.extend(recent_ann)
+    
+    if not candidate_docs:
+        raise ValueError(f"No valid source documents found for {clean_sym}")
+
+    # 2. Extract and compile multi-document text corpus
+    latest_doc_title = latest_ar.title if latest_ar else (candidate_docs[0].title)
+    latest_doc_url = latest_ar.url if latest_ar else (candidate_docs[0].url)
+    older_doc_title = older_ar.title if older_ar else (recent_concalls[-1].title if len(recent_concalls) > 1 else None)
+    older_doc_url = older_ar.url if older_ar else (recent_concalls[-1].url if len(recent_concalls) > 1 else None)
+
+    all_latest_pages: List[Tuple[int, str]] = []
+    all_older_pages: List[Tuple[int, str]] = []
+    
+    # Extract latest doc
+    print(f"  • Ingesting Latest Document: {latest_doc_title}")
+    latest_pages_raw = download_and_extract_pdf(latest_doc_url)
+    latest_sel, _ = select_relevant_sections(latest_pages_raw, is_full_annual_report=(len(latest_pages_raw) > 50))
+    all_latest_pages.extend(latest_sel)
+    
+    # Ingest recent concalls into latest context
+    for cc in recent_concalls:
+        if cc.url != latest_doc_url:
+            print(f"  • Ingesting Concall: {cc.title}")
+            try:
+                cc_pages = download_and_extract_pdf(cc.url)
+                all_latest_pages.extend(cc_pages[:25])
+            except Exception as e:
+                print(f"    ⚠️ Failed to download concall {cc.url}: {e}")
+
+    # Extract older baseline doc for Promise vs Delivery
+    if older_doc_url and older_doc_url != latest_doc_url:
+        print(f"  • Ingesting Historical Baseline Document: {older_doc_title}")
+        try:
+            older_pages_raw = download_and_extract_pdf(older_doc_url)
+            older_sel, _ = select_relevant_sections(older_pages_raw, is_full_annual_report=(len(older_pages_raw) > 50))
+            all_older_pages.extend(older_sel)
+        except Exception as e:
+            print(f"    ⚠️ Failed to download older doc {older_doc_url}: {e}")
+
+    # 3. LLM Inference
+    if not is_llm_available():
+        msg = "AI Analysis Unavailable: Configure GEMINI_API_KEY in .env file."
+        status_res = {
+            "symbol": clean_sym,
+            "company_name": company_name,
+            "status": "ai_unavailable",
+            "message": msg,
+            "latest_document_period": "Not Analyzed",
+            "older_document_period": "None",
+            "source_documents": [d.model_dump() for d in candidate_docs],
+            "what_changed_recently": [],
+            "growth_drivers": [],
+            "promise_vs_delivery": [],
+            "demand_momentum": {"summary": "", "company_specific_metrics": []},
+            "risks_and_cash": {"operational_bottlenecks": []},
+            "stocker_view": {"overall_takeaway": msg, "positive_triggers": [], "main_risks": [], "what_to_watch": []}
+        }
+        return status_res
+
+    success, result, message = extract_document_intelligence_with_llm(
+        symbol=clean_sym,
+        company_name=company_name,
+        latest_doc_title=latest_doc_title,
+        latest_doc_url=latest_doc_url,
+        latest_pages=all_latest_pages,
+        older_doc_title=older_doc_title,
+        older_doc_url=older_doc_url,
+        older_pages=all_older_pages if all_older_pages else None
+    )
+    
+    if not success or not result:
+        raise RuntimeError(f"Multi-document AI extraction failed: {message}")
+        
+    result.extraction_timestamp = datetime.now(timezone.utc).isoformat()
+    output_dict = result.model_dump()
+    
+    if save_output:
+        out_file = GENERATED_DIR / f"{clean_sym}.json"
+        with open(out_file, "w", encoding="utf-8") as f:
+            json.dump(output_dict, f, indent=2)
+        print(f"  ✓ Saved multi-document AI extracted intelligence to: {out_file}")
+        
+    return output_dict
 
 def run_generic_document_pipeline(
     symbol: str,
@@ -166,104 +277,13 @@ def run_generic_document_pipeline(
     older_doc_url: Optional[str] = None,
     older_doc_title: Optional[str] = None,
     is_annual_report: bool = False,
-    pre_extracted_latest_pages: Optional[List[Tuple[int, str]]] = None,
-    pre_extracted_older_pages: Optional[List[Tuple[int, str]]] = None,
     save_output: bool = True
 ) -> Dict[str, Any]:
-    clean_sym = symbol.upper().strip()
-    print(f"\n[Pipeline] Ingesting documents for {company_name} ({clean_sym})...")
-    
-    # Step 1: Extract or reuse latest PDF pages
-    if pre_extracted_latest_pages:
-        all_latest_pages = pre_extracted_latest_pages
-        print(f"  • Using pre-extracted {len(all_latest_pages)} pages for latest document.")
-    else:
-        print(f"  • Downloading latest document: {latest_doc_title} ({latest_doc_url})")
-        all_latest_pages = download_and_extract_pdf(latest_doc_url)
-        print(f"  • Extracted ALL {len(all_latest_pages)} pages from latest document.")
-        
-    total_latest_pages = len(all_latest_pages)
-    
-    # Select relevant sections for LLM context
-    selected_latest_pages, selection_reasons = select_relevant_sections(
-        all_latest_pages,
-        is_full_annual_report=(is_annual_report or total_latest_pages > 55)
+    """Compatibility wrapper that runs the single/multi document pipeline."""
+    docs = DocumentLinks(
+        annual_reports=[DocumentItem(title=latest_doc_title, url=latest_doc_url, doc_type="annual_report" if is_annual_report else "concall_transcript")]
     )
-    print(f"  • Selected {len(selected_latest_pages)} relevant high-signal pages across key themes.")
-    
-    # Step 2: Download & extract older baseline PDF (if provided)
-    selected_older_pages = None
-    older_doc_stats = {}
     if older_doc_url:
-        print(f"  • Downloading baseline comparison document: {older_doc_title} ({older_doc_url})")
-        all_older_pages = download_and_extract_pdf(older_doc_url)
-        total_older_pages = len(all_older_pages)
-        print(f"  • Extracted ALL {total_older_pages} pages from baseline document.")
-        selected_older_pages, _ = select_relevant_sections(
-            all_older_pages,
-            is_full_annual_report=(total_older_pages > 55)
-        )
-        older_doc_stats = {
-            "title": older_doc_title,
-            "url": older_doc_url,
-            "total_pages": total_older_pages,
-            "pages_analyzed": len(selected_older_pages)
-        }
-
-    # Step 3: LLM Inference
-    if not is_llm_available():
-        msg = (
-            "AI Analysis Unavailable: No LLM API key detected in the environment. "
-            "To enable live AI document extraction, please set either GEMINI_API_KEY (for Google Gemini) "
-            "or OPENAI_API_KEY (for OpenAI) in your environment."
-        )
-        print(f"  ⚠️ {msg}")
+        docs.annual_reports.append(DocumentItem(title=older_doc_title or "Baseline Doc", url=older_doc_url, doc_type="annual_report"))
         
-        status_result = {
-            "symbol": clean_sym,
-            "company_name": company_name,
-            "status": "ai_unavailable",
-            "message": msg,
-            "required_env_vars": ["GEMINI_API_KEY", "OPENAI_API_KEY"],
-            "latest_document": {
-                "title": latest_doc_title,
-                "url": latest_doc_url,
-                "total_pages": total_latest_pages,
-                "pages_selected_for_analysis": len(selected_latest_pages),
-                "selected_page_numbers": [p for p, _ in selected_latest_pages],
-                "selection_themes": {str(p): reasons for p, reasons in selection_reasons.items() if reasons != ["Context page"][:1]}
-            },
-            "older_document": older_doc_stats
-        }
-        
-        if save_output:
-            out_file = GENERATED_DIR / f"{clean_sym}.json"
-            with open(out_file, "w", encoding="utf-8") as f:
-                json.dump(status_result, f, indent=2)
-        return status_result
-
-    # If LLM is available, run extraction
-    success, result, message = extract_document_intelligence_with_llm(
-        symbol=clean_sym,
-        company_name=company_name,
-        latest_doc_title=latest_doc_title,
-        latest_doc_url=latest_doc_url,
-        latest_pages=selected_latest_pages,
-        older_doc_title=older_doc_title,
-        older_doc_url=older_doc_url,
-        older_pages=selected_older_pages
-    )
-    
-    if not success or not result:
-        raise RuntimeError(f"Document extraction failed: {message}")
-        
-    result.extraction_timestamp = datetime.now(timezone.utc).isoformat()
-    output_dict = result.model_dump()
-    
-    if save_output:
-        out_file = GENERATED_DIR / f"{clean_sym}.json"
-        with open(out_file, "w", encoding="utf-8") as f:
-            json.dump(output_dict, f, indent=2)
-        print(f"  ✓ Saved AI extracted intelligence to: {out_file}")
-        
-    return output_dict
+    return run_multi_document_ai_pipeline(symbol, company_name, docs, save_output=save_output)

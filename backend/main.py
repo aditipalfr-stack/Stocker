@@ -279,14 +279,11 @@ def generate_stock_doc_intelligence(symbol: str):
         raise HTTPException(status_code=404, detail=f"No PDF filings found under #documents for {clean_sym}")
         
     try:
-        res = run_generic_document_pipeline(
+        from doc_intelligence_pipeline import run_multi_document_ai_pipeline
+        res = run_multi_document_ai_pipeline(
             symbol=clean_sym,
             company_name=detail.name,
-            latest_doc_url=latest_url,
-            latest_doc_title=latest_title,
-            older_doc_url=older_url,
-            older_doc_title=older_title,
-            is_annual_report=is_ar,
+            documents=detail.documents,
             save_output=True
         )
         return res

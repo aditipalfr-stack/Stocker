@@ -229,6 +229,9 @@ class BusinessOutlookResult(BaseModel):
         return values
 
 # Backward-compatible model aliases for engine and consumers
+WhatChangedItem = RecentChange
+GrowthDriverItem = GrowthDriver
+RisksAndCash = RisksAndCashIssues
 GenericPlanVsRealityItem = PromiseVsDeliveryItem
 GenericGrowthPipelineItem = GrowthDriver
 GenericDemandAndOrders = DemandMomentum

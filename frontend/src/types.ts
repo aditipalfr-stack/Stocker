@@ -48,16 +48,61 @@ export interface AnnualReportInsight {
   forensic_checklist: Record<string, string>;
 }
 
+export interface DocumentItem {
+  ticker: string;
+  company_name: string;
+  title: string;
+  url: string;
+  doc_type: string;
+  period_or_date?: string;
+  discovery_source: string;
+  actual_source_host: string;
+  actual_source_url: string;
+  is_direct_pdf: boolean;
+  validation_status: string;
+  file_size_bytes?: number;
+  fetched_date?: string;
+}
+
+export interface DocumentDiscoveryDiagnostics {
+  target_annual_reports_count: number;
+  annual_reports_found: number;
+  target_concalls_count: number;
+  concalls_found: number;
+  target_presentations_count: number;
+  presentations_found: number;
+  target_announcements_count: number;
+  announcements_found: number;
+  invalid_links_rejected: number;
+  fallback_sources_used: string[];
+  ai_ready_documents_count: number;
+  overall_status: string;
+}
+
 export interface DocumentLinks {
-  annual_reports: Array<{ name: string; url: string }>;
-  concalls: Array<{ name: string; url: string }>;
-  presentations: Array<{ name: string; url: string }>;
+  annual_reports: DocumentItem[];
+  concalls: DocumentItem[];
+  presentations: DocumentItem[];
+  material_announcements?: DocumentItem[];
+  diagnostics?: DocumentDiscoveryDiagnostics;
 }
 
 export interface ProjectionAssumption {
   revenue_growth_rate_pct: number;
+  revenue_growth_source?: string;
   target_opm_pct: number;
+  opm_source?: string;
   capex_pct_of_sales: number;
+  capex_source?: string;
+  effective_tax_rate_pct: number;
+  tax_source?: string;
+  terminal_growth_rate_pct: number;
+  discount_rate_wacc_pct: number;
+  target_exit_pe: number;
+  exit_pe_source?: string;
+  projection_confidence?: string;
+  forward_drivers_used?: string[];
+}
   effective_tax_rate_pct: number;
   terminal_growth_rate_pct: number;
   discount_rate_wacc_pct: number;

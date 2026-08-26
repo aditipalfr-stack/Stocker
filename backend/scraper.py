@@ -137,69 +137,10 @@ def parse_screener_ratios(soup: BeautifulSoup) -> KeyRatios:
                     
     return KeyRatios(**ratios_dict)
 
-from urllib.parse import urlparse
+from document_sourcing import execute_document_sourcing_waterfall
 
-def parse_screener_documents(soup: BeautifulSoup, symbol: str, source_url: str) -> DocumentLinks:
-    doc_links = DocumentLinks(annual_reports=[], concalls=[], presentations=[], material_announcements=[])
-    doc_section = soup.find("section", {"id": "documents"})
-    if not doc_section:
-        return doc_links
-        
-    for a in doc_section.find_all("a", href=True):
-        text = a.text.strip()
-        href = a["href"].strip()
-        if not text or not href or href.endswith("#documents") or href.startswith("#"):
-            continue
-            
-        if not href.startswith("http"):
-            href = f"https://www.screener.in{href}"
-            
-        try:
-            parsed_host = urlparse(href).netloc
-        except Exception:
-            parsed_host = "screener.in"
-            
-        is_pdf = href.lower().endswith(".pdf") or ".pdf" in href.lower()
-        lower_t = text.lower()
-        
-        if "annual report" in lower_t or "integrated report" in lower_t or "financial report" in lower_t:
-            doc_links.annual_reports.append(DocumentItem(
-                title=text,
-                url=href,
-                doc_type="annual_report",
-                source_host=parsed_host,
-                discovery_source="Screener.in",
-                is_direct_pdf=is_pdf
-            ))
-        elif "transcript" in lower_t or "concall" in lower_t or "call" in lower_t or "earnings" in lower_t:
-            doc_links.concalls.append(DocumentItem(
-                title=text,
-                url=href,
-                doc_type="concall_transcript",
-                source_host=parsed_host,
-                discovery_source="Screener.in",
-                is_direct_pdf=is_pdf
-            ))
-        elif "presentation" in lower_t or "ppt" in lower_t or "investor deck" in lower_t:
-            doc_links.presentations.append(DocumentItem(
-                title=text,
-                url=href,
-                doc_type="presentation",
-                source_host=parsed_host,
-                discovery_source="Screener.in",
-                is_direct_pdf=is_pdf
-            ))
-        elif "announcement" in lower_t or "outcome" in lower_t:
-            doc_links.material_announcements.append(DocumentItem(
-                title=text,
-                url=href,
-                doc_type="announcement",
-                source_host=parsed_host,
-                discovery_source="Screener.in",
-                is_direct_pdf=is_pdf
-            ))
-            
-    return doc_links
+def parse_screener_documents(soup: BeautifulSoup, symbol: str, source_url: str, company_name: str = "") -> DocumentLinks:
+    return execute_document_sourcing_waterfall(symbol, company_name or symbol, screener_soup=soup)
 
 def fetch_screener_html(symbol: str) -> Optional[Tuple[str, str, str]]:
     """

@@ -47,19 +47,41 @@ class AnnualReportInsight(BaseModel):
     forensic_checklist: Dict[str, str]
 
 class DocumentItem(BaseModel):
+    ticker: str = ""
+    company_name: str = ""
     title: str
     url: str
     doc_type: str = "general" # "annual_report", "concall_transcript", "presentation", "announcement"
     period_or_date: Optional[str] = None
-    source_host: Optional[str] = None
-    discovery_source: str = "Screener.in"
+    discovery_source: str = "Screener.in" # "Screener.in", "BSE", "NSE", "Company IR"
+    actual_source_host: str = "bseindia.com"
+    actual_source_url: str = ""
     is_direct_pdf: bool = True
+    validation_status: str = "Valid" # "Valid", "Invalid", "Unchecked"
+    file_size_bytes: Optional[int] = None
+    fetched_date: Optional[str] = None
+    checksum_sha256: Optional[str] = None
+
+class DocumentDiscoveryDiagnostics(BaseModel):
+    target_annual_reports_count: int = 3
+    annual_reports_found: int = 0
+    target_concalls_count: int = 6
+    concalls_found: int = 0
+    target_presentations_count: int = 6
+    presentations_found: int = 0
+    target_announcements_count: int = 8
+    announcements_found: int = 0
+    invalid_links_rejected: int = 0
+    fallback_sources_used: List[str] = []
+    ai_ready_documents_count: int = 0
+    overall_status: str = "Ready" # "Ready", "Partial", "Missing"
 
 class DocumentLinks(BaseModel):
     annual_reports: List[DocumentItem] = []
     concalls: List[DocumentItem] = []
     presentations: List[DocumentItem] = []
     material_announcements: List[DocumentItem] = []
+    diagnostics: Optional[DocumentDiscoveryDiagnostics] = None
 
 class ProjectionAssumption(BaseModel):
     revenue_growth_rate_pct: float = 12.0
