@@ -562,6 +562,10 @@ def run_multi_document_ai_pipeline(
         precomputed_document_summaries=doc_summaries_list,
         tagged_all_documents_text=tagged_all_documents_text,
         pl_stmt=pl_stmt,
+        quarters_stmt=quarters_stmt,
+        bs_stmt=bs_stmt,
+        cf_stmt=cf_stmt
+    )
     if not success or not result:
         raise RuntimeError(f"Multi-document AI extraction failed: {message}")
         
