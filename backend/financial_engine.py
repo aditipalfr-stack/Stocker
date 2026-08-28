@@ -544,12 +544,12 @@ def verify_promise_vs_delivery_item(
     1. Dynamic Runtime Year: Computes continuous float year from datetime.now(timezone.utc) if current_year is not passed.
     2. Same Filing / Same Event Guard: A promise and outcome citing the same document/URL cannot prove delivery.
     3. Strict Chronology Assertion: Requires act_yr > prom_yr. Backwards or equal dates are downgraded to 'Not Enough Evidence'.
-    4. Target Deadline Enforcement:
-       - deadline in future -> 'In Progress'
-       - deadline passed + verified target met -> 'Delivered'
-       - deadline passed + verified target not met -> 'Missed'
-       - insufficient evidence / missing statements -> 'Not Enough Evidence'
-    5. Pure Mathematical Verification: Computes exact achievement % and variance from structured P&L data.
+    4. Code is the Absolute Authority for status and financial_numbers_check:
+       - Numerical guidance with structured data -> exact code calculation of achievement % and variance.
+       - Numerical guidance without structured data -> 'Not Enough Evidence', financial_numbers_check overwritten.
+       - Target deadline in future -> 'In Progress'.
+       - Qualitative milestone with verified completion event -> 'Delivered'.
+       - Qualitative milestone without clear proof -> 'Not Enough Evidence'.
     """
     res = dict(item)
     
@@ -568,21 +568,30 @@ def verify_promise_vs_delivery_item(
     url_prom = (item.get("source_url_promise") or "").strip().rstrip("/")
     url_act = (item.get("source_url_actual") or "").strip().rstrip("/")
     
-    # 2. Same Filing / Same Event Guard
-    if url_prom and url_act and url_prom == url_act:
+    # 2. Missing Citations Guard
+    if not url_prom or not url_act:
+        res["status"] = "Not Enough Evidence"
+        res["stocker_analysis"] = "Missing Document Citations: Required filing source URLs are not verified."
+        res["financial_numbers_check"] = "Not enough structured financial evidence to verify this claim."
+        return res
+
+    # 3. Same Filing / Same Event Guard
+    if url_prom == url_act:
         res["status"] = "Not Enough Evidence"
         res["stocker_analysis"] = "Evidence from Same Filing: A promise and its delivered outcome cannot be verified from the same source document without an independent subsequent filing."
+        res["financial_numbers_check"] = "Not enough structured financial evidence to verify this claim."
         return res
         
     prom_yr = parse_filing_period_to_year(promise_period)
     act_yr = parse_filing_period_to_year(actual_period)
     target_yr = parse_filing_period_to_year(target_timeline)
     
-    # 3. Strict Chronology Check (act_yr must be strictly > prom_yr)
+    # 4. Strict Chronology Check (act_yr must be strictly > prom_yr)
     if prom_yr is not None and act_yr is not None:
         if act_yr <= prom_yr:
             res["status"] = "Not Enough Evidence"
             res["stocker_analysis"] = f"Chronological Mismatch: Outcome period ({actual_period}) does not occur strictly after the guidance baseline ({promise_period}). Evidence rejected by Stocker chronological verification."
+            res["financial_numbers_check"] = "Not enough structured financial evidence to verify this claim."
             return res
 
     # Helper to extract metric values from statement (supports Pydantic model or dict)
@@ -619,15 +628,14 @@ def verify_promise_vs_delivery_item(
         if isinstance(stmt_obj, dict): return list(stmt_obj.get("periods") or stmt_obj.get("years") or [])
         return []
 
-    # 4. Pure Mathematical Cross-Examination from Structured Statements
+    # 5. Check if Numerical Guidance Promise
     pl_periods = _get_stmt_periods(pl_stmt)
     y_sales = _extract_metric_dict(pl_stmt, "Sales") or _extract_metric_dict(pl_stmt, "Revenue")
     y_opm = _extract_metric_dict(pl_stmt, "OPM %") or _extract_metric_dict(pl_stmt, "OPM")
     
-    # Extract promised growth percentage from management_promise text
     m_growth = re.search(r'(\d+(?:\.\d+)?)\s*%\s*(?:revenue|sales|growth|cagr|margin)', item.get("management_promise", ""), re.IGNORECASE)
     
-    if pl_periods and y_sales and m_growth:
+    if m_growth:
         promised_pct = float(m_growth.group(1))
         
         # Match target year period or latest period in P&L
@@ -635,7 +643,6 @@ def verify_promise_vs_delivery_item(
         if actual_period and actual_period in pl_periods:
             target_p = actual_period
         else:
-            # Match by year
             for p in pl_periods:
                 p_yr = parse_filing_period_to_year(p)
                 if p_yr and act_yr and abs(p_yr - act_yr) < 0.3:
@@ -647,9 +654,9 @@ def verify_promise_vs_delivery_item(
         p_idx = pl_periods.index(target_p) if target_p in pl_periods else len(pl_periods) - 1
         p_prev = pl_periods[p_idx - 1] if p_idx > 0 else None
         
-        s_curr = y_sales.get(target_p)
+        s_curr = y_sales.get(target_p) if target_p else None
         s_prev = y_sales.get(p_prev) if p_prev else None
-        opm_curr = y_opm.get(target_p)
+        opm_curr = y_opm.get(target_p) if target_p else None
         
         if s_curr and s_prev and s_prev > 0:
             act_growth = round(((s_curr - s_prev) / s_prev) * 100.0, 1)
@@ -672,13 +679,46 @@ def verify_promise_vs_delivery_item(
             else:
                 res["status"] = "In Progress"
         else:
-            res["financial_numbers_check"] = f"Audited financial statements for {target_p} provide baseline revenue data."
-    elif not pl_stmt or not pl_periods:
-        # Missing structured statements: do not invent achievement numbers
-        if not res.get("financial_numbers_check"):
-            res["financial_numbers_check"] = "Reported statements for exact promise verification period not yet available in database."
+            # Structured statements missing or inconclusive: do NOT keep AI numbers or assume Delivered
+            res["financial_numbers_check"] = "Not enough structured financial evidence to verify this claim."
+            if target_yr is not None and target_yr > curr_yr:
+                res["status"] = "In Progress"
+            else:
+                res["status"] = "Not Enough Evidence"
+                res["stocker_analysis"] = "Missing Structured Financial Data: Audited statements for the target period are not available to verify this quantitative guidance."
+    else:
+        # 6. Qualitative / Operational Milestone Verification
+        outcome_text = f"{item.get('actual_outcome', '')} {item.get('actual_quote', '')}"
+        
+        if target_yr is not None and target_yr > curr_yr:
+            res["status"] = "In Progress"
+            res["financial_numbers_check"] = "Qualitative operational milestone (tracked in progress)."
+            res["stocker_analysis"] = f"Milestone In Progress: Stated target timeline ({target_timeline or f'FY{int(target_yr)}'}) matures in the future ({target_yr:.0f}). Ongoing execution tracked against interim audited progress."
+        else:
+            # Simple, robust structured keyword matching
+            completion_match = re.search(
+                r'\b(commissioned|operational|commercial production|commercial operations commenced|launched|completed acquisition|acquired|approval received|won order|order received|executed|achieved cod)\b',
+                outcome_text,
+                re.IGNORECASE
+            )
+            delay_match = re.search(r'\b(delayed|postponed|deferred|pushed back|rescheduled)\b', outcome_text, re.IGNORECASE)
+            cancel_match = re.search(r'\b(cancelled|shelved|dropped|abandoned)\b', outcome_text, re.IGNORECASE)
+            
+            if completion_match and act_yr is not None and prom_yr is not None and act_yr > prom_yr:
+                res["status"] = "Delivered"
+                res["financial_numbers_check"] = f"Qualitative milestone verified: {completion_match.group(1).capitalize()} confirmed in subsequent filing ({actual_period})."
+            elif delay_match:
+                res["status"] = "Delayed"
+                res["financial_numbers_check"] = f"Qualitative milestone delayed: {delay_match.group(1).capitalize()} reported in subsequent filing ({actual_period})."
+            elif cancel_match:
+                res["status"] = "Missed"
+                res["financial_numbers_check"] = f"Qualitative milestone missed: {cancel_match.group(1).capitalize()} reported in subsequent filing ({actual_period})."
+            else:
+                res["status"] = "Not Enough Evidence"
+                res["stocker_analysis"] = f"Uncertain Qualitative Evidence: Subsequent filing ({actual_period}) does not contain verifiable completion proof for this milestone."
+                res["financial_numbers_check"] = "Not enough structured financial evidence to verify this claim."
 
-    # 5. Future Target Deadline Protection (Always overrides!)
+    # 7. Final Target Deadline Protection (Always overrides!)
     if target_yr is not None and target_yr > curr_yr:
         res["status"] = "In Progress"
         if not res.get("stocker_analysis") or "Missed" in res.get("stocker_analysis", "") or "Delivered" in res.get("stocker_analysis", ""):

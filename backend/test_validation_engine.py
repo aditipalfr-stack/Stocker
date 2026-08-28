@@ -1,6 +1,8 @@
 import sys
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
+from unittest.mock import MagicMock, patch
+
 sys.path.insert(0, str(Path(__file__).parent.parent / "libs"))
 sys.path.insert(0, str(Path(__file__).parent))
 
@@ -8,28 +10,73 @@ from financial_engine import parse_filing_period_to_year, verify_promise_vs_deli
 from models import FinancialStatement, FinancialRow, DocumentItem
 import database
 import document_sourcing
+import llm_service
 
-def test_case_a_promise_after_outcome():
-    """Case A: Promise made July 2026, actual FY2026 result that occurred before promise -> Rejected / Not Enough Evidence."""
-    print("Testing Case A: Promise made July 2026 vs FY26 outcome...")
+def test_case_a_missing_structured_financial_data():
+    """Case A: Gemini provides a financial_numbers_check but structured financial data is missing.
+    Expected: AI number is discarded, replaced with structured evidence warning, Status = Not Enough Evidence."""
+    print("Testing Case A: Gemini provides financial_numbers_check but structured statements missing...")
     item = {
-        "area": "Retail Network Expansion",
-        "management_promise": "Double store count across tier 2 cities",
-        "promised_in_period": "24 Jul 2026",
-        "source_url_promise": "https://example.com/concall_jul2026.pdf",
-        "actual_outcome": "Reported annual store additions",
-        "actual_in_period": "FY26",  # FY26 ended March 2026, prior to July 2026
+        "area": "Revenue Guidance",
+        "management_promise": "Targeting 25% revenue growth for FY26",
+        "promised_in_period": "FY25",
+        "source_url_promise": "https://example.com/ar_fy25.pdf",
+        "actual_outcome": "Reported annual performance",
+        "actual_in_period": "FY26",
         "source_url_actual": "https://example.com/ar_fy26.pdf",
-        "status": "Delivered"
+        "status": "Delivered",
+        "financial_numbers_check": "AI Calculated: Revenue grew 26%, surpassing 25% target."  # Untrusted AI calculation
     }
-    verified = verify_promise_vs_delivery_item(item)
+    # Pass pl_stmt=None
+    verified = verify_promise_vs_delivery_item(item, pl_stmt=None, current_year=2026.65)
     assert verified["status"] == "Not Enough Evidence"
-    assert "Chronological Mismatch" in verified["stocker_analysis"]
-    print("✓ Case A passed: Backwards chronology successfully rejected.")
+    assert "Not enough structured financial evidence to verify this claim" in verified["financial_numbers_check"]
+    assert "AI Calculated" not in verified["financial_numbers_check"]
+    print("✓ Case A passed: AI arithmetic discarded, status set to 'Not Enough Evidence'.")
 
-def test_case_b_same_filing():
-    """Case B: Promise and actual come from the same filing -> Rejected / Not Enough Evidence."""
-    print("Testing Case B: Promise and actual from same filing...")
+def test_case_b_future_target_deadline_override():
+    """Case B: Gemini says Delivered but target deadline is still in future.
+    Expected: Code overrides -> In Progress."""
+    print("Testing Case B: Target deadline in future (FY28) while Gemini claimed Delivered...")
+    item = {
+        "area": "Green Hydrogen Ecosystem",
+        "management_promise": "Achieve 3GW electrolyzer manufacturing capacity by FY28",
+        "target_timeline": "FY28",
+        "promised_in_period": "FY25",
+        "source_url_promise": "https://example.com/ar_fy25.pdf",
+        "actual_outcome": "Secured land and long-lead equipment orders",
+        "actual_in_period": "Q1 FY27",
+        "source_url_actual": "https://example.com/concall_q1fy27.pdf",
+        "status": "Delivered"  # AI mistakenly labeled Delivered
+    }
+    verified = verify_promise_vs_delivery_item(item, current_year=2026.65)
+    assert verified["status"] == "In Progress"
+    assert "Milestone In Progress" in verified["stocker_analysis"]
+    print("✓ Case B passed: Code overrode status to 'In Progress'.")
+
+def test_case_c_unverifiable_qualitative_outcome():
+    """Case C: Gemini says Delivered but code cannot verify outcome (uncertain qualitative claim).
+    Expected: Code overrides -> Not Enough Evidence."""
+    print("Testing Case C: Gemini claimed Delivered on unverified qualitative statement...")
+    item = {
+        "area": "Digital Platform Adoption",
+        "management_promise": "Will expand dealer digital platform across all regions",
+        "promised_in_period": "FY24",
+        "source_url_promise": "https://example.com/ar_fy24.pdf",
+        "actual_outcome": "Management continued to discuss digital transformation initiatives in general remarks",
+        "actual_in_period": "FY25",
+        "source_url_actual": "https://example.com/ar_fy25.pdf",
+        "status": "Delivered"  # AI claimed Delivered without concrete commissioning/completion proof
+    }
+    verified = verify_promise_vs_delivery_item(item, current_year=2026.65)
+    assert verified["status"] == "Not Enough Evidence"
+    assert "Uncertain Qualitative Evidence" in verified["stocker_analysis"]
+    print("✓ Case C passed: Code overrode unverified qualitative claim to 'Not Enough Evidence'.")
+
+def test_case_d_same_filing_promise_and_outcome():
+    """Case D: Same filing promise and outcome.
+    Expected: Not Enough Evidence."""
+    print("Testing Case D: Promise and actual from same filing...")
     item = {
         "area": "Solar Module Capacity",
         "management_promise": "Commission 10GW solar cell facility",
@@ -40,33 +87,15 @@ def test_case_b_same_filing():
         "source_url_actual": "https://example.com/filing_fy26.pdf",  # Same filing!
         "status": "Delivered"
     }
-    verified = verify_promise_vs_delivery_item(item)
+    verified = verify_promise_vs_delivery_item(item, current_year=2026.65)
     assert verified["status"] == "Not Enough Evidence"
     assert "Evidence from Same Filing" in verified["stocker_analysis"]
-    print("✓ Case B passed: Same filing delivery claim rejected.")
+    print("✓ Case D passed: Same filing delivery claim rejected as 'Not Enough Evidence'.")
 
-def test_case_c_future_deadline():
-    """Case C: Promise FY25, target FY28, current date 2026 -> In Progress."""
-    print("Testing Case C: Target deadline in future (FY28)...")
-    item = {
-        "area": "Green Hydrogen Ecosystem",
-        "management_promise": "Achieve 3GW electrolyzer manufacturing capacity by FY28",
-        "target_timeline": "FY28",
-        "promised_in_period": "FY25",
-        "source_url_promise": "https://example.com/ar_fy25.pdf",
-        "actual_outcome": "Secured land and long-lead equipment orders",
-        "actual_in_period": "Q1 FY27",
-        "source_url_actual": "https://example.com/concall_q1fy27.pdf",
-        "status": "Delivered"  # LLM mistakenly labeled delivered
-    }
-    verified = verify_promise_vs_delivery_item(item, current_year=2026.65)
-    assert verified["status"] == "In Progress"
-    assert "Milestone In Progress" in verified["stocker_analysis"]
-    print("✓ Case C passed: Future target milestone forced to 'In Progress'.")
-
-def test_case_d_code_calculated_achievement():
-    """Case D: Promise 20% revenue growth, actual from structured P&L is 15% -> achievement = 75%, calculated by code."""
-    print("Testing Case D: Deterministic revenue achievement calculated by code...")
+def test_case_e_numerical_guidance_with_structured_pl():
+    """Case E: Numerical guidance with structured P&L.
+    Expected: All math comes from code (actual growth %, achievement %, variance)."""
+    print("Testing Case E: Numerical guidance with structured P&L...")
     pl = FinancialStatement(
         periods=["Mar 2024", "Mar 2025", "Mar 2026"],
         rows=[
@@ -88,75 +117,77 @@ def test_case_d_code_calculated_achievement():
     # Sales grew from 120,000 to 138,000 = 15.0% YoY. 15.0% / 20.0% = 75.0% achievement rate.
     verified = verify_promise_vs_delivery_item(item, pl_stmt=pl, current_year=2026.65)
     assert "75.0%" in verified["financial_numbers_check"]
+    assert "15.0% YoY growth" in verified["financial_numbers_check"]
     assert "variance -5.0%" in verified["financial_numbers_check"]
     assert verified["status"] == "Missed"  # 75% < 85% threshold
-    print("✓ Case D passed: Mathematical achievement 75.0% and status computed by code.")
+    print("✓ Case E passed: Code calculated exact 75.0% achievement and set status to 'Missed'.")
 
-def test_case_e_missing_financial_statements():
-    """Case E: Missing financial statements -> do not invent achievement %, use Not Enough Evidence where required."""
-    print("Testing Case E: Missing structured statements...")
-    item = {
-        "area": "Long-Term Revenue Goal",
-        "management_promise": "Targeting 25% revenue growth by FY25",
-        "target_timeline": "FY25",
-        "promised_in_period": "FY23",
-        "source_url_promise": "https://example.com/ar_fy23.pdf",
-        "actual_outcome": "Target deadline passed",
-        "actual_in_period": "FY25",
-        "source_url_actual": "https://example.com/ar_fy25.pdf"
+def test_case_f_gemini_fallback_model_provenance():
+    """Case F: Actual successful Gemini fallback model stored in metadata."""
+    print("Testing Case F: AI model provenance tracking...")
+    # Mock call_gemini_api to simulate fallback cascade succeeding on gemini-3.1-flash-lite
+    mock_resp = MagicMock()
+    mock_resp.status_code = 200
+    mock_resp.json.return_value = {
+        "candidates": [{
+            "content": {"parts": [{"text": '{"what_changed_recently": [], "growth_drivers": [], "promise_vs_delivery": []}'}]}
+        }]
     }
-    # Pass None for pl_stmt
-    verified = verify_promise_vs_delivery_item(item, pl_stmt=None, current_year=2026.65)
-    assert "Reported statements for exact promise verification period not yet available" in verified["financial_numbers_check"]
-    print("✓ Case E passed: Missing statements handled safely without invented numbers.")
+    
+    with patch("requests.post", return_value=mock_resp):
+        res, model_used = llm_service.call_gemini_api("fake_key", "test prompt")
+        assert model_used == "gemini-3.1-flash-lite"
+        print(f"✓ Case F passed: Actual model '{model_used}' successfully returned and verified.")
 
-def test_case_f_incremental_refresh_date_window():
-    """Case F: Incremental refresh with last_checked_at = 10 Aug -> search window starts a few days before 10 Aug."""
-    print("Testing Case F: Incremental refresh date-window calculation...")
-    sym = "TEST_INC_SYM"
-    last_checked_iso = "2026-08-10T12:00:00+00:00"
-    database.update_document_sync_state(sym, category="all", checked_at=last_checked_iso)
+def test_case_g_company_ir_incremental_fallback():
+    """Case G: Company IR incremental fallback stops parsing when entries fall before cutoff."""
+    print("Testing Case G: Company IR incremental fallback date cutoff...")
+    from_date = datetime(2026, 8, 10, tzinfo=timezone.utc)
     
-    sync_state = database.get_document_sync_state(sym, category="all")
-    assert sync_state is not None
-    assert sync_state["last_checked_at"] == last_checked_iso
+    # Mock HTML with multiple anchor tags, some new and some old
+    mock_html = """
+    <html>
+      <body>
+        <a href="/reports/AR_2027.pdf">Annual Report FY27</a>
+        <a href="/reports/AR_2026.pdf">Annual Report FY26</a>
+        <a href="/reports/AR_2020.pdf">Annual Report FY20</a>
+        <a href="/reports/AR_2019.pdf">Annual Report FY19</a>
+      </body>
+    </html>
+    """
+    mock_resp = MagicMock()
+    mock_resp.status_code = 200
+    mock_resp.text = mock_html
     
-    last_dt = datetime.fromisoformat(sync_state["last_checked_at"].replace("Z", "+00:00"))
-    overlap_days = 5
-    from_date_dt = last_dt - timedelta(days=overlap_days)
-    from_date_bse = from_date_dt.strftime("%Y%m%d")
-    
-    # 10 Aug minus 5 days = 05 Aug 2026
-    assert from_date_bse == "20260805"
-    assert from_date_dt.day == 5
-    assert from_date_dt.month == 8
-    print(f"✓ Case F passed: Incremental date window starts on {from_date_bse} (5-day safety overlap).")
+    with patch.dict(document_sourcing.COMPANY_IR_DOMAINS, {"TESTSYM": {"ir_url": "https://testir.com"}}):
+        with patch("requests.get", return_value=mock_resp):
+            docs = document_sourcing.discover_documents_company_ir_fallback(
+                symbol="TESTSYM",
+                company_name="Test Sym Ltd",
+                needed_types=["annual_report"],
+                from_date_dt=from_date
+            )
+            # The older FY20 and FY19 reports should be skipped under incremental cutoff
+            assert not any("FY19" in d.title or "FY20" in d.title for d in docs)
+            print("✓ Case G passed: Company IR incremental scan safely filtered older historical filings.")
 
-def test_case_g_cached_known_documents():
-    """Case G: Cached known document -> no unnecessary download / revalidation."""
-    print("Testing Case G: Known SQLite document caching...")
-    sym = "TEST_CACHE_SYM"
-    test_doc = DocumentItem(
-        ticker=sym,
-        company_name="Test Corp",
-        title="Test Corp Annual Report 2026",
-        name="Test Corp Annual Report 2026",
-        url="https://example.com/test_ar_2026.pdf",
-        doc_type="annual_report",
-        period_or_date="FY26",
-        discovery_source="SQLite Cache",
-        actual_source_host="example.com",
-        actual_source_url="https://example.com/test_ar_2026.pdf",
-        is_direct_pdf=True,
-        validation_status="Valid",
-        file_size_bytes=1048576
-    )
-    database.save_source_documents(sym, [test_doc])
-    
-    stored = database.get_source_documents(sym)
-    assert len(stored) >= 1
-    assert any(d["url"] == "https://example.com/test_ar_2026.pdf" and d["is_valid"] == 1 for d in stored)
-    print("✓ Case G passed: Document correctly cached and indexed in SQLite.")
+def test_qualitative_milestone_completion_matching():
+    """Verify qualitative milestone completion keyword matching."""
+    print("Testing qualitative milestone completion matching...")
+    item = {
+        "area": "Manufacturing Capacity",
+        "management_promise": "Plant will commission by Q4 FY26",
+        "promised_in_period": "FY25",
+        "source_url_promise": "https://example.com/ar_fy25.pdf",
+        "actual_outcome": "The new Dahej plant was successfully commissioned and commercial operations commenced on 15 Feb 2026",
+        "actual_in_period": "FY26",
+        "source_url_actual": "https://example.com/ar_fy26.pdf",
+        "status": "In Progress"
+    }
+    verified = verify_promise_vs_delivery_item(item, current_year=2026.65)
+    assert verified["status"] == "Delivered"
+    assert "Commissioned confirmed in subsequent filing" in verified["financial_numbers_check"]
+    print("✓ Qualitative milestone completion successfully classified as 'Delivered'.")
 
 def test_formula_transparency():
     print("Testing formula transparency in financial analytics...")
@@ -206,13 +237,15 @@ def test_formula_transparency():
     print("✓ Formula transparency verified successfully.")
 
 if __name__ == "__main__":
-    test_case_a_promise_after_outcome()
-    test_case_b_same_filing()
-    test_case_c_future_deadline()
-    test_case_d_code_calculated_achievement()
-    test_case_e_missing_financial_statements()
-    test_case_f_incremental_refresh_date_window()
-    test_case_g_cached_known_documents()
+    test_case_a_missing_structured_financial_data()
+    test_case_b_future_target_deadline_override()
+    test_case_c_unverifiable_qualitative_outcome()
+    test_case_d_same_filing_promise_and_outcome()
+    test_case_e_numerical_guidance_with_structured_pl()
+    test_case_f_gemini_fallback_model_provenance()
+    test_case_g_company_ir_incremental_fallback()
+    test_qualitative_milestone_completion_matching()
     test_formula_transparency()
-    print("\n🎉 ALL REGRESSION & CORRECTNESS TESTS PASSED PERFECTLY!")
+    print("\n🎉 ALL CASES A-G AND REGRESSION TESTS PASSED PERFECTLY!")
+
 

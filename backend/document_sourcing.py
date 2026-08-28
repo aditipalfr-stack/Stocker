@@ -3,8 +3,6 @@ import os
 import json
 import time
 from datetime import datetime, timezone, timedelta
-from concurrent.futures import ThreadPoolExecutor
-from urllib.parse import urlparse
 from typing import Dict, List, Optional, Tuple, Any
 from bs4 import BeautifulSoup
 import requests
@@ -344,11 +342,18 @@ def discover_documents_screener(
     company_name: str,
     from_date_dt: Optional[datetime] = None
 ) -> List[DocumentItem]:
-    """Stage 1: Discover documents from Screener's #documents section with incremental window filtering."""
+    """
+    Stage 1: Discover verified documents from Screener.in's document sections.
+    In incremental mode (from_date_dt is provided), skips filings older than the date window.
+    """
     found: List[DocumentItem] = []
-    doc_section = soup.find("section", {"id": "documents"})
+    doc_section = soup.find(id="documents")
     if not doc_section:
         return found
+        
+    from_yr = None
+    if from_date_dt:
+        from_yr = from_date_dt.year + (from_date_dt.month - 1) / 12.0 + from_date_dt.day / 365.0
         
     for a in doc_section.find_all("a", href=True):
         raw_title = re.sub(r"\s+", " ", a.text).strip()
@@ -372,20 +377,17 @@ def discover_documents_screener(
                 period = extract_period_or_date(parent_el.text)
         
         # In incremental mode, skip filings with an explicit date older than the safety window
-        if from_date_dt and period:
+        if from_yr and period:
             try:
                 from financial_engine import parse_filing_period_to_year
                 p_yr = parse_filing_period_to_year(period)
-                from_yr = from_date_dt.year + (from_date_dt.month - 1) / 12.0 + from_date_dt.day / 365.0
                 if p_yr is not None and p_yr < (from_yr - 0.05):
-                    # Filing is older than the recent date window; will be loaded from SQLite archive
                     continue
             except Exception:
                 pass
-        
+                
         doc_type, formatted_title = classify_document_title(raw_title, company_name, period)
-            
-        is_valid, reason = validate_document_candidate(formatted_title, href, doc_type, symbol)
+        is_valid, _ = validate_document_candidate(formatted_title, href, doc_type, symbol)
         
         found.append(DocumentItem(
             ticker=symbol,
@@ -411,9 +413,9 @@ def discover_documents_bse_fallback(
     from_date_str: Optional[str] = None,
     to_date_str: Optional[str] = None
 ) -> List[DocumentItem]:
-    """Stage 2: Discover direct official exchange filings from BSE India within the date window."""
+    """Stage 2: Discover direct exchange filings from BSE India within the date window."""
     found: List[DocumentItem] = []
-    scrip_code = BSE_SCRIP_CODES.get(symbol.upper())
+    scrip_code = BSE_SCRIP_CODES.get(symbol.upper().strip())
     if not scrip_code:
         return found
         
@@ -422,7 +424,6 @@ def discover_documents_bse_fallback(
         "Referer": "https://www.bseindia.com/"
     }
     
-    # BSE Corporate Announcements API with date-window params
     prev_d = from_date_str or ""
     to_d = to_date_str or ""
     api_url = f"https://api.bseindia.com/BseIndiaAPI/api/AnnSubCategoryGetData/w?pageno=1&strCat=-1&strPrevDate={prev_d}&strScrip={scrip_code}&strSearch=P&strToDate={to_d}&strType=C"
@@ -431,8 +432,8 @@ def discover_documents_bse_fallback(
         resp = requests.get(api_url, headers=headers, timeout=5)
         if resp.status_code == 200:
             data = resp.json()
-            table_data = data.get("Table", [])
-            for item in table_data:
+            table = data.get("Table", [])
+            for item in table:
                 headline = item.get("NEWSSUB", "") or item.get("HEADLINE", "")
                 attach_name = item.get("ATTACHMENTNAME", "")
                 dt = item.get("NEWS_DT", "")
@@ -482,11 +483,9 @@ def discover_documents_nse_fallback(
     """Stage 3: Discover verified direct exchange filings from NSE India within the date window."""
     found: List[DocumentItem] = []
     clean_sym = symbol.upper().strip()
-    
     headers = {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-        "Referer": "https://www.nseindia.com/companies-listing/corporate-filings-announcements",
-        "Accept": "application/json, text/plain, */*"
+        "Referer": "https://www.nseindia.com/"
     }
     
     if from_date_str and to_date_str:
@@ -500,43 +499,52 @@ def discover_documents_nse_fallback(
         resp = session.get(api_url, headers=headers, timeout=4)
         if resp.status_code == 200:
             items = resp.json()
-            for item in items[:12]:
-                desc = item.get("desc", "") or item.get("attchmntText", "")
-                attach_file = item.get("attchmntFile", "")
-                dt = item.get("an_dt", "")
-                if not desc or not attach_file:
-                    continue
-                pdf_url = attach_file if attach_file.startswith("http") else f"https://archives.nseindia.com/corporate/{attach_file}"
-                period = format_filing_date(dt) or extract_period_or_date(desc)
-                
-                doc_type, formatted_title = classify_document_title(desc, company_name, period)
-                if doc_type == "general":
-                    doc_type = "announcement"
+            if isinstance(items, list):
+                for item in items:
+                    desc = item.get("desc", "") or item.get("an_dt", "")
+                    attach_file = item.get("attchmntFile", "")
+                    dt = item.get("an_dt", "")
                     
-                is_valid, _ = validate_document_candidate(formatted_title, pdf_url, doc_type, symbol)
-                if is_valid:
-                    found.append(DocumentItem(
-                        ticker=symbol,
-                        company_name=company_name,
-                        title=formatted_title[:120],
-                        name=formatted_title[:120],
-                        url=pdf_url,
-                        doc_type=doc_type,
-                        period_or_date=period,
-                        discovery_source="NSE India",
-                        actual_source_host="nseindia.com",
-                        actual_source_url=pdf_url,
-                        is_direct_pdf=pdf_url.lower().endswith(".pdf"),
-                        validation_status="Valid"
-                    ))
+                    if not desc or not attach_file:
+                        continue
+                    pdf_url = attach_file if attach_file.startswith("http") else f"https://archives.nseindia.com/corporate/{attach_file}"
+                    period = format_filing_date(dt) or extract_period_or_date(desc)
+                    
+                    doc_type, formatted_title = classify_document_title(desc, company_name, period)
+                    if doc_type == "general":
+                        doc_type = "announcement"
+                        
+                    is_valid, _ = validate_document_candidate(formatted_title, pdf_url, doc_type, symbol)
+                    if is_valid:
+                        found.append(DocumentItem(
+                            ticker=symbol,
+                            company_name=company_name,
+                            title=formatted_title[:120],
+                            name=formatted_title[:120],
+                            url=pdf_url,
+                            doc_type=doc_type,
+                            period_or_date=period,
+                            discovery_source="NSE India",
+                            actual_source_host="nseindia.com",
+                            actual_source_url=pdf_url,
+                            is_direct_pdf=pdf_url.lower().endswith(".pdf"),
+                            validation_status="Valid"
+                        ))
     except Exception:
         pass
     return found
 
-def discover_documents_company_ir_fallback(symbol: str, company_name: str, needed_types: List[str]) -> List[DocumentItem]:
+def discover_documents_company_ir_fallback(
+    symbol: str, 
+    company_name: str, 
+    needed_types: List[str],
+    from_date_dt: Optional[datetime] = None
+) -> List[DocumentItem]:
     """
     Stage 4: Discover verified documents directly from live Company Investor Relations websites.
     NEVER creates guessed/synthetic URLs. Only parses real anchor tags from the live IR page.
+    In incremental mode (from_date_dt is provided), processes only the newest entries and stops
+    when filings fall before the cutoff window (preserving 5-day safety overlap).
     """
     found: List[DocumentItem] = []
     ir_info = COMPANY_IR_DOMAINS.get(symbol.upper())
@@ -555,7 +563,16 @@ def discover_documents_company_ir_fallback(symbol: str, company_name: str, neede
         resp = requests.get(ir_url, headers=headers, timeout=6)
         if resp.status_code == 200:
             soup = BeautifulSoup(resp.text, "html.parser")
-            for a in soup.find_all("a", href=True):
+            anchors = soup.find_all("a", href=True)
+            
+            # In incremental mode, limit scan to the newest 15 anchors to avoid deep historical crawls
+            scan_anchors = anchors[:15] if from_date_dt else anchors
+            
+            from_yr = None
+            if from_date_dt:
+                from_yr = from_date_dt.year + (from_date_dt.month - 1) / 12.0 + from_date_dt.day / 365.0
+                
+            for a in scan_anchors:
                 text = a.text.strip()
                 href = a["href"].strip()
                 if not href or not text or len(text) < 3:
@@ -569,6 +586,18 @@ def discover_documents_company_ir_fallback(symbol: str, company_name: str, neede
                     href = f"{ir_url.rstrip('/')}/{href}"
                     
                 period = extract_period_or_date(text) or extract_period_or_date(href)
+                
+                # Check if this filing is strictly older than the incremental date cutoff
+                if from_yr and period:
+                    try:
+                        from financial_engine import parse_filing_period_to_year
+                        p_yr = parse_filing_period_to_year(period)
+                        if p_yr is not None and p_yr < (from_yr - 0.05):
+                            # Filing is prior to recent window; stop scanning older entries
+                            continue
+                    except Exception:
+                        pass
+                        
                 doc_type, formatted_title = classify_document_title(text, company_name, period)
                 if doc_type in ("annual_report", "presentation", "concall_transcript") and (not needed_types or doc_type in needed_types):
                     is_valid, _ = validate_document_candidate(formatted_title, href, doc_type, symbol)
@@ -677,10 +706,10 @@ def execute_document_sourcing_waterfall(
             fallback_sources_used.append("NSE India")
             all_raw_docs.extend(nse_docs)
                     
-    # 4. Stage 4: Company IR Fallback (Real web parsing only, never guessed URLs)
+    # 4. Stage 4: Company IR Fallback (Real web parsing with incremental cutoff)
     ar_count = sum(1 for d in all_raw_docs if d.doc_type == "annual_report")
     if ar_count < 2:
-        ir_docs = discover_documents_company_ir_fallback(clean_sym, company_name, ["annual_report", "presentation"])
+        ir_docs = discover_documents_company_ir_fallback(clean_sym, company_name, ["annual_report", "presentation"], from_date_dt=from_date_dt)
         if ir_docs:
             fallback_sources_used.append("Company IR")
             all_raw_docs.extend(ir_docs)

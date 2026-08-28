@@ -520,19 +520,7 @@ def run_multi_document_ai_pipeline(
     tagged_all_documents_text = "\n".join(tagged_chunks)
 
     # 4. Compile Audited Financials Summary & Retrieve Structured Statements
-    financial_statements_text = format_audited_financials_for_prompt(clean_sym)
     stock_data = database.get_stock_cache(clean_sym)
-    if not stock_data:
-        try:
-            stock_data = fetch_stock_from_screener(clean_sym, force_refresh=False)
-        except Exception:
-            stock_data = {}
-            
-    pl_stmt = stock_data.get("profit_loss") or stock_data.get("profit_and_loss") if stock_data else None
-    quarters_stmt = stock_data.get("quarters") if stock_data else None
-    bs_stmt = stock_data.get("balance_sheet") if stock_data else None
-    cf_stmt = stock_data.get("cash_flow") if stock_data else None
-    
     candidate_meta = [
         {"title": d.title, "url": d.url, "type": d.doc_type, "period": d.period_or_date}
         for d in candidate_docs
@@ -574,11 +562,6 @@ def run_multi_document_ai_pipeline(
         precomputed_document_summaries=doc_summaries_list,
         tagged_all_documents_text=tagged_all_documents_text,
         pl_stmt=pl_stmt,
-        quarters_stmt=quarters_stmt,
-        bs_stmt=bs_stmt,
-        cf_stmt=cf_stmt
-    )
-    
     if not success or not result:
         raise RuntimeError(f"Multi-document AI extraction failed: {message}")
         

@@ -113,9 +113,10 @@ CRITICAL RULES:
      * `source_quote`: The exact verbatim quote snippet (10 to 30 words) proving the claim.
      * `confidence`: Score between 0.8 and 1.0.
 3. QUALITATIVE EXTRACTION & SEPARATION OF RESPONSIBILITIES:
-   - Extract management guidance, capacity targets, and forward statements verbatim from earlier baseline documents.
+   - Extract management guidance statements, capacity targets, and forward statements verbatim from earlier baseline documents.
    - Extract subsequently reported business outcomes and progress statements from later documents.
    - DO NOT attempt to compute mathematical CAGR, YoY growth %, margin basis point changes, CFO/PAT ratios, debt variances, or achievement percentages. Code calculates all financial formulas deterministically from structured audited statements.
+   - Do NOT populate or compute 'financial_numbers_check'; leave it null or omit it. Deterministic statement checks are performed exclusively by Stocker code.
    - In 'stocker_analysis', summarize the qualitative execution takeaways and operational drivers.
    - For 'source_url_promise', use the baseline document URL. For 'source_url_actual', use the outcome document URL.
 
@@ -162,9 +163,9 @@ Output MUST be a valid JSON object matching this schema:
       "source_url_actual": "Later document URL",
       "actual_source_page": 44,
       "actual_quote": "Verbatim quote from later document",
-      "status": "Delivered" | "In Progress" | "Delayed" | "Missed" | "Not Enough Data",
-      "stocker_analysis": "Concise variance explanation of why target was met/delayed/missed",
-      "financial_numbers_check": "Exact audited financial statement check (Sales growth %, OPM %, CFO conversion, Debt changes)",
+      "status": "In Progress" | "Delivered" | "Missed" | "Delayed" | "Not Enough Evidence",
+      "stocker_analysis": "Concise qualitative explanation of operational drivers",
+      "financial_numbers_check": null,
       "confidence": 0.95
     }
   ],
@@ -335,8 +336,8 @@ def format_pages_for_prompt(pages: List[Tuple[int, str]]) -> str:
             formatted_chunks.append(f"--- [Page {page_num}] ---\n{text.strip()}\n")
     return "\n".join(formatted_chunks)
 
-def call_gemini_api(api_key: str, prompt: str, system_prompt: str = SYSTEM_PROMPT) -> Dict[str, Any]:
-    """Calls Gemini API with resilient multi-model fallback cascade."""
+def call_gemini_api(api_key: str, prompt: str, system_prompt: str = SYSTEM_PROMPT) -> Tuple[Dict[str, Any], str]:
+    """Calls Gemini API with resilient multi-model fallback cascade and returns (result_dict, successful_model_name)."""
     import time
     models_to_try = [
         "gemini-3.1-flash-lite",
@@ -363,7 +364,7 @@ def call_gemini_api(api_key: str, prompt: str, system_prompt: str = SYSTEM_PROMP
             if resp.status_code == 200:
                 data = resp.json()
                 raw_text = data["candidates"][0]["content"]["parts"][0]["text"]
-                return json.loads(raw_text)
+                return json.loads(raw_text), model
             elif resp.status_code in (404, 503, 429, 500, 502, 504):
                 last_err = f"Model {model} returned HTTP {resp.status_code}: {resp.text[:120]}"
                 print(f"      ⚠️ {last_err}. Falling back to next available model...")
@@ -388,10 +389,12 @@ def call_gemini_api(api_key: str, prompt: str, system_prompt: str = SYSTEM_PROMP
             
     raise RuntimeError(f"All Gemini models failed. Last error: {last_err}")
 
-def call_openai_api(api_key: str, prompt: str, system_prompt: str = SYSTEM_PROMPT) -> Dict[str, Any]:
+def call_openai_api(api_key: str, prompt: str, system_prompt: str = SYSTEM_PROMPT) -> Tuple[Dict[str, Any], str]:
+    """Calls OpenAI API and returns (result_dict, model_name)."""
+    model = "gpt-4o-mini"
     url = "https://api.openai.com/v1/chat/completions"
     payload = {
-        "model": "gpt-4o-mini",
+        "model": model,
         "messages": [
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": prompt}
@@ -404,7 +407,7 @@ def call_openai_api(api_key: str, prompt: str, system_prompt: str = SYSTEM_PROMP
         raise RuntimeError(f"OpenAI API error ({resp.status_code}): {resp.text}")
     data = resp.json()
     raw_text = data["choices"][0]["message"]["content"]
-    return json.loads(raw_text)
+    return json.loads(raw_text), model
 
 def summarize_single_document_with_llm(
     symbol: str,
@@ -447,15 +450,17 @@ OFFICIAL URL: {doc_url}
 
     try:
         if provider == "gemini":
-            raw_json = call_gemini_api(api_key, prompt, system_prompt=target_prompt)
+            raw_json, used_model = call_gemini_api(api_key, prompt, system_prompt=target_prompt)
         else:
-            raw_json = call_openai_api(api_key, prompt, system_prompt=target_prompt)
+            raw_json, used_model = call_openai_api(api_key, prompt, system_prompt=target_prompt)
             
         summary = dict(raw_json)
         summary["doc_title"] = doc_title
         summary["doc_url"] = doc_url
         summary["doc_type"] = doc_type
         summary["period_or_date"] = period_or_date
+        summary["model_version"] = used_model
+        summary["ai_provider"] = f"{provider.upper()} ({used_model})"
         summary["analyzed_at"] = datetime.now(timezone.utc).isoformat()
         return summary
     except Exception as e:
@@ -564,17 +569,19 @@ def extract_document_intelligence_with_llm(
 ======================================================================
 SYNTHESIS INSTRUCTIONS:
 ======================================================================
-1. Cross-examine management promises from the baseline document against the subsequent outcomes AND the REPORTED AUDITED FINANCIAL STATEMENTS table above.
-2. In 'financial_numbers_check', state the exact numerical outcome and variance percentage (e.g. Sales CAGR %, OPM basis points variance, CFO conversion, Debt trajectory).
+1. Cross-examine management promises from the baseline document against subsequent outcomes and verified operational milestones.
+2. QUALITATIVE EXTRACTION ONLY: Extract management guidance statements, operational milestones, and reported business events verbatim. Do not attempt mathematical calculations; code computes all financial ratios and achievement rates deterministically.
 3. ATTRIBUTION MANDATE: For EVERY finding, extract the exact source document Title and URL from the corresponding chunk tag where the evidence appears. NEVER default to an Annual Report URL if the quote is from a Concall or Announcement!
 4. Output MUST be valid JSON strictly matching the schema.
 """
 
     try:
         if provider == "gemini":
-            raw_json = call_gemini_api(api_key, prompt, system_prompt=SYSTEM_PROMPT)
+            raw_json, used_model = call_gemini_api(api_key, prompt, system_prompt=SYSTEM_PROMPT)
+            used_provider = f"GEMINI ({used_model})"
         else:
-            raw_json = call_openai_api(api_key, prompt, system_prompt=SYSTEM_PROMPT)
+            raw_json, used_model = call_openai_api(api_key, prompt, system_prompt=SYSTEM_PROMPT)
+            used_provider = f"OPENAI ({used_model})"
             
         # Parse into typed generic Pydantic result
         data_to_parse = dict(raw_json)
@@ -590,8 +597,8 @@ SYNTHESIS INSTRUCTIONS:
                 {"title": latest_doc_title, "url": latest_doc_url, "type": "Latest Filing"}
             ] + ([{"title": older_doc_title, "url": older_doc_url, "type": "Baseline Comparison"}] if older_doc_title and older_doc_url else [])
             
-        data_to_parse["ai_provider_used"] = f"{provider.upper()}"
-        data_to_parse["model_version"] = "gemini-3.6-flash" if provider == "gemini" else "gpt-4o-mini"
+        data_to_parse["ai_provider_used"] = used_provider
+        data_to_parse["model_version"] = used_model
         if precomputed_document_summaries:
             data_to_parse["document_summaries"] = precomputed_document_summaries
             
@@ -708,14 +715,12 @@ SYNTHESIS INSTRUCTIONS:
                         quarters_stmt=quarters_stmt,
                         current_year=None  # Computes runtime UTC datetime
                     )
-                    p.status = verified_dict.get("status", p.status)
-                    if verified_dict.get("financial_numbers_check"):
-                        p.financial_numbers_check = verified_dict["financial_numbers_check"]
+                    p.status = verified_dict.get("status", "Not Enough Evidence")
+                    p.financial_numbers_check = verified_dict.get("financial_numbers_check")
                     if verified_dict.get("stocker_analysis"):
                         p.stocker_analysis = verified_dict["stocker_analysis"]
-                except Exception as ve:
-                    print(f"Notice: Promise vs Delivery verification error: {ve}")
-                
+                except Exception as e:
+                    print(f"Notice: Verification engine error on promise item: {e}")
         # 4. DemandMomentum: summary, company_specific_metrics, segment_trends, market_share_and_pricing, headwinds_and_risks, source_page, source_quote, source_url, confidence
         if result.demand_momentum:
             result.demand_momentum.source_url, _ = _sanitize_citation(result.demand_momentum.source_url, None)
