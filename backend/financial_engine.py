@@ -189,9 +189,11 @@ def compute_financial_analytics(
         methodology_notes.append("CFO line not reported in Cash Flow statement.")
 
     if has_direct_capex:
-        methodology_notes.append("Direct reported 'Fixed assets purchased / Capex' line item used.")
+        methodology_notes.append("Direct reported 'Fixed assets purchased / Capex' line item used (High Confidence).")
     else:
-        methodology_notes.append("Direct Capex line not itemized in statement; FCF marked as low-confidence/derived.")
+        methodology_notes.append("Direct Capex line not itemized in statement; derived from Balance Sheet net block & CWIP changes.")
+
+    prior_valid_capex = []
 
     for idx, p in enumerate(y_periods):
         cfo = cfo_vals.get(p)
@@ -200,33 +202,82 @@ def compute_financial_analytics(
         
         capex = None
         capex_method = "Unavailable"
+        fcf_confidence = "Unavailable"
+        confidence_reason = "Missing CFO or Balance Sheet data to determine Capex."
+        possible_anomaly_warning = None
         
+        # Priority 1: Direct reported capex line item
         if direct_capex_vals and p in direct_capex_vals and direct_capex_vals[p] is not None:
             capex = abs(direct_capex_vals[p])
-            capex_method = "Reported Line Item"
+            capex_method = "Reported Capex"
+            fcf_confidence = "High Confidence"
+            confidence_reason = "Direct reported fixed assets purchased line item used from cash flow statement."
+            prior_valid_capex.append(capex)
+        # Priority 2: Derived via Balance Sheet Net Block Delta + Depreciation + CWIP Delta
         elif idx > 0 and fixed_assets and p in fixed_assets and y_periods[idx-1] in fixed_assets:
-            # Derived via Balance Sheet Gross/Net Block Delta + Depreciation
-            fa_curr = fixed_assets.get(p) or 0.0
-            fa_prev = fixed_assets.get(y_periods[idx-1]) or 0.0
+            fa_curr = fixed_assets.get(p)
+            fa_prev = fixed_assets.get(y_periods[idx-1])
             dep_val = y_dep.get(p) or 0.0
             cwip_curr = cwip.get(p) or 0.0
             cwip_prev = cwip.get(y_periods[idx-1]) or 0.0
             
-            delta_fa = fa_curr - fa_prev
-            delta_cwip = cwip_curr - cwip_prev
-            calc_capex = delta_fa + dep_val + delta_cwip
-            if calc_capex >= 0:
+            if fa_curr is not None and fa_prev is not None:
+                delta_fa = fa_curr - fa_prev
+                delta_cwip = cwip_curr - cwip_prev
+                calc_capex = delta_fa + dep_val + delta_cwip
                 capex = round(calc_capex, 1)
                 capex_method = "Derived from Balance Sheet (FA delta + Dep + CWIP delta)"
+                fcf_confidence = "Medium Confidence"
+                confidence_reason = "Derived from Balance Sheet net block change, depreciation, and CWIP delta."
+                
+                # Deterministic Sanity Checks on Derived Capex (preserve math, lower confidence, attach warning)
+                if calc_capex < 0:
+                    fcf_confidence = "Low Confidence"
+                    confidence_reason = "Derived Capex is negative due to net fixed asset reductions exceeding depreciation."
+                    possible_anomaly_warning = (
+                        f"Negative derived capex (₹{calc_capex:,.1f} Cr) in {p} indicates major asset disposals, "
+                        f"demergers, or write-downs exceeding new capital additions."
+                    )
+                elif sales and sales > 0 and (calc_capex / sales) > 0.80:
+                    pct = round((calc_capex / sales) * 100.0, 1)
+                    fcf_confidence = "Low Confidence"
+                    confidence_reason = f"Derived capex as % of sales is unusually elevated ({pct}% > 80%)."
+                    possible_anomaly_warning = (
+                        f"Derived capex represents {pct}% of annual sales in {p}, indicating an inorganic acquisition, "
+                        f"subsidiary consolidation, or large asset transfer rather than routine organic capex."
+                    )
+                elif prior_valid_capex and len(prior_valid_capex) >= 2:
+                    prior_avg = sum(prior_valid_capex[-3:]) / len(prior_valid_capex[-3:])
+                    if prior_avg > 0 and calc_capex > (3.5 * prior_avg) and (calc_capex - prior_avg) > 1000.0:
+                        ratio = round(calc_capex / prior_avg, 1)
+                        fcf_confidence = "Low Confidence"
+                        confidence_reason = f"Derived capex shows an extreme jump ({ratio}x) over historical baseline."
+                        possible_anomaly_warning = (
+                            f"Derived capex (₹{calc_capex:,.0f} Cr) is {ratio}x higher than the prior baseline average "
+                            f"(₹{prior_avg:,.0f} Cr), indicating potential inorganic asset additions or balance sheet restructuring."
+                        )
+                elif cfo is not None and cfo > 0 and calc_capex > (4.0 * cfo) and calc_capex > 2000.0 and (delta_cwip < 0.5 * calc_capex):
+                    ratio = round(calc_capex / cfo, 1)
+                    fcf_confidence = "Low Confidence"
+                    confidence_reason = f"Derived capex significantly exceeds operating cash flow ({ratio}x CFO)."
+                    possible_anomaly_warning = (
+                        f"Derived capex is {ratio}x operating cash flow without corresponding CWIP gestation, "
+                        f"signaling possible inorganic block additions."
+                    )
+                    
+                prior_valid_capex.append(max(calc_capex, 0.0))
         
-        # Calculate FCF only if both CFO and Capex are reliable numbers
+        # Calculate Stocker FCF only if both CFO and Capex are available
         fcf = None
         if cfo is not None and capex is not None:
             fcf = round(cfo - capex, 1)
+        else:
+            if fcf_confidence != "Low Confidence":
+                fcf_confidence = "Unavailable"
             
         cfo_to_pat = round((cfo / pat) * 100.0, 1) if (cfo is not None and pat is not None and pat > 0) else None
         
-        if sales and capex is not None and sales > 0:
+        if sales and capex is not None and sales > 0 and capex >= 0:
             valid_capex_pcts.append(round((capex / sales) * 100.0, 1))
 
         if p in last_5_periods:
@@ -244,6 +295,9 @@ def compute_financial_analytics(
             "reported_pat_cr": pat,
             "capex_cr": capex,
             "capex_methodology": capex_method,
+            "fcf_confidence": fcf_confidence,
+            "confidence_reason": confidence_reason,
+            "possible_anomaly_warning": possible_anomaly_warning,
             "stocker_derived_fcf_cr": fcf,
             "cfo_to_pat_pct": cfo_to_pat
         })
@@ -257,7 +311,7 @@ def compute_financial_analytics(
     )
     analytics["historical_parameters"]["capex_to_sales_pct"] = historical_capex_sales_pct
 
-    # Determine Cash Conversion Quality
+    # Determine Cash Conversion Quality & Overall FCF Confidence
     if cfo_to_pat_5yr is not None:
         if cfo_to_pat_5yr >= 100.0:
             conv_quality = "Superior (CFO exceeds PAT)"
@@ -270,6 +324,17 @@ def compute_financial_analytics(
     else:
         conv_quality = "Inconclusive / Incomplete Data"
 
+    recent_fcf_trends = fcf_trends[-5:] if len(fcf_trends) >= 5 else fcf_trends
+    recent_confidences = [item.get("fcf_confidence") for item in recent_fcf_trends if item.get("fcf_confidence")]
+    if all(c == "High Confidence" for c in recent_confidences) and len(recent_confidences) >= 3:
+        overall_fcf_confidence = "High Confidence (Direct Reported Capex)"
+    elif any(c == "Low Confidence" for c in recent_confidences):
+        overall_fcf_confidence = "Low Confidence (High Volatility / Distortions Detected)"
+    elif any(c == "Medium Confidence" for c in recent_confidences):
+        overall_fcf_confidence = "Medium Confidence (Balance Sheet Derived)"
+    else:
+        overall_fcf_confidence = "Unavailable / Incomplete Data"
+
     analytics["cash_flow_quality"] = {
         "cumulative_5y_pat_cr": round(cum_5y_pat, 1) if cum_5y_pat > 0 else None,
         "cumulative_5y_cfo_cr": round(cum_5y_cfo, 1) if cum_5y_cfo != 0 else None,
@@ -277,6 +342,7 @@ def compute_financial_analytics(
         "cfo_to_pat_5yr_pct": cfo_to_pat_5yr,
         "cash_conversion_quality": conv_quality,
         "is_fcf_directly_reported": has_direct_capex,
+        "overall_fcf_confidence": overall_fcf_confidence,
         "methodology_notes": methodology_notes,
         "fcf_trends": fcf_trends
     }
@@ -357,6 +423,8 @@ def compute_financial_analytics(
     latest_capex = latest_fcf_item.get("capex_cr")
     latest_fcf = latest_fcf_item.get("stocker_derived_fcf_cr")
     latest_capex_meth = latest_fcf_item.get("capex_methodology", "Unavailable")
+    latest_fcf_conf = latest_fcf_item.get("fcf_confidence", "Unavailable")
+    latest_anomaly = latest_fcf_item.get("possible_anomaly_warning")
     
     latest_q_trend = analytics["quarterly_analysis"]["trends"][-1] if analytics["quarterly_analysis"]["trends"] else {}
     
@@ -407,10 +475,11 @@ def compute_financial_analytics(
                 "Reported CFO (₹ Cr)": latest_cfo,
                 "Capex (₹ Cr)": latest_capex,
                 "Capex Methodology": latest_capex_meth,
+                "FCF Confidence": latest_fcf_conf,
                 "Period": last_p
             },
             "source": "Audited Cash Flow Statement / Balance Sheet Gross Block Reconciliation",
-            "explanation": f"In {last_p}, operating cash flow was ₹{latest_cfo:,.0f} Cr and capital expenditure was ₹{latest_capex:,.0f} Cr ({latest_capex_meth}), resulting in ₹{latest_fcf:,.0f} Cr of free cash flow." if (latest_cfo is not None and latest_capex is not None and latest_fcf is not None) else "FCF requires reliable CFO and Capex figures."
+            "explanation": f"In {last_p}, operating cash flow was ₹{latest_cfo:,.0f} Cr and capital expenditure was ₹{latest_capex:,.0f} Cr ({latest_capex_meth}, {latest_fcf_conf}), resulting in ₹{latest_fcf:,.0f} Cr of free cash flow." + (f" Note: {latest_anomaly}" if latest_anomaly else "") if (latest_cfo is not None and latest_capex is not None and latest_fcf is not None) else "FCF requires reliable CFO and Capex figures."
         },
         "debt_to_equity": {
             "metric_name": "Debt to Equity Ratio",

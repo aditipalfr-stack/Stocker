@@ -1,10 +1,12 @@
 import sys
-from datetime import datetime, timezone, timedelta
 from pathlib import Path
-from unittest.mock import MagicMock, patch
 
 sys.path.insert(0, str(Path(__file__).parent.parent / "libs"))
 sys.path.insert(0, str(Path(__file__).parent))
+
+from datetime import datetime, timezone, timedelta
+from unittest.mock import MagicMock, patch
+from bs4 import BeautifulSoup
 
 from financial_engine import parse_filing_period_to_year, verify_promise_vs_delivery_item, compute_financial_analytics
 from models import FinancialStatement, FinancialRow, DocumentItem
@@ -330,6 +332,249 @@ def test_production_pipeline_financial_wiring():
         print("  ✓ Path 2 passed: Cache missing fallback flow safely retrieved structured data without NameError.")
     print("✓ Integration Test passed: Full production AI pipeline wiring verified.")
 
+def test_cash_flow_case_a_direct_capex():
+    """Case A: Direct capex line present in cash flow statement -> High Confidence."""
+    print("Testing Cash Flow Case A: Direct reported capex line...")
+    pl = FinancialStatement(
+        periods=["Mar 2025", "Mar 2026"],
+        rows=[
+            FinancialRow(metric="Sales", values={"Mar 2025": 100000.0, "Mar 2026": 120000.0}),
+            FinancialRow(metric="Net Profit", values={"Mar 2025": 15000.0, "Mar 2026": 18000.0})
+        ]
+    )
+    bs = FinancialStatement(periods=["Mar 2025", "Mar 2026"], rows=[])
+    cf = FinancialStatement(
+        periods=["Mar 2025", "Mar 2026"],
+        rows=[
+            FinancialRow(metric="Cash from Operating Activity", values={"Mar 2025": 20000.0, "Mar 2026": 25000.0}),
+            FinancialRow(metric="Fixed assets purchased", values={"Mar 2025": 5000.0, "Mar 2026": 6000.0})
+        ]
+    )
+    q = FinancialStatement(periods=["Mar 2026"], rows=[])
+    
+    analytics = compute_financial_analytics(q, pl, bs, cf)
+    fcf_trends = analytics["cash_flow_quality"]["fcf_trends"]
+    assert len(fcf_trends) == 2
+    latest = fcf_trends[-1]
+    assert latest["period"] == "Mar 2026"
+    assert latest["reported_cfo_cr"] == 25000.0
+    assert latest["capex_cr"] == 6000.0
+    assert latest["stocker_derived_fcf_cr"] == 19000.0 # 25000 - 6000
+    assert latest["capex_methodology"] == "Reported Capex"
+    assert latest["fcf_confidence"] == "High Confidence"
+    assert latest["possible_anomaly_warning"] is None
+    print("✓ Cash Flow Case A passed: Direct reported capex identified as High Confidence and FCF calculated accurately.")
+
+def test_cash_flow_case_b_balance_sheet_derived_capex():
+    """Case B: Balance-sheet-derived capex -> Medium Confidence by default."""
+    print("Testing Cash Flow Case B: Balance-sheet-derived capex...")
+    pl = FinancialStatement(
+        periods=["Mar 2025", "Mar 2026"],
+        rows=[
+            FinancialRow(metric="Sales", values={"Mar 2025": 100000.0, "Mar 2026": 120000.0}),
+            FinancialRow(metric="Depreciation", values={"Mar 2025": 4000.0, "Mar 2026": 5000.0}),
+            FinancialRow(metric="Net Profit", values={"Mar 2025": 15000.0, "Mar 2026": 18000.0})
+        ]
+    )
+    bs = FinancialStatement(
+        periods=["Mar 2025", "Mar 2026"],
+        rows=[
+            FinancialRow(metric="Fixed Assets", values={"Mar 2025": 40000.0, "Mar 2026": 44000.0}), # Delta = 4000
+            FinancialRow(metric="CWIP", values={"Mar 2025": 2000.0, "Mar 2026": 3000.0})             # Delta = 1000
+        ]
+    )
+    cf = FinancialStatement(
+        periods=["Mar 2025", "Mar 2026"],
+        rows=[
+            FinancialRow(metric="Cash from Operating Activity", values={"Mar 2025": 20000.0, "Mar 2026": 24000.0})
+        ]
+    )
+    q = FinancialStatement(periods=["Mar 2026"], rows=[])
+    
+    analytics = compute_financial_analytics(q, pl, bs, cf)
+    fcf_trends = analytics["cash_flow_quality"]["fcf_trends"]
+    latest = fcf_trends[-1]
+    # Expected capex = delta_fa (4000) + dep (5000) + delta_cwip (1000) = 10000
+    assert latest["capex_cr"] == 10000.0
+    assert latest["stocker_derived_fcf_cr"] == 14000.0 # 24000 - 10000
+    assert latest["capex_methodology"] == "Derived from Balance Sheet (FA delta + Dep + CWIP delta)"
+    assert latest["fcf_confidence"] == "Medium Confidence"
+    assert latest["possible_anomaly_warning"] is None
+    print("✓ Cash Flow Case B passed: Derived capex classified as Medium Confidence by default.")
+
+def test_cash_flow_case_c_extreme_derived_capex():
+    """Case C: Extreme derived capex -> Calculation preserved, confidence Low, anomaly warning present."""
+    print("Testing Cash Flow Case C: Extreme / Anomalous derived capex...")
+    # Scenario: Sudden asset jump representing 120% of annual sales (e.g. mega acquisition)
+    pl = FinancialStatement(
+        periods=["Mar 2025", "Mar 2026"],
+        rows=[
+            FinancialRow(metric="Sales", values={"Mar 2025": 10000.0, "Mar 2026": 12000.0}),
+            FinancialRow(metric="Depreciation", values={"Mar 2025": 500.0, "Mar 2026": 600.0}),
+            FinancialRow(metric="Net Profit", values={"Mar 2025": 1000.0, "Mar 2026": 1200.0})
+        ]
+    )
+    bs = FinancialStatement(
+        periods=["Mar 2025", "Mar 2026"],
+        rows=[
+            FinancialRow(metric="Fixed Assets", values={"Mar 2025": 5000.0, "Mar 2026": 20000.0}), # Delta = 15000
+            FinancialRow(metric="CWIP", values={"Mar 2025": 0.0, "Mar 2026": 0.0})
+        ]
+    )
+    cf = FinancialStatement(
+        periods=["Mar 2025", "Mar 2026"],
+        rows=[
+            FinancialRow(metric="Cash from Operating Activity", values={"Mar 2025": 1500.0, "Mar 2026": 1800.0})
+        ]
+    )
+    q = FinancialStatement(periods=["Mar 2026"], rows=[])
+    
+    analytics = compute_financial_analytics(q, pl, bs, cf)
+    fcf_trends = analytics["cash_flow_quality"]["fcf_trends"]
+    latest = fcf_trends[-1]
+    # Expected capex = 15000 + 600 = 15600. Sales = 12000 (130% of sales)
+    assert latest["capex_cr"] == 15600.0
+    assert latest["stocker_derived_fcf_cr"] == -13800.0 # 1800 - 15600
+    assert latest["fcf_confidence"] == "Low Confidence"
+    assert latest["possible_anomaly_warning"] is not None
+    assert "inorganic acquisition" in latest["possible_anomaly_warning"].lower() or "elevated" in latest["confidence_reason"].lower()
+    print("✓ Cash Flow Case C passed: Extreme derived capex preserved mathematically with Low Confidence & anomaly warning.")
+
+def test_cash_flow_case_d_missing_capex():
+    """Case D: Missing capex data -> FCF unavailable, confidence Unavailable."""
+    print("Testing Cash Flow Case D: Missing capex data...")
+    pl = FinancialStatement(periods=["Mar 2026"], rows=[FinancialRow(metric="Net Profit", values={"Mar 2026": 1000.0})])
+    bs = FinancialStatement(periods=["Mar 2026"], rows=[]) # No fixed assets or prior periods
+    cf = FinancialStatement(periods=["Mar 2026"], rows=[FinancialRow(metric="Cash from Operating Activity", values={"Mar 2026": 1200.0})])
+    q = FinancialStatement(periods=["Mar 2026"], rows=[])
+    
+    analytics = compute_financial_analytics(q, pl, bs, cf)
+    latest = analytics["cash_flow_quality"]["fcf_trends"][-1]
+    assert latest["capex_cr"] is None
+    assert latest["stocker_derived_fcf_cr"] is None
+    assert latest["fcf_confidence"] == "Unavailable"
+    assert latest["capex_methodology"] == "Unavailable"
+    print("✓ Cash Flow Case D passed: Missing capex handled gracefully as Unavailable.")
+
+def test_cash_flow_case_e_raw_cash_flow_filtering():
+    """Case E: Raw cash flow statement does not include Screener's injected Free Cash Flow or CFO/OP rows."""
+    print("Testing Cash Flow Case E: Raw cash-flow statement sanitization...")
+    import scraper
+    from bs4 import BeautifulSoup
+    
+    html = """
+    <section id="cash-flow">
+      <table>
+        <thead>
+          <tr>
+            <th>Reported Items</th>
+            <th>Mar 2025</th>
+            <th>Mar 2026</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Cash from Operating Activity</td>
+            <td>10,000</td>
+            <td>12,000</td>
+          </tr>
+          <tr>
+            <td>Cash from Investing Activity</td>
+            <td>-4,000</td>
+            <td>-5,000</td>
+          </tr>
+          <tr>
+            <td>Cash from Financing Activity</td>
+            <td>-5,000</td>
+            <td>-6,000</td>
+          </tr>
+          <tr>
+            <td>Net Cash Flow</td>
+            <td>1,000</td>
+            <td>1,000</td>
+          </tr>
+          <tr>
+            <td>Free Cash Flow</td>
+            <td>6,000</td>
+            <td>7,000</td>
+          </tr>
+          <tr>
+            <td>CFO/OP</td>
+            <td>95%</td>
+            <td>98%</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+    """
+    soup = BeautifulSoup(html, "html.parser")
+    stmt = scraper.parse_screener_table(soup, "cash-flow")
+    assert stmt is not None
+    metrics = [r.metric for r in stmt.rows]
+    assert "Cash from Operating Activity" in metrics
+    assert "Cash from Investing Activity" in metrics
+    assert "Cash from Financing Activity" in metrics
+    assert "Net Cash Flow" in metrics
+    assert "Free Cash Flow" not in metrics
+    assert "CFO/OP" not in metrics
+    
+    # Test hydration sanitization as well
+    cached = {
+        "ratios": {
+            "market_cap_cr": 100000.0,
+            "current_price": 1000.0,
+            "high_low": "1200 / 800",
+            "stock_pe": 25.0,
+            "book_value": 300.0,
+            "dividend_yield_pct": 1.5,
+            "roce_pct": 20.0,
+            "roe_pct": 18.0,
+            "face_value": 1.0,
+            "debt_to_equity": 0.1,
+            "interest_coverage": 10.0,
+            "fcf_yield_pct": 3.5,
+            "sales_growth_3yr_cagr": 12.0,
+            "profit_growth_3yr_cagr": 15.0
+        },
+        "quarters": {"periods": [], "rows": []},
+        "profit_loss": {"periods": [], "rows": []},
+        "balance_sheet": {"periods": [], "rows": []},
+        "cash_flow": {
+            "periods": ["Mar 2026"],
+            "rows": [
+                {"metric": "Cash from Operating Activity", "values": {"Mar 2026": 12000.0}},
+                {"metric": "Free Cash Flow", "values": {"Mar 2026": 7000.0}},
+                {"metric": "CFO/OP", "values": {"Mar 2026": 98.0}}
+            ]
+        }
+    }
+    hydrated = scraper.hydrate_stock_data(cached)
+    hydrated_metrics = [r.metric for r in hydrated["cash_flow"].rows]
+    assert "Free Cash Flow" not in hydrated_metrics
+    assert "CFO/OP" not in hydrated_metrics
+    print("✓ Cash Flow Case E passed: Injected non-statement rows successfully filtered from raw cash flow.")
+
+def test_cash_flow_case_f_cfo_to_pat_deterministic():
+    """Case F: CFO / PAT conversion % remains strict deterministic code calculation."""
+    print("Testing Cash Flow Case F: Deterministic CFO / PAT calculation...")
+    pl = FinancialStatement(
+        periods=["Mar 2025", "Mar 2026"],
+        rows=[FinancialRow(metric="Net Profit", values={"Mar 2025": 10000.0, "Mar 2026": 12500.0})]
+    )
+    bs = FinancialStatement(periods=["Mar 2025", "Mar 2026"], rows=[])
+    cf = FinancialStatement(
+        periods=["Mar 2025", "Mar 2026"],
+        rows=[FinancialRow(metric="Cash from Operating Activity", values={"Mar 2025": 11000.0, "Mar 2026": 15000.0})]
+    )
+    q = FinancialStatement(periods=["Mar 2026"], rows=[])
+    
+    analytics = compute_financial_analytics(q, pl, bs, cf)
+    cf_quality = analytics["cash_flow_quality"]
+    # Cum CFO = 26000, Cum PAT = 22500 -> 26000 / 22500 * 100 = 115.555 -> 115.6%
+    assert cf_quality["cfo_to_pat_5yr_pct"] == 115.6
+    assert cf_quality["cash_conversion_quality"] == "Superior (CFO exceeds PAT)"
+    print("✓ Cash Flow Case F passed: CFO to PAT is calculated deterministically with high fidelity.")
+
 if __name__ == "__main__":
     test_case_a_missing_structured_financial_data()
     test_case_b_future_target_deadline_override()
@@ -341,7 +586,11 @@ if __name__ == "__main__":
     test_qualitative_milestone_completion_matching()
     test_formula_transparency()
     test_production_pipeline_financial_wiring()
-    print("\n🎉 ALL CASES A-G, INTEGRATION & REGRESSION TESTS PASSED PERFECTLY!")
-
-
+    test_cash_flow_case_a_direct_capex()
+    test_cash_flow_case_b_balance_sheet_derived_capex()
+    test_cash_flow_case_c_extreme_derived_capex()
+    test_cash_flow_case_d_missing_capex()
+    test_cash_flow_case_e_raw_cash_flow_filtering()
+    test_cash_flow_case_f_cfo_to_pat_deterministic()
+    print("\n🎉 ALL CASES A-G, CASH FLOW CASES A-F, INTEGRATION & REGRESSION TESTS PASSED PERFECTLY!")
 

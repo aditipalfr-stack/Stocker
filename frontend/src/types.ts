@@ -232,13 +232,17 @@ export interface StockDetail {
       cash_conversion_quality?: string;
       is_cash_conversion_superior?: boolean;
       is_fcf_directly_reported?: boolean;
-      methodology_notes?: string;
+      overall_fcf_confidence?: string;
+      methodology_notes?: string | string[];
       fcf_trends?: Array<{
         period: string;
         reported_cfo_cr: number | null;
         reported_pat_cr: number | null;
         capex_cr: number | null;
         capex_methodology: string;
+        fcf_confidence?: string;
+        confidence_reason?: string;
+        possible_anomaly_warning?: string | null;
         stocker_derived_fcf_cr: number | null;
         cfo_to_pat_pct: number | null;
       }>;
@@ -248,6 +252,9 @@ export interface StockDetail {
         reported_pat_cr: number | null;
         capex_cr: number | null;
         capex_methodology: string;
+        fcf_confidence?: string;
+        confidence_reason?: string;
+        possible_anomaly_warning?: string | null;
         stocker_derived_fcf_cr: number | null;
         cfo_to_pat_pct: number | null;
       }>;
