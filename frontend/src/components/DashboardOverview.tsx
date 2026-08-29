@@ -5,6 +5,7 @@ import {
   Percent, Activity, CheckCircle2, ChevronRight, Filter, 
   ArrowUpDown, ExternalLink, Flame
 } from 'lucide-react';
+import { ConceptHelp } from './ui/ConceptHelp';
 
 interface DashboardOverviewProps {
   stocks: StockSummary[];
@@ -109,7 +110,7 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
           </div>
 
           <div className="p-3.5 rounded-2xl bg-slate-950/60 border border-slate-800">
-            <span className="text-xs text-slate-400 font-medium">Highest ROCE In Group</span>
+            <span className="text-xs text-slate-400 font-medium"><ConceptHelp term="roce" label="Highest ROCE In Group" /></span>
             <div className="text-xl font-bold text-cyan-400 mt-0.5">
               {Math.max(...stocks.map(s => s.roce_pct))}%
             </div>
@@ -119,7 +120,7 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
           </div>
 
           <div className="p-3.5 rounded-2xl bg-slate-950/60 border border-slate-800">
-            <span className="text-xs text-slate-400 font-medium">Top FCF Yield</span>
+            <span className="text-xs text-slate-400 font-medium"><ConceptHelp term="fcf" label="Top FCF Yield" /></span>
             <div className="text-xl font-bold text-teal-400 mt-0.5">
               {Math.max(...stocks.map(s => s.fcf_yield_pct))}%
             </div>
@@ -313,43 +314,43 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
                 </th>
                 <th className="py-3.5 px-4 cursor-pointer hover:text-emerald-400" onClick={() => handleSort('pe_ratio')}>
                   <div className="flex items-center gap-1">
-                    <span>P/E</span>
+                    <ConceptHelp term="pe" label="P/E" />
                     <ArrowUpDown className="w-3 h-3" />
                   </div>
                 </th>
                 <th className="py-3.5 px-4 cursor-pointer hover:text-emerald-400" onClick={() => handleSort('roce_pct')}>
                   <div className="flex items-center gap-1">
-                    <span>ROCE %</span>
+                    <ConceptHelp term="roce" label="ROCE %" />
                     <ArrowUpDown className="w-3 h-3" />
                   </div>
                 </th>
                 <th className="py-3.5 px-4 cursor-pointer hover:text-emerald-400" onClick={() => handleSort('roe_pct')}>
                   <div className="flex items-center gap-1">
-                    <span>ROE %</span>
+                    <ConceptHelp term="roe" label="ROE %" />
                     <ArrowUpDown className="w-3 h-3" />
                   </div>
                 </th>
                 <th className="py-3.5 px-4 cursor-pointer hover:text-emerald-400" onClick={() => handleSort('fcf_yield_pct')}>
                   <div className="flex items-center gap-1">
-                    <span>FCF Yield</span>
+                    <ConceptHelp term="fcf" label="FCF Yield" />
                     <ArrowUpDown className="w-3 h-3" />
                   </div>
                 </th>
                 <th className="py-3.5 px-4 cursor-pointer hover:text-emerald-400" onClick={() => handleSort('sales_growth_3yr_pct')}>
                   <div className="flex items-center gap-1">
-                    <span>3Y Sales CAGR</span>
+                    <ConceptHelp term="sales_cagr" label="3Y Sales CAGR" />
                     <ArrowUpDown className="w-3 h-3" />
                   </div>
                 </th>
                 <th className="py-3.5 px-4 cursor-pointer hover:text-emerald-400" onClick={() => handleSort('cfo_to_pat_5yr_pct')}>
                   <div className="flex items-center gap-1">
-                    <span>CFO/PAT (5Y)</span>
+                    <ConceptHelp term="cfo_pat" label="CFO/PAT (5Y)" />
                     <ArrowUpDown className="w-3 h-3" />
                   </div>
                 </th>
                 <th className="py-3.5 px-4 cursor-pointer hover:text-emerald-400" onClick={() => handleSort('net_debt_to_equity')}>
                   <div className="flex items-center gap-1">
-                    <span>Debt/Eq</span>
+                    <ConceptHelp term="debt_equity" label="Debt/Eq" />
                     <ArrowUpDown className="w-3 h-3" />
                   </div>
                 </th>
@@ -438,4 +439,3 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
     </div>
   );
 };
-

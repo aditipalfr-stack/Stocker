@@ -1,13 +1,12 @@
 import React from 'react';
 import { ComparisonItem } from '../types';
-import { 
-  ShieldCheck, ArrowLeft, ArrowUpRight, CheckCircle2, 
-  AlertTriangle, ExternalLink, X, Plus 
-} from 'lucide-react';
+import { ShieldCheck, ArrowLeft, X } from 'lucide-react';
 import { 
   ResponsiveContainer, BarChart, Bar, XAxis, YAxis, 
   Tooltip, Legend, CartesianGrid 
 } from 'recharts';
+import { ConceptHelp } from './ui/ConceptHelp';
+import { DataOriginBadge } from './ui/DataOriginBadge';
 
 interface StockComparisonProps {
   comparisonData: ComparisonItem[];
@@ -154,7 +153,7 @@ export const StockComparison: React.FC<StockComparisonProps> = ({
 
             {/* Market Cap */}
             <tr className="hover:bg-slate-900/50">
-              <td className="py-3 px-4 sticky left-0 bg-slate-950 font-sans text-slate-400">Market Cap (₹ Cr)</td>
+              <td className="py-3 px-4 sticky left-0 bg-slate-950 font-sans text-slate-400"><ConceptHelp term="market_cap" label="Market Cap (₹ Cr)" /></td>
               {comparisonData.map(item => (
                 <td key={item.symbol} className="py-3 px-6 text-center text-slate-300">
                   ₹{item.market_cap_cr.toLocaleString('en-IN')}
@@ -164,7 +163,7 @@ export const StockComparison: React.FC<StockComparisonProps> = ({
 
             {/* P/E Ratio */}
             <tr className="hover:bg-slate-900/50">
-              <td className="py-3 px-4 sticky left-0 bg-slate-950 font-sans text-slate-400">Stock P/E Multiple</td>
+              <td className="py-3 px-4 sticky left-0 bg-slate-950 font-sans text-slate-400"><ConceptHelp term="pe" label="Stock P/E Multiple" /></td>
               {comparisonData.map(item => (
                 <td key={item.symbol} className="py-3 px-6 text-center text-slate-200">
                   {item.pe_ratio}x
@@ -174,7 +173,7 @@ export const StockComparison: React.FC<StockComparisonProps> = ({
 
             {/* ROCE */}
             <tr className="hover:bg-slate-900/50">
-              <td className="py-3 px-4 sticky left-0 bg-slate-950 font-sans text-slate-400">ROCE %</td>
+              <td className="py-3 px-4 sticky left-0 bg-slate-950 font-sans text-slate-400"><ConceptHelp term="roce" label="ROCE %" /></td>
               {comparisonData.map(item => (
                 <td key={item.symbol} className={`py-3 px-6 text-center font-bold ${item.roce_pct >= 20 ? 'text-emerald-400' : 'text-slate-300'}`}>
                   {item.roce_pct}%
@@ -184,7 +183,7 @@ export const StockComparison: React.FC<StockComparisonProps> = ({
 
             {/* ROE */}
             <tr className="hover:bg-slate-900/50">
-              <td className="py-3 px-4 sticky left-0 bg-slate-950 font-sans text-slate-400">ROE %</td>
+              <td className="py-3 px-4 sticky left-0 bg-slate-950 font-sans text-slate-400"><ConceptHelp term="roe" label="ROE %" /></td>
               {comparisonData.map(item => (
                 <td key={item.symbol} className="py-3 px-6 text-center text-cyan-400 font-semibold">
                   {item.roe_pct}%
@@ -194,7 +193,7 @@ export const StockComparison: React.FC<StockComparisonProps> = ({
 
             {/* FCF Yield */}
             <tr className="hover:bg-slate-900/50">
-              <td className="py-3 px-4 sticky left-0 bg-slate-950 font-sans text-slate-400">FCF Yield %</td>
+              <td className="py-3 px-4 sticky left-0 bg-slate-950 font-sans text-slate-400"><ConceptHelp term="fcf" label="FCF Yield %" /></td>
               {comparisonData.map(item => (
                 <td key={item.symbol} className={`py-3 px-6 text-center font-bold ${item.fcf_yield_pct >= 3.0 ? 'text-teal-400' : 'text-slate-300'}`}>
                   {item.fcf_yield_pct}%
@@ -204,7 +203,7 @@ export const StockComparison: React.FC<StockComparisonProps> = ({
 
             {/* 3Y Sales CAGR */}
             <tr className="hover:bg-slate-900/50">
-              <td className="py-3 px-4 sticky left-0 bg-slate-950 font-sans text-slate-400">3Y Sales CAGR %</td>
+              <td className="py-3 px-4 sticky left-0 bg-slate-950 font-sans text-slate-400"><ConceptHelp term="sales_cagr" label="3Y Sales CAGR %" /></td>
               {comparisonData.map(item => (
                 <td key={item.symbol} className="py-3 px-6 text-center text-slate-300">
                   {item.sales_cagr_3yr}%
@@ -214,7 +213,7 @@ export const StockComparison: React.FC<StockComparisonProps> = ({
 
             {/* 5Y CFO to PAT */}
             <tr className="hover:bg-slate-900/50">
-              <td className="py-3 px-4 sticky left-0 bg-slate-950 font-sans text-slate-400">5Y CFO / PAT Conversion</td>
+              <td className="py-3 px-4 sticky left-0 bg-slate-950 font-sans text-slate-400"><ConceptHelp term="cfo_pat" label="5Y CFO / PAT Conversion" /></td>
               {comparisonData.map(item => (
                 <td key={item.symbol} className={`py-3 px-6 text-center font-semibold ${item.cfo_to_pat_5yr >= 85 ? 'text-emerald-400' : 'text-amber-400'}`}>
                   {item.cfo_to_pat_5yr}%
@@ -224,7 +223,7 @@ export const StockComparison: React.FC<StockComparisonProps> = ({
 
             {/* Debt to Equity */}
             <tr className="hover:bg-slate-900/50">
-              <td className="py-3 px-4 sticky left-0 bg-slate-950 font-sans text-slate-400">Debt to Equity</td>
+              <td className="py-3 px-4 sticky left-0 bg-slate-950 font-sans text-slate-400"><ConceptHelp term="debt_equity" label="Debt to Equity" /></td>
               {comparisonData.map(item => (
                 <td key={item.symbol} className="py-3 px-6 text-center text-slate-300">
                   {item.debt_to_equity}x
@@ -234,7 +233,9 @@ export const StockComparison: React.FC<StockComparisonProps> = ({
 
             {/* DCF Upside */}
             <tr className="hover:bg-slate-900/50 bg-slate-900/10">
-              <td className="py-3 px-4 sticky left-0 bg-slate-900 font-sans font-semibold text-slate-200">DCF Fair Value Upside</td>
+              <td className="py-3 px-4 sticky left-0 bg-slate-900 font-sans font-semibold text-slate-200">
+                <div className="flex items-center gap-2"><ConceptHelp term="dcf" label="DCF Fair Value Upside" /><DataOriginBadge origin="stocker_projection" compact /></div>
+              </td>
               {comparisonData.map(item => (
                 <td key={item.symbol} className={`py-3 px-6 text-center font-bold ${item.dcf_upside_pct >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
                   {item.dcf_upside_pct >= 0 ? `+${item.dcf_upside_pct}%` : `${item.dcf_upside_pct}%`}
@@ -244,7 +245,9 @@ export const StockComparison: React.FC<StockComparisonProps> = ({
 
             {/* Projected 3Y IRR */}
             <tr className="hover:bg-slate-900/50 bg-emerald-950/20 font-bold">
-              <td className="py-3 px-4 sticky left-0 bg-emerald-950/80 font-sans text-emerald-300">Projected 3-Year IRR %</td>
+              <td className="py-3 px-4 sticky left-0 bg-emerald-950/80 font-sans text-emerald-300">
+                <div className="flex items-center gap-2"><ConceptHelp term="irr" label="Projected 3-Year IRR %" /><DataOriginBadge origin="stocker_projection" compact /></div>
+              </td>
               {comparisonData.map(item => (
                 <td key={item.symbol} className="py-3 px-6 text-center text-emerald-400 text-sm">
                   {item.projected_3yr_irr_pct}% / yr
@@ -266,11 +269,11 @@ export const StockComparison: React.FC<StockComparisonProps> = ({
         <div className="h-80 w-full">
           <ResponsiveContainer width="100%" height="100%">
             <BarChart data={scoreChartData}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
-              <XAxis dataKey="symbol" stroke="#64748b" fontSize={11} />
-              <YAxis domain={[0, 100]} stroke="#64748b" fontSize={11} />
+              <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" />
+              <XAxis dataKey="symbol" stroke="var(--chart-axis)" fontSize={11} />
+              <YAxis domain={[0, 100]} stroke="var(--chart-axis)" fontSize={11} />
               <Tooltip 
-                contentStyle={{ backgroundColor: '#0f172a', borderColor: '#334155', borderRadius: '12px' }}
+                contentStyle={{ backgroundColor: 'var(--card-bg)', borderColor: 'var(--border-strong)', color: 'var(--text-primary)', borderRadius: '12px' }}
               />
               <Legend wrapperStyle={{ fontSize: '11px', paddingTop: '10px' }} />
               <Bar dataKey="Growth" fill="#10b981" radius={[4, 4, 0, 0]} />
@@ -286,4 +289,3 @@ export const StockComparison: React.FC<StockComparisonProps> = ({
     </div>
   );
 };
-

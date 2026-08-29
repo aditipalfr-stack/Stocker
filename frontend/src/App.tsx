@@ -9,6 +9,7 @@ import { Navbar } from './components/Navbar';
 import { DashboardOverview } from './components/DashboardOverview';
 import { StockDetailView } from './components/StockDetailView';
 import { StockComparison } from './components/StockComparison';
+import { GlossaryDrawer } from './components/ui/GlossaryDrawer';
 import { RefreshCw, AlertCircle, CheckCircle2 } from 'lucide-react';
 
 export function App() {
@@ -24,6 +25,7 @@ export function App() {
   const [isDetailLoading, setIsDetailLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
   const [toastMessage, setToastMessage] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
+  const [isGlossaryOpen, setIsGlossaryOpen] = useState(false);
 
   const showToast = (text: string, type: 'success' | 'error' = 'success') => {
     setToastMessage({ text, type });
@@ -127,7 +129,7 @@ export function App() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col selection:bg-emerald-500 selection:text-white">
+    <div className="min-h-screen bg-page text-primary flex flex-col selection:bg-emerald-500 selection:text-white">
       
       {/* Toast Notification Banner */}
       {toastMessage && (
@@ -153,7 +155,10 @@ export function App() {
         isLoading={isLoading}
         selectedStockSymbol={selectedStockSymbol}
         compareCount={selectedCompareSymbols.length}
+        onOpenGlossary={() => setIsGlossaryOpen(true)}
       />
+
+      <GlossaryDrawer isOpen={isGlossaryOpen} onClose={() => setIsGlossaryOpen(false)} />
 
       {/* Main App Body */}
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 lg:px-8 pt-6">
@@ -216,7 +221,7 @@ export function App() {
       </main>
 
       {/* Institutional Footer */}
-      <footer className="border-t border-slate-900 bg-slate-950/80 py-6 px-4 text-center text-xs text-slate-500 font-mono">
+      <footer className="border-t border-theme bg-panel py-6 px-4 text-center text-xs text-muted font-mono">
         <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-2">
           <span>Stocker Decision Platform • Powered by Raw Screener Data & DCF Engine</span>
           <span>Nifty 500 Fundamental Ingestion Ready</span>
@@ -228,4 +233,3 @@ export function App() {
 }
 
 export default App;
-

@@ -19,12 +19,28 @@ import {
   ResponsiveContainer, AreaChart, Area, XAxis, YAxis, 
   Tooltip, CartesianGrid, BarChart, Bar, Legend, LineChart, Line 
 } from 'recharts';
+import { ConceptHelp } from './ui/ConceptHelp';
+import { DataOriginBadge } from './ui/DataOriginBadge';
+import { FormulaTransparencyModal } from './ui/FormulaTransparencyModal';
+import { GlossaryTerm } from '../data/glossary';
 
 interface StockDetailViewProps {
   stock: StockDetail;
   onBack: () => void;
   onScrapeRefresh?: () => void;
 }
+
+const getStatementGlossaryTerm = (metric: string): GlossaryTerm | null => {
+  const normalized = metric.toLowerCase();
+  if (normalized.includes('operating profit margin') || normalized === 'opm %') return 'opm';
+  if (normalized.includes('ebitda') || normalized === 'operating profit') return 'ebitda';
+  if (normalized.includes('cash from operating') || normalized.includes('operating cash flow')) return 'cfo';
+  if (normalized.includes('receivable') || normalized.includes('debtor')) return 'receivables';
+  if (normalized.includes('inventory')) return 'inventory';
+  if (normalized.includes('capital work in progress') || normalized.includes('cwip')) return 'cwip';
+  if (normalized.includes('working capital')) return 'working_capital';
+  return null;
+};
 
 export const StockDetailView: React.FC<StockDetailViewProps> = ({ stock, onBack, onScrapeRefresh }) => {
   const [activeTab, setActiveTab] = useState<'financials' | 'charts' | 'projection' | 'outlook' | 'scorecard'>('projection');
@@ -205,6 +221,14 @@ export const StockDetailView: React.FC<StockDetailViewProps> = ({ stock, onBack,
   const quarterlyTrends = stock.analytics?.quarterly_analysis?.trends || [];
   const fcfTrends = stock.analytics?.cash_flow_quality?.fcf_trends || [];
   const bsTrends = stock.analytics?.balance_sheet_efficiency?.bs_trends || [];
+  const selectedFormula = selectedFormulaKey
+    ? stock.analytics?.formula_transparency?.[selectedFormulaKey] ?? null
+    : null;
+
+  const formatConfidence = (confidence?: number) => {
+    if (confidence === undefined || confidence === null) return null;
+    return `${Math.round(confidence <= 1 ? confidence * 100 : confidence)}% confidence`;
+  };
 
   // Helper to render statement table
   const renderStatementTable = (stmt: FinancialStatement) => {
@@ -226,13 +250,14 @@ export const StockDetailView: React.FC<StockDetailViewProps> = ({ stock, onBack,
           <tbody className="divide-y divide-slate-800/60">
             {stmt.rows.map((row, rIdx) => {
               const isHighlight = ['Sales', 'Revenue', 'Operating Profit', 'EBITDA', 'Net Profit', 'PAT', 'Cash from Operating Activity', 'Total Assets'].includes(row.metric);
+              const glossaryTerm = getStatementGlossaryTerm(row.metric);
               return (
                 <tr 
                   key={row.metric + rIdx} 
                   className={`hover:bg-slate-900/50 transition-colors ${isHighlight ? 'bg-slate-900/20 font-semibold text-slate-100' : 'text-slate-300'}`}
                 >
                   <td className={`py-2.5 px-4 sticky left-0 z-10 font-sans ${isHighlight ? 'bg-slate-900 font-bold text-emerald-400' : 'bg-slate-950 text-slate-300'}`}>
-                    {row.metric}
+                    <span className="inline-flex items-center gap-1">{row.metric}{glossaryTerm && <ConceptHelp term={glossaryTerm} />}</span>
                   </td>
                   {stmt.periods.map(p => {
                     const val = row.values[p];
@@ -313,8 +338,8 @@ export const StockDetailView: React.FC<StockDetailViewProps> = ({ stock, onBack,
               <span>High/Low: {stock.ratios.high_low || 'N/A'}</span>
             </div>
             <div className="flex flex-wrap items-center gap-2.5 text-[11px] text-slate-400 font-mono">
-              <span className="text-emerald-400/90 font-semibold flex items-center gap-1">
-                <span className="w-2 h-2 rounded-full bg-emerald-400"></span> Raw Data: {stock.source_name || 'Screener.in'} ({stock.statement_type || 'consolidated'})
+              <span className="font-semibold flex items-center gap-1.5">
+                <DataOriginBadge origin="reported_fact" /> {stock.source_name || 'Screener.in'} ({stock.statement_type || 'consolidated'})
               </span>
               {stock.fetched_at && (
                 <>
@@ -355,7 +380,7 @@ export const StockDetailView: React.FC<StockDetailViewProps> = ({ stock, onBack,
             </div>
             <div className="h-10 w-[1px] bg-slate-800 hidden sm:block" />
             <div>
-              <span className="text-[10px] text-slate-500 uppercase font-mono block">Market Cap</span>
+              <span className="text-[10px] text-slate-500 uppercase font-mono block"><ConceptHelp term="market_cap" label="Market Cap" /></span>
               <span className="text-sm font-bold font-mono text-slate-200">
                 ₹{stock.ratios.market_cap_cr.toLocaleString('en-IN')} Cr
               </span>
@@ -379,32 +404,30 @@ export const StockDetailView: React.FC<StockDetailViewProps> = ({ stock, onBack,
         {/* 8 Primary Financial Ratio Cards */}
         <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-3 font-mono">
           <div className="bg-slate-950/60 p-3 rounded-xl border border-slate-800/80 text-center">
-            <span className="text-[10px] text-slate-500 uppercase font-sans block">Stock P/E</span>
+            <span className="text-[10px] text-slate-500 uppercase font-sans block"><ConceptHelp term="pe" label="Stock P/E" /></span>
             <span className="text-sm font-bold text-slate-100">{stock.ratios.stock_pe}x</span>
           </div>
           <div className="bg-slate-950/60 p-3 rounded-xl border border-slate-800/80 text-center">
-            <span className="text-[10px] text-slate-500 uppercase font-sans block">ROCE</span>
+            <span className="text-[10px] text-slate-500 uppercase font-sans block"><ConceptHelp term="roce" label="ROCE" /></span>
             <span className="text-sm font-bold text-emerald-400">{stock.ratios.roce_pct}%</span>
           </div>
           <div className="bg-slate-950/60 p-3 rounded-xl border border-slate-800/80 text-center">
-            <span className="text-[10px] text-slate-500 uppercase font-sans block">ROE</span>
+            <span className="text-[10px] text-slate-500 uppercase font-sans block"><ConceptHelp term="roe" label="ROE" /></span>
             <span className="text-sm font-bold text-cyan-400">{stock.ratios.roe_pct}%</span>
           </div>
           <div className="bg-slate-950/60 p-3 rounded-xl border border-slate-800/80 text-center relative group">
             <div className="flex items-center justify-center gap-1">
-              <span className="text-[10px] text-slate-500 uppercase font-sans block">FCF Yield</span>
-              <button onClick={() => setSelectedFormulaKey('free_cash_flow')} className="text-slate-600 hover:text-cyan-400 transition-colors" title="View FCF Formula & Inputs">
-                <Info className="w-2.5 h-2.5" />
-              </button>
+              <span className="text-[10px] text-slate-500 uppercase font-sans block">
+                <ConceptHelp term="fcf" label="FCF Yield" onCalculationDetails={() => setSelectedFormulaKey('free_cash_flow')} />
+              </span>
             </div>
             <span className="text-sm font-bold text-teal-400">{stock.ratios.fcf_yield_pct}%</span>
           </div>
           <div className="bg-slate-950/60 p-3 rounded-xl border border-slate-800/80 text-center relative group">
             <div className="flex items-center justify-center gap-1">
-              <span className="text-[10px] text-slate-500 uppercase font-sans block">3Y Sales CAGR</span>
-              <button onClick={() => setSelectedFormulaKey('sales_cagr_3yr')} className="text-slate-600 hover:text-cyan-400 transition-colors" title="View Sales CAGR Formula & Inputs">
-                <Info className="w-2.5 h-2.5" />
-              </button>
+              <span className="text-[10px] text-slate-500 uppercase font-sans block">
+                <ConceptHelp term="sales_cagr" label="3Y Sales CAGR" onCalculationDetails={() => setSelectedFormulaKey('sales_cagr_3yr')} />
+              </span>
             </div>
             <span className="text-sm font-bold text-slate-100">
               {stock.analytics?.growth_rates?.sales_cagr_3yr ?? stock.ratios.sales_growth_3yr_cagr}%
@@ -412,10 +435,9 @@ export const StockDetailView: React.FC<StockDetailViewProps> = ({ stock, onBack,
           </div>
           <div className="bg-slate-950/60 p-3 rounded-xl border border-slate-800/80 text-center relative group">
             <div className="flex items-center justify-center gap-1">
-              <span className="text-[10px] text-slate-500 uppercase font-sans block">CFO / PAT (5Y)</span>
-              <button onClick={() => setSelectedFormulaKey('cfo_to_pat_5yr')} className="text-slate-600 hover:text-cyan-400 transition-colors" title="View CFO/PAT Formula & Inputs">
-                <Info className="w-2.5 h-2.5" />
-              </button>
+              <span className="text-[10px] text-slate-500 uppercase font-sans block">
+                <ConceptHelp term="cfo_pat" label="CFO / PAT (5Y)" onCalculationDetails={() => setSelectedFormulaKey('cfo_to_pat_5yr')} />
+              </span>
             </div>
             <span className="text-sm font-bold text-emerald-400">
               {stock.analytics?.cash_flow_quality?.cfo_to_pat_5yr_pct}%
@@ -423,10 +445,9 @@ export const StockDetailView: React.FC<StockDetailViewProps> = ({ stock, onBack,
           </div>
           <div className="bg-slate-950/60 p-3 rounded-xl border border-slate-800/80 text-center relative group">
             <div className="flex items-center justify-center gap-1">
-              <span className="text-[10px] text-slate-500 uppercase font-sans block">Debt / Equity</span>
-              <button onClick={() => setSelectedFormulaKey('debt_to_equity')} className="text-slate-600 hover:text-cyan-400 transition-colors" title="View Debt/Equity Formula & Inputs">
-                <Info className="w-2.5 h-2.5" />
-              </button>
+              <span className="text-[10px] text-slate-500 uppercase font-sans block">
+                <ConceptHelp term="debt_equity" label="Debt / Equity" onCalculationDetails={() => setSelectedFormulaKey('debt_to_equity')} />
+              </span>
             </div>
             <span className="text-sm font-bold text-slate-100">{stock.ratios.debt_to_equity}x</span>
           </div>
@@ -448,6 +469,7 @@ export const StockDetailView: React.FC<StockDetailViewProps> = ({ stock, onBack,
           <div className="flex items-center gap-2.5">
             <Sparkles className="w-5 h-5 text-emerald-400" />
             <h3 className="text-base font-bold text-white tracking-wide">60-Second Investment Thesis & Conviction Card</h3>
+            <DataOriginBadge origin="stocker_calculation" />
           </div>
           <div className="flex items-center gap-2">
             <span className="text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">
@@ -634,11 +656,13 @@ export const StockDetailView: React.FC<StockDetailViewProps> = ({ stock, onBack,
                 <h3 className="text-lg font-bold text-white flex items-center gap-2">
                   <Sliders className="w-4 h-4 text-emerald-400" />
                   Dynamic 5-Year Projection & Valuation Simulator
+                  <ConceptHelp term="stocker_projection" />
                 </h3>
                 <p className="text-xs text-slate-400">
                   Simulate future revenue growth, margin expansion, and exit multiple to calculate DCF Fair Value and Expected IRR
                 </p>
               </div>
+              <DataOriginBadge origin="stocker_projection" />
 
               {/* Scenario Presets */}
               <div className="flex items-center gap-2">
@@ -669,7 +693,7 @@ export const StockDetailView: React.FC<StockDetailViewProps> = ({ stock, onBack,
               {/* Revenue CAGR Slider */}
               <div className="space-y-2 bg-slate-950/60 p-4 rounded-2xl border border-slate-800">
                 <div className="flex justify-between text-xs">
-                  <span className="text-slate-400 font-medium">Forward Sales CAGR</span>
+                  <span className="text-slate-400 font-medium"><ConceptHelp term="sales_cagr" label="Forward Sales CAGR" /></span>
                   <span className="font-mono font-bold text-emerald-400">{growthRate}%</span>
                 </div>
                 <input
@@ -695,7 +719,7 @@ export const StockDetailView: React.FC<StockDetailViewProps> = ({ stock, onBack,
               {/* Target OPM % Slider */}
               <div className="space-y-2 bg-slate-950/60 p-4 rounded-2xl border border-slate-800">
                 <div className="flex justify-between text-xs">
-                  <span className="text-slate-400 font-medium">Target OPM (Margin)</span>
+                  <span className="text-slate-400 font-medium"><ConceptHelp term="opm" label="Target OPM (Margin)" /></span>
                   <span className="font-mono font-bold text-cyan-400">{opmRate}%</span>
                 </div>
                 <input
@@ -721,7 +745,7 @@ export const StockDetailView: React.FC<StockDetailViewProps> = ({ stock, onBack,
               {/* Capex Intensity Slider */}
               <div className="space-y-2 bg-slate-950/60 p-4 rounded-2xl border border-slate-800">
                 <div className="flex justify-between text-xs">
-                  <span className="text-slate-400 font-medium">Capex % of Sales</span>
+                  <span className="text-slate-400 font-medium"><ConceptHelp term="capex" label="Capex % of Sales" /></span>
                   <span className="font-mono font-bold text-slate-200">{capexRate}%</span>
                 </div>
                 <input
@@ -746,7 +770,7 @@ export const StockDetailView: React.FC<StockDetailViewProps> = ({ stock, onBack,
               {/* Exit Multiple Slider */}
               <div className="space-y-2 bg-slate-950/60 p-4 rounded-2xl border border-slate-800">
                 <div className="flex justify-between text-xs">
-                  <span className="text-slate-400 font-medium">Target Exit P/E</span>
+                  <span className="text-slate-400 font-medium"><ConceptHelp term="pe" label="Target Exit P/E" /></span>
                   <span className="font-mono font-bold text-amber-400">{exitPe}x</span>
                 </div>
                 <input
@@ -777,7 +801,7 @@ export const StockDetailView: React.FC<StockDetailViewProps> = ({ stock, onBack,
               {/* DCF Fair Value Card */}
               <div className="bg-gradient-to-br from-emerald-950/40 to-slate-950 p-5 rounded-2xl border border-emerald-500/30 space-y-2">
                 <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold text-emerald-400 uppercase tracking-wider">DCF Intrinsic Fair Value</span>
+                  <span className="text-xs font-bold text-emerald-400 uppercase tracking-wider"><ConceptHelp term="dcf" label="DCF Intrinsic Fair Value" /></span>
                   <span className={`text-xs font-mono font-bold px-2 py-0.5 rounded-full ${
                     projectionResult.dcf_upside_pct >= 0 ? 'bg-emerald-500/20 text-emerald-300' : 'bg-rose-500/20 text-rose-300'
                   }`}>
@@ -788,14 +812,14 @@ export const StockDetailView: React.FC<StockDetailViewProps> = ({ stock, onBack,
                   ₹{projectionResult.dcf_fair_value_per_share.toLocaleString('en-IN')}
                 </div>
                 <p className="text-[11px] text-slate-400">
-                  Discounted Cash Flow based on 5-year FCFs + {terminalG}% Terminal Growth @ {wacc}% WACC.
+                  Discounted Cash Flow based on 5-year FCFs + <ConceptHelp term="terminal_growth" label={`${terminalG}% Terminal Growth`} /> @ <ConceptHelp term="wacc" label={`${wacc}% WACC`} />.
                 </p>
               </div>
 
               {/* Exit Multiple Target Price */}
               <div className="bg-gradient-to-br from-cyan-950/40 to-slate-950 p-5 rounded-2xl border border-cyan-500/30 space-y-2">
                 <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold text-cyan-400 uppercase tracking-wider">FY28 Exit P/E Target Price</span>
+                  <span className="text-xs font-bold text-cyan-400 uppercase tracking-wider"><ConceptHelp term="pe" label="FY28 Exit P/E Target Price" /></span>
                   <span className={`text-xs font-mono font-bold px-2 py-0.5 rounded-full ${
                     projectionResult.target_price_upside_pct >= 0 ? 'bg-cyan-500/20 text-cyan-300' : 'bg-rose-500/20 text-rose-300'
                   }`}>
@@ -813,7 +837,7 @@ export const StockDetailView: React.FC<StockDetailViewProps> = ({ stock, onBack,
               {/* Projected 3-Year IRR */}
               <div className="bg-gradient-to-br from-teal-950/40 to-slate-950 p-5 rounded-2xl border border-teal-500/30 space-y-2">
                 <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold text-teal-400 uppercase tracking-wider">Projected 3-Year CAGR / IRR</span>
+                  <span className="text-xs font-bold text-teal-400 uppercase tracking-wider"><ConceptHelp term="irr" label="Projected 3-Year CAGR / IRR" /></span>
                   <span className="text-xs font-bold text-teal-300">
                     {projectionResult.scenario_type}
                   </span>
@@ -859,7 +883,7 @@ export const StockDetailView: React.FC<StockDetailViewProps> = ({ stock, onBack,
 
                   <tr className="hover:bg-slate-900/50 text-slate-300">
                     <td className="py-2.5 px-4 sticky left-0 bg-slate-950 font-sans">
-                      Operating Profit (EBITDA)
+                      <ConceptHelp term="ebitda" label="Operating Profit (EBITDA)" />
                     </td>
                     {projectionResult.projections.map(p => (
                       <td key={p.year} className="py-2.5 px-4 text-right">₹{p.ebitda_cr.toLocaleString('en-IN')} ({p.opm_pct}%)</td>
@@ -904,7 +928,7 @@ export const StockDetailView: React.FC<StockDetailViewProps> = ({ stock, onBack,
 
                   <tr className="hover:bg-slate-900/50 text-slate-300">
                     <td className="py-2.5 px-4 sticky left-0 bg-slate-950 font-sans">
-                      Cash from Operations (CFO)
+                      <ConceptHelp term="cfo" label="Cash from Operations (CFO)" />
                     </td>
                     {projectionResult.projections.map(p => (
                       <td key={p.year} className="py-2.5 px-4 text-right">₹{p.cfo_cr.toLocaleString('en-IN')}</td>
@@ -913,7 +937,7 @@ export const StockDetailView: React.FC<StockDetailViewProps> = ({ stock, onBack,
 
                   <tr className="hover:bg-slate-900/50 text-slate-300">
                     <td className="py-2.5 px-4 sticky left-0 bg-slate-950 font-sans">
-                      Estimated Capex
+                      <ConceptHelp term="capex" label="Estimated Capex" />
                     </td>
                     {projectionResult.projections.map(p => (
                       <td key={p.year} className="py-2.5 px-4 text-right">₹{p.capex_cr.toLocaleString('en-IN')}</td>
@@ -922,7 +946,7 @@ export const StockDetailView: React.FC<StockDetailViewProps> = ({ stock, onBack,
 
                   <tr className="hover:bg-slate-900/50 bg-emerald-950/30 text-emerald-300 font-bold">
                     <td className="py-2.5 px-4 sticky left-0 bg-emerald-950/80 font-sans">
-                      Free Cash Flow (FCF)
+                      <ConceptHelp term="fcf" label="Free Cash Flow (FCF)" />
                     </td>
                     {projectionResult.projections.map(p => (
                       <td key={p.year} className="py-2.5 px-4 text-right text-emerald-300">₹{p.fcf_cr.toLocaleString('en-IN')}</td>
@@ -949,7 +973,7 @@ export const StockDetailView: React.FC<StockDetailViewProps> = ({ stock, onBack,
                 </div>
                 <div>
                   <div className="flex items-center gap-2.5 flex-wrap">
-                    <h3 className="text-xl font-bold text-white">Business Outlook & Management Tracking</h3>
+                    <h3 className="text-xl font-bold text-white"><ConceptHelp term="ai_interpretation" label="Business Outlook & Management Tracking" /></h3>
                     {(() => {
                       const isAnalyzed = Boolean(docIntel && (docIntel.promise_vs_delivery?.length > 0 || docIntel.what_changed_recently?.length > 0 || docIntel.growth_drivers?.length > 0));
                       const formattedTime = docIntel?.extraction_timestamp ? new Date(docIntel.extraction_timestamp).toLocaleString('en-IN', {
@@ -964,9 +988,9 @@ export const StockDetailView: React.FC<StockDetailViewProps> = ({ stock, onBack,
                       if (isAnalyzed) {
                         return (
                           <>
-                            <span className="bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 text-[11px] font-bold px-2.5 py-0.5 rounded-full flex items-center gap-1">
-                              <Sparkles className="w-3 h-3 text-emerald-400" />
-                              AI Analyzed ({docIntel?.model_version || docIntel?.ai_provider_used || 'GEMINI'})
+                            <DataOriginBadge origin="ai_interpretation" />
+                            <span className="bg-slate-900 text-slate-300 border border-slate-800 text-[11px] font-mono font-medium px-2.5 py-0.5 rounded-full">
+                              Model: {docIntel?.model_version || docIntel?.ai_provider_used || 'GEMINI'}
                             </span>
                             {formattedTime && (
                               <span className="bg-slate-900 text-slate-300 border border-slate-800 text-[11px] font-mono font-medium px-2.5 py-0.5 rounded-full flex items-center gap-1.5">
@@ -1273,6 +1297,7 @@ export const StockDetailView: React.FC<StockDetailViewProps> = ({ stock, onBack,
                         <h4 className="text-lg font-bold text-white">Stocker Institutional Analytical Verdict</h4>
                         <p className="text-xs text-slate-400">Independent fundamental takeaway, key future triggers & watchpoints</p>
                       </div>
+                      <DataOriginBadge origin="ai_interpretation" />
                     </div>
                     <span className="bg-purple-500/20 text-purple-300 border border-purple-500/40 text-xs font-bold px-3.5 py-1.5 rounded-full self-start sm:self-auto shadow-sm">
                       {docIntel.stocker_view.execution_verdict}
@@ -1450,7 +1475,7 @@ export const StockDetailView: React.FC<StockDetailViewProps> = ({ stock, onBack,
                 <div className="flex items-center gap-2.5">
                   <Target className="w-5 h-5 text-emerald-400" />
                   <div>
-                    <h4 className="text-lg font-bold text-white">Promise vs Delivery (Quantitative Execution Scorecard)</h4>
+                    <h4 className="text-lg font-bold text-white"><ConceptHelp term="promise_delivery" label="Promise vs Delivery (Quantitative Execution Scorecard)" /></h4>
                     <p className="text-xs text-slate-400">Verifying historical management promises against subsequent reported audited financials</p>
                   </div>
                 </div>
@@ -1481,10 +1506,15 @@ export const StockDetailView: React.FC<StockDetailViewProps> = ({ stock, onBack,
                         {/* Top Row: Area & Status Badge */}
                         <div className="flex items-start sm:items-center justify-between gap-3 flex-wrap">
                           <span className="text-sm font-bold text-white font-sans">{item.area}</span>
-                          <span className={`${color.bg} ${color.text} ${color.border} border text-xs font-bold px-3 py-1 rounded-full flex items-center gap-1.5 shadow-sm`}>
-                            <span>●</span>
-                            <span>{item.status}</span>
-                          </span>
+                          <div className="flex items-center gap-2">
+                            {formatConfidence(item.confidence) && (
+                              <span className="text-[10px] text-slate-400"><ConceptHelp term="confidence" label={formatConfidence(item.confidence) || ''} /></span>
+                            )}
+                            <span className={`${color.bg} ${color.text} ${color.border} border text-xs font-bold px-3 py-1 rounded-full flex items-center gap-1.5 shadow-sm`}>
+                              <span>●</span>
+                              <span>{item.status}</span>
+                            </span>
+                          </div>
                         </div>
 
                         {/* 2-Column Comparison: Promise vs Actual Outcome */}
@@ -1493,7 +1523,7 @@ export const StockDetailView: React.FC<StockDetailViewProps> = ({ stock, onBack,
                           {/* Promise Column */}
                           <div className="bg-slate-900/60 p-4 rounded-xl border border-slate-800/80 space-y-2">
                             <div className="flex items-center justify-between text-[11px] text-slate-400">
-                              <span className="font-bold text-amber-400 uppercase tracking-wider text-[10px]">What Management Guided</span>
+                              <span className="flex items-center gap-1.5"><DataOriginBadge origin="management_guidance" /><ConceptHelp term="management_guidance" /></span>
                               <span className="font-mono text-slate-500">{item.promised_in_period}</span>
                             </div>
                             <p className="text-xs text-slate-200 leading-relaxed font-medium">"{item.management_promise}"</p>
@@ -1516,7 +1546,7 @@ export const StockDetailView: React.FC<StockDetailViewProps> = ({ stock, onBack,
                           {/* Outcome Column */}
                           <div className="bg-slate-900/60 p-4 rounded-xl border border-slate-800/80 space-y-2">
                             <div className="flex items-center justify-between text-[11px] text-slate-400">
-                              <span className="font-bold text-emerald-400 uppercase tracking-wider text-[10px]">What Was Delivered</span>
+                              <DataOriginBadge origin="reported_fact" />
                               <span className="font-mono text-slate-500">{item.actual_in_period}</span>
                             </div>
                             <p className="text-xs text-slate-200 leading-relaxed font-medium">{item.actual_outcome}</p>
@@ -1541,9 +1571,10 @@ export const StockDetailView: React.FC<StockDetailViewProps> = ({ stock, onBack,
                         {/* REPORTED NUMBERS VARIANCE AUDIT */}
                         {item.financial_numbers_check && (
                           <div className="bg-cyan-950/20 p-3.5 rounded-xl border border-cyan-900/30 text-xs text-cyan-200/90 leading-relaxed space-y-1">
-                            <span className="text-[10px] uppercase font-bold tracking-wider text-cyan-400 flex items-center gap-1">
+                            <span className="text-[10px] uppercase font-bold tracking-wider text-cyan-400 flex items-center gap-1.5">
                               <Calculator className="w-3.5 h-3.5" />
                               Reported Audited Numbers Verification
+                              <DataOriginBadge origin="reported_fact" />
                             </span>
                             <p className="font-mono text-[11px] text-cyan-100">{item.financial_numbers_check}</p>
                           </div>
@@ -1552,8 +1583,8 @@ export const StockDetailView: React.FC<StockDetailViewProps> = ({ stock, onBack,
                         {/* Stocker Analytical Variance Note */}
                         {item.stocker_analysis && (
                           <div className="bg-emerald-950/20 p-3.5 rounded-xl border border-emerald-900/30 text-xs text-emerald-200/90 leading-relaxed space-y-1">
-                            <span className="text-[10px] uppercase font-bold tracking-wider text-emerald-400 block">
-                              Stocker Execution Audit
+                            <span className="text-[10px] uppercase font-bold tracking-wider text-emerald-400 flex items-center gap-1.5">
+                              Stocker Execution Audit <DataOriginBadge origin="ai_interpretation" />
                             </span>
                             <p>{item.stocker_analysis}</p>
                           </div>
@@ -1572,9 +1603,10 @@ export const StockDetailView: React.FC<StockDetailViewProps> = ({ stock, onBack,
               <div className="flex items-center gap-2.5 border-b border-slate-800 pb-4">
                 <Layers className="w-5 h-5 text-amber-400" />
                 <div>
-                  <h4 className="text-lg font-bold text-white">Management Plan & Growth Pipeline</h4>
+                  <h4 className="text-lg font-bold text-white"><ConceptHelp term="management_guidance" label="Management Plan & Growth Pipeline" /></h4>
                   <p className="text-xs text-slate-400">Expansion projects, new products, acquisitions, and strategic growth drivers</p>
                 </div>
+                <DataOriginBadge origin="management_guidance" />
               </div>
 
               {(!docIntel?.growth_drivers || docIntel.growth_drivers.length === 0) ? (
@@ -1731,7 +1763,7 @@ export const StockDetailView: React.FC<StockDetailViewProps> = ({ stock, onBack,
                   <div className="flex items-center gap-2.5 border-b border-slate-800 pb-4">
                     <ShieldAlert className="w-5 h-5 text-rose-400" />
                     <div>
-                      <h4 className="text-lg font-bold text-white">Working Capital, Debt & Emerging Risks</h4>
+                      <h4 className="text-lg font-bold text-white"><ConceptHelp term="working_capital" label="Working Capital, Debt & Emerging Risks" /></h4>
                       <p className="text-xs text-slate-400">Cash conversion, balance sheet leverage, and execution headwinds</p>
                     </div>
                   </div>
@@ -1740,7 +1772,7 @@ export const StockDetailView: React.FC<StockDetailViewProps> = ({ stock, onBack,
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div className="bg-slate-950/80 p-5 rounded-2xl border border-slate-800 space-y-2">
                         <span className="text-[10px] uppercase font-bold tracking-wider text-amber-400 block">
-                          Working Capital & Receivables
+                          <ConceptHelp term="receivables" label="Working Capital & Receivables" />
                         </span>
                         <p className="text-xs text-slate-200 leading-relaxed">
                           {docIntel.risks_and_cash.working_capital_and_receivables || "Working capital cycle managed effectively with stable receivable days."}
@@ -1749,7 +1781,7 @@ export const StockDetailView: React.FC<StockDetailViewProps> = ({ stock, onBack,
 
                       <div className="bg-slate-950/80 p-5 rounded-2xl border border-slate-800 space-y-2">
                         <span className="text-[10px] uppercase font-bold tracking-wider text-emerald-400 block">
-                          Debt & Capex Burden
+                          <ConceptHelp term="capex" label="Debt & Capex Burden" />
                         </span>
                         <p className="text-xs text-slate-200 leading-relaxed">
                           {docIntel.risks_and_cash.debt_and_capex_burden || "Debt servicing and capital allocation remain supported by operational cash flows."}
@@ -2458,7 +2490,8 @@ export const StockDetailView: React.FC<StockDetailViewProps> = ({ stock, onBack,
                     <div>
                       <h4 className="text-sm font-bold text-white flex items-center gap-2">
                         <TrendingUp className="w-4 h-4 text-emerald-400" />
-                        <span>Deterministic Free Cash Flow (FCF = CFO - Capex) Breakdown</span>
+                        <ConceptHelp term="fcf" label="Deterministic Free Cash Flow Breakdown" onCalculationDetails={() => setSelectedFormulaKey('free_cash_flow')} />
+                        <DataOriginBadge origin="stocker_calculation" />
                       </h4>
                       <p className="text-xs text-slate-400">
                         Code-derived Free Cash Flow tracking reported Operating Cash Flow vs Capital Expenditures.
@@ -2478,11 +2511,11 @@ export const StockDetailView: React.FC<StockDetailViewProps> = ({ stock, onBack,
                       <thead>
                         <tr className="border-b border-slate-800 text-[11px] text-slate-400">
                           <th className="py-2.5 px-3 font-semibold">Period</th>
-                          <th className="py-2.5 px-3 font-semibold text-right text-cyan-400">Reported CFO (₹ Cr)</th>
+                          <th className="py-2.5 px-3 font-semibold text-right text-cyan-400"><ConceptHelp term="cfo" label="Reported CFO (₹ Cr)" /></th>
                           <th className="py-2.5 px-3 font-semibold text-right text-slate-300">Reported PAT (₹ Cr)</th>
-                          <th className="py-2.5 px-3 font-semibold text-right text-amber-400">Capex (₹ Cr)</th>
-                          <th className="py-2.5 px-3 font-semibold text-right text-emerald-400">Stocker FCF (₹ Cr)</th>
-                          <th className="py-2.5 px-3 font-semibold text-right text-slate-300">CFO / PAT %</th>
+                          <th className="py-2.5 px-3 font-semibold text-right text-amber-400"><ConceptHelp term="capex" label="Capex (₹ Cr)" /></th>
+                          <th className="py-2.5 px-3 font-semibold text-right text-emerald-400"><ConceptHelp term="fcf" label="Stocker FCF (₹ Cr)" /></th>
+                          <th className="py-2.5 px-3 font-semibold text-right text-slate-300"><ConceptHelp term="cfo_pat" label="CFO / PAT %" /></th>
                           <th className="py-2.5 px-3 font-semibold text-slate-400">Capex Methodology</th>
                         </tr>
                       </thead>
@@ -2533,8 +2566,8 @@ export const StockDetailView: React.FC<StockDetailViewProps> = ({ stock, onBack,
             {/* Chart 1: Quarterly Sales & Operating Profit Trend */}
             <div className="glass-panel rounded-3xl p-6 border border-slate-800 space-y-4">
               <div>
-                <h4 className="font-bold text-white text-sm">Quarterly Revenue & OPM % Trajectory</h4>
-                <p className="text-xs text-slate-400">Quarter-on-quarter momentum and margin expansion</p>
+                <h4 className="font-bold text-white text-sm"><ConceptHelp term="opm" label="Quarterly Revenue & OPM % Trajectory" /></h4>
+                <p className="text-xs text-slate-400"><ConceptHelp term="qoq" label="Quarter-on-quarter momentum" /> and margin expansion</p>
               </div>
               <div className="h-72 w-full">
                 <ResponsiveContainer width="100%" height="100%">
@@ -2545,12 +2578,12 @@ export const StockDetailView: React.FC<StockDetailViewProps> = ({ stock, onBack,
                         <stop offset="95%" stopColor="#10b981" stopOpacity={0}/>
                       </linearGradient>
                     </defs>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
-                    <XAxis dataKey="period" stroke="#64748b" fontSize={10} />
+                    <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" />
+                    <XAxis dataKey="period" stroke="var(--chart-axis)" fontSize={10} />
                     <YAxis yAxisId="left" stroke="#10b981" fontSize={10} />
                     <YAxis yAxisId="right" orientation="right" stroke="#06b6d4" fontSize={10} />
                     <Tooltip 
-                      contentStyle={{ backgroundColor: '#0f172a', borderColor: '#334155', borderRadius: '12px' }}
+                      contentStyle={{ backgroundColor: 'var(--card-bg)', borderColor: 'var(--border-strong)', color: 'var(--text-primary)', borderRadius: '12px' }}
                       formatter={(val: any, name: string) => [
                         typeof val === 'number' ? (name.includes('OPM') ? `${val}%` : `₹${val.toLocaleString('en-IN')} Cr`) : val,
                         name
@@ -2567,17 +2600,17 @@ export const StockDetailView: React.FC<StockDetailViewProps> = ({ stock, onBack,
             {/* Chart 2: Earnings Quality: Net Profit vs CFO vs FCF */}
             <div className="glass-panel rounded-3xl p-6 border border-slate-800 space-y-4">
               <div>
-                <h4 className="font-bold text-white text-sm">Earnings Quality: Net Profit vs CFO vs Free Cash Flow</h4>
+                <h4 className="font-bold text-white text-sm">Earnings Quality: Net Profit vs <ConceptHelp term="cfo" label="CFO" /> vs <ConceptHelp term="fcf" label="Free Cash Flow" /></h4>
                 <p className="text-xs text-slate-400">Validating whether accounting profits convert into hard operational cash</p>
               </div>
               <div className="h-72 w-full">
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={fcfTrends}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
-                    <XAxis dataKey="period" stroke="#64748b" fontSize={10} />
-                    <YAxis stroke="#64748b" fontSize={10} />
+                    <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" />
+                    <XAxis dataKey="period" stroke="var(--chart-axis)" fontSize={10} />
+                    <YAxis stroke="var(--chart-axis)" fontSize={10} />
                     <Tooltip 
-                      contentStyle={{ backgroundColor: '#0f172a', borderColor: '#334155', borderRadius: '12px' }}
+                      contentStyle={{ backgroundColor: 'var(--card-bg)', borderColor: 'var(--border-strong)', color: 'var(--text-primary)', borderRadius: '12px' }}
                       formatter={(val: any) => [`₹${val?.toLocaleString('en-IN')} Cr`]}
                     />
                     <Legend wrapperStyle={{ fontSize: '11px', paddingTop: '10px' }} />
@@ -2594,21 +2627,21 @@ export const StockDetailView: React.FC<StockDetailViewProps> = ({ stock, onBack,
           {/* Chart 3: Balance Sheet & CWIP Growth Trigger */}
           <div className="glass-panel rounded-3xl p-6 border border-slate-800 space-y-4">
             <div>
-              <h4 className="font-bold text-white text-sm">Balance Sheet Capital Allocation & CWIP Trigger</h4>
+              <h4 className="font-bold text-white text-sm"><ConceptHelp term="cwip" label="Balance Sheet Capital Allocation & CWIP Trigger" /></h4>
               <p className="text-xs text-slate-400">Capital Work in Progress (CWIP) as % of Net Block signals upcoming revenue capacity</p>
             </div>
             <div className="h-72 w-full">
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={bsTrends}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
-                  <XAxis dataKey="period" stroke="#64748b" fontSize={10} />
-                  <YAxis yAxisId="left" stroke="#64748b" fontSize={10} />
+                  <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" />
+                  <XAxis dataKey="period" stroke="var(--chart-axis)" fontSize={10} />
+                  <YAxis yAxisId="left" stroke="var(--chart-axis)" fontSize={10} />
                   <YAxis yAxisId="right" orientation="right" stroke="#f59e0b" fontSize={10} />
                   <Tooltip 
-                    contentStyle={{ backgroundColor: '#0f172a', borderColor: '#334155', borderRadius: '12px' }}
+                    contentStyle={{ backgroundColor: 'var(--card-bg)', borderColor: 'var(--border-strong)', color: 'var(--text-primary)', borderRadius: '12px' }}
                   />
                   <Legend wrapperStyle={{ fontSize: '11px', paddingTop: '10px' }} />
-                  <Bar yAxisId="left" dataKey="fixed_assets_cr" name="Fixed Assets (₹ Cr)" fill="#334155" radius={[4, 4, 0, 0]} />
+                  <Bar yAxisId="left" dataKey="fixed_assets_cr" name="Fixed Assets (₹ Cr)" fill="var(--chart-axis)" radius={[4, 4, 0, 0]} />
                   <Bar yAxisId="left" dataKey="cwip_cr" name="CWIP (₹ Cr)" fill="#f59e0b" radius={[4, 4, 0, 0]} />
                   <Line yAxisId="right" type="monotone" dataKey="cwip_to_fixed_assets_pct" name="CWIP / Net Block %" stroke="#10b981" strokeWidth={2} />
                 </BarChart>
@@ -2903,91 +2936,9 @@ export const StockDetailView: React.FC<StockDetailViewProps> = ({ stock, onBack,
         </div>
       )}
 
-      {/* Interactive Formula & Calculation Transparency Modal */}
-      {selectedFormulaKey && stock.analytics?.formula_transparency?.[selectedFormulaKey] && (
-        <div className="fixed inset-0 bg-slate-950/85 backdrop-blur-md z-50 flex items-center justify-center p-4">
-          <div className="bg-slate-900 border border-slate-700 rounded-3xl p-6 md:p-8 max-w-lg w-full space-y-5 shadow-2xl animate-in fade-in zoom-in duration-200">
-            <div className="flex items-start justify-between gap-3 border-b border-slate-800 pb-4">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-2xl bg-cyan-500/10 text-cyan-400 flex items-center justify-center border border-cyan-500/30 shrink-0">
-                  <Calculator className="w-5 h-5" />
-                </div>
-                <div>
-                  <h4 className="text-base font-bold text-white">
-                    {stock.analytics.formula_transparency[selectedFormulaKey].metric_name}
-                  </h4>
-                  <span className="text-xs text-slate-400 font-mono">Mathematical Formula & Structured Verification</span>
-                </div>
-              </div>
-              <button
-                onClick={() => setSelectedFormulaKey(null)}
-                className="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800 text-sm font-bold"
-              >
-                ✕
-              </button>
-            </div>
-
-            <div className="space-y-4 text-xs">
-              {/* Calculated Value */}
-              <div className="bg-slate-950/80 p-4 rounded-2xl border border-slate-800 flex items-center justify-between">
-                <span className="text-slate-400 font-medium uppercase tracking-wider text-[10px]">Calculated Output</span>
-                <span className="text-xl font-extrabold text-emerald-400 font-mono">
-                  {stock.analytics.formula_transparency[selectedFormulaKey].value !== null && stock.analytics.formula_transparency[selectedFormulaKey].value !== undefined
-                    ? (typeof stock.analytics.formula_transparency[selectedFormulaKey].value === 'number'
-                        ? `${stock.analytics.formula_transparency[selectedFormulaKey].value.toLocaleString('en-IN')}${stock.analytics.formula_transparency[selectedFormulaKey].metric_name.includes('%') || stock.analytics.formula_transparency[selectedFormulaKey].metric_name.includes('CAGR') ? '%' : ''}`
-                        : stock.analytics.formula_transparency[selectedFormulaKey].value)
-                    : 'N/A'}
-                </span>
-              </div>
-
-              {/* Mathematical Formula */}
-              <div className="bg-slate-950/80 p-4 rounded-2xl border border-slate-800 space-y-1.5">
-                <span className="text-slate-400 font-medium uppercase tracking-wider text-[10px] block">Formula Used</span>
-                <code className="text-xs text-cyan-300 font-mono block bg-slate-900 px-3 py-2 rounded-xl border border-slate-800">
-                  {stock.analytics.formula_transparency[selectedFormulaKey].formula}
-                </code>
-              </div>
-
-              {/* Exact Inputs Used */}
-              <div className="bg-slate-950/80 p-4 rounded-2xl border border-slate-800 space-y-2">
-                <span className="text-slate-400 font-medium uppercase tracking-wider text-[10px] block">Inputs Extracted from Statements</span>
-                <div className="space-y-1.5 font-mono text-[11px]">
-                  {Object.entries(stock.analytics.formula_transparency[selectedFormulaKey].inputs).map(([k, v]) => (
-                    <div key={k} className="flex items-center justify-between py-1 border-b border-slate-900/60 last:border-0">
-                      <span className="text-slate-400">{k}:</span>
-                      <span className="text-slate-200 font-bold">
-                        {v !== null && v !== undefined ? (typeof v === 'number' ? `${v.toLocaleString('en-IN')}` : String(v)) : 'N/A'}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              {/* Plain English Explanation */}
-              <div className="bg-slate-950/80 p-4 rounded-2xl border border-slate-800 space-y-1.5">
-                <span className="text-slate-400 font-medium uppercase tracking-wider text-[10px] block">Plain-English Meaning</span>
-                <p className="text-slate-200 leading-relaxed text-xs">
-                  {stock.analytics.formula_transparency[selectedFormulaKey].explanation}
-                </p>
-                <span className="text-[10px] text-slate-500 font-mono block pt-1">
-                  Source: {stock.analytics.formula_transparency[selectedFormulaKey].source}
-                </span>
-              </div>
-            </div>
-
-            <div className="pt-2 text-right">
-              <button
-                onClick={() => setSelectedFormulaKey(null)}
-                className="px-5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs font-bold text-white transition-colors"
-              >
-                Close
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Uses the backend-provided formula, inputs, source, and explanation verbatim. */}
+      <FormulaTransparencyModal item={selectedFormula} onClose={() => setSelectedFormulaKey(null)} />
 
     </div>
   );
 };
-
