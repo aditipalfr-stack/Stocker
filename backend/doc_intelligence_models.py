@@ -87,8 +87,8 @@ class PromiseVsDeliveryItem(BaseModel):
 # 4. DEMAND / BUSINESS MOMENTUM
 class DemandMomentum(BaseModel):
     summary: str = Field(default="", description="Plain English synthesis of current demand environment")
-    company_specific_metrics: List[Dict[str, str]] = Field(default_factory=list, description="Company-relevant indicators e.g. TCV/backlog, subscriber/ARPU, volume, loan growth, NIM, pricing")
-    segment_trends: List[Dict[str, str]] = Field(default_factory=list, description="Segment-wise acceleration or deceleration")
+    company_specific_metrics: List[Dict[str, Any]] = Field(default_factory=list, description="Company-relevant indicators e.g. TCV/backlog, subscriber/ARPU, volume, loan growth, NIM, pricing")
+    segment_trends: List[Dict[str, Any]] = Field(default_factory=list, description="Segment-wise acceleration or deceleration")
     market_share_and_pricing: Optional[str] = Field(default=None, description="Market share position and pricing power signals")
     headwinds_and_risks: List[str] = Field(default_factory=list, description="Stated demand headwinds or client caution")
     source_page: Optional[int] = None
@@ -259,7 +259,7 @@ class BusinessOutlookResult(BaseModel):
     company_name: str
     latest_document_period: str = Field(default="Latest Filing")
     older_document_period: Optional[str] = Field(default=None)
-    source_documents: List[Dict[str, str]] = Field(default_factory=list)
+    source_documents: List[Dict[str, Any]] = Field(default_factory=list)
     ai_provider_used: str = Field(default="None")
     model_version: Optional[str] = Field(default="gemini-3.6-flash")
     extraction_timestamp: str = Field(default="")
