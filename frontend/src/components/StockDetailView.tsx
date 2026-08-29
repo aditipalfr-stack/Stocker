@@ -17,12 +17,18 @@ import {
 } from 'lucide-react';
 import { 
   ResponsiveContainer, AreaChart, Area, XAxis, YAxis, 
-  Tooltip, CartesianGrid, BarChart, Bar, Legend, LineChart, Line 
+  Tooltip, CartesianGrid, BarChart, Bar, Legend, LineChart, Line,
+  Cell, ReferenceLine
 } from 'recharts';
 import { ConceptHelp } from './ui/ConceptHelp';
 import { DataOriginBadge } from './ui/DataOriginBadge';
 import { FormulaTransparencyModal } from './ui/FormulaTransparencyModal';
-import { GlossaryTerm } from '../data/glossary';
+import { FinancialStatementTable } from './ui/FinancialStatementTable';
+import { FinancialColorLegend } from './ui/FinancialColorLegend';
+import { StatementSummaryStrip } from './ui/StatementSummaryStrip';
+import type { StatementSummaryItem } from './ui/StatementSummaryStrip';
+import { ChangeIndicator, ExplicitChangeIndicator } from './ui/TrendValue';
+import type { TrendTone } from '../utils/financialMetrics';
 
 interface StockDetailViewProps {
   stock: StockDetail;
@@ -30,16 +36,37 @@ interface StockDetailViewProps {
   onScrapeRefresh?: () => void;
 }
 
-const getStatementGlossaryTerm = (metric: string): GlossaryTerm | null => {
-  const normalized = metric.toLowerCase();
-  if (normalized.includes('operating profit margin') || normalized === 'opm %') return 'opm';
-  if (normalized.includes('ebitda') || normalized === 'operating profit') return 'ebitda';
-  if (normalized.includes('cash from operating') || normalized.includes('operating cash flow')) return 'cfo';
-  if (normalized.includes('receivable') || normalized.includes('debtor')) return 'receivables';
-  if (normalized.includes('inventory')) return 'inventory';
-  if (normalized.includes('capital work in progress') || normalized.includes('cwip')) return 'cwip';
-  if (normalized.includes('working capital')) return 'working_capital';
-  return null;
+const findStatementRow = (statement: FinancialStatement, aliases: string[]) => statement.rows.find(row => {
+  const normalized = row.metric.trim().toLowerCase();
+  return aliases.some(alias => normalized === alias || (alias.length > 3 && normalized.includes(alias)));
+});
+
+const latestRowPair = (statement: FinancialStatement, aliases: string[]) => {
+  const row = findStatementRow(statement, aliases);
+  const latestPeriod = statement.periods[statement.periods.length - 1];
+  const previousPeriod = statement.periods[statement.periods.length - 2];
+  return {
+    metric: row?.metric || aliases[0],
+    current: latestPeriod ? row?.values[latestPeriod] ?? null : null,
+    previous: previousPeriod ? row?.values[previousPeriod] ?? null : null
+  };
+};
+
+const formatCrores = (value: number | null | undefined) => value === null || value === undefined ? '—' : `₹${value.toLocaleString('en-IN')} Cr`;
+const formatPercent = (value: number | null | undefined) => value === null || value === undefined ? '—' : `${value.toLocaleString('en-IN')}%`;
+const formatCompactCrores = (value: number) => `₹${Intl.NumberFormat('en-IN', { notation: 'compact', maximumFractionDigits: 1 }).format(value)}`;
+const toneFromSignedValue = (value: number | null | undefined): TrendTone => value === null || value === undefined || value === 0 ? 'neutral' : value > 0 ? 'positive' : 'negative';
+const toneForPositiveMetric = (current: number | null | undefined, previous: number | null | undefined): TrendTone => {
+  if (current === null || current === undefined) return 'neutral';
+  if (current < 0) return 'negative';
+  if (previous === null || previous === undefined) return 'neutral';
+  return toneFromSignedValue(current - previous);
+};
+const cashConversionTone = (quality: string | null | undefined): TrendTone => {
+  const normalized = quality?.toLowerCase() || '';
+  if (normalized.includes('superior') || normalized.includes('adequate')) return 'positive';
+  if (normalized.includes('moderate') || normalized.includes('weak')) return 'warning';
+  return 'neutral';
 };
 
 export const StockDetailView: React.FC<StockDetailViewProps> = ({ stock, onBack, onScrapeRefresh }) => {
@@ -221,6 +248,160 @@ export const StockDetailView: React.FC<StockDetailViewProps> = ({ stock, onBack,
   const quarterlyTrends = stock.analytics?.quarterly_analysis?.trends || [];
   const fcfTrends = stock.analytics?.cash_flow_quality?.fcf_trends || [];
   const bsTrends = stock.analytics?.balance_sheet_efficiency?.bs_trends || [];
+  const latestQuarterTrend = quarterlyTrends[quarterlyTrends.length - 1];
+  const latestFcfTrend = fcfTrends[fcfTrends.length - 1];
+  const previousFcfTrend = fcfTrends[fcfTrends.length - 2];
+  const latestBsTrend = bsTrends[bsTrends.length - 1];
+  const previousBsTrend = bsTrends[bsTrends.length - 2];
+  const fcfChartData = fcfTrends.map(row => ({
+    period: row.period,
+    pat_cr: row.reported_pat_cr,
+    cfo_cr: row.reported_cfo_cr,
+    fcf_cr: row.stocker_derived_fcf_cr
+  }));
+
+  const quarterSales = latestRowPair(stock.quarters, ['sales', 'revenue']);
+  const quarterPat = latestRowPair(stock.quarters, ['net profit', 'pat']);
+  const quarterOpm = latestRowPair(stock.quarters, ['opm %', 'operating profit margin']);
+  const annualOpm = latestRowPair(stock.profit_loss, ['opm %', 'operating profit margin']);
+  const annualPat = latestRowPair(stock.profit_loss, ['net profit', 'pat']);
+
+  const quarterlySummary: StatementSummaryItem[] = [
+    {
+      label: 'Revenue',
+      value: formatCrores(quarterSales.current),
+      detail: latestQuarterTrend?.sales_growth_yoy_pct !== undefined
+        ? <ExplicitChangeIndicator value={latestQuarterTrend.sales_growth_yoy_pct} label="YoY" />
+        : <ChangeIndicator metric={quarterSales.metric} current={quarterSales.current} previous={quarterSales.previous} />,
+      tone: toneFromSignedValue(latestQuarterTrend?.sales_growth_yoy_pct)
+    },
+    {
+      label: 'PAT',
+      value: formatCrores(quarterPat.current),
+      detail: latestQuarterTrend?.pat_growth_yoy_pct !== undefined
+        ? <ExplicitChangeIndicator value={latestQuarterTrend.pat_growth_yoy_pct} label="YoY" />
+        : <ChangeIndicator metric={quarterPat.metric} current={quarterPat.current} previous={quarterPat.previous} />,
+      tone: toneFromSignedValue(latestQuarterTrend?.pat_growth_yoy_pct)
+    },
+    {
+      label: 'OPM',
+      concept: 'opm',
+      value: formatPercent(quarterOpm.current),
+      detail: <ChangeIndicator metric={quarterOpm.metric} current={quarterOpm.current} previous={quarterOpm.previous} />,
+      tone: toneFromSignedValue((quarterOpm.current ?? 0) - (quarterOpm.previous ?? 0))
+    },
+    {
+      label: 'QoQ momentum',
+      concept: 'qoq',
+      value: latestQuarterTrend?.sales_growth_qoq_pct == null ? '—' : `${latestQuarterTrend.sales_growth_qoq_pct > 0 ? '+' : ''}${latestQuarterTrend.sales_growth_qoq_pct.toFixed(1)}%`,
+      detail: <ExplicitChangeIndicator value={latestQuarterTrend?.sales_growth_qoq_pct} label="Sales" />,
+      tone: toneFromSignedValue(latestQuarterTrend?.sales_growth_qoq_pct)
+    }
+  ];
+
+  const annualSummary: StatementSummaryItem[] = [
+    {
+      label: '3Y Sales CAGR',
+      concept: 'sales_cagr',
+      value: formatPercent(stock.analytics?.growth_rates?.sales_cagr_3yr),
+      detail: 'Backend-calculated annual growth',
+      tone: toneFromSignedValue(stock.analytics?.growth_rates?.sales_cagr_3yr),
+      onDetails: () => setSelectedFormulaKey('sales_cagr_3yr')
+    },
+    {
+      label: '3Y PAT CAGR',
+      concept: 'pat_cagr',
+      value: formatPercent(stock.analytics?.growth_rates?.pat_cagr_3yr),
+      detail: 'Backend-calculated annual growth',
+      tone: toneFromSignedValue(stock.analytics?.growth_rates?.pat_cagr_3yr),
+      onDetails: () => setSelectedFormulaKey('pat_cagr_3yr')
+    },
+    {
+      label: 'Latest OPM',
+      concept: 'opm',
+      value: formatPercent(annualOpm.current),
+      detail: <ChangeIndicator metric={annualOpm.metric} current={annualOpm.current} previous={annualOpm.previous} />,
+      tone: toneFromSignedValue((annualOpm.current ?? 0) - (annualOpm.previous ?? 0))
+    },
+    {
+      label: 'Latest PAT',
+      value: formatCrores(annualPat.current),
+      detail: <ChangeIndicator metric={annualPat.metric} current={annualPat.current} previous={annualPat.previous} />,
+      tone: annualPat.current !== null && annualPat.current < 0 ? 'negative' : toneFromSignedValue((annualPat.current ?? 0) - (annualPat.previous ?? 0))
+    }
+  ];
+
+  const cashFlowSummary: StatementSummaryItem[] = [
+    {
+      label: 'CFO',
+      concept: 'cfo',
+      value: formatCrores(latestFcfTrend?.reported_cfo_cr),
+      detail: <ChangeIndicator metric="Cash from Operating Activity" current={latestFcfTrend?.reported_cfo_cr} previous={previousFcfTrend?.reported_cfo_cr} />,
+      tone: toneForPositiveMetric(latestFcfTrend?.reported_cfo_cr, previousFcfTrend?.reported_cfo_cr)
+    },
+    {
+      label: 'CFO/PAT',
+      concept: 'cfo_pat',
+      value: formatPercent(stock.analytics?.cash_flow_quality?.cfo_to_pat_5yr_pct),
+      detail: stock.analytics?.cash_flow_quality?.cash_conversion_quality || '5-year cash conversion',
+      tone: cashConversionTone(stock.analytics?.cash_flow_quality?.cash_conversion_quality),
+      onDetails: () => setSelectedFormulaKey('cfo_to_pat_5yr')
+    },
+    {
+      label: 'Capex',
+      concept: 'capex',
+      value: formatCrores(latestFcfTrend?.capex_cr),
+      detail: 'Neutral: direction needs context',
+      tone: 'neutral'
+    },
+    {
+      label: 'FCF',
+      concept: 'fcf',
+      value: formatCrores(latestFcfTrend?.stocker_derived_fcf_cr),
+      detail: <ChangeIndicator metric="Free Cash Flow" current={latestFcfTrend?.stocker_derived_fcf_cr} previous={previousFcfTrend?.stocker_derived_fcf_cr} />,
+      tone: toneForPositiveMetric(latestFcfTrend?.stocker_derived_fcf_cr, previousFcfTrend?.stocker_derived_fcf_cr),
+      onDetails: () => setSelectedFormulaKey('free_cash_flow')
+    }
+  ];
+
+  const balanceSheetSummary: StatementSummaryItem[] = [
+    {
+      label: 'Borrowings',
+      value: formatCrores(latestBsTrend?.borrowings_cr ?? stock.analytics?.balance_sheet_efficiency?.borrowings_cr),
+      detail: <ChangeIndicator metric="Borrowings" current={latestBsTrend?.borrowings_cr} previous={previousBsTrend?.borrowings_cr} />,
+      tone: 'neutral'
+    },
+    {
+      label: 'Debt/Equity',
+      concept: 'debt_equity',
+      value: stock.analytics?.balance_sheet_efficiency?.latest_debt_to_equity == null ? '—' : `${stock.analytics.balance_sheet_efficiency.latest_debt_to_equity}x`,
+      detail: 'Leverage needs business context',
+      tone: 'neutral',
+      onDetails: () => setSelectedFormulaKey('debt_to_equity')
+    },
+    {
+      label: 'CWIP',
+      concept: 'cwip',
+      value: formatCrores(latestBsTrend?.cwip_cr ?? stock.analytics?.balance_sheet_efficiency?.cwip_cr),
+      detail: <ChangeIndicator metric="CWIP" current={latestBsTrend?.cwip_cr} previous={previousBsTrend?.cwip_cr} />,
+      tone: 'neutral'
+    },
+    {
+      label: 'CWIP / Net Block',
+      concept: 'cwip',
+      value: formatPercent(stock.analytics?.balance_sheet_efficiency?.latest_cwip_to_net_block_pct),
+      detail: 'Expansion signal, not automatically good or bad',
+      tone: 'neutral'
+    }
+  ];
+
+  const statementSummary = financialSubTab === 'quarters'
+    ? quarterlySummary
+    : financialSubTab === 'pl'
+      ? annualSummary
+      : financialSubTab === 'balance_sheet'
+        ? balanceSheetSummary
+        : cashFlowSummary;
   const selectedFormula = selectedFormulaKey
     ? stock.analytics?.formula_transparency?.[selectedFormulaKey] ?? null
     : null;
@@ -228,56 +409,6 @@ export const StockDetailView: React.FC<StockDetailViewProps> = ({ stock, onBack,
   const formatConfidence = (confidence?: number) => {
     if (confidence === undefined || confidence === null) return null;
     return `${Math.round(confidence <= 1 ? confidence * 100 : confidence)}% confidence`;
-  };
-
-  // Helper to render statement table
-  const renderStatementTable = (stmt: FinancialStatement) => {
-    return (
-      <div className="overflow-x-auto rounded-2xl border border-slate-800">
-        <table className="w-full text-left text-xs font-mono">
-          <thead className="bg-slate-900/90 text-slate-400 uppercase tracking-wider border-b border-slate-800">
-            <tr>
-              <th className="py-3 px-4 sticky left-0 bg-slate-900 z-10 font-sans font-bold text-slate-300 min-w-[200px]">
-                Metric (₹ Cr)
-              </th>
-              {stmt.periods.map(p => (
-                <th key={p} className="py-3 px-4 whitespace-nowrap text-right">
-                  {p}
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-slate-800/60">
-            {stmt.rows.map((row, rIdx) => {
-              const isHighlight = ['Sales', 'Revenue', 'Operating Profit', 'EBITDA', 'Net Profit', 'PAT', 'Cash from Operating Activity', 'Total Assets'].includes(row.metric);
-              const glossaryTerm = getStatementGlossaryTerm(row.metric);
-              return (
-                <tr 
-                  key={row.metric + rIdx} 
-                  className={`hover:bg-slate-900/50 transition-colors ${isHighlight ? 'bg-slate-900/20 font-semibold text-slate-100' : 'text-slate-300'}`}
-                >
-                  <td className={`py-2.5 px-4 sticky left-0 z-10 font-sans ${isHighlight ? 'bg-slate-900 font-bold text-emerald-400' : 'bg-slate-950 text-slate-300'}`}>
-                    <span className="inline-flex items-center gap-1">{row.metric}{glossaryTerm && <ConceptHelp term={glossaryTerm} />}</span>
-                  </td>
-                  {stmt.periods.map(p => {
-                    const val = row.values[p];
-                    return (
-                      <td key={p} className="py-2.5 px-4 text-right whitespace-nowrap">
-                        {val !== null && val !== undefined ? (
-                          typeof val === 'number' ? (
-                            row.metric.includes('%') ? `${val}%` : val.toLocaleString('en-IN')
-                          ) : val
-                        ) : '-'}
-                      </td>
-                    );
-                  })}
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
-    );
   };
 
   return (
@@ -2434,12 +2565,16 @@ export const StockDetailView: React.FC<StockDetailViewProps> = ({ stock, onBack,
         <div className="glass-panel rounded-3xl p-6 md:p-8 border border-slate-800 space-y-6">
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b border-slate-800 pb-4">
             <div>
-              <h3 className="text-xl font-bold text-white">Raw Financial Statements</h3>
-              <p className="text-xs text-slate-400">Primary consolidated data extracted directly from Screener.in filings</p>
+              <div className="flex flex-wrap items-center gap-2">
+                <h3 className="text-xl font-bold text-white">Financial Statements</h3>
+                <DataOriginBadge origin="reported_fact" />
+                <FinancialColorLegend />
+              </div>
+              <p className="text-xs text-slate-400">A quick read first, followed by the complete consolidated Screener.in statement</p>
             </div>
 
             {/* Sub-Tabs for Statements */}
-            <div className="flex items-center gap-1.5 bg-slate-950 p-1 rounded-xl border border-slate-800">
+            <div className="flex max-w-full items-center gap-1.5 overflow-x-auto bg-slate-950 p-1 rounded-xl border border-slate-800">
               <button
                 onClick={() => setFinancialSubTab('quarters')}
                 className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
@@ -2475,18 +2610,20 @@ export const StockDetailView: React.FC<StockDetailViewProps> = ({ stock, onBack,
             </div>
           </div>
 
+          <StatementSummaryStrip items={statementSummary} />
+
           {/* Render selected statement */}
-          {financialSubTab === 'quarters' && renderStatementTable(stock.quarters)}
-          {financialSubTab === 'pl' && renderStatementTable(stock.profit_loss)}
-          {financialSubTab === 'balance_sheet' && renderStatementTable(stock.balance_sheet)}
+          {financialSubTab === 'quarters' && <FinancialStatementTable statement={stock.quarters} />}
+          {financialSubTab === 'pl' && <FinancialStatementTable statement={stock.profit_loss} />}
+          {financialSubTab === 'balance_sheet' && <FinancialStatementTable statement={stock.balance_sheet} />}
           {financialSubTab === 'cash_flow' && (
             <div className="space-y-6">
-              {renderStatementTable(stock.cash_flow)}
+              <FinancialStatementTable statement={stock.cash_flow} />
 
               {/* Free Cash Flow Reconciliation & Capex Methodology Breakdown */}
               {stock.analytics?.cash_flow_quality?.fcf_trends && stock.analytics.cash_flow_quality.fcf_trends.length > 0 && (
-                <div className="glass-panel rounded-2xl p-5 border border-slate-800 space-y-4">
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                <details className="advanced-details">
+                  <summary>
                     <div>
                       <h4 className="text-sm font-bold text-white flex items-center gap-2">
                         <TrendingUp className="w-4 h-4 text-emerald-400" />
@@ -2494,9 +2631,14 @@ export const StockDetailView: React.FC<StockDetailViewProps> = ({ stock, onBack,
                         <DataOriginBadge origin="stocker_calculation" />
                       </h4>
                       <p className="text-xs text-slate-400">
-                        Code-derived Free Cash Flow tracking reported Operating Cash Flow vs Capital Expenditures.
+                        Expand the reported inputs, backend formula output, and capex methodology.
                       </p>
                     </div>
+                    <ChevronDown className="advanced-details-chevron" />
+                  </summary>
+
+                  <div className="advanced-details-body space-y-4">
+                    <div className="flex justify-end">
                     <button
                       onClick={() => setSelectedFormulaKey('free_cash_flow')}
                       className="text-xs font-semibold text-cyan-400 hover:underline flex items-center gap-1 bg-cyan-950/40 px-3 py-1.5 rounded-xl border border-cyan-800/40 self-start sm:self-auto"
@@ -2550,7 +2692,8 @@ export const StockDetailView: React.FC<StockDetailViewProps> = ({ stock, onBack,
                       </tbody>
                     </table>
                   </div>
-                </div>
+                  </div>
+                </details>
               )}
             </div>
           )}
@@ -2580,10 +2723,13 @@ export const StockDetailView: React.FC<StockDetailViewProps> = ({ stock, onBack,
                     </defs>
                     <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" />
                     <XAxis dataKey="period" stroke="var(--chart-axis)" fontSize={10} />
-                    <YAxis yAxisId="left" stroke="#10b981" fontSize={10} />
-                    <YAxis yAxisId="right" orientation="right" stroke="#06b6d4" fontSize={10} />
+                    <YAxis yAxisId="left" stroke="#10b981" fontSize={10} tickFormatter={formatCompactCrores} width={58} />
+                    <YAxis yAxisId="right" orientation="right" stroke="#06b6d4" fontSize={10} tickFormatter={(value) => `${value}%`} width={42} />
+                    {latestQuarterTrend?.period && <ReferenceLine x={latestQuarterTrend.period} stroke="var(--border-strong)" strokeDasharray="4 4" label={{ value: 'Latest', fill: 'var(--text-muted)', fontSize: 10 }} />}
                     <Tooltip 
                       contentStyle={{ backgroundColor: 'var(--card-bg)', borderColor: 'var(--border-strong)', color: 'var(--text-primary)', borderRadius: '12px' }}
+                      labelStyle={{ color: 'var(--text-primary)', fontWeight: 700 }}
+                      cursor={{ fill: 'var(--hover-bg)' }}
                       formatter={(val: any, name: string) => [
                         typeof val === 'number' ? (name.includes('OPM') ? `${val}%` : `₹${val.toLocaleString('en-IN')} Cr`) : val,
                         name
@@ -2605,18 +2751,28 @@ export const StockDetailView: React.FC<StockDetailViewProps> = ({ stock, onBack,
               </div>
               <div className="h-72 w-full">
                 <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={fcfTrends}>
+                  <BarChart data={fcfChartData}>
                     <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" />
                     <XAxis dataKey="period" stroke="var(--chart-axis)" fontSize={10} />
-                    <YAxis stroke="var(--chart-axis)" fontSize={10} />
+                    <YAxis stroke="var(--chart-axis)" fontSize={10} tickFormatter={formatCompactCrores} width={58} />
+                    {latestFcfTrend?.period && <ReferenceLine x={latestFcfTrend.period} stroke="var(--border-strong)" strokeDasharray="4 4" label={{ value: 'Latest', fill: 'var(--text-muted)', fontSize: 10 }} />}
+                    <ReferenceLine y={0} stroke="var(--border-strong)" />
                     <Tooltip 
                       contentStyle={{ backgroundColor: 'var(--card-bg)', borderColor: 'var(--border-strong)', color: 'var(--text-primary)', borderRadius: '12px' }}
+                      labelStyle={{ color: 'var(--text-primary)', fontWeight: 700 }}
+                      cursor={{ fill: 'var(--hover-bg)' }}
                       formatter={(val: any) => [`₹${val?.toLocaleString('en-IN')} Cr`]}
                     />
                     <Legend wrapperStyle={{ fontSize: '11px', paddingTop: '10px' }} />
-                    <Bar dataKey="pat_cr" name="Net Profit (PAT)" fill="#64748b" radius={[4, 4, 0, 0]} />
-                    <Bar dataKey="cfo_cr" name="Cash from Operations (CFO)" fill="#06b6d4" radius={[4, 4, 0, 0]} />
-                    <Bar dataKey="fcf_cr" name="Free Cash Flow (FCF)" fill="#10b981" radius={[4, 4, 0, 0]} />
+                    <Bar dataKey="pat_cr" name="Net Profit (PAT)" fill="#64748b" radius={[4, 4, 0, 0]}>
+                      {fcfChartData.map((entry, index) => <Cell key={`pat-${index}`} fill={(entry.pat_cr ?? 0) < 0 ? '#fb7185' : '#64748b'} />)}
+                    </Bar>
+                    <Bar dataKey="cfo_cr" name="Cash from Operations (CFO)" fill="#06b6d4" radius={[4, 4, 0, 0]}>
+                      {fcfChartData.map((entry, index) => <Cell key={`cfo-${index}`} fill={(entry.cfo_cr ?? 0) < 0 ? '#fb7185' : '#06b6d4'} />)}
+                    </Bar>
+                    <Bar dataKey="fcf_cr" name="Free Cash Flow (FCF)" fill="#10b981" radius={[4, 4, 0, 0]}>
+                      {fcfChartData.map((entry, index) => <Cell key={`fcf-${index}`} fill={(entry.fcf_cr ?? 0) < 0 ? '#fb7185' : '#10b981'} />)}
+                    </Bar>
                   </BarChart>
                 </ResponsiveContainer>
               </div>
@@ -2635,10 +2791,14 @@ export const StockDetailView: React.FC<StockDetailViewProps> = ({ stock, onBack,
                 <BarChart data={bsTrends}>
                   <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" />
                   <XAxis dataKey="period" stroke="var(--chart-axis)" fontSize={10} />
-                  <YAxis yAxisId="left" stroke="var(--chart-axis)" fontSize={10} />
-                  <YAxis yAxisId="right" orientation="right" stroke="#f59e0b" fontSize={10} />
+                  <YAxis yAxisId="left" stroke="var(--chart-axis)" fontSize={10} tickFormatter={formatCompactCrores} width={58} />
+                  <YAxis yAxisId="right" orientation="right" stroke="#f59e0b" fontSize={10} tickFormatter={(value) => `${value}%`} width={42} />
+                  {latestBsTrend?.period && <ReferenceLine x={latestBsTrend.period} stroke="var(--border-strong)" strokeDasharray="4 4" label={{ value: 'Latest', fill: 'var(--text-muted)', fontSize: 10 }} />}
                   <Tooltip 
                     contentStyle={{ backgroundColor: 'var(--card-bg)', borderColor: 'var(--border-strong)', color: 'var(--text-primary)', borderRadius: '12px' }}
+                    labelStyle={{ color: 'var(--text-primary)', fontWeight: 700 }}
+                    cursor={{ fill: 'var(--hover-bg)' }}
+                    formatter={(value: any, name: string) => [name.includes('%') ? `${value}%` : `₹${value?.toLocaleString('en-IN')} Cr`, name]}
                   />
                   <Legend wrapperStyle={{ fontSize: '11px', paddingTop: '10px' }} />
                   <Bar yAxisId="left" dataKey="fixed_assets_cr" name="Fixed Assets (₹ Cr)" fill="var(--chart-axis)" radius={[4, 4, 0, 0]} />

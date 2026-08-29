@@ -3,7 +3,7 @@ import { StockSummary } from '../types';
 import { 
   Sparkles, Award, ArrowUpRight, TrendingUp, DollarSign, 
   Percent, Activity, CheckCircle2, ChevronRight, Filter, 
-  ArrowUpDown, ExternalLink, Flame
+  ArrowUpDown, ArrowUp, ArrowDown, ExternalLink, Flame
 } from 'lucide-react';
 import { ConceptHelp } from './ui/ConceptHelp';
 
@@ -47,6 +47,9 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
       if (typeof valA === 'number' && typeof valB === 'number') {
         return sortAsc ? valA - valB : valB - valA;
       }
+      if (typeof valA === 'string' && typeof valB === 'string') {
+        return sortAsc ? valA.localeCompare(valB) : valB.localeCompare(valA);
+      }
       return 0;
     });
 
@@ -73,6 +76,22 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
         return 'bg-rose-500/20 text-rose-300 border-rose-500/40';
     }
   };
+
+  const getScoreBand = (verdict: string) => {
+    if (verdict === 'High Conviction Buy' || verdict === 'Strong Growth Buy') return 'score-band-positive';
+    if (verdict === 'Fair Value Hold') return 'score-band-warning';
+    if (verdict === 'Watchlist') return 'score-band-neutral';
+    return 'score-band-negative';
+  };
+
+  const sortIndicator = (field: keyof StockSummary) => {
+    if (sortField !== field) return <ArrowUpDown className="w-3 h-3" aria-hidden="true" />;
+    return sortAsc
+      ? <ArrowUp className="w-3.5 h-3.5" aria-label="Sorted ascending" />
+      : <ArrowDown className="w-3.5 h-3.5" aria-label="Sorted descending" />;
+  };
+
+  const sortHeaderClass = (field: keyof StockSummary) => `dashboard-sort-header ${sortField === field ? 'dashboard-sort-active' : ''}`;
 
   return (
     <div className="space-y-8 pb-16">
@@ -111,21 +130,21 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
 
           <div className="p-3.5 rounded-2xl bg-slate-950/60 border border-slate-800">
             <span className="text-xs text-slate-400 font-medium"><ConceptHelp term="roce" label="Highest ROCE In Group" /></span>
-            <div className="text-xl font-bold text-cyan-400 mt-0.5">
+            <div className="text-xl font-bold text-primary mt-0.5">
               {Math.max(...stocks.map(s => s.roce_pct))}%
             </div>
             <span className="text-[11px] text-slate-400 mt-1 block">
-              {stocks.find(s => s.roce_pct === Math.max(...stocks.map(x => x.roce_pct)))?.symbol}
+              Highest reported · {stocks.find(s => s.roce_pct === Math.max(...stocks.map(x => x.roce_pct)))?.symbol}
             </span>
           </div>
 
           <div className="p-3.5 rounded-2xl bg-slate-950/60 border border-slate-800">
             <span className="text-xs text-slate-400 font-medium"><ConceptHelp term="fcf" label="Top FCF Yield" /></span>
-            <div className="text-xl font-bold text-teal-400 mt-0.5">
+            <div className="text-xl font-bold text-primary mt-0.5">
               {Math.max(...stocks.map(s => s.fcf_yield_pct))}%
             </div>
             <span className="text-[11px] text-slate-400 mt-1 block">
-              {stocks.find(s => s.fcf_yield_pct === Math.max(...stocks.map(x => x.fcf_yield_pct)))?.symbol}
+              Highest reported · {stocks.find(s => s.fcf_yield_pct === Math.max(...stocks.map(x => x.fcf_yield_pct)))?.symbol}
             </span>
           </div>
         </div>
@@ -187,9 +206,7 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
                     <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${getVerdictBadge(stock.verdict)}`}>
                       {stock.verdict}
                     </span>
-                    <span className="text-xs font-mono font-bold text-emerald-400">
-                      Score: {stock.composite_score}/100
-                    </span>
+                    <span className={`score-spotlight ${getScoreBand(stock.verdict)}`}>Score {stock.composite_score}/100</span>
                   </div>
                 </div>
 
@@ -201,11 +218,11 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
                   </div>
                   <div>
                     <span className="text-[10px] text-slate-500 uppercase block font-sans">ROCE</span>
-                    <span className="text-xs font-semibold text-cyan-400">{stock.roce_pct}%</span>
+                    <span className="text-xs font-semibold text-slate-200">{stock.roce_pct}%</span>
                   </div>
                   <div>
                     <span className="text-[10px] text-slate-500 uppercase block font-sans">FCF Yield</span>
-                    <span className="text-xs font-semibold text-emerald-400">{stock.fcf_yield_pct}%</span>
+                    <span className="text-xs font-semibold text-slate-200">{stock.fcf_yield_pct}%</span>
                   </div>
                 </div>
 
@@ -289,75 +306,75 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
         </div>
 
         {/* High-Density Data Table */}
-        <div className="overflow-x-auto rounded-2xl border border-slate-800">
-          <table className="w-full text-left text-xs">
+        <div className="dashboard-table-wrap overflow-x-auto rounded-2xl border border-slate-800">
+          <table className="dashboard-table w-full text-left text-xs">
             <thead className="bg-slate-900/90 text-slate-400 font-mono uppercase tracking-wider border-b border-slate-800">
               <tr>
-                <th className="py-3.5 px-4 w-12 text-center">Compare</th>
-                <th className="py-3.5 px-4 cursor-pointer hover:text-emerald-400" onClick={() => handleSort('rank')}>
-                  <div className="flex items-center gap-1">
-                    <span>Rank</span>
-                    <ArrowUpDown className="w-3 h-3" />
-                  </div>
-                </th>
-                <th className="py-3.5 px-4 cursor-pointer hover:text-emerald-400" onClick={() => handleSort('symbol')}>
+                <th className="dashboard-compare-col py-3.5 px-4 w-12 text-center">Compare</th>
+                <th className={`${sortHeaderClass('symbol')} dashboard-company-col`} onClick={() => handleSort('symbol')} aria-sort={sortField === 'symbol' ? (sortAsc ? 'ascending' : 'descending') : 'none'}>
                   <div className="flex items-center gap-1">
                     <span>Company</span>
-                    <ArrowUpDown className="w-3 h-3" />
+                    {sortIndicator('symbol')}
                   </div>
                 </th>
-                <th className="py-3.5 px-4 cursor-pointer hover:text-emerald-400" onClick={() => handleSort('current_price')}>
+                <th className={sortHeaderClass('rank')} onClick={() => handleSort('rank')} aria-sort={sortField === 'rank' ? (sortAsc ? 'ascending' : 'descending') : 'none'}>
+                  <div className="flex items-center gap-1">
+                    <span>Rank</span>
+                    {sortIndicator('rank')}
+                  </div>
+                </th>
+                <th className={sortHeaderClass('current_price')} onClick={() => handleSort('current_price')} aria-sort={sortField === 'current_price' ? (sortAsc ? 'ascending' : 'descending') : 'none'}>
                   <div className="flex items-center gap-1">
                     <span>Price (₹)</span>
-                    <ArrowUpDown className="w-3 h-3" />
+                    {sortIndicator('current_price')}
                   </div>
                 </th>
-                <th className="py-3.5 px-4 cursor-pointer hover:text-emerald-400" onClick={() => handleSort('pe_ratio')}>
+                <th className={sortHeaderClass('pe_ratio')} onClick={() => handleSort('pe_ratio')} aria-sort={sortField === 'pe_ratio' ? (sortAsc ? 'ascending' : 'descending') : 'none'}>
                   <div className="flex items-center gap-1">
                     <ConceptHelp term="pe" label="P/E" />
-                    <ArrowUpDown className="w-3 h-3" />
+                    {sortIndicator('pe_ratio')}
                   </div>
                 </th>
-                <th className="py-3.5 px-4 cursor-pointer hover:text-emerald-400" onClick={() => handleSort('roce_pct')}>
+                <th className={sortHeaderClass('roce_pct')} onClick={() => handleSort('roce_pct')} aria-sort={sortField === 'roce_pct' ? (sortAsc ? 'ascending' : 'descending') : 'none'}>
                   <div className="flex items-center gap-1">
                     <ConceptHelp term="roce" label="ROCE %" />
-                    <ArrowUpDown className="w-3 h-3" />
+                    {sortIndicator('roce_pct')}
                   </div>
                 </th>
-                <th className="py-3.5 px-4 cursor-pointer hover:text-emerald-400" onClick={() => handleSort('roe_pct')}>
+                <th className={sortHeaderClass('roe_pct')} onClick={() => handleSort('roe_pct')} aria-sort={sortField === 'roe_pct' ? (sortAsc ? 'ascending' : 'descending') : 'none'}>
                   <div className="flex items-center gap-1">
                     <ConceptHelp term="roe" label="ROE %" />
-                    <ArrowUpDown className="w-3 h-3" />
+                    {sortIndicator('roe_pct')}
                   </div>
                 </th>
-                <th className="py-3.5 px-4 cursor-pointer hover:text-emerald-400" onClick={() => handleSort('fcf_yield_pct')}>
+                <th className={sortHeaderClass('fcf_yield_pct')} onClick={() => handleSort('fcf_yield_pct')} aria-sort={sortField === 'fcf_yield_pct' ? (sortAsc ? 'ascending' : 'descending') : 'none'}>
                   <div className="flex items-center gap-1">
                     <ConceptHelp term="fcf" label="FCF Yield" />
-                    <ArrowUpDown className="w-3 h-3" />
+                    {sortIndicator('fcf_yield_pct')}
                   </div>
                 </th>
-                <th className="py-3.5 px-4 cursor-pointer hover:text-emerald-400" onClick={() => handleSort('sales_growth_3yr_pct')}>
+                <th className={sortHeaderClass('sales_growth_3yr_pct')} onClick={() => handleSort('sales_growth_3yr_pct')} aria-sort={sortField === 'sales_growth_3yr_pct' ? (sortAsc ? 'ascending' : 'descending') : 'none'}>
                   <div className="flex items-center gap-1">
                     <ConceptHelp term="sales_cagr" label="3Y Sales CAGR" />
-                    <ArrowUpDown className="w-3 h-3" />
+                    {sortIndicator('sales_growth_3yr_pct')}
                   </div>
                 </th>
-                <th className="py-3.5 px-4 cursor-pointer hover:text-emerald-400" onClick={() => handleSort('cfo_to_pat_5yr_pct')}>
+                <th className={sortHeaderClass('cfo_to_pat_5yr_pct')} onClick={() => handleSort('cfo_to_pat_5yr_pct')} aria-sort={sortField === 'cfo_to_pat_5yr_pct' ? (sortAsc ? 'ascending' : 'descending') : 'none'}>
                   <div className="flex items-center gap-1">
                     <ConceptHelp term="cfo_pat" label="CFO/PAT (5Y)" />
-                    <ArrowUpDown className="w-3 h-3" />
+                    {sortIndicator('cfo_to_pat_5yr_pct')}
                   </div>
                 </th>
-                <th className="py-3.5 px-4 cursor-pointer hover:text-emerald-400" onClick={() => handleSort('net_debt_to_equity')}>
+                <th className={sortHeaderClass('net_debt_to_equity')} onClick={() => handleSort('net_debt_to_equity')} aria-sort={sortField === 'net_debt_to_equity' ? (sortAsc ? 'ascending' : 'descending') : 'none'}>
                   <div className="flex items-center gap-1">
                     <ConceptHelp term="debt_equity" label="Debt/Eq" />
-                    <ArrowUpDown className="w-3 h-3" />
+                    {sortIndicator('net_debt_to_equity')}
                   </div>
                 </th>
-                <th className="py-3.5 px-4 cursor-pointer hover:text-emerald-400" onClick={() => handleSort('composite_score')}>
+                <th className={sortHeaderClass('composite_score')} onClick={() => handleSort('composite_score')} aria-sort={sortField === 'composite_score' ? (sortAsc ? 'ascending' : 'descending') : 'none'}>
                   <div className="flex items-center gap-1">
-                    <span>Score</span>
-                    <ArrowUpDown className="w-3 h-3" />
+                    <span>Composite Score</span>
+                    {sortIndicator('composite_score')}
                   </div>
                 </th>
                 <th className="py-3.5 px-4">Verdict</th>
@@ -365,28 +382,31 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-800/60 font-mono">
-              {filteredStocks.map((stock) => (
+              {filteredStocks.map((stock) => {
+                const isSelected = selectedCompareSymbols.includes(stock.symbol);
+                return (
                 <tr 
                   key={stock.symbol}
-                  className="hover:bg-slate-900/50 transition-colors group cursor-pointer"
+                  className={`dashboard-row hover:bg-slate-900/50 transition-colors group cursor-pointer ${isSelected ? 'dashboard-row-selected' : ''}`}
                   onClick={() => onSelectStock(stock.symbol)}
                 >
-                  <td className="py-3.5 px-4 text-center" onClick={(e) => e.stopPropagation()}>
+                  <td className="dashboard-compare-col py-3.5 px-4 text-center" onClick={(e) => e.stopPropagation()}>
                     <input
                       type="checkbox"
-                      checked={selectedCompareSymbols.includes(stock.symbol)}
+                      checked={isSelected}
                       onChange={() => onToggleCompare(stock.symbol)}
+                      aria-label={`${isSelected ? 'Remove' : 'Add'} ${stock.symbol} ${isSelected ? 'from' : 'to'} comparison`}
                       className="rounded border-slate-700 text-emerald-500 focus:ring-emerald-500/30 bg-slate-900 w-3.5 h-3.5"
                     />
                   </td>
-                  <td className="py-3.5 px-4 font-bold text-slate-300">
-                    #{stock.rank}
-                  </td>
-                  <td className="py-3.5 px-4 font-sans">
+                  <td className="dashboard-company-col py-3.5 px-4 font-sans">
                     <div className="font-bold text-white group-hover:text-emerald-400 transition-colors">
                       {stock.symbol}
                     </div>
                     <div className="text-[11px] text-slate-400 font-mono">{stock.sector}</div>
+                  </td>
+                  <td className="py-3.5 px-4 font-bold text-slate-300">
+                    <span className="rank-pill">#{stock.rank}</span>
                   </td>
                   <td className="py-3.5 px-4 text-slate-100 font-semibold">
                     ₹{stock.current_price.toLocaleString('en-IN')}
@@ -394,16 +414,16 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
                   <td className="py-3.5 px-4 text-slate-300">
                     {stock.pe_ratio}x
                   </td>
-                  <td className={`py-3.5 px-4 font-semibold ${stock.roce_pct >= 20 ? 'text-emerald-400' : 'text-slate-300'}`}>
+                  <td className="py-3.5 px-4 font-semibold text-slate-300">
                     {stock.roce_pct}%
                   </td>
                   <td className="py-3.5 px-4 text-slate-300">
                     {stock.roe_pct}%
                   </td>
-                  <td className={`py-3.5 px-4 font-semibold ${stock.fcf_yield_pct >= 3.0 ? 'text-teal-400' : 'text-slate-400'}`}>
+                  <td className="py-3.5 px-4 font-semibold text-slate-300">
                     {stock.fcf_yield_pct}%
                   </td>
-                  <td className={`py-3.5 px-4 ${stock.sales_growth_3yr_pct >= 15.0 ? 'text-emerald-400' : 'text-slate-300'}`}>
+                  <td className="py-3.5 px-4 text-slate-300">
                     {stock.sales_growth_3yr_pct}%
                   </td>
                   <td className={`py-3.5 px-4 ${stock.cfo_to_pat_5yr_pct >= 90 ? 'text-emerald-400' : 'text-amber-400'}`}>
@@ -412,8 +432,11 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
                   <td className="py-3.5 px-4 text-slate-300">
                     {stock.net_debt_to_equity}x
                   </td>
-                  <td className="py-3.5 px-4 font-bold text-emerald-400 text-sm">
-                    {stock.composite_score}
+                  <td className="py-3.5 px-4">
+                    <div className={`dashboard-score-cell ${getScoreBand(stock.verdict)}`}>
+                      <strong>{stock.composite_score}</strong><span>/100</span>
+                      <i aria-hidden="true"><b style={{ width: `${Math.max(0, Math.min(100, stock.composite_score))}%` }} /></i>
+                    </div>
                   </td>
                   <td className="py-3.5 px-4 font-sans">
                     <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border whitespace-nowrap ${getVerdictBadge(stock.verdict)}`}>
@@ -429,7 +452,7 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
                     </button>
                   </td>
                 </tr>
-              ))}
+              );})}
             </tbody>
           </table>
         </div>

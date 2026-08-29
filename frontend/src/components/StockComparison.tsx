@@ -7,6 +7,9 @@ import {
 } from 'recharts';
 import { ConceptHelp } from './ui/ConceptHelp';
 import { DataOriginBadge } from './ui/DataOriginBadge';
+import { ComparisonHighlight } from './ui/ComparisonHighlight';
+import { getComparisonStanding } from '../utils/financialMetrics';
+import type { ComparisonMetricKey } from '../utils/financialMetrics';
 
 interface StockComparisonProps {
   comparisonData: ComparisonItem[];
@@ -53,6 +56,18 @@ export const StockComparison: React.FC<StockComparisonProps> = ({
     Valuation: item.score_breakdown.valuation,
     Composite: item.composite_score
   }));
+  const comparisonValues: Record<ComparisonMetricKey, Array<number | null | undefined>> = {
+    composite_score: comparisonData.map(item => item.composite_score),
+    roce_pct: comparisonData.map(item => item.roce_pct),
+    fcf_yield_pct: comparisonData.map(item => item.fcf_yield_pct),
+    debt_to_equity: comparisonData.map(item => item.debt_to_equity)
+  };
+
+  const directionalValue = (metric: ComparisonMetricKey, value: number | null | undefined, formatted: React.ReactNode) => (
+    <ComparisonHighlight standing={getComparisonStanding(metric, value, comparisonValues[metric])}>
+      {formatted}
+    </ComparisonHighlight>
+  );
 
   return (
     <div className="space-y-8 pb-20">
@@ -135,7 +150,7 @@ export const StockComparison: React.FC<StockComparisonProps> = ({
               </td>
               {comparisonData.map(item => (
                 <td key={item.symbol} className="py-3 px-6 text-center">
-                  <div className="font-bold text-emerald-400 text-sm">{item.composite_score}/100</div>
+                  {directionalValue('composite_score', item.composite_score, <strong>{item.composite_score}/100</strong>)}
                   <span className="text-[10px] text-slate-300 font-sans">{item.verdict}</span>
                 </td>
               ))}
@@ -166,7 +181,7 @@ export const StockComparison: React.FC<StockComparisonProps> = ({
               <td className="py-3 px-4 sticky left-0 bg-slate-950 font-sans text-slate-400"><ConceptHelp term="pe" label="Stock P/E Multiple" /></td>
               {comparisonData.map(item => (
                 <td key={item.symbol} className="py-3 px-6 text-center text-slate-200">
-                  {item.pe_ratio}x
+                  {item.pe_ratio == null ? '—' : `${item.pe_ratio}x`}
                 </td>
               ))}
             </tr>
@@ -175,8 +190,8 @@ export const StockComparison: React.FC<StockComparisonProps> = ({
             <tr className="hover:bg-slate-900/50">
               <td className="py-3 px-4 sticky left-0 bg-slate-950 font-sans text-slate-400"><ConceptHelp term="roce" label="ROCE %" /></td>
               {comparisonData.map(item => (
-                <td key={item.symbol} className={`py-3 px-6 text-center font-bold ${item.roce_pct >= 20 ? 'text-emerald-400' : 'text-slate-300'}`}>
-                  {item.roce_pct}%
+                <td key={item.symbol} className="py-3 px-6 text-center font-bold">
+                  {directionalValue('roce_pct', item.roce_pct, item.roce_pct === undefined ? '—' : `${item.roce_pct}%`)}
                 </td>
               ))}
             </tr>
@@ -185,8 +200,8 @@ export const StockComparison: React.FC<StockComparisonProps> = ({
             <tr className="hover:bg-slate-900/50">
               <td className="py-3 px-4 sticky left-0 bg-slate-950 font-sans text-slate-400"><ConceptHelp term="roe" label="ROE %" /></td>
               {comparisonData.map(item => (
-                <td key={item.symbol} className="py-3 px-6 text-center text-cyan-400 font-semibold">
-                  {item.roe_pct}%
+                <td key={item.symbol} className="py-3 px-6 text-center text-slate-300 font-semibold">
+                  {item.roe_pct === undefined ? '—' : `${item.roe_pct}%`}
                 </td>
               ))}
             </tr>
@@ -195,8 +210,8 @@ export const StockComparison: React.FC<StockComparisonProps> = ({
             <tr className="hover:bg-slate-900/50">
               <td className="py-3 px-4 sticky left-0 bg-slate-950 font-sans text-slate-400"><ConceptHelp term="fcf" label="FCF Yield %" /></td>
               {comparisonData.map(item => (
-                <td key={item.symbol} className={`py-3 px-6 text-center font-bold ${item.fcf_yield_pct >= 3.0 ? 'text-teal-400' : 'text-slate-300'}`}>
-                  {item.fcf_yield_pct}%
+                <td key={item.symbol} className="py-3 px-6 text-center font-bold">
+                  {directionalValue('fcf_yield_pct', item.fcf_yield_pct, item.fcf_yield_pct === undefined ? '—' : `${item.fcf_yield_pct}%`)}
                 </td>
               ))}
             </tr>
@@ -215,7 +230,7 @@ export const StockComparison: React.FC<StockComparisonProps> = ({
             <tr className="hover:bg-slate-900/50">
               <td className="py-3 px-4 sticky left-0 bg-slate-950 font-sans text-slate-400"><ConceptHelp term="cfo_pat" label="5Y CFO / PAT Conversion" /></td>
               {comparisonData.map(item => (
-                <td key={item.symbol} className={`py-3 px-6 text-center font-semibold ${item.cfo_to_pat_5yr >= 85 ? 'text-emerald-400' : 'text-amber-400'}`}>
+                <td key={item.symbol} className="py-3 px-6 text-center font-semibold text-slate-300">
                   {item.cfo_to_pat_5yr}%
                 </td>
               ))}
@@ -226,7 +241,7 @@ export const StockComparison: React.FC<StockComparisonProps> = ({
               <td className="py-3 px-4 sticky left-0 bg-slate-950 font-sans text-slate-400"><ConceptHelp term="debt_equity" label="Debt to Equity" /></td>
               {comparisonData.map(item => (
                 <td key={item.symbol} className="py-3 px-6 text-center text-slate-300">
-                  {item.debt_to_equity}x
+                  {directionalValue('debt_to_equity', item.debt_to_equity, item.debt_to_equity === undefined ? '—' : `${item.debt_to_equity}x`)}
                 </td>
               ))}
             </tr>
@@ -238,7 +253,7 @@ export const StockComparison: React.FC<StockComparisonProps> = ({
               </td>
               {comparisonData.map(item => (
                 <td key={item.symbol} className={`py-3 px-6 text-center font-bold ${item.dcf_upside_pct >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
-                  {item.dcf_upside_pct >= 0 ? `+${item.dcf_upside_pct}%` : `${item.dcf_upside_pct}%`}
+                  {item.dcf_upside_pct >= 0 ? `+${item.dcf_upside_pct}% ↑` : `${item.dcf_upside_pct}% ↓`}
                 </td>
               ))}
             </tr>
@@ -249,8 +264,8 @@ export const StockComparison: React.FC<StockComparisonProps> = ({
                 <div className="flex items-center gap-2"><ConceptHelp term="irr" label="Projected 3-Year IRR %" /><DataOriginBadge origin="stocker_projection" compact /></div>
               </td>
               {comparisonData.map(item => (
-                <td key={item.symbol} className="py-3 px-6 text-center text-emerald-400 text-sm">
-                  {item.projected_3yr_irr_pct}% / yr
+                <td key={item.symbol} className={`py-3 px-6 text-center text-sm ${item.projected_3yr_irr_pct >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                  {item.projected_3yr_irr_pct > 0 ? '+' : ''}{item.projected_3yr_irr_pct}% / yr {item.projected_3yr_irr_pct >= 0 ? '↑' : '↓'}
                 </td>
               ))}
             </tr>
@@ -271,9 +286,12 @@ export const StockComparison: React.FC<StockComparisonProps> = ({
             <BarChart data={scoreChartData}>
               <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" />
               <XAxis dataKey="symbol" stroke="var(--chart-axis)" fontSize={11} />
-              <YAxis domain={[0, 100]} stroke="var(--chart-axis)" fontSize={11} />
+              <YAxis domain={[0, 100]} stroke="var(--chart-axis)" fontSize={11} tickFormatter={(value) => `${value}`} width={34} />
               <Tooltip 
                 contentStyle={{ backgroundColor: 'var(--card-bg)', borderColor: 'var(--border-strong)', color: 'var(--text-primary)', borderRadius: '12px' }}
+                labelStyle={{ color: 'var(--text-primary)', fontWeight: 700 }}
+                cursor={{ fill: 'var(--hover-bg)' }}
+                formatter={(value: any, name: string) => [`${value}/100`, name]}
               />
               <Legend wrapperStyle={{ fontSize: '11px', paddingTop: '10px' }} />
               <Bar dataKey="Growth" fill="#10b981" radius={[4, 4, 0, 0]} />
