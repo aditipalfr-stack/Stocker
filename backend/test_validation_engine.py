@@ -761,6 +761,173 @@ def test_guidance_vs_projections_triangulation():
     assert "+500 bps above" in t_item["stocker_assessment"]
     print("✓ Guidance vs Stocker Projections triangulation verified.")
 
+def test_review_cases_a_b_c_statement_verification_discrepancies():
+    """Validates Cases A, B, C: Strict verification vs discrepancy handling on financial statements."""
+    print("Testing Review Cases A, B, C: Financial claim verification and discrepancy detection...")
+    from financial_engine import verify_document_claim_against_financials
+
+    dummy_stock_data = {
+        "profit_loss": {
+            "periods": ["Mar 2024", "Mar 2025", "Mar 2026"],
+            "rows": [
+                {"metric": "Sales", "values": {"Mar 2024": 100000.0, "Mar 2025": 114000.0, "Mar 2026": 130000.0}}, # Mar 2026 growth = 14.0%
+                {"metric": "OPM %", "values": {"Mar 2024": 18.0, "Mar 2025": 49.0, "Mar 2026": 52.0}},              # OPM = 52.0% (+300 bps)
+                {"metric": "Net Profit", "values": {"Mar 2024": 15000.0, "Mar 2025": 18000.0, "Mar 2026": 21240.0}} # PAT growth = 18.0%
+            ]
+        }
+    }
+
+    # Case A: Revenue claim matches audited statement (14% growth) -> Verified
+    fact_a = {
+        "metric_name": "Revenue Growth",
+        "stated_value_raw": "14%",
+        "numeric_value": 14.0,
+        "unit": "%",
+        "period_or_date": "FY26",
+        "scope": "Consolidated"
+    }
+    res_a = verify_document_claim_against_financials(fact_a, dummy_stock_data)
+    assert res_a["statement_verification_status"] == "Verified against Reported Financials"
+    assert "Matches stated claim" in res_a["stocker_assessment"]
+    print("  ✓ Case A passed: Matching revenue claim verified.")
+
+    # Case B: Revenue claim materially differs (claims 20% growth when actual is 14%) -> Discrepancy
+    fact_b = {
+        "metric_name": "Revenue Growth",
+        "stated_value_raw": "20%",
+        "numeric_value": 20.0,
+        "unit": "%",
+        "period_or_date": "FY26",
+        "scope": "Consolidated"
+    }
+    res_b = verify_document_claim_against_financials(fact_b, dummy_stock_data)
+    assert res_b["statement_verification_status"] == "Discrepancy vs Reported Financials"
+    assert "Discrepancy" in res_b["stocker_assessment"]
+    assert "show revenue grew 14.0% YoY" in res_b["stocker_assessment"]
+    print("  ✓ Case B passed: Material revenue discrepancy flagged accurately.")
+
+    # Case C: EBITDA margin claim differs (claims 56% when actual is 52%) -> Discrepancy
+    fact_c = {
+        "metric_name": "EBITDA Margin",
+        "stated_value_raw": "56%",
+        "numeric_value": 56.0,
+        "unit": "%",
+        "period_or_date": "FY26",
+        "scope": "Consolidated"
+    }
+    res_c = verify_document_claim_against_financials(fact_c, dummy_stock_data)
+    assert res_c["statement_verification_status"] == "Discrepancy vs Reported Financials"
+    assert "Discrepancy" in res_c["stocker_assessment"]
+    assert "reported audited OPM was 52.0%" in res_c["stocker_assessment"]
+    print("  ✓ Case C passed: EBITDA margin discrepancy flagged accurately.")
+
+def test_review_cases_d_e_f_kpi_identity_matching():
+    """Validates Cases D, E, F: Conservative KPI identity matching and same-period scope preservation."""
+    print("Testing Review Cases D, E, F: KPI Identity isolation & safe same-period deduplication...")
+    from financial_engine import build_inter_document_kpi_trends, extract_kpi_identity
+
+    # Case D: India Mobile ARPU vs Africa ARPU must be separate series
+    facts_d = [
+        {"metric_name": "India Mobile ARPU", "stated_value_raw": "₹210", "numeric_value": 210.0, "unit": "₹", "period_or_date": "FY25", "scope": "India"},
+        {"metric_name": "India Mobile ARPU", "stated_value_raw": "₹245", "numeric_value": 245.0, "unit": "₹", "period_or_date": "FY26", "scope": "India"},
+        {"metric_name": "Africa ARPU", "stated_value_raw": "$2.8", "numeric_value": 2.8, "unit": "$", "period_or_date": "FY25", "scope": "Africa"},
+        {"metric_name": "Africa ARPU", "stated_value_raw": "$3.1", "numeric_value": 3.1, "unit": "$", "period_or_date": "FY26", "scope": "Africa"},
+    ]
+    trends_d = build_inter_document_kpi_trends(facts_d)
+    assert len(trends_d) == 2, f"Expected 2 separate trends for India and Africa ARPU, got {len(trends_d)}"
+    series_names = [t["metric_name"] for t in trends_d]
+    assert any("India" in n for n in series_names)
+    assert any("Africa" in n for n in series_names)
+    print("  ✓ Case D passed: India ARPU and Africa ARPU kept strictly in separate series.")
+
+    # Case E: Installed Capacity vs Target Capacity must NOT merge as same actual series
+    facts_e = [
+        {"metric_name": "Installed Solar Capacity", "stated_value_raw": "300 MW", "numeric_value": 300.0, "unit": "MW", "period_or_date": "FY25", "claim_type": "reported_fact"},
+        {"metric_name": "Installed Solar Capacity", "stated_value_raw": "600 MW", "numeric_value": 600.0, "unit": "MW", "period_or_date": "FY26", "claim_type": "reported_fact"},
+        {"metric_name": "Target Solar Capacity", "stated_value_raw": "1000 MW", "numeric_value": 1000.0, "unit": "MW", "period_or_date": "FY27", "claim_type": "management_target"},
+    ]
+    trends_e = build_inter_document_kpi_trends(facts_e)
+    assert len(trends_e) == 2, f"Expected Installed Capacity and Target Capacity to be separate, got {len(trends_e)}"
+    print("  ✓ Case E passed: Installed Capacity and Target Capacity not blindly merged.")
+
+    # Case F: Same period, different scope (e.g. FY26 Consolidated vs FY26 India Segment) -> Both preserved
+    facts_f = [
+        {"metric_name": "Revenue", "stated_value_raw": "₹130,000 Cr", "numeric_value": 130000.0, "unit": "₹ Cr", "period_or_date": "FY26", "scope": "Consolidated"},
+        {"metric_name": "India Revenue", "stated_value_raw": "₹90,000 Cr", "numeric_value": 90000.0, "unit": "₹ Cr", "period_or_date": "FY26", "scope": "India"}
+    ]
+    trends_f = build_inter_document_kpi_trends(facts_f)
+    assert len(trends_f) == 2, f"Expected 2 trends for different scopes in same period, got {len(trends_f)}"
+    print("  ✓ Case F passed: Same period, different scope facts safely preserved.")
+
+def test_review_cases_g_h_i_j_k_guidance_triangulation_correctness():
+    """Validates Cases G, H, I, J, K: Metric-aware guidance triangulation without fake defaults."""
+    print("Testing Review Cases G, H, I, J, K: Guidance vs Projections metric awareness...")
+    from financial_engine import triangulate_guidance_vs_projections
+
+    dummy_stock_data = {
+        "quarters": {
+            "periods": ["Jun 2024", "Sep 2024", "Dec 2024", "Mar 2025", "Jun 2025"],
+            "rows": [
+                {"metric": "Sales", "values": {"Jun 2024": 40000.0, "Sep 2024": 41000.0, "Dec 2024": 42000.0, "Mar 2025": 43000.0, "Jun 2025": 45000.0}}, # Jun 25 YoY = 12.5%
+                {"metric": "OPM %", "values": {"Jun 2024": 20.0, "Sep 2024": 21.0, "Dec 2024": 21.5, "Mar 2025": 22.0, "Jun 2025": 23.5}}             # Jun 25 OPM = 23.5%
+            ]
+        }
+    }
+
+    # Case G: Revenue guidance compares to real Stocker revenue projection
+    guidance_g = [{
+        "metric_name": "Revenue Growth Guidance",
+        "stated_value_raw": "16.0%",
+        "numeric_value": 16.0,
+        "target_period": "FY27",
+        "claim_type": "management_guidance"
+    }]
+    res_g = triangulate_guidance_vs_projections(guidance_g, dummy_stock_data, {"revenue_growth_rate_pct": 12.0})
+    assert res_g[0]["stocker_projected_base"] == 12.0
+    assert res_g[0]["variance_guidance_vs_base_bps"] == 400.0
+    assert res_g[0]["current_run_rate_value"] == 12.5 # Quarterly sales run-rate
+    print("  ✓ Case G passed: Revenue guidance compares to real revenue projection and sales run-rate.")
+
+    # Case H: EBITDA margin guidance does NOT compare to revenue projection
+    guidance_h = [{
+        "metric_name": "EBITDA Margin Guidance",
+        "stated_value_raw": "25.0%",
+        "numeric_value": 25.0,
+        "target_period": "FY27",
+        "claim_type": "management_guidance"
+    }]
+    # Assumptions only contain revenue growth, no margin assumption
+    res_h = triangulate_guidance_vs_projections(guidance_h, dummy_stock_data, {"revenue_growth_rate_pct": 12.0})
+    assert res_h[0]["stocker_projected_base"] is None, "EBITDA margin must NOT receive revenue growth assumption!"
+    assert res_h[0]["current_run_rate_value"] == 23.5 # Quarterly OPM run-rate, NOT sales growth!
+    assert "does not contain a separate EBITDA margin scenario assumption" in res_h[0]["stocker_assessment"]
+    print("  ✓ Case H passed: EBITDA margin guidance does NOT receive revenue growth assumption; uses OPM run-rate.")
+
+    # Case I: Capacity guidance (e.g. 1 GW Solar) does NOT receive DCF revenue growth projection
+    guidance_i = [{
+        "metric_name": "Target Solar Capacity",
+        "stated_value_raw": "1 GW",
+        "numeric_value": 1000.0,
+        "unit": "MW",
+        "target_period": "FY28",
+        "claim_type": "management_target"
+    }]
+    res_i = triangulate_guidance_vs_projections(guidance_i, dummy_stock_data, {"revenue_growth_rate_pct": 12.0})
+    assert res_i[0]["stocker_projected_base"] is None
+    assert "Not directly comparable to current Stocker financial DCF projection model" in res_i[0]["stocker_assessment"]
+    print("  ✓ Case I passed: Capacity target guidance does not invent fake DCF projection.")
+
+    # Case J: Missing projection assumptions -> No generic 10/15/5% fallback
+    res_j = triangulate_guidance_vs_projections(guidance_g, dummy_stock_data, None)
+    assert res_j[0]["stocker_projected_base"] is None
+    assert "Stocker DCF projection assumptions unavailable" in res_j[0]["stocker_assessment"]
+    print("  ✓ Case J passed: Missing assumptions cleanly yields None without fake 10% defaults.")
+
+    # Case K: Current run-rate uses correct metric for each type
+    assert res_g[0]["current_run_rate_value"] == 12.5 # Revenue YoY
+    assert res_h[0]["current_run_rate_value"] == 23.5 # OPM %
+    print("  ✓ Case K passed: Current run-rate matches metric identity correctly.")
+
 if __name__ == "__main__":
     test_case_a_missing_structured_financial_data()
     test_case_b_future_target_deadline_override()
@@ -782,5 +949,9 @@ if __name__ == "__main__":
     test_statement_claim_verification()
     test_inter_document_kpi_evolution()
     test_guidance_vs_projections_triangulation()
-    print("\n🎉 ALL CASES A-G, CASH FLOW CASES A-F, KNOWLEDGE PERSISTENCE & EVOLUTION TESTS PASSED PERFECTLY!")
+    test_review_cases_a_b_c_statement_verification_discrepancies()
+    test_review_cases_d_e_f_kpi_identity_matching()
+    test_review_cases_g_h_i_j_k_guidance_triangulation_correctness()
+    print("\n🎉 ALL CASES A-G, CASH FLOW CASES A-F, KNOWLEDGE PERSISTENCE & REVIEW CASES A-K PASSED PERFECTLY!")
+
 

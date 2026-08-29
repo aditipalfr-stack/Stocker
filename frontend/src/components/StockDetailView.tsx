@@ -1626,8 +1626,9 @@ export const StockDetailView: React.FC<StockDetailViewProps> = ({ stock, onBack,
                 ) : (
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     {docIntel.verified_facts.map((fact, idx) => {
-                      const isVerified = fact.statement_verification_status?.includes('Verified');
+                      const isVerified = fact.statement_verification_status === 'Verified against Reported Financials';
                       const isDiscrepancy = fact.statement_verification_status?.includes('Discrepancy');
+                      const isContextOnly = fact.statement_verification_status?.includes('Statement Context') || fact.statement_verification_status?.includes('Not Directly Comparable');
                       const isOperational = fact.statement_verification_status?.includes('Operational');
 
                       return (
@@ -1638,6 +1639,7 @@ export const StockDetailView: React.FC<StockDetailViewProps> = ({ stock, onBack,
                               <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
                                 isVerified ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30' :
                                 isDiscrepancy ? 'bg-rose-500/20 text-rose-300 border-rose-500/30' :
+                                isContextOnly ? 'bg-amber-500/20 text-amber-300 border-amber-500/30' :
                                 isOperational ? 'bg-cyan-500/20 text-cyan-300 border-cyan-500/30' :
                                 'bg-slate-800 text-slate-300 border-slate-700'
                               }`}>
@@ -1651,7 +1653,7 @@ export const StockDetailView: React.FC<StockDetailViewProps> = ({ stock, onBack,
                                 <span className="text-[10px] text-slate-500 uppercase font-sans block">
                                   {fact.latest_period || 'Current Filing'}
                                 </span>
-                                <span className="text-emerald-400 font-bold text-sm">
+                                <span className={`font-bold text-sm ${isDiscrepancy ? 'text-rose-400' : 'text-emerald-400'}`}>
                                   {fact.latest_value_raw}
                                 </span>
                               </div>
@@ -1675,8 +1677,12 @@ export const StockDetailView: React.FC<StockDetailViewProps> = ({ stock, onBack,
 
                             {/* Audited Statement Check */}
                             {fact.statement_reported_value && (
-                              <div className="bg-cyan-950/30 p-2.5 rounded-lg border border-cyan-800/40 text-[11px] font-mono text-cyan-200">
-                                <span className="font-sans font-bold text-[10px] uppercase text-cyan-400 block">Reported Statement Fact</span>
+                              <div className={`p-2.5 rounded-lg border text-[11px] font-mono ${
+                                isDiscrepancy ? 'bg-rose-950/30 border-rose-800/40 text-rose-200' : 'bg-cyan-950/30 border-cyan-800/40 text-cyan-200'
+                              }`}>
+                                <span className={`font-sans font-bold text-[10px] uppercase block ${isDiscrepancy ? 'text-rose-400' : 'text-cyan-400'}`}>
+                                  {isDiscrepancy ? 'Audited Financial Statement Reality' : 'Reported Statement Fact'}
+                                </span>
                                 <span>{fact.statement_reported_value}</span>
                               </div>
                             )}
@@ -1684,7 +1690,9 @@ export const StockDetailView: React.FC<StockDetailViewProps> = ({ stock, onBack,
                             {/* Stocker Assessment Note */}
                             {fact.stocker_assessment && (
                               <div className="text-xs text-slate-300 bg-slate-900/40 p-3 rounded-xl border border-slate-800/60">
-                                <span className="font-bold text-emerald-400 text-[10px] uppercase block mb-1">Stocker Assessment</span>
+                                <span className={`font-bold text-[10px] uppercase block mb-1 ${isDiscrepancy ? 'text-rose-400' : 'text-emerald-400'}`}>
+                                  Stocker Assessment
+                                </span>
                                 <p className="leading-relaxed">{fact.stocker_assessment}</p>
                               </div>
                             )}
@@ -1829,28 +1837,39 @@ export const StockDetailView: React.FC<StockDetailViewProps> = ({ stock, onBack,
                           <span className="text-[10px] font-bold uppercase tracking-wider text-cyan-400 block">
                             Stocker DCF Projection
                           </span>
-                          <div className="space-y-1">
-                            <p className="text-sm font-bold text-cyan-200">Base Case: {item.stocker_projected_base}%</p>
-                            <p className="text-[11px] text-slate-400 font-mono">Bull: {item.stocker_projected_bull}% | Bear: {item.stocker_projected_bear}%</p>
-                          </div>
-                          {item.variance_guidance_vs_base_bps !== null && (
-                            <span className={`text-[10px] font-mono px-2 py-0.5 rounded ${
-                              item.variance_guidance_vs_base_bps >= 0 ? 'bg-emerald-950 text-emerald-300' : 'bg-rose-950 text-rose-300'
-                            }`}>
-                              Variance vs Base: {item.variance_guidance_vs_base_bps >= 0 ? '+' : ''}{item.variance_guidance_vs_base_bps} bps
-                            </span>
+                          {item.stocker_projected_base !== null && item.stocker_projected_base !== undefined ? (
+                            <div className="space-y-1">
+                              <p className="text-sm font-bold text-cyan-200">Base Case: {item.stocker_projected_base}%</p>
+                              <p className="text-[11px] text-slate-400 font-mono">Bull: {item.stocker_projected_bull}% | Bear: {item.stocker_projected_bear}%</p>
+                              {item.variance_guidance_vs_base_bps !== null && item.variance_guidance_vs_base_bps !== undefined && (
+                                <span className={`text-[10px] font-mono px-2 py-0.5 rounded inline-block mt-1 ${
+                                  item.variance_guidance_vs_base_bps >= 0 ? 'bg-emerald-950 text-emerald-300' : 'bg-rose-950 text-rose-300'
+                                }`}>
+                                  Variance vs Base: {item.variance_guidance_vs_base_bps >= 0 ? '+' : ''}{item.variance_guidance_vs_base_bps} bps
+                                </span>
+                              )}
+                            </div>
+                          ) : (
+                            <div className="space-y-1">
+                              <p className="text-xs font-semibold text-slate-400">No Direct DCF Model</p>
+                              <p className="text-[10px] text-slate-500">Operational / non-DCF guidance metric</p>
+                            </div>
                           )}
                         </div>
 
                         {/* Column 3: Current Run Rate */}
                         <div className="bg-slate-900/60 p-4 rounded-xl border border-slate-800 space-y-2">
                           <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-400 block">
-                            Current Quarterly Run-Rate
+                            Current Run-Rate / Baseline
                           </span>
                           <p className="text-sm font-bold text-white">
-                            {item.current_run_rate_value !== null && item.current_run_rate_value !== undefined ? `${item.current_run_rate_value}% YoY` : 'Tracked Ongoing'}
+                            {item.current_run_rate_value !== null && item.current_run_rate_value !== undefined ? (
+                              `${item.current_run_rate_value}${item.metric_name?.toLowerCase().includes('margin') || item.metric_name?.toLowerCase().includes('growth') || item.metric_name?.toLowerCase().includes('revenue') ? '%' : ''}`
+                            ) : (
+                              'Unavailable / Not Tracked'
+                            )}
                           </p>
-                          <p className="text-[10px] text-slate-400">Period: {item.current_run_rate_period || 'Latest Quarter'}</p>
+                          <p className="text-[10px] text-slate-400">Period: {item.current_run_rate_period || 'Ongoing'}</p>
                         </div>
                       </div>
 
