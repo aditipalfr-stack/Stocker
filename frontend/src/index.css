@@ -349,6 +349,7 @@
 /* Dashboard and cross-company comparison readability */
 .dashboard-sort-header { padding: 0.875rem 1rem; cursor: pointer; transition: color 120ms ease, background-color 120ms ease; }
 .dashboard-sort-header:hover { color: var(--positive); }
+.dashboard-sort-header:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
 .dashboard-sort-active { color: var(--positive); background: color-mix(in srgb, var(--positive) 7%, var(--panel-bg)); box-shadow: inset 0 -2px var(--positive); }
 .dashboard-compare-col { position: sticky; left: 0; z-index: 5; min-width: 70px; background: var(--panel-bg); }
 .dashboard-company-col { position: sticky; left: 70px; z-index: 4; min-width: 140px; background: var(--card-bg); box-shadow: 1px 0 0 var(--border-color); }

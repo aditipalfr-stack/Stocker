@@ -2,6 +2,7 @@ import sys
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
 from unittest.mock import MagicMock, patch
+from bs4 import BeautifulSoup
 
 sys.path.insert(0, str(Path(__file__).parent.parent / "libs"))
 sys.path.insert(0, str(Path(__file__).parent))
@@ -169,7 +170,24 @@ def test_case_g_company_ir_incremental_fallback():
             )
             # The older FY20 and FY19 reports should be skipped under incremental cutoff
             assert not any("FY19" in d.title or "FY20" in d.title for d in docs)
+            assert any("FY27" in d.title for d in docs)
+            assert all(d.discovery_source == "Company IR" for d in docs)
+            assert all(d.actual_source_host == "testir.com" for d in docs)
             print("✓ Case G passed: Company IR incremental scan safely filtered older historical filings.")
+
+def test_screener_document_url_parsing():
+    """Screener document discovery must parse relative filing URLs without a runtime NameError."""
+    print("Testing Screener document URL parsing...")
+    soup = BeautifulSoup(
+        '<section id="documents"><a href="/company/reports/demo.pdf">Annual Report FY26</a></section>',
+        "html.parser"
+    )
+    docs = document_sourcing.discover_documents_screener(soup, "TEST", "Test Ltd")
+    assert len(docs) == 1
+    assert docs[0].url == "https://www.screener.in/company/reports/demo.pdf"
+    assert docs[0].actual_source_host == "www.screener.in"
+    assert docs[0].discovery_source == "Screener.in"
+    print("✓ Screener document URL parsing passed without NameError.")
 
 def test_qualitative_milestone_completion_matching():
     """Verify qualitative milestone completion keyword matching."""
@@ -233,6 +251,10 @@ def test_formula_transparency():
     assert "sales_cagr_3yr" in ft
     assert "free_cash_flow" in ft
     assert ft["free_cash_flow"]["value"] == 6000.0 # CFO 21000 - Capex 15000 = 6000
+    assert ft["free_cash_flow"]["formula"] == "FCF = CFO - Capex"
+    assert ft["free_cash_flow"]["source"]
+    print("✓ Formula transparency verified successfully.")
+
 def test_production_pipeline_financial_wiring():
     """Integration Test: Executes run_multi_document_ai_pipeline -> extract_document_intelligence_with_llm
     to prove that financial_statements_text, pl_stmt, quarters_stmt, bs_stmt, cf_stmt are correctly
@@ -283,7 +305,8 @@ def test_production_pipeline_financial_wiring():
             company_name="Infosys Ltd",
             latest_document_period="FY26",
             model_version="gemini-3.1-flash-lite",
-            ai_provider_used="GEMINI (gemini-3.1-flash-lite)"
+            ai_provider_used="GEMINI (gemini-3.1-flash-lite)",
+            source_documents=kwargs.get("candidate_documents_meta", [])
         )
         return True, res, "Success"
 
@@ -307,6 +330,14 @@ def test_production_pipeline_financial_wiring():
         assert captured_llm_kwargs["quarters_stmt"] is not None
         assert captured_llm_kwargs["bs_stmt"] is not None
         assert captured_llm_kwargs["cf_stmt"] is not None
+        expected_source_documents = captured_llm_kwargs["candidate_documents_meta"]
+        assert expected_source_documents
+        assert output["source_documents"] == expected_source_documents
+        assert {doc["url"] for doc in output["source_documents"]}.issubset({
+            "https://example.com/ar26.pdf",
+            "https://example.com/ar25.pdf",
+            "https://example.com/cc26.pdf"
+        })
         print("  ✓ Path 1 passed: Cache populated flow passed structured statements to LLM without NameError.")
 
     # Test Path 2: Cache is missing, fallback ingestion retrieves statements
@@ -338,10 +369,8 @@ if __name__ == "__main__":
     test_case_e_numerical_guidance_with_structured_pl()
     test_case_f_gemini_fallback_model_provenance()
     test_case_g_company_ir_incremental_fallback()
+    test_screener_document_url_parsing()
     test_qualitative_milestone_completion_matching()
     test_formula_transparency()
     test_production_pipeline_financial_wiring()
     print("\n🎉 ALL CASES A-G, INTEGRATION & REGRESSION TESTS PASSED PERFECTLY!")
-
-
-

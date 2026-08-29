@@ -2613,7 +2613,7 @@ export const StockDetailView: React.FC<StockDetailViewProps> = ({ stock, onBack,
           <StatementSummaryStrip items={statementSummary} />
 
           {/* Render selected statement */}
-          {financialSubTab === 'quarters' && <FinancialStatementTable statement={stock.quarters} />}
+          {financialSubTab === 'quarters' && <FinancialStatementTable statement={stock.quarters} comparisonLabel="QoQ" />}
           {financialSubTab === 'pl' && <FinancialStatementTable statement={stock.profit_loss} />}
           {financialSubTab === 'balance_sheet' && <FinancialStatementTable statement={stock.balance_sheet} />}
           {financialSubTab === 'cash_flow' && (

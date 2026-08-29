@@ -21,9 +21,10 @@ const getStatementGlossaryTerm = (metric: string): GlossaryTerm | null => {
 
 interface FinancialStatementTableProps {
   statement: FinancialStatement;
+  comparisonLabel?: string;
 }
 
-export const FinancialStatementTable: React.FC<FinancialStatementTableProps> = ({ statement }) => {
+export const FinancialStatementTable: React.FC<FinancialStatementTableProps> = ({ statement, comparisonLabel = 'vs prior period' }) => {
   const latestIndex = statement.periods.length - 1;
 
   return (
@@ -41,7 +42,10 @@ export const FinancialStatementTable: React.FC<FinancialStatementTableProps> = (
                 {index === latestIndex && <small className="latest-label">Latest</small>}
               </th>
             ))}
-            <th className="financial-trend-heading">Trend</th>
+            <th className="financial-trend-heading">
+              <span>Trend</span>
+              <small>{comparisonLabel}</small>
+            </th>
           </tr>
         </thead>
         <tbody>

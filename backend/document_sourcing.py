@@ -4,6 +4,7 @@ import json
 import time
 from datetime import datetime, timezone, timedelta
 from typing import Dict, List, Optional, Tuple, Any
+from urllib.parse import urlparse
 from bs4 import BeautifulSoup
 import requests
 

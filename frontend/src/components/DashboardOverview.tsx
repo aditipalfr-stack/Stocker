@@ -92,6 +92,19 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
   };
 
   const sortHeaderClass = (field: keyof StockSummary) => `dashboard-sort-header ${sortField === field ? 'dashboard-sort-active' : ''}`;
+  const sortHeaderProps = (field: keyof StockSummary) => ({
+    className: sortHeaderClass(field),
+    onClick: () => handleSort(field),
+    onKeyDown: (event: React.KeyboardEvent<HTMLTableCellElement>) => {
+      if (event.target !== event.currentTarget) return;
+      if (event.key === 'Enter' || event.key === ' ') {
+        event.preventDefault();
+        handleSort(field);
+      }
+    },
+    tabIndex: 0,
+    'aria-sort': sortField === field ? (sortAsc ? 'ascending' as const : 'descending' as const) : 'none' as const
+  });
 
   return (
     <div className="space-y-8 pb-16">
@@ -311,67 +324,67 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
             <thead className="bg-slate-900/90 text-slate-400 font-mono uppercase tracking-wider border-b border-slate-800">
               <tr>
                 <th className="dashboard-compare-col py-3.5 px-4 w-12 text-center">Compare</th>
-                <th className={`${sortHeaderClass('symbol')} dashboard-company-col`} onClick={() => handleSort('symbol')} aria-sort={sortField === 'symbol' ? (sortAsc ? 'ascending' : 'descending') : 'none'}>
+                <th {...sortHeaderProps('symbol')} className={`${sortHeaderClass('symbol')} dashboard-company-col`}>
                   <div className="flex items-center gap-1">
                     <span>Company</span>
                     {sortIndicator('symbol')}
                   </div>
                 </th>
-                <th className={sortHeaderClass('rank')} onClick={() => handleSort('rank')} aria-sort={sortField === 'rank' ? (sortAsc ? 'ascending' : 'descending') : 'none'}>
+                <th {...sortHeaderProps('rank')}>
                   <div className="flex items-center gap-1">
                     <span>Rank</span>
                     {sortIndicator('rank')}
                   </div>
                 </th>
-                <th className={sortHeaderClass('current_price')} onClick={() => handleSort('current_price')} aria-sort={sortField === 'current_price' ? (sortAsc ? 'ascending' : 'descending') : 'none'}>
+                <th {...sortHeaderProps('current_price')}>
                   <div className="flex items-center gap-1">
                     <span>Price (₹)</span>
                     {sortIndicator('current_price')}
                   </div>
                 </th>
-                <th className={sortHeaderClass('pe_ratio')} onClick={() => handleSort('pe_ratio')} aria-sort={sortField === 'pe_ratio' ? (sortAsc ? 'ascending' : 'descending') : 'none'}>
+                <th {...sortHeaderProps('pe_ratio')}>
                   <div className="flex items-center gap-1">
                     <ConceptHelp term="pe" label="P/E" />
                     {sortIndicator('pe_ratio')}
                   </div>
                 </th>
-                <th className={sortHeaderClass('roce_pct')} onClick={() => handleSort('roce_pct')} aria-sort={sortField === 'roce_pct' ? (sortAsc ? 'ascending' : 'descending') : 'none'}>
+                <th {...sortHeaderProps('roce_pct')}>
                   <div className="flex items-center gap-1">
                     <ConceptHelp term="roce" label="ROCE %" />
                     {sortIndicator('roce_pct')}
                   </div>
                 </th>
-                <th className={sortHeaderClass('roe_pct')} onClick={() => handleSort('roe_pct')} aria-sort={sortField === 'roe_pct' ? (sortAsc ? 'ascending' : 'descending') : 'none'}>
+                <th {...sortHeaderProps('roe_pct')}>
                   <div className="flex items-center gap-1">
                     <ConceptHelp term="roe" label="ROE %" />
                     {sortIndicator('roe_pct')}
                   </div>
                 </th>
-                <th className={sortHeaderClass('fcf_yield_pct')} onClick={() => handleSort('fcf_yield_pct')} aria-sort={sortField === 'fcf_yield_pct' ? (sortAsc ? 'ascending' : 'descending') : 'none'}>
+                <th {...sortHeaderProps('fcf_yield_pct')}>
                   <div className="flex items-center gap-1">
                     <ConceptHelp term="fcf" label="FCF Yield" />
                     {sortIndicator('fcf_yield_pct')}
                   </div>
                 </th>
-                <th className={sortHeaderClass('sales_growth_3yr_pct')} onClick={() => handleSort('sales_growth_3yr_pct')} aria-sort={sortField === 'sales_growth_3yr_pct' ? (sortAsc ? 'ascending' : 'descending') : 'none'}>
+                <th {...sortHeaderProps('sales_growth_3yr_pct')}>
                   <div className="flex items-center gap-1">
                     <ConceptHelp term="sales_cagr" label="3Y Sales CAGR" />
                     {sortIndicator('sales_growth_3yr_pct')}
                   </div>
                 </th>
-                <th className={sortHeaderClass('cfo_to_pat_5yr_pct')} onClick={() => handleSort('cfo_to_pat_5yr_pct')} aria-sort={sortField === 'cfo_to_pat_5yr_pct' ? (sortAsc ? 'ascending' : 'descending') : 'none'}>
+                <th {...sortHeaderProps('cfo_to_pat_5yr_pct')}>
                   <div className="flex items-center gap-1">
                     <ConceptHelp term="cfo_pat" label="CFO/PAT (5Y)" />
                     {sortIndicator('cfo_to_pat_5yr_pct')}
                   </div>
                 </th>
-                <th className={sortHeaderClass('net_debt_to_equity')} onClick={() => handleSort('net_debt_to_equity')} aria-sort={sortField === 'net_debt_to_equity' ? (sortAsc ? 'ascending' : 'descending') : 'none'}>
+                <th {...sortHeaderProps('net_debt_to_equity')}>
                   <div className="flex items-center gap-1">
                     <ConceptHelp term="debt_equity" label="Debt/Eq" />
                     {sortIndicator('net_debt_to_equity')}
                   </div>
                 </th>
-                <th className={sortHeaderClass('composite_score')} onClick={() => handleSort('composite_score')} aria-sort={sortField === 'composite_score' ? (sortAsc ? 'ascending' : 'descending') : 'none'}>
+                <th {...sortHeaderProps('composite_score')}>
                   <div className="flex items-center gap-1">
                     <span>Composite Score</span>
                     {sortIndicator('composite_score')}
