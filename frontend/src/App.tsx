@@ -161,7 +161,7 @@ export function App() {
       <GlossaryDrawer isOpen={isGlossaryOpen} onClose={() => setIsGlossaryOpen(false)} />
 
       {/* Main App Body */}
-      <main className="flex-1 max-w-7xl w-full mx-auto px-4 lg:px-8 pt-6">
+      <main className="layout-wide flex-1 pt-5 lg:pt-6">
         
         {/* Global Loading Spinner */}
         {isLoading && (
@@ -221,8 +221,8 @@ export function App() {
       </main>
 
       {/* Institutional Footer */}
-      <footer className="border-t border-theme bg-panel py-6 px-4 text-center text-xs text-muted font-mono">
-        <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-2">
+      <footer className="border-t border-theme bg-panel py-5 text-center text-xs text-muted font-mono">
+        <div className="layout-wide flex flex-col sm:flex-row items-center justify-between gap-2">
           <span>Stocker Decision Platform • Powered by Raw Screener Data & DCF Engine</span>
           <span>Nifty 500 Fundamental Ingestion Ready</span>
         </div>

@@ -38,8 +38,8 @@ export const Navbar: React.FC<NavbarProps> = ({
   };
 
   return (
-    <header className="sticky top-0 z-50 glass-panel border-b border-slate-800/80 px-4 lg:px-8 py-3.5">
-      <div className="max-w-7xl mx-auto flex flex-col md:flex-row md:flex-wrap 2xl:flex-nowrap items-center justify-between gap-4">
+    <header className="sticky top-0 z-50 glass-panel border-b border-slate-800/80 py-3.5">
+      <div className="layout-wide navbar-layout flex flex-col md:flex-row md:flex-wrap items-center justify-between gap-4">
         
         {/* Brand Logo & Title */}
         <div className="flex items-center gap-3 cursor-pointer" onClick={() => setActiveTab('overview')}>
@@ -86,7 +86,7 @@ export const Navbar: React.FC<NavbarProps> = ({
         </form>
 
         {/* Navigation Tabs */}
-        <div className="flex items-center justify-start md:justify-center gap-1.5 bg-slate-900/80 p-1 rounded-xl border border-slate-800 overflow-x-auto max-w-full w-full 2xl:w-auto">
+        <div className="navbar-actions flex items-center justify-start md:justify-center gap-1.5 bg-slate-900/80 p-1 rounded-xl border border-slate-800 overflow-x-auto max-w-full w-full 2xl:w-auto">
           <button
             onClick={() => setActiveTab('overview')}
             className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 ${

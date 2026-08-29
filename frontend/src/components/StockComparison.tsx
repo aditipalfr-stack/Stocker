@@ -70,7 +70,7 @@ export const StockComparison: React.FC<StockComparisonProps> = ({
   );
 
   return (
-    <div className="space-y-8 pb-20">
+    <div className="space-y-6 pb-12">
       
       {/* Header */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
@@ -113,8 +113,8 @@ export const StockComparison: React.FC<StockComparisonProps> = ({
       </div>
 
       {/* Comparison Grid Cards */}
-      <div className="glass-panel rounded-3xl p-6 border border-slate-800 overflow-x-auto">
-        <table className="w-full text-left text-xs font-mono">
+      <div className="comparison-table-panel glass-panel rounded-3xl p-4 sm:p-5 border border-slate-800 overflow-x-auto">
+        <table className="comparison-table w-full text-left text-xs font-mono">
           <thead>
             <tr className="border-b border-slate-800 text-slate-400 uppercase tracking-wider">
               <th className="py-4 px-4 sticky left-0 bg-slate-900 z-10 font-sans font-bold text-slate-300 min-w-[180px]">

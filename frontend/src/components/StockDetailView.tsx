@@ -412,7 +412,7 @@ export const StockDetailView: React.FC<StockDetailViewProps> = ({ stock, onBack,
   };
 
   return (
-    <div className="space-y-6 pb-20">
+    <div className="space-y-6 pb-12">
       
       {/* Back Button & Dossier Header */}
       <div className="flex items-center justify-between">
@@ -589,7 +589,7 @@ export const StockDetailView: React.FC<StockDetailViewProps> = ({ stock, onBack,
         </div>
 
         {/* Company About Snippet */}
-        <p className="text-xs text-slate-400 leading-relaxed bg-slate-900/40 p-3.5 rounded-xl border border-slate-800/60">
+        <p className="layout-reading text-xs text-slate-400 leading-relaxed bg-slate-900/40 p-3.5 rounded-xl border border-slate-800/60">
           <strong className="text-slate-200">About Company:</strong> {stock.about}
         </p>
       </div>
@@ -613,7 +613,7 @@ export const StockDetailView: React.FC<StockDetailViewProps> = ({ stock, onBack,
         </div>
 
         {/* Core Thesis Paragraph */}
-        <p className="text-xs text-slate-200 leading-relaxed bg-slate-900/60 p-4 rounded-2xl border border-slate-800/80">
+        <p className="layout-reading text-xs text-slate-200 leading-relaxed bg-slate-900/60 p-4 rounded-2xl border border-slate-800/80">
           <strong className="text-emerald-400 font-semibold uppercase tracking-wider text-[11px] block mb-1">The Core Buy Thesis:</strong>
           {stock.score.investment_thesis}
         </p>
