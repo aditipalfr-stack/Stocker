@@ -7,6 +7,68 @@ from pathlib import Path
 
 import database
 
+
+GEMINI_API_BASE = "https://generativelanguage.googleapis.com/v1beta"
+
+
+class AIServiceError(RuntimeError):
+    """Base exception for failures that callers can safely classify."""
+
+
+class AIProviderNetworkError(AIServiceError):
+    """The provider could not be reached because of DNS, connection, or timeout failures."""
+
+
+class AIProviderAuthError(AIServiceError):
+    """The provider rejected the configured credential."""
+
+
+class AIProviderQuotaError(AIServiceError):
+    """The provider rejected the request because its quota or rate limit was exhausted."""
+
+
+def sanitize_ai_error(error: Any, api_key: Optional[str] = None) -> str:
+    """Remove credentials from provider and requests-library error messages."""
+    message = str(error)
+    message = re.sub(r"([?&]key=)[^&\s'\"]+", r"\1[REDACTED]", message, flags=re.IGNORECASE)
+    if api_key:
+        message = message.replace(api_key, "[REDACTED]")
+    return message
+
+
+def format_ai_error_for_user(error: Any, provider: str = "gemini") -> str:
+    """Convert an internal provider error into a safe, actionable UI message."""
+    safe_message = sanitize_ai_error(error)
+    lower_message = safe_message.lower()
+
+    if isinstance(error, AIProviderNetworkError) or any(marker in lower_message for marker in (
+        "nameresolutionerror",
+        "failed to resolve",
+        "name resolution",
+        "connection error",
+        "network/timeout",
+    )):
+        if provider.lower() == "gemini":
+            return (
+                "Could not reach Google Gemini because the backend has a DNS/network connection problem. "
+                "This is not an API-key error. Check that the backend can resolve and access "
+                "generativelanguage.googleapis.com, then retry."
+            )
+        return "Could not reach the AI provider because the backend has a DNS/network connection problem. Retry after connectivity is restored."
+
+    if isinstance(error, AIProviderAuthError):
+        return "Google Gemini rejected the configured API key. Verify or replace the key and try again."
+    if isinstance(error, AIProviderQuotaError):
+        return "Google Gemini quota or rate limit was exceeded. Check the API project's quota and retry later."
+
+    # Keep useful model/schema context while ensuring a provider response cannot expose a key.
+    return safe_message[:500]
+
+
+def _gemini_headers(api_key: str) -> Dict[str, str]:
+    # Sending the key in a header prevents requests from embedding it in exception URLs.
+    return {"Content-Type": "application/json", "x-goog-api-key": api_key}
+
 try:
     from dotenv import load_dotenv
     env_path = Path(__file__).parent.parent / ".env"
@@ -310,10 +372,10 @@ def test_ai_key_connectivity() -> Dict[str, Any]:
     masked_key = f"{key[:6]}...{key[-4:]}" if len(key) > 10 else "***"
     
     if provider == "gemini":
-        test_url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite:generateContent?key={key}"
+        test_url = f"{GEMINI_API_BASE}/models/gemini-3.1-flash-lite:generateContent"
         payload = {"contents": [{"parts": [{"text": "Reply with OK"}]}]}
         try:
-            r = requests.post(test_url, json=payload, headers={"Content-Type": "application/json"}, timeout=8)
+            r = requests.post(test_url, json=payload, headers=_gemini_headers(key), timeout=8)
             if r.status_code == 200:
                 return {
                     "configured": True,
@@ -346,13 +408,16 @@ def test_ai_key_connectivity() -> Dict[str, Any]:
                     "key_preview": masked_key,
                     "message": f"Gemini API returned status {r.status_code}: {r.text[:150]}"
                 }
-        except Exception as e:
+        except requests.exceptions.RequestException:
             return {
                 "configured": True,
                 "provider": "Google Gemini",
                 "status": "network_error",
                 "key_preview": masked_key,
-                "message": f"Network connection to Google Gemini failed: {str(e)[:120]}"
+                "message": (
+                    "Could not reach Google Gemini because the backend has a DNS/network connection problem. "
+                    "The configured key was not rejected; check backend internet and DNS access."
+                )
             }
     else:
         test_url = "https://api.openai.com/v1/chat/completions"
@@ -412,7 +477,7 @@ def call_gemini_api(api_key: str, prompt: str, system_prompt: str = SYSTEM_PROMP
     ]
     last_err = None
     for model in models_to_try:
-        url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={api_key}"
+        url = f"{GEMINI_API_BASE}/models/{model}:generateContent"
         payload = {
             "contents": [{"parts": [{"text": prompt}]}],
             "systemInstruction": {"parts": [{"text": system_prompt}]},
@@ -421,34 +486,44 @@ def call_gemini_api(api_key: str, prompt: str, system_prompt: str = SYSTEM_PROMP
                 "temperature": 0.1
             }
         }
-        try:
-            print(f"    • Invoking Gemini model: {model}...")
-            resp = requests.post(url, json=payload, headers={"Content-Type": "application/json"}, timeout=40)
-            if resp.status_code == 200:
-                data = resp.json()
-                raw_text = data["candidates"][0]["content"]["parts"][0]["text"]
-                return json.loads(raw_text), model
-            elif resp.status_code in (404, 503, 429, 500, 502, 504):
-                last_err = f"Model {model} returned HTTP {resp.status_code}: {resp.text[:120]}"
-                print(f"      ⚠️ {last_err}. Falling back to next available model...")
-                time.sleep(1)
-                continue
-            else:
-                raise RuntimeError(f"Gemini API error ({resp.status_code}): {resp.text[:250]}")
-        except json.JSONDecodeError as je:
-            last_err = f"Model {model} JSON parse error: {je}"
-            print(f"      ⚠️ {last_err}. Retrying with next model...")
-            continue
-        except requests.exceptions.RequestException as re:
-            last_err = f"Model {model} network/timeout error: {re}"
-            print(f"      ⚠️ {last_err}. Retrying with next model...")
-            time.sleep(1)
-            continue
-        except Exception as e:
-            if any(code in str(e) for code in ["404", "503", "429", "timeout"]):
-                last_err = str(e)
-                continue
-            raise e
+        print(f"    • Invoking Gemini model: {model}...")
+        for network_attempt in range(3):
+            try:
+                resp = requests.post(url, json=payload, headers=_gemini_headers(api_key), timeout=40)
+                if resp.status_code == 200:
+                    data = resp.json()
+                    raw_text = data["candidates"][0]["content"]["parts"][0]["text"]
+                    return json.loads(raw_text), model
+                if resp.status_code in (401, 403):
+                    raise AIProviderAuthError("Gemini rejected the configured API key.")
+                if resp.status_code == 429:
+                    raise AIProviderQuotaError("Gemini quota or rate limit was exceeded.")
+                if resp.status_code in (404, 500, 502, 503, 504):
+                    last_err = f"Model {model} returned HTTP {resp.status_code}: {resp.text[:120]}"
+                    print(f"      ⚠️ {last_err}. Falling back to next available model...")
+                    time.sleep(1)
+                    break
+                raise AIServiceError(f"Gemini API error ({resp.status_code}): {resp.text[:250]}")
+            except json.JSONDecodeError as json_error:
+                last_err = f"Model {model} JSON parse error: {json_error}"
+                print(f"      ⚠️ {last_err}. Retrying with next model...")
+                break
+            except requests.exceptions.ConnectionError as network_error:
+                # Every model uses the same hostname, so switching models cannot fix DNS/connectivity.
+                if network_attempt < 2:
+                    time.sleep(0.5 * (2 ** network_attempt))
+                    continue
+                safe_error = sanitize_ai_error(network_error, api_key)
+                raise AIProviderNetworkError(f"Gemini network connection failed after 3 attempts: {safe_error}") from network_error
+            except requests.exceptions.Timeout as timeout_error:
+                if network_attempt < 2:
+                    time.sleep(0.5 * (2 ** network_attempt))
+                    continue
+                safe_error = sanitize_ai_error(timeout_error, api_key)
+                raise AIProviderNetworkError(f"Gemini request timed out after 3 attempts: {safe_error}") from timeout_error
+            except requests.exceptions.RequestException as request_error:
+                safe_error = sanitize_ai_error(request_error, api_key)
+                raise AIProviderNetworkError(f"Gemini network request failed: {safe_error}") from request_error
             
     raise RuntimeError(f"All Gemini models failed. Last error: {last_err}")
 
@@ -555,6 +630,9 @@ OFFICIAL URL: {doc_url}
                 print(f"Notice: Could not persist knowledge facts for {doc_title}: {e_db}")
                 
         return summary
+    except AIServiceError:
+        # A provider outage should stop this run instead of being retried once per document.
+        raise
     except Exception as e:
         print(f"    ⚠️ Failed to generate single doc summary for {doc_title}: {e}")
         return None
@@ -876,7 +954,8 @@ SYNTHESIS INSTRUCTIONS:
             print(f"Notice: Knowledge verification engine error: {e_k}")
 
         return True, result, "Extraction succeeded"
+    except AIServiceError:
+        raise
     except Exception as e:
-        return False, None, f"Error running LLM extraction with {provider.upper()}: {e}"
-
+        return False, None, f"Error running LLM extraction with {provider.upper()}: {format_ai_error_for_user(e, provider)}"
 

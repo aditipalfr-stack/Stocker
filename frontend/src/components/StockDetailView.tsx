@@ -85,6 +85,15 @@ export const StockDetailView: React.FC<StockDetailViewProps> = ({ stock, onBack,
         setIsKeyModalOpen(true);
         return;
       }
+      if (status.status === 'network_error' || status.status === 'quota_exceeded') {
+        setDocIntelError(status.message);
+        return;
+      }
+      if (status.status === 'invalid_key') {
+        setDocIntelError(status.message);
+        setIsKeyModalOpen(true);
+        return;
+      }
     } catch (e) {
       // Proceed
     }
@@ -3310,4 +3319,3 @@ export const StockDetailView: React.FC<StockDetailViewProps> = ({ stock, onBack,
     </div>
   );
 };
-
