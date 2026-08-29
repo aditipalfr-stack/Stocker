@@ -405,6 +405,80 @@ export interface AnnouncementSpecificSummary {
   changes_management_guidance?: string;
 }
 
+export interface CompanyFactItem {
+  metric_name: string;
+  stated_value_raw: string;
+  numeric_value?: number;
+  unit?: string;
+  period_or_date: string;
+  target_period?: string;
+  category: string;
+  scope?: string;
+  claim_type?: string;
+  source_doc_title?: string;
+  source_url?: string;
+  source_page?: number;
+  source_quote?: string;
+}
+
+export interface VerifiedFactComparison {
+  metric_name: string;
+  category: string;
+  scope: string;
+  latest_period: string;
+  latest_value_raw: string;
+  latest_numeric?: number;
+  prior_period?: string;
+  prior_value_raw?: string;
+  prior_numeric?: number;
+  delta_numeric?: number;
+  pct_change?: number;
+  unit?: string;
+  statement_verification_status: string;
+  statement_reported_value?: string;
+  management_explanation?: string;
+  stocker_assessment: string;
+  source_doc_title?: string;
+  source_url?: string;
+  source_page?: number;
+  newer_evidence_available?: boolean;
+  newer_evidence_note?: string;
+}
+
+export interface InterDocumentKPITrend {
+  metric_name: string;
+  category: string;
+  unit?: string;
+  trajectory: string;
+  data_points: Array<{
+    period: string;
+    stated_value: string;
+    numeric_value?: number;
+    doc_title?: string;
+    doc_url?: string;
+    doc_type?: string;
+  }>;
+  latest_vs_prior_change?: string;
+  pct_change?: number;
+  insight: string;
+}
+
+export interface GuidanceVsProjection {
+  metric_name: string;
+  period_target: string;
+  management_guidance_raw: string;
+  management_guidance_numeric?: number;
+  guidance_source_doc: string;
+  guidance_source_url?: string;
+  stocker_projected_base?: number;
+  stocker_projected_bull?: number;
+  stocker_projected_bear?: number;
+  current_run_rate_value?: number;
+  current_run_rate_period?: string;
+  variance_guidance_vs_base_bps?: number;
+  stocker_assessment: string;
+}
+
 export interface DocumentSummaryItem {
   doc_title: string;
   doc_url: string;
@@ -416,6 +490,7 @@ export interface DocumentSummaryItem {
   guidance_and_capex?: string;
   risks_and_headwinds?: string[];
   capex_or_guidance_highlight?: string;
+  extracted_facts?: CompanyFactItem[];
   
   // Document-Type Specialized Extractions
   strategic_priorities?: string;
@@ -460,6 +535,9 @@ export interface BusinessOutlookIntelligence {
   risks_and_cash: RisksAndCashIssues;
   stocker_view: StockerView;
   document_summaries?: DocumentSummaryItem[];
+  verified_facts?: VerifiedFactComparison[];
+  operational_kpi_evolution?: InterDocumentKPITrend[];
+  guidance_vs_projections?: GuidanceVsProjection[];
 }
 
 

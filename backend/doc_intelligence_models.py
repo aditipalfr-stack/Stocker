@@ -137,6 +137,73 @@ class AnnouncementSpecificSummary(BaseModel):
     business_impact: Optional[str] = None
     changes_management_guidance: Optional[str] = None
 
+# 8. PERSISTENT COMPANY FACT / KPI ITEM
+class CompanyFactItem(BaseModel):
+    metric_name: str = Field(description="Name of metric e.g. Revenue, EBITDA Margin, ARPU, Solar Capacity, Order Book")
+    stated_value_raw: str = Field(description="Exact value as stated in filing e.g. 52%, ₹245, 1 GW, ₹14,500 Cr")
+    numeric_value: Optional[float] = Field(default=None, description="Parsed numeric value for deterministic code math")
+    unit: Optional[str] = Field(default=None, description="Unit e.g. %, ₹, MW, ₹ Cr, bps, subscribers")
+    period_or_date: str = Field(description="Period described e.g. FY26, Q3 FY26, Mar 2026")
+    target_period: Optional[str] = Field(default=None, description="Target period if forward guidance e.g. FY27, FY28")
+    category: str = Field(default="operational_kpi", description="financial_metric, operational_kpi, management_guidance, strategic_initiative, risk_headwind")
+    scope: str = Field(default="Consolidated", description="Consolidated, Standalone, Segment name, Geography")
+    claim_type: str = Field(default="reported_fact", description="reported_fact, management_guidance, management_target, strategic_commentary")
+    source_doc_title: Optional[str] = None
+    source_url: Optional[str] = None
+    source_page: Optional[int] = None
+    source_quote: Optional[str] = None
+
+# 9. VERIFIED FACT & CONTEXT COMPARISON
+class VerifiedFactComparison(BaseModel):
+    metric_name: str
+    category: str = "operational_kpi"
+    scope: str = "Consolidated"
+    latest_period: str
+    latest_value_raw: str
+    latest_numeric: Optional[float] = None
+    prior_period: Optional[str] = None
+    prior_value_raw: Optional[str] = None
+    prior_numeric: Optional[float] = None
+    delta_numeric: Optional[float] = None
+    pct_change: Optional[float] = None
+    unit: Optional[str] = None
+    statement_verification_status: str = Field(default="Not Enough Evidence", description="Verified against Reported Financials | Discrepancy vs Reported Financials | Operational KPI (Inter-Document Comparison) | Not Enough Evidence")
+    statement_reported_value: Optional[str] = None
+    management_explanation: Optional[str] = None
+    stocker_assessment: str = Field(default="", description="Deterministic code verification or assessment note")
+    source_doc_title: Optional[str] = None
+    source_url: Optional[str] = None
+    source_page: Optional[int] = None
+    newer_evidence_available: bool = False
+    newer_evidence_note: Optional[str] = None
+
+# 10. INTER-DOCUMENT OPERATIONAL KPI EVOLUTION
+class InterDocumentKPITrend(BaseModel):
+    metric_name: str
+    category: str = "operational_kpi"
+    unit: Optional[str] = None
+    trajectory: str = "Evolving"
+    data_points: List[Dict[str, Any]] = Field(default_factory=list, description="Chronological series: period, numeric_value, stated_value, doc_title, doc_url, doc_type")
+    latest_vs_prior_change: Optional[str] = None
+    pct_change: Optional[float] = None
+    insight: str = ""
+
+# 11. GUIDANCE VS STOCKER PROJECTIONS TRIANGULATION
+class GuidanceVsProjection(BaseModel):
+    metric_name: str
+    period_target: str
+    management_guidance_raw: str
+    management_guidance_numeric: Optional[float] = None
+    guidance_source_doc: str
+    guidance_source_url: Optional[str] = None
+    stocker_projected_base: Optional[float] = None
+    stocker_projected_bull: Optional[float] = None
+    stocker_projected_bear: Optional[float] = None
+    current_run_rate_value: Optional[float] = None
+    current_run_rate_period: Optional[str] = None
+    variance_guidance_vs_base_bps: Optional[float] = None
+    stocker_assessment: str = ""
+
 class DocumentSummaryItem(BaseModel):
     doc_title: str
     doc_url: str
@@ -149,6 +216,9 @@ class DocumentSummaryItem(BaseModel):
     risks_and_headwinds: List[str] = Field(default_factory=list, description="Important risks or execution issues")
     capex_or_guidance_highlight: Optional[str] = Field(default=None, description="Legacy alias for guidance_and_capex")
     
+    # Persistent structured facts extracted from this document
+    extracted_facts: List[CompanyFactItem] = Field(default_factory=list, description="Structured investor-relevant KPIs, metrics, guidance, and claims")
+
     # Document-Type Specialized Extractions
     strategic_priorities: Optional[str] = None
     capex_and_expansion: Optional[str] = None
@@ -204,6 +274,11 @@ class BusinessOutlookResult(BaseModel):
     risks_and_cash: RisksAndCashIssues = Field(default_factory=RisksAndCashIssues)
     stocker_view: StockerView = Field(default_factory=StockerView)
     document_summaries: List[DocumentSummaryItem] = Field(default_factory=list)
+
+    # Integrated Knowledge & Triangulation Layer
+    verified_facts: List[VerifiedFactComparison] = Field(default_factory=list)
+    operational_kpi_evolution: List[InterDocumentKPITrend] = Field(default_factory=list)
+    guidance_vs_projections: List[GuidanceVsProjection] = Field(default_factory=list)
 
     # Backward-compatible properties / validators
     @model_validator(mode="before")

@@ -114,6 +114,33 @@ def init_db() -> None:
                 );
             """)
             conn.execute("CREATE INDEX IF NOT EXISTS idx_sync_symbol ON document_sync_state(symbol);")
+
+            # 7. Persistent Company Knowledge Facts Repository
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS company_knowledge_facts (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    symbol TEXT NOT NULL,
+                    doc_url TEXT NOT NULL,
+                    doc_title TEXT NOT NULL,
+                    doc_type TEXT NOT NULL,
+                    period_or_date TEXT,
+                    category TEXT NOT NULL,
+                    metric_name TEXT NOT NULL,
+                    stated_value_raw TEXT NOT NULL,
+                    numeric_value REAL,
+                    unit TEXT,
+                    target_period TEXT,
+                    scope TEXT DEFAULT 'Consolidated',
+                    claim_type TEXT DEFAULT 'reported_fact',
+                    source_quote TEXT,
+                    source_page INTEGER,
+                    extracted_at TEXT NOT NULL,
+                    fact_json TEXT NOT NULL
+                );
+            """)
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_facts_sym_metric ON company_knowledge_facts(symbol, metric_name);")
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_facts_sym_cat ON company_knowledge_facts(symbol, category);")
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_facts_doc_url ON company_knowledge_facts(doc_url);")
     finally:
         conn.close()
 
@@ -458,6 +485,123 @@ def update_document_sync_state(
                     last_checked_at = excluded.last_checked_at,
                     last_filing_date = COALESCE(excluded.last_filing_date, document_sync_state.last_filing_date)
             """, (clean_sym, category, now_iso, last_filing_date))
+    finally:
+        conn.close()
+
+# ---------------------------------------------------------
+# PERSISTENT COMPANY KNOWLEDGE FACTS HELPERS
+# ---------------------------------------------------------
+
+def save_company_knowledge_facts(symbol: str, facts: List[Dict[str, Any]], clear_doc_urls: Optional[List[str]] = None) -> int:
+    """
+    Saves extracted company knowledge facts to the persistent SQLite table.
+    Optionally clears existing facts for the specific document URLs before inserting to avoid duplicates.
+    """
+    clean_sym = symbol.upper().strip()
+    if not facts:
+        return 0
+        
+    now_iso = datetime.now(timezone.utc).isoformat()
+    conn = get_db_connection()
+    inserted_count = 0
+    try:
+        with conn:
+            if clear_doc_urls:
+                for u in clear_doc_urls:
+                    conn.execute("DELETE FROM company_knowledge_facts WHERE symbol = ? AND doc_url = ?", (clean_sym, u))
+            
+            for f in facts:
+                doc_url = f.get("doc_url", "")
+                doc_title = f.get("doc_title", "Official Filing")
+                doc_type = f.get("doc_type", "filing")
+                period = f.get("period_or_date") or f.get("period", "")
+                category = f.get("category", "operational_kpi")
+                metric_name = f.get("metric_name") or f.get("metric", "General KPI")
+                stated_value_raw = str(f.get("stated_value_raw") or f.get("value", ""))
+                numeric_value = f.get("numeric_value")
+                unit = f.get("unit")
+                target_period = f.get("target_period")
+                scope = f.get("scope", "Consolidated")
+                claim_type = f.get("claim_type", "reported_fact")
+                quote = f.get("source_quote") or f.get("quote")
+                page = f.get("source_page") or f.get("page")
+                extracted_at = f.get("extracted_at") or now_iso
+                fact_json = json.dumps(f)
+
+                conn.execute("""
+                    INSERT INTO company_knowledge_facts (
+                        symbol, doc_url, doc_title, doc_type, period_or_date,
+                        category, metric_name, stated_value_raw, numeric_value,
+                        unit, target_period, scope, claim_type, source_quote,
+                        source_page, extracted_at, fact_json
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """, (
+                    clean_sym, doc_url, doc_title, doc_type, period,
+                    category, metric_name, stated_value_raw, numeric_value,
+                    unit, target_period, scope, claim_type, quote,
+                    page, extracted_at, fact_json
+                ))
+                inserted_count += 1
+        return inserted_count
+    finally:
+        conn.close()
+
+def get_company_knowledge_facts(symbol: str, category: Optional[str] = None, metric_name: Optional[str] = None) -> List[Dict[str, Any]]:
+    """Retrieves persistent company knowledge facts for a symbol with optional filtering."""
+    clean_sym = symbol.upper().strip()
+    conn = get_db_connection()
+    try:
+        cur = conn.cursor()
+        query = "SELECT * FROM company_knowledge_facts WHERE symbol = ?"
+        params = [clean_sym]
+        
+        if category:
+            query += " AND category = ?"
+            params.append(category)
+        if metric_name:
+            query += " AND metric_name LIKE ?"
+            params.append(f"%{metric_name}%")
+            
+        query += " ORDER BY id ASC"
+        cur.execute(query, tuple(params))
+        rows = cur.fetchall()
+        
+        results = []
+        for r in rows:
+            try:
+                item = json.loads(r["fact_json"])
+            except Exception:
+                item = dict(r)
+            item["id"] = r["id"]
+            item["symbol"] = r["symbol"]
+            item["doc_url"] = r["doc_url"]
+            item["doc_title"] = r["doc_title"]
+            item["doc_type"] = r["doc_type"]
+            item["period_or_date"] = r["period_or_date"]
+            item["category"] = r["category"]
+            item["metric_name"] = r["metric_name"]
+            item["stated_value_raw"] = r["stated_value_raw"]
+            item["numeric_value"] = r["numeric_value"]
+            item["unit"] = r["unit"]
+            item["target_period"] = r["target_period"]
+            item["scope"] = r["scope"]
+            item["claim_type"] = r["claim_type"]
+            item["source_quote"] = r["source_quote"]
+            item["source_page"] = r["source_page"]
+            item["extracted_at"] = r["extracted_at"]
+            results.append(item)
+            
+        return results
+    finally:
+        conn.close()
+
+def clear_company_knowledge_facts(symbol: str) -> None:
+    """Clears all persistent facts for a given symbol."""
+    clean_sym = symbol.upper().strip()
+    conn = get_db_connection()
+    try:
+        with conn:
+            conn.execute("DELETE FROM company_knowledge_facts WHERE symbol = ?", (clean_sym,))
     finally:
         conn.close()
 

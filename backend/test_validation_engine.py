@@ -575,6 +575,192 @@ def test_cash_flow_case_f_cfo_to_pat_deterministic():
     assert cf_quality["cash_conversion_quality"] == "Superior (CFO exceeds PAT)"
     print("✓ Cash Flow Case F passed: CFO to PAT is calculated deterministically with high fidelity.")
 
+def test_knowledge_fact_persistence():
+    """Validates saving and querying extracted facts in SQLite company_knowledge_facts table."""
+    print("Testing persistent company knowledge fact store...")
+    sym = "TESTSYM"
+    database.clear_company_knowledge_facts(sym)
+    
+    sample_facts = [
+        {
+            "metric_name": "EBITDA Margin",
+            "stated_value_raw": "52%",
+            "numeric_value": 52.0,
+            "unit": "%",
+            "period_or_date": "FY26",
+            "category": "financial_metric",
+            "scope": "Consolidated",
+            "claim_type": "reported_fact",
+            "doc_url": "https://example.com/ar26.pdf",
+            "doc_title": "FY26 Annual Report",
+            "source_quote": "Operating leverage expanded EBITDA margin to 52%."
+        },
+        {
+            "metric_name": "ARPU",
+            "stated_value_raw": "₹245",
+            "numeric_value": 245.0,
+            "unit": "₹",
+            "period_or_date": "FY26",
+            "category": "operational_kpi",
+            "scope": "Consolidated",
+            "claim_type": "reported_fact",
+            "doc_url": "https://example.com/ar26.pdf",
+            "doc_title": "FY26 Annual Report",
+            "source_quote": "Subscriber ARPU increased to ₹245."
+        }
+    ]
+    
+    saved_count = database.save_company_knowledge_facts(sym, sample_facts)
+    assert saved_count == 2
+    
+    retrieved = database.get_company_knowledge_facts(sym)
+    assert len(retrieved) == 2
+    metrics = {r["metric_name"] for r in retrieved}
+    assert "EBITDA Margin" in metrics
+    assert "ARPU" in metrics
+    assert retrieved[0]["numeric_value"] == 52.0
+    print("✓ Knowledge fact persistence and retrieval verified.")
+
+def test_statement_claim_verification():
+    """Validates deterministic verification of document claims against audited P&L/BS/CF."""
+    print("Testing document claim verification against audited financial statements...")
+    from financial_engine import verify_document_claim_against_financials
+    
+    dummy_stock_data = {
+        "profit_loss": {
+            "periods": ["Mar 2024", "Mar 2025", "Mar 2026"],
+            "rows": [
+                {"metric": "Sales", "values": {"Mar 2024": 100000.0, "Mar 2025": 114000.0, "Mar 2026": 130000.0}}, # Mar 2026 growth = 14.0%
+                {"metric": "OPM %", "values": {"Mar 2024": 18.0, "Mar 2025": 49.0, "Mar 2026": 52.0}},              # OPM delta = +300 bps
+                {"metric": "Net Profit", "values": {"Mar 2024": 15000.0, "Mar 2025": 18000.0, "Mar 2026": 21240.0}} # PAT growth = 18.0%
+            ]
+        },
+        "balance_sheet": {
+            "periods": ["Mar 2025", "Mar 2026"],
+            "rows": [
+                {"metric": "Borrowings", "values": {"Mar 2025": 25000.0, "Mar 2026": 20000.0}} # Debt reduction = -5000 Cr
+            ]
+        }
+    }
+    
+    # 1. Revenue claim: "Revenue grew 14%"
+    rev_fact = {
+        "metric_name": "Revenue Growth",
+        "stated_value_raw": "14%",
+        "numeric_value": 14.0,
+        "unit": "%",
+        "period_or_date": "FY26",
+        "doc_title": "FY26 Annual Report",
+        "doc_url": "https://example.com/ar26.pdf"
+    }
+    rev_res = verify_document_claim_against_financials(rev_fact, dummy_stock_data)
+    assert rev_res["statement_verification_status"] == "Verified against Reported Financials"
+    assert rev_res["prior_period"] == "Mar 2025"
+    assert rev_res["pct_change"] == 14.0
+    assert "₹130,000 Cr" in rev_res["statement_reported_value"]
+    
+    # 2. EBITDA Margin claim: "EBITDA margin reached 52%"
+    margin_fact = {
+        "metric_name": "EBITDA Margin",
+        "stated_value_raw": "52%",
+        "numeric_value": 52.0,
+        "unit": "%",
+        "period_or_date": "FY26",
+        "doc_title": "FY26 Annual Report",
+        "doc_url": "https://example.com/ar26.pdf",
+        "source_quote": "Operating leverage drove expansion."
+    }
+    margin_res = verify_document_claim_against_financials(margin_fact, dummy_stock_data)
+    assert margin_res["statement_verification_status"] == "Verified against Reported Financials"
+    assert margin_res["prior_value_raw"] == "49.0%"
+    assert margin_res["delta_numeric"] == 3.0
+    assert "+300 bps" in margin_res["statement_reported_value"]
+    
+    # 3. Debt claim: "Debt reduced significantly"
+    debt_fact = {
+        "metric_name": "Total Borrowings",
+        "stated_value_raw": "₹20,000 Cr",
+        "numeric_value": 20000.0,
+        "unit": "₹ Cr",
+        "period_or_date": "FY26",
+        "doc_title": "FY26 Annual Report"
+    }
+    debt_res = verify_document_claim_against_financials(debt_fact, dummy_stock_data)
+    assert debt_res["statement_verification_status"] == "Verified against Reported Financials"
+    assert debt_res["delta_numeric"] == -5000.0
+    print("✓ Document claims successfully verified against audited statements.")
+
+def test_inter_document_kpi_evolution():
+    """Validates multi-year operational KPI evolution tracking across disparate filings."""
+    print("Testing multi-document operational KPI evolution tracking...")
+    from financial_engine import build_inter_document_kpi_trends
+    
+    multi_doc_facts = [
+        # ARPU evolution
+        {"metric_name": "ARPU", "stated_value_raw": "₹210", "numeric_value": 210.0, "unit": "₹", "period_or_date": "FY25", "doc_title": "FY25 Annual Report", "doc_type": "annual_report"},
+        {"metric_name": "ARPU", "stated_value_raw": "₹225", "numeric_value": 225.0, "unit": "₹", "period_or_date": "Q2 FY26", "doc_title": "Q2 Presentation", "doc_type": "presentation"},
+        {"metric_name": "ARPU", "stated_value_raw": "₹245", "numeric_value": 245.0, "unit": "₹", "period_or_date": "FY26", "doc_title": "FY26 Annual Report", "doc_type": "annual_report"},
+        # Solar Capacity evolution
+        {"metric_name": "Solar Capacity", "stated_value_raw": "300 MW", "numeric_value": 300.0, "unit": "MW", "period_or_date": "FY25", "doc_title": "FY25 Annual Report", "doc_type": "annual_report"},
+        {"metric_name": "Solar Capacity", "stated_value_raw": "420 MW", "numeric_value": 420.0, "unit": "MW", "period_or_date": "Q2 FY26", "doc_title": "Q2 Presentation", "doc_type": "presentation"},
+        {"metric_name": "Solar Capacity", "stated_value_raw": "600 MW", "numeric_value": 600.0, "unit": "MW", "period_or_date": "FY26", "doc_title": "FY26 Annual Report", "doc_type": "annual_report"}
+    ]
+    
+    trends = build_inter_document_kpi_trends(multi_doc_facts)
+    assert len(trends) == 2
+    
+    arpu_trend = next(t for t in trends if "ARPU" in t["metric_name"].upper())
+    assert len(arpu_trend["data_points"]) == 3
+    assert arpu_trend["trajectory"] == "Expanding / Accelerating"
+    assert "+20.0" in arpu_trend["latest_vs_prior_change"] or "+8.9%" in arpu_trend["latest_vs_prior_change"]
+    assert arpu_trend["data_points"][0]["stated_value"] == "₹210"
+    assert arpu_trend["data_points"][-1]["stated_value"] == "₹245"
+    
+    solar_trend = next(t for t in trends if "SOLAR" in t["metric_name"].upper() or "CAPACITY" in t["metric_name"].upper())
+    assert len(solar_trend["data_points"]) == 3
+    assert solar_trend["trajectory"] == "Expanding / Accelerating"
+    assert solar_trend["data_points"][-1]["numeric_value"] == 600.0
+    print("✓ Inter-document operational KPI evolution verified.")
+
+def test_guidance_vs_projections_triangulation():
+    """Validates triangulation between Management Guidance and Stocker DCF Projections."""
+    print("Testing Management Guidance vs Stocker Projections triangulation...")
+    from financial_engine import triangulate_guidance_vs_projections
+    
+    facts = [
+        {
+            "metric_name": "Management Revenue Guidance",
+            "stated_value_raw": "15.0%",
+            "numeric_value": 15.0,
+            "unit": "%",
+            "target_period": "FY27",
+            "category": "management_guidance",
+            "claim_type": "management_guidance",
+            "doc_title": "Q4 Concall Transcript",
+            "doc_url": "https://example.com/cc26.pdf"
+        }
+    ]
+    
+    dummy_stock_data = {
+        "quarters": {
+            "periods": ["Jun 2024", "Sep 2024", "Dec 2024", "Mar 2025", "Jun 2025"],
+            "rows": [
+                {"metric": "Sales", "values": {"Jun 2024": 40000.0, "Sep 2024": 41000.0, "Dec 2024": 42000.0, "Mar 2025": 43000.0, "Jun 2025": 45000.0}} # Jun 25 YoY = 12.5%
+            ]
+        }
+    }
+    
+    assumptions = {"revenue_growth_rate_pct": 10.0}
+    triangulation = triangulate_guidance_vs_projections(facts, dummy_stock_data, assumptions)
+    assert len(triangulation) == 1
+    t_item = triangulation[0]
+    assert t_item["stocker_projected_base"] == 10.0
+    assert t_item["management_guidance_numeric"] == 15.0
+    assert t_item["variance_guidance_vs_base_bps"] == 500.0
+    assert t_item["current_run_rate_value"] == 12.5
+    assert "+500 bps above" in t_item["stocker_assessment"]
+    print("✓ Guidance vs Stocker Projections triangulation verified.")
+
 if __name__ == "__main__":
     test_case_a_missing_structured_financial_data()
     test_case_b_future_target_deadline_override()
@@ -592,5 +778,9 @@ if __name__ == "__main__":
     test_cash_flow_case_d_missing_capex()
     test_cash_flow_case_e_raw_cash_flow_filtering()
     test_cash_flow_case_f_cfo_to_pat_deterministic()
-    print("\n🎉 ALL CASES A-G, CASH FLOW CASES A-F, INTEGRATION & REGRESSION TESTS PASSED PERFECTLY!")
+    test_knowledge_fact_persistence()
+    test_statement_claim_verification()
+    test_inter_document_kpi_evolution()
+    test_guidance_vs_projections_triangulation()
+    print("\n🎉 ALL CASES A-G, CASH FLOW CASES A-F, KNOWLEDGE PERSISTENCE & EVOLUTION TESTS PASSED PERFECTLY!")
 

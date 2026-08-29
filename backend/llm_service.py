@@ -31,6 +31,7 @@ Focus strictly on:
 - Segment performance & operational highlights
 - Cash flow, net debt & working capital management
 - Major risks, compliance, and long-term management targets
+- Specific quantitative facts, operational KPIs (ARPU, capacity, order book, margins, volumes), and targets
 
 Output MUST be a valid JSON object matching this schema:
 {
@@ -40,7 +41,22 @@ Output MUST be a valid JSON object matching this schema:
   "capex_and_expansion": "Capex numbers and capacity additions",
   "cash_debt_working_capital": "Cash generation, leverage, and working capital commentary",
   "major_risks": ["Key operational/financial risk 1", "Key risk 2"],
-  "long_term_targets": "Management's multi-year vision or numerical targets"
+  "long_term_targets": "Management's multi-year vision or numerical targets",
+  "extracted_facts": [
+    {
+      "metric_name": "EBITDA Margin / ARPU / Capacity / Revenue / Order Book / Stores",
+      "stated_value_raw": "52% / ₹245 / 1 GW / ₹14,500 Cr",
+      "numeric_value": 52.0,
+      "unit": "% / ₹ / MW / ₹ Cr / bps / units",
+      "period_or_date": "FY26",
+      "target_period": null,
+      "category": "financial_metric" | "operational_kpi" | "management_guidance" | "strategic_initiative",
+      "scope": "Consolidated" | "Standalone" | "Segment",
+      "claim_type": "reported_fact" | "management_guidance" | "management_target",
+      "source_quote": "Verbatim quote snippet",
+      "source_page": 15
+    }
+  ]
 }
 """
 
@@ -52,6 +68,7 @@ Focus strictly on:
 - Capex deployment & execution updates
 - Key operational shifts vs previous quarter
 - Management tone & analyst Q&A sentiment
+- Specific stated KPIs, volume metrics, price movements, and forward guidance numbers
 
 Output MUST be a valid JSON object matching this schema:
 {
@@ -61,7 +78,22 @@ Output MUST be a valid JSON object matching this schema:
   "demand_and_orders": "Demand commentary, order intake, backlog",
   "margin_outlook": "Margin trajectory and cost pressures",
   "capex_and_execution": "Capex timeline and project execution updates",
-  "quarterly_shifts": "Key changes vs prior quarters"
+  "quarterly_shifts": "Key changes vs prior quarters",
+  "extracted_facts": [
+    {
+      "metric_name": "Metric Name e.g. Guidance Revenue Growth / Order Inflow / Utilization",
+      "stated_value_raw": "14-16% / ₹8,200 Cr / 85%",
+      "numeric_value": 15.0,
+      "unit": "% / ₹ Cr / bps",
+      "period_or_date": "Q3 FY26",
+      "target_period": "FY27",
+      "category": "management_guidance" | "operational_kpi" | "financial_metric",
+      "scope": "Consolidated",
+      "claim_type": "management_guidance" | "reported_fact",
+      "source_quote": "Verbatim quote snippet",
+      "source_page": 6
+    }
+  ]
 }
 """
 
@@ -71,6 +103,7 @@ Focus strictly on:
 - Capacity additions and expansion roadmap
 - Segment growth highlights
 - Forward-looking financial and operational targets
+- Quantitative operational milestones (stores, megawatts, subscriber metrics, capacity utilization)
 
 Output MUST be a valid JSON object matching this schema:
 {
@@ -79,7 +112,22 @@ Output MUST be a valid JSON object matching this schema:
   "major_kpis": ["Key KPI 1", "Key KPI 2"],
   "expansion_roadmap": "Capacity additions and project milestones",
   "segment_highlights": ["Segment 1 trajectory", "Segment 2 trajectory"],
-  "forward_targets": "Target numbers and expected milestones"
+  "forward_targets": "Target numbers and expected milestones",
+  "extracted_facts": [
+    {
+      "metric_name": "Solar Capacity / Subscriber Count / Store Count / ARPU",
+      "stated_value_raw": "420 MW / 125M / 1,450 Stores / ₹230",
+      "numeric_value": 420.0,
+      "unit": "MW / Subscribers / Stores / ₹",
+      "period_or_date": "Q2 FY26",
+      "target_period": null,
+      "category": "operational_kpi" | "management_guidance",
+      "scope": "Consolidated",
+      "claim_type": "reported_fact" | "management_target",
+      "source_quote": "Verbatim quote snippet",
+      "source_page": 10
+    }
+  ]
 }
 """
 
@@ -96,7 +144,22 @@ Output MUST be a valid JSON object matching this schema:
   "event_summary": "Concise summary of the corporate action/announcement",
   "fundamental_importance": "Why this matters fundamentally for equity value",
   "business_and_financial_impact": "Quantifiable revenue, margin, or operational impact",
-  "guidance_impact": "Whether this modifies previous guidance or strategy"
+  "guidance_impact": "Whether this modifies previous guidance or strategy",
+  "extracted_facts": [
+    {
+      "metric_name": "Order Win / Outlay / Acquisition Value / Capacity Addition",
+      "stated_value_raw": "₹1,200 Cr / 100 MW",
+      "numeric_value": 1200.0,
+      "unit": "₹ Cr / MW",
+      "period_or_date": "Announcement Date",
+      "target_period": null,
+      "category": "strategic_initiative" | "operational_kpi",
+      "scope": "Consolidated",
+      "claim_type": "reported_fact",
+      "source_quote": "Verbatim quote snippet",
+      "source_page": 1
+    }
+  ]
 }
 """
 
@@ -462,6 +525,35 @@ OFFICIAL URL: {doc_url}
         summary["model_version"] = used_model
         summary["ai_provider"] = f"{provider.upper()} ({used_model})"
         summary["analyzed_at"] = datetime.now(timezone.utc).isoformat()
+        
+        # Enrich and persist extracted knowledge facts
+        facts_list = summary.get("extracted_facts", [])
+        clean_facts = []
+        if isinstance(facts_list, list):
+            for f in facts_list:
+                if isinstance(f, dict):
+                    f_item = dict(f)
+                    f_item["symbol"] = symbol.upper().strip()
+                    f_item["doc_url"] = doc_url
+                    f_item["doc_title"] = doc_title
+                    f_item["doc_type"] = doc_type
+                    if not f_item.get("period_or_date"):
+                        f_item["period_or_date"] = period_or_date
+                    # Ensure numeric_value is float if parsable
+                    if f_item.get("numeric_value") is None and f_item.get("stated_value_raw"):
+                        m_num = re.search(r'[-+]?\d*\.?\d+', str(f_item["stated_value_raw"]))
+                        if m_num:
+                            try:
+                                f_item["numeric_value"] = float(m_num.group(0))
+                            except Exception:
+                                pass
+                    clean_facts.append(f_item)
+            summary["extracted_facts"] = clean_facts
+            try:
+                database.save_company_knowledge_facts(symbol, clean_facts, clear_doc_urls=[doc_url])
+            except Exception as e_db:
+                print(f"Notice: Could not persist knowledge facts for {doc_title}: {e_db}")
+                
         return summary
     except Exception as e:
         print(f"    ⚠️ Failed to generate single doc summary for {doc_title}: {e}")
@@ -742,7 +834,47 @@ SYNTHESIS INSTRUCTIONS:
             else:
                 result.risks_and_cash.source_page = None
                 result.risks_and_cash.source_quote = None
+
+        # 6. Integrated Persistent Company Knowledge & Triangulation Layer
+        try:
+            from financial_engine import process_and_verify_company_knowledge
+            # Collect facts from precomputed summaries and database
+            all_facts: List[Dict[str, Any]] = []
+            if precomputed_document_summaries:
+                for s in precomputed_document_summaries:
+                    for f in s.get("extracted_facts", []):
+                        if isinstance(f, dict):
+                            all_facts.append(f)
+            # Merge with database facts
+            db_facts = database.get_company_knowledge_facts(symbol)
+            seen_fact_keys = set()
+            merged_facts = []
+            for f in (all_facts + db_facts):
+                key = (f.get("metric_name", ""), f.get("period_or_date", ""), f.get("doc_url", ""))
+                if key not in seen_fact_keys:
+                    seen_fact_keys.add(key)
+                    merged_facts.append(f)
+                    
+            stock_data_pkg = {
+                "profit_loss": pl_stmt,
+                "quarters": quarters_stmt,
+                "balance_sheet": bs_stmt,
+                "cash_flow": cf_stmt
+            }
             
+            knowledge_res = process_and_verify_company_knowledge(
+                symbol=symbol,
+                facts_list=merged_facts,
+                stock_data=stock_data_pkg
+            )
+            
+            from doc_intelligence_models import VerifiedFactComparison, InterDocumentKPITrend, GuidanceVsProjection
+            result.verified_facts = [VerifiedFactComparison(**vf) for vf in knowledge_res.get("verified_facts", [])]
+            result.operational_kpi_evolution = [InterDocumentKPITrend(**it) for it in knowledge_res.get("operational_kpi_evolution", [])]
+            result.guidance_vs_projections = [GuidanceVsProjection(**gp) for gp in knowledge_res.get("guidance_vs_projections", [])]
+        except Exception as e_k:
+            print(f"Notice: Knowledge verification engine error: {e_k}")
+
         return True, result, "Extraction succeeded"
     except Exception as e:
         return False, None, f"Error running LLM extraction with {provider.upper()}: {e}"

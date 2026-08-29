@@ -555,7 +555,10 @@ def run_multi_document_ai_pipeline(
             "demand_momentum": {"summary": "", "company_specific_metrics": []},
             "risks_and_cash": {"operational_bottlenecks": []},
             "stocker_view": {"overall_takeaway": msg, "positive_triggers": [], "main_risks": [], "what_to_watch": []},
-            "document_summaries": doc_summaries_list
+            "document_summaries": doc_summaries_list,
+            "verified_facts": [],
+            "operational_kpi_evolution": [],
+            "guidance_vs_projections": []
         }
         return status_res
 
