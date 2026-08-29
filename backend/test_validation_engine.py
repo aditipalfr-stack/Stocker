@@ -900,7 +900,7 @@ def test_review_cases_g_h_i_j_k_guidance_triangulation_correctness():
     res_h = triangulate_guidance_vs_projections(guidance_h, dummy_stock_data, {"revenue_growth_rate_pct": 12.0})
     assert res_h[0]["stocker_projected_base"] is None, "EBITDA margin must NOT receive revenue growth assumption!"
     assert res_h[0]["current_run_rate_value"] == 23.5 # Quarterly OPM run-rate, NOT sales growth!
-    assert "does not contain a separate EBITDA margin scenario assumption" in res_h[0]["stocker_assessment"]
+    assert "No directly comparable Stocker margin projection available" in res_h[0]["stocker_assessment"]
     print("  ✓ Case H passed: EBITDA margin guidance does NOT receive revenue growth assumption; uses OPM run-rate.")
 
     # Case I: Capacity guidance (e.g. 1 GW Solar) does NOT receive DCF revenue growth projection
@@ -914,19 +914,193 @@ def test_review_cases_g_h_i_j_k_guidance_triangulation_correctness():
     }]
     res_i = triangulate_guidance_vs_projections(guidance_i, dummy_stock_data, {"revenue_growth_rate_pct": 12.0})
     assert res_i[0]["stocker_projected_base"] is None
-    assert "Not directly comparable to current Stocker financial DCF projection model" in res_i[0]["stocker_assessment"]
+    assert "No directly comparable Stocker projection available" in res_i[0]["stocker_assessment"]
     print("  ✓ Case I passed: Capacity target guidance does not invent fake DCF projection.")
 
     # Case J: Missing projection assumptions -> No generic 10/15/5% fallback
     res_j = triangulate_guidance_vs_projections(guidance_g, dummy_stock_data, None)
     assert res_j[0]["stocker_projected_base"] is None
-    assert "Stocker DCF projection assumptions unavailable" in res_j[0]["stocker_assessment"]
+    assert "No directly comparable Stocker projection available" in res_j[0]["stocker_assessment"]
     print("  ✓ Case J passed: Missing assumptions cleanly yields None without fake 10% defaults.")
 
     # Case K: Current run-rate uses correct metric for each type
     assert res_g[0]["current_run_rate_value"] == 12.5 # Revenue YoY
     assert res_h[0]["current_run_rate_value"] == 23.5 # OPM %
     print("  ✓ Case K passed: Current run-rate matches metric identity correctly.")
+
+def test_ebitda_margin_vs_ebitda_amount_separation():
+    """Validates full separation of EBITDA Margin, OPM bps, EBITDA absolute amount, and Operating Profit Growth."""
+    print("Testing EBITDA amount vs EBITDA Margin vs Growth separation...")
+    from financial_engine import verify_document_claim_against_financials
+
+    dummy_stock_data = {
+        "profit_loss": {
+            "periods": ["Mar 2024", "Mar 2025", "Mar 2026"],
+            "rows": [
+                {"metric": "Sales", "values": {"Mar 2024": 100000.0, "Mar 2025": 114000.0, "Mar 2026": 130000.0}},
+                {"metric": "Operating Profit", "values": {"Mar 2024": 18000.0, "Mar 2025": 69565.0, "Mar 2026": 80000.0}}, # FY26 OP = 80,000 Cr (+15.0% YoY vs 69,565 Cr)
+                {"metric": "OPM %", "values": {"Mar 2024": 18.0, "Mar 2025": 49.0, "Mar 2026": 52.0}},                      # FY26 OPM = 52.0% (+300 bps)
+                {"metric": "Net Profit", "values": {"Mar 2024": 15000.0, "Mar 2025": 18000.0, "Mar 2026": 21240.0}}
+            ]
+        }
+    }
+
+    # 1. EBITDA Margin 52% -> compared against OPM %, not EBITDA amount
+    fact_margin = {
+        "metric_name": "EBITDA Margin",
+        "stated_value_raw": "52%",
+        "numeric_value": 52.0,
+        "unit": "%",
+        "period_or_date": "FY26"
+    }
+    res_margin = verify_document_claim_against_financials(fact_margin, dummy_stock_data)
+    assert res_margin["statement_verification_status"] == "Verified against Reported Financials"
+    assert "52.0%" in res_margin["statement_reported_value"]
+    assert "Reported OPM was 52.0%" in res_margin["stocker_assessment"]
+    print("  ✓ Test 1 passed: EBITDA Margin 52% compared against OPM %.")
+
+    # 2. EBITDA = ₹80,000 Cr -> compared against Operating Profit / EBITDA amount
+    fact_ebitda_amt = {
+        "metric_name": "EBITDA",
+        "stated_value_raw": "₹80,000 Cr",
+        "numeric_value": 80000.0,
+        "unit": "₹ Cr",
+        "period_or_date": "FY26"
+    }
+    res_ebitda_amt = verify_document_claim_against_financials(fact_ebitda_amt, dummy_stock_data)
+    assert res_ebitda_amt["statement_verification_status"] == "Verified against Reported Financials"
+    assert "₹80,000 Cr" in res_ebitda_amt["statement_reported_value"]
+    assert "Operating Profit (EBITDA) in Mar 2026 was ₹80,000 Cr" in res_ebitda_amt["stocker_assessment"]
+    print("  ✓ Test 2 passed: EBITDA ₹80,000 Cr compared against Operating Profit amount.")
+
+    # 3. EBITDA Growth 15% -> compares against deterministic operating-profit growth
+    fact_ebitda_growth = {
+        "metric_name": "Operating Profit Growth",
+        "stated_value_raw": "15%",
+        "numeric_value": 15.0,
+        "unit": "%",
+        "period_or_date": "FY26"
+    }
+    res_ebitda_growth = verify_document_claim_against_financials(fact_ebitda_growth, dummy_stock_data)
+    assert res_ebitda_growth["statement_verification_status"] == "Verified against Reported Financials"
+    assert "grew 15.0% YoY" in res_ebitda_growth["stocker_assessment"]
+    print("  ✓ Test 3 passed: Operating Profit Growth 15% verified against deterministic OP YoY growth.")
+
+    # 4. OPM +300 bps -> compares against margin movement in bps
+    fact_bps = {
+        "metric_name": "OPM Expansion",
+        "stated_value_raw": "+300 bps",
+        "numeric_value": 300.0,
+        "unit": "bps",
+        "period_or_date": "FY26"
+    }
+    res_bps = verify_document_claim_against_financials(fact_bps, dummy_stock_data)
+    assert res_bps["statement_verification_status"] == "Verified against Reported Financials"
+    assert "+300 bps" in res_bps["statement_reported_value"]
+    assert "Audited OPM moved +300 bps" in res_bps["stocker_assessment"]
+    print("  ✓ Test 4 passed: OPM +300 bps verified against margin movement.")
+
+    # 5. Absolute EBITDA must NEVER be compared against OPM %
+    # If document claims EBITDA = ₹80,000 Cr, but statements show Operating Profit = ₹60,000 Cr, it must be Discrepancy vs OP, NOT 52%
+    fact_ebitda_wrong = {
+        "metric_name": "Operating Profit",
+        "stated_value_raw": "₹95,000 Cr",
+        "numeric_value": 95000.0,
+        "unit": "₹ Cr",
+        "period_or_date": "FY26"
+    }
+    res_ebitda_wrong = verify_document_claim_against_financials(fact_ebitda_wrong, dummy_stock_data)
+    assert res_ebitda_wrong["statement_verification_status"] == "Discrepancy vs Reported Financials"
+    assert "reported audited Operating Profit for Mar 2026 was ₹80,000 Cr" in res_ebitda_wrong["stocker_assessment"]
+    assert "52" not in res_ebitda_wrong["stocker_assessment"], "Must not leak OPM % into absolute EBITDA comparison!"
+    print("  ✓ Test 5 passed: Absolute EBITDA is never compared against OPM %.")
+
+    # 5b. Missing Operating Profit row -> Context Only, does NOT fall into OPM %
+    data_no_op = {
+        "profit_loss": {
+            "periods": ["Mar 2025", "Mar 2026"],
+            "rows": [
+                {"metric": "Sales", "values": {"Mar 2025": 114000.0, "Mar 2026": 130000.0}},
+                {"metric": "OPM %", "values": {"Mar 2025": 49.0, "Mar 2026": 52.0}}
+            ]
+        }
+    }
+    res_no_op = verify_document_claim_against_financials(fact_ebitda_amt, data_no_op)
+    assert res_no_op["statement_verification_status"] == "Statement Context Only / Not Directly Comparable"
+    assert "Operating Profit / EBITDA absolute line is not broken out" in res_no_op["stocker_assessment"]
+    print("  ✓ Test 5b passed: Missing OP row returns Context Only without falling into OPM %.")
+
+def test_real_stocker_projections_wiring():
+    """Validates metric-aware wiring of real Stocker projections into document triangulation."""
+    print("Testing Real Stocker Projections wiring into Document Triangulation...")
+    from financial_engine import triangulate_guidance_vs_projections
+
+    dummy_stock_data = {
+        "quarters": {
+            "periods": ["Jun 2024", "Sep 2024", "Dec 2024", "Mar 2025", "Jun 2025"],
+            "rows": [
+                {"metric": "Sales", "values": {"Jun 2024": 40000.0, "Sep 2024": 41000.0, "Dec 2024": 42000.0, "Mar 2025": 43000.0, "Jun 2025": 45000.0}}, # 12.5% YoY
+                {"metric": "OPM %", "values": {"Jun 2024": 20.0, "Sep 2024": 21.0, "Dec 2024": 21.5, "Mar 2025": 22.0, "Jun 2025": 23.5}},
+                {"metric": "Net Profit", "values": {"Jun 2024": 5000.0, "Sep 2024": 5200.0, "Dec 2024": 5500.0, "Mar 2025": 5800.0, "Jun 2025": 6000.0}}  # 20.0% YoY
+            ]
+        }
+    }
+
+    # 6. Real revenue projection supplied by Stocker -> used for revenue guidance
+    rev_guidance = [{"metric_name": "Revenue Guidance", "stated_value_raw": "15.0%", "numeric_value": 15.0, "target_period": "FY27", "claim_type": "management_guidance"}]
+    stocker_pkg = {
+        "revenue_growth_rate_pct": 11.5,
+        "base_sales_cagr": 11.5,
+        "bull_sales_cagr": 15.5,
+        "bear_sales_cagr": 7.5,
+        "target_opm_pct": 24.0,
+        "base_pat_cagr": 14.0,
+        "bull_pat_cagr": 18.0,
+        "bear_pat_cagr": 9.0,
+        "capex_pct_of_sales": 6.5
+    }
+    res_6 = triangulate_guidance_vs_projections(rev_guidance, dummy_stock_data, stocker_pkg)
+    assert res_6[0]["stocker_projected_base"] == 11.5
+    assert res_6[0]["stocker_projected_bull"] == 15.5
+    assert res_6[0]["stocker_projected_bear"] == 7.5
+    assert res_6[0]["variance_guidance_vs_base_bps"] == 350.0 # 15.0 - 11.5 = +350 bps
+    print("  ✓ Test 6 passed: Real revenue projection supplied by Stocker used for revenue guidance.")
+
+    # 7. No real Stocker projection supplied -> no fake projection appears
+    res_7 = triangulate_guidance_vs_projections(rev_guidance, dummy_stock_data, None)
+    assert res_7[0]["stocker_projected_base"] is None
+    assert res_7[0]["stocker_projected_bull"] is None
+    assert res_7[0]["stocker_projected_bear"] is None
+    assert "No directly comparable Stocker projection available" in res_7[0]["stocker_assessment"]
+    print("  ✓ Test 7 passed: No fake projection appears when projection data is absent.")
+
+    # 8. Margin guidance when Stocker has a real margin projection -> correctly compared
+    margin_guidance = [{"metric_name": "EBITDA Margin Guidance", "stated_value_raw": "25.0%", "numeric_value": 25.0, "target_period": "FY27", "claim_type": "management_guidance"}]
+    res_8 = triangulate_guidance_vs_projections(margin_guidance, dummy_stock_data, stocker_pkg)
+    assert res_8[0]["stocker_projected_base"] == 24.0
+    assert res_8[0]["variance_guidance_vs_base_bps"] == 100.0 # 25.0 - 24.0 = +100 bps
+    assert res_8[0]["current_run_rate_value"] == 23.5 # Quarterly OPM run-rate
+    print("  ✓ Test 8 passed: Margin guidance compared with Stocker margin projection & quarterly OPM.")
+
+    # 9. Margin guidance when Stocker has NO margin projection (only revenue) -> unavailable, not revenue projection
+    pkg_revenue_only = {"revenue_growth_rate_pct": 11.5, "base_sales_cagr": 11.5}
+    res_9 = triangulate_guidance_vs_projections(margin_guidance, dummy_stock_data, pkg_revenue_only)
+    assert res_9[0]["stocker_projected_base"] is None
+    assert "No directly comparable Stocker margin projection available" in res_9[0]["stocker_assessment"]
+    print("  ✓ Test 9 passed: Margin guidance does NOT receive revenue growth projection.")
+
+    # 10. Operational target such as 1 GW capacity -> never mapped to DCF financial projection
+    cap_target = [
+        {"metric_name": "Target Solar Capacity", "stated_value_raw": "1 GW", "numeric_value": 1000.0, "unit": "MW", "target_period": "FY28", "claim_type": "management_target"},
+        {"metric_name": "Installed Solar Capacity", "stated_value_raw": "600 MW", "numeric_value": 600.0, "unit": "MW", "period_or_date": "FY26", "claim_type": "reported_fact"}
+    ]
+    res_10 = triangulate_guidance_vs_projections(cap_target, dummy_stock_data, stocker_pkg)
+    assert len(res_10) == 1
+    assert res_10[0]["stocker_projected_base"] is None
+    assert res_10[0]["current_run_rate_value"] == 600.0
+    assert "Current reported baseline is 600 MW (FY26)" in res_10[0]["stocker_assessment"]
+    assert "No directly comparable Stocker projection available" in res_10[0]["stocker_assessment"]
+    print("  ✓ Test 10 passed: Operational target (1 GW) not mapped to DCF; uses baseline fact from knowledge store.")
 
 if __name__ == "__main__":
     test_case_a_missing_structured_financial_data()
@@ -952,6 +1126,9 @@ if __name__ == "__main__":
     test_review_cases_a_b_c_statement_verification_discrepancies()
     test_review_cases_d_e_f_kpi_identity_matching()
     test_review_cases_g_h_i_j_k_guidance_triangulation_correctness()
-    print("\n🎉 ALL CASES A-G, CASH FLOW CASES A-F, KNOWLEDGE PERSISTENCE & REVIEW CASES A-K PASSED PERFECTLY!")
+    test_ebitda_margin_vs_ebitda_amount_separation()
+    test_real_stocker_projections_wiring()
+    print("\n🎉 ALL TESTS 1-15, REVIEW CASES A-K, CASH FLOW CASES A-F & KNOWLEDGE PERSISTENCE PASSED PERFECTLY!")
+
 
 

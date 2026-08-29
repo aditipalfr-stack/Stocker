@@ -862,10 +862,51 @@ SYNTHESIS INSTRUCTIONS:
                 "cash_flow": cf_stmt
             }
             
+            projection_pkg = None
+            try:
+                from projection_engine import derive_projection_assumptions, run_projections
+                from models import KeyRatios
+                cached_stock = database.get_stock_cache(symbol) or {}
+                r_dict = cached_stock.get("ratios")
+                if r_dict:
+                    ratios_obj = KeyRatios(**r_dict) if isinstance(r_dict, dict) else r_dict
+                    analytics = cached_stock.get("analytics") or {}
+                    real_assumptions = derive_projection_assumptions(
+                        ratios=ratios_obj,
+                        pl=pl_stmt,
+                        bs=bs_stmt,
+                        analytics=analytics,
+                        doc_intel=None
+                    )
+                    real_proj = run_projections(
+                        ratios=ratios_obj,
+                        pl=pl_stmt,
+                        bs=bs_stmt,
+                        cf=cf_stmt,
+                        analytics=analytics,
+                        assumptions=real_assumptions
+                    )
+                    projection_pkg = {
+                        "revenue_growth_rate_pct": real_assumptions.revenue_growth_rate_pct,
+                        "target_opm_pct": real_assumptions.target_opm_pct,
+                        "capex_pct_of_sales": real_assumptions.capex_pct_of_sales,
+                        "base_sales_cagr": real_proj.base_case.sales_3yr_cagr if (real_proj and real_proj.base_case) else None,
+                        "bull_sales_cagr": real_proj.bull_case.sales_3yr_cagr if (real_proj and real_proj.bull_case) else None,
+                        "bear_sales_cagr": real_proj.bear_case.sales_3yr_cagr if (real_proj and real_proj.bear_case) else None,
+                        "base_pat_cagr": real_proj.base_case.pat_3yr_cagr if (real_proj and real_proj.base_case) else None,
+                        "bull_pat_cagr": real_proj.bull_case.pat_3yr_cagr if (real_proj and real_proj.bull_case) else None,
+                        "bear_pat_cagr": real_proj.bear_case.pat_3yr_cagr if (real_proj and real_proj.bear_case) else None,
+                        "projection_source": "Stocker DCF Projection Engine"
+                    }
+            except Exception as e_proj:
+                print(f"Notice: Projection derivation skipped during knowledge verification: {e_proj}")
+                projection_pkg = None
+
             knowledge_res = process_and_verify_company_knowledge(
                 symbol=symbol,
                 facts_list=merged_facts,
-                stock_data=stock_data_pkg
+                stock_data=stock_data_pkg,
+                projection_assumptions=projection_pkg
             )
             
             from doc_intelligence_models import VerifiedFactComparison, InterDocumentKPITrend, GuidanceVsProjection
