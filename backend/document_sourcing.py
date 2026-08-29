@@ -563,21 +563,27 @@ def discover_documents_company_ir_fallback(
         resp = requests.get(ir_url, headers=headers, timeout=6)
         if resp.status_code == 200:
             soup = BeautifulSoup(resp.text, "html.parser")
-            anchors = soup.find_all("a", href=True)
             
-            # In incremental mode, limit scan to the newest 15 anchors to avoid deep historical crawls
-            scan_anchors = anchors[:15] if from_date_dt else anchors
+            # Filter candidate anchors to relevant filing links (PDFs or filing keywords)
+            candidate_anchors: List[Tuple[str, str]] = []
+            for a in soup.find_all("a", href=True):
+                text = a.text.strip()
+                href = a["href"].strip()
+                if not href or not text or len(text) < 3:
+                    continue
+                combined_lower = f"{text} {href}".lower()
+                if (href.lower().endswith(".pdf") or 
+                    any(kw in combined_lower for kw in ["report", "annual", "presentation", "transcript", "concall", "investor", "financial", "result", "quarter"])):
+                    candidate_anchors.append((text, href))
+            
+            # In incremental mode, limit scan to the newest 20 relevant filing anchors
+            scan_anchors = candidate_anchors[:20] if from_date_dt else candidate_anchors
             
             from_yr = None
             if from_date_dt:
                 from_yr = from_date_dt.year + (from_date_dt.month - 1) / 12.0 + from_date_dt.day / 365.0
                 
-            for a in scan_anchors:
-                text = a.text.strip()
-                href = a["href"].strip()
-                if not href or not text or len(text) < 3:
-                    continue
-                    
+            for text, href in scan_anchors:
                 # Resolve relative URL
                 if href.startswith("/"):
                     parsed_domain = urlparse(ir_url)
@@ -593,7 +599,7 @@ def discover_documents_company_ir_fallback(
                         from financial_engine import parse_filing_period_to_year
                         p_yr = parse_filing_period_to_year(period)
                         if p_yr is not None and p_yr < (from_yr - 0.05):
-                            # Filing is prior to recent window; stop scanning older entries
+                            # Filing is prior to recent window; skip older historical entries
                             continue
                     except Exception:
                         pass

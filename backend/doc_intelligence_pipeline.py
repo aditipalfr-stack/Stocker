@@ -102,10 +102,10 @@ def _extract_statement_table(statement_data: Any) -> Tuple[List[str], Dict[str, 
             
     return periods, rows_dict
 
-def format_audited_financials_for_prompt(symbol: str) -> str:
+def format_audited_financials_for_prompt(symbol: str, stock_data: Optional[Dict[str, Any]] = None) -> str:
     """Formats 10-year P&L, Balance Sheet, Cash Flow, and Quarters into a clean prompt context table."""
     clean_sym = symbol.upper().strip()
-    data = database.get_stock_cache(clean_sym)
+    data = stock_data or database.get_stock_cache(clean_sym)
     if not data:
         try:
             data = fetch_stock_from_screener(clean_sym, force_refresh=False)
@@ -521,6 +521,18 @@ def run_multi_document_ai_pipeline(
 
     # 4. Compile Audited Financials Summary & Retrieve Structured Statements
     stock_data = database.get_stock_cache(clean_sym)
+    if not stock_data:
+        try:
+            stock_data = fetch_stock_from_screener(clean_sym, force_refresh=False)
+        except Exception:
+            stock_data = {}
+            
+    financial_statements_text = format_audited_financials_for_prompt(clean_sym, stock_data=stock_data)
+    pl_stmt = (stock_data.get("profit_loss") or stock_data.get("profit_and_loss")) if stock_data else None
+    quarters_stmt = stock_data.get("quarters") if stock_data else None
+    bs_stmt = stock_data.get("balance_sheet") if stock_data else None
+    cf_stmt = stock_data.get("cash_flow") if stock_data else None
+    
     candidate_meta = [
         {"title": d.title, "url": d.url, "type": d.doc_type, "period": d.period_or_date}
         for d in candidate_docs
