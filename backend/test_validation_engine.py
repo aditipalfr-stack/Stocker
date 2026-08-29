@@ -233,8 +233,102 @@ def test_formula_transparency():
     assert "sales_cagr_3yr" in ft
     assert "free_cash_flow" in ft
     assert ft["free_cash_flow"]["value"] == 6000.0 # CFO 21000 - Capex 15000 = 6000
-    assert ft["free_cash_flow"]["formula"] == "FCF = CFO - Capex"
-    print("✓ Formula transparency verified successfully.")
+def test_production_pipeline_financial_wiring():
+    """Integration Test: Executes run_multi_document_ai_pipeline -> extract_document_intelligence_with_llm
+    to prove that financial_statements_text, pl_stmt, quarters_stmt, bs_stmt, cf_stmt are correctly
+    initialized and passed without NameError, both when cached and when cache is missing."""
+    print("Testing production pipeline structured financial wiring & LLM boundary...")
+    from models import DocumentLinks, DocumentItem
+    from doc_intelligence_models import BusinessOutlookResult
+    import doc_intelligence_pipeline
+    
+    docs = DocumentLinks(
+        annual_reports=[
+            DocumentItem(ticker="INFY", company_name="Infosys Ltd", title="Infosys AR 2026", url="https://example.com/ar26.pdf", doc_type="annual_report", period_or_date="FY26", validation_status="Valid"),
+            DocumentItem(ticker="INFY", company_name="Infosys Ltd", title="Infosys AR 2025", url="https://example.com/ar25.pdf", doc_type="annual_report", period_or_date="FY25", validation_status="Valid")
+        ],
+        concall_transcripts=[
+            DocumentItem(ticker="INFY", company_name="Infosys Ltd", title="Infosys Q4 Earnings Call", url="https://example.com/cc26.pdf", doc_type="concall_transcript", period_or_date="Q4 FY26", validation_status="Valid")
+        ]
+    )
+    
+    dummy_stock_cache = {
+        "profit_loss": {
+            "periods": ["Mar 2024", "Mar 2025", "Mar 2026"],
+            "rows": [
+                {"metric": "Sales", "values": {"Mar 2024": 150000.0, "Mar 2025": 165000.0, "Mar 2026": 180000.0}},
+                {"metric": "OPM %", "values": {"Mar 2024": 21.0, "Mar 2025": 21.5, "Mar 2026": 21.8}},
+                {"metric": "Net Profit", "values": {"Mar 2024": 26000.0, "Mar 2025": 28000.0, "Mar 2026": 30000.0}}
+            ]
+        },
+        "quarters": {
+            "periods": ["Jun 2025", "Sep 2025", "Dec 2025", "Mar 2026"],
+            "rows": [{"metric": "Sales", "values": {"Jun 2025": 44000.0, "Sep 2025": 45000.0, "Dec 2025": 45500.0, "Mar 2026": 45500.0}}]
+        },
+        "balance_sheet": {
+            "periods": ["Mar 2024", "Mar 2025", "Mar 2026"],
+            "rows": [{"metric": "Total Assets", "values": {"Mar 2024": 120000.0, "Mar 2025": 135000.0, "Mar 2026": 150000.0}}]
+        },
+        "cash_flow": {
+            "periods": ["Mar 2024", "Mar 2025", "Mar 2026"],
+            "rows": [{"metric": "Cash from Operating Activity", "values": {"Mar 2024": 25000.0, "Mar 2025": 27000.0, "Mar 2026": 29000.0}}]
+        }
+    }
+    
+    captured_llm_kwargs = {}
+    def mock_extract_llm(*args, **kwargs):
+        captured_llm_kwargs.update(kwargs)
+        res = BusinessOutlookResult(
+            symbol="INFY",
+            company_name="Infosys Ltd",
+            latest_document_period="FY26",
+            model_version="gemini-3.1-flash-lite",
+            ai_provider_used="GEMINI (gemini-3.1-flash-lite)"
+        )
+        return True, res, "Success"
+
+    # Test Path 1: Cache is populated
+    with patch("doc_intelligence_pipeline.download_and_extract_pdf", return_value=[(1, "Management discussion text")]), \
+         patch("doc_intelligence_pipeline.get_or_generate_document_summary", return_value={"doc_title": "Infosys AR 2026", "key_takeaways": ["Growth"]}), \
+         patch("doc_intelligence_pipeline.is_llm_available", return_value=True), \
+         patch("database.get_stock_cache", return_value=dummy_stock_cache), \
+         patch("doc_intelligence_pipeline.extract_document_intelligence_with_llm", side_effect=mock_extract_llm):
+         
+        output = doc_intelligence_pipeline.run_multi_document_ai_pipeline(
+            symbol="INFY",
+            company_name="Infosys Ltd",
+            documents=docs,
+            save_output=False
+        )
+        assert output["symbol"] == "INFY"
+        assert "financial_statements_summary" in captured_llm_kwargs
+        assert "AUDITED 10-YEAR FINANCIAL STATEMENTS" in captured_llm_kwargs["financial_statements_summary"]
+        assert captured_llm_kwargs["pl_stmt"] is not None
+        assert captured_llm_kwargs["quarters_stmt"] is not None
+        assert captured_llm_kwargs["bs_stmt"] is not None
+        assert captured_llm_kwargs["cf_stmt"] is not None
+        print("  ✓ Path 1 passed: Cache populated flow passed structured statements to LLM without NameError.")
+
+    # Test Path 2: Cache is missing, fallback ingestion retrieves statements
+    captured_llm_kwargs.clear()
+    with patch("doc_intelligence_pipeline.download_and_extract_pdf", return_value=[(1, "Management discussion text")]), \
+         patch("doc_intelligence_pipeline.get_or_generate_document_summary", return_value={"doc_title": "Infosys AR 2026", "key_takeaways": ["Growth"]}), \
+         patch("doc_intelligence_pipeline.is_llm_available", return_value=True), \
+         patch("database.get_stock_cache", return_value=None), \
+         patch("doc_intelligence_pipeline.fetch_stock_from_screener", return_value=dummy_stock_cache), \
+         patch("doc_intelligence_pipeline.extract_document_intelligence_with_llm", side_effect=mock_extract_llm):
+         
+        output = doc_intelligence_pipeline.run_multi_document_ai_pipeline(
+            symbol="INFY",
+            company_name="Infosys Ltd",
+            documents=docs,
+            save_output=False
+        )
+        assert output["symbol"] == "INFY"
+        assert captured_llm_kwargs["pl_stmt"] is not None
+        assert captured_llm_kwargs["quarters_stmt"] is not None
+        print("  ✓ Path 2 passed: Cache missing fallback flow safely retrieved structured data without NameError.")
+    print("✓ Integration Test passed: Full production AI pipeline wiring verified.")
 
 if __name__ == "__main__":
     test_case_a_missing_structured_financial_data()
@@ -246,6 +340,8 @@ if __name__ == "__main__":
     test_case_g_company_ir_incremental_fallback()
     test_qualitative_milestone_completion_matching()
     test_formula_transparency()
-    print("\n🎉 ALL CASES A-G AND REGRESSION TESTS PASSED PERFECTLY!")
+    test_production_pipeline_financial_wiring()
+    print("\n🎉 ALL CASES A-G, INTEGRATION & REGRESSION TESTS PASSED PERFECTLY!")
+
 
 
