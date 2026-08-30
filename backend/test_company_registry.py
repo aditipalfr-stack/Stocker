@@ -170,8 +170,8 @@ def test_company_search_ranking_and_alias_expansion():
         
     print("  ✓ Search ranking and search query alias expansion verified.")
 
-def test_screener_discovery_does_not_fabricate_bse_code():
-    print("5. Testing Screener Discovery Does NOT Fabricate BSE Code or ISIN...")
+def test_screener_discovery_does_not_fabricate_exchange_identity():
+    print("5. Testing Screener Discovery Does NOT Fabricate Exchange Identity (NSE/BSE/ISIN)...")
     mock_screener_response = [
         {
             "id": 15474, # Internal Screener database ID
@@ -182,6 +182,11 @@ def test_screener_discovery_does_not_fabricate_bse_code():
             "id": 3365,
             "name": "Bharti Airtel Ltd.",
             "url": "/company/BHARTIARTL/consolidated/"
+        },
+        {
+            "id": 500325,
+            "name": "Reliance Industries Limited",
+            "url": "/company/500325/"
         }
     ]
     
@@ -190,16 +195,27 @@ def test_screener_discovery_does_not_fabricate_bse_code():
     mock_resp.json.return_value = mock_screener_response
     
     with patch("requests.get", return_value=mock_resp):
-        candidates = search_screener_company_discovery("Zomato")
-        assert len(candidates) >= 1
-        zomato = candidates[0]
-        assert zomato["symbol"] == "ZOMATO"
-        assert zomato["company_name"] == "Zomato Ltd."
-        assert zomato["bse_code"] is None, "Screener internal id MUST NOT be mapped to BSE code!"
-        assert zomato["isin"] is None, "ISIN must remain None until verified from authoritative source!"
-        assert zomato["source"] == "screener_search"
+        # A. Screener discovery with numeric BSE-like URL slug
+        candidates_numeric = search_screener_company_discovery("500325")
+        cand_500325 = next(c for c in candidates_numeric if c["symbol"] == "500325")
+        assert cand_500325["symbol"] == "500325"
+        assert cand_500325["nse_symbol"] is None, "Numeric Screener slug must NOT become nse_symbol!"
+        assert cand_500325["bse_code"] is None, "Screener internal id must NOT be mapped to bse_code!"
+        assert cand_500325["isin"] is None, "ISIN must remain None until verified!"
+        assert cand_500325["exchange"] is None, "exchange must remain None for unverified discovery!"
+        assert cand_500325["source"] == "screener_search"
+
+        # B. Screener discovery with normal ticker-looking URL slug (BHARTIARTL)
+        candidates_ticker = search_screener_company_discovery("Bharti Airtel")
+        cand_bharti = next(c for c in candidates_ticker if c["symbol"] == "BHARTIARTL")
+        assert cand_bharti["symbol"] == "BHARTIARTL"
+        assert cand_bharti["nse_symbol"] is None, "Discovered symbol must NOT imply verified nse_symbol!"
+        assert cand_bharti["bse_code"] is None
+        assert cand_bharti["isin"] is None
+        assert cand_bharti["exchange"] is None, "exchange must remain None for unverified discovery!"
+        assert cand_bharti["source"] == "screener_search"
         
-    print("  ✓ Screener discovery provenance and null official fields verified.")
+    print("  ✓ Screener discovery provenance and unverified null exchange identity verified.")
 
 def test_canonical_duplicate_prevention_with_precedence():
     print("6. Testing Canonical Duplicate Prevention & Precedence Merge...")
@@ -211,6 +227,7 @@ def test_canonical_duplicate_prevention_with_precedence():
             "nse_symbol": "RELIANCE",
             "bse_code": None,
             "isin": None,
+            "exchange": "NSE",
             "sector": "Energy",
             "industry": "Oil & Gas"
         })
@@ -220,6 +237,7 @@ def test_canonical_duplicate_prevention_with_precedence():
             "symbol": "RELIANCE.NS",
             "company_name": "Reliance Industries Ltd (NSE)",
             "nse_symbol": "RELIANCE",
+            "exchange": "NSE",
             "sector": "Energy & Petrochemicals"
         })
         
@@ -238,6 +256,7 @@ def test_canonical_duplicate_prevention_with_precedence():
             "nse_symbol": "RELIANCE",
             "bse_code": "500325",
             "isin": "INE002A01018",
+            "exchange": "NSE",
             "aliases": ["RIL", "Jio", "Reliance"]
         })
         
@@ -261,18 +280,29 @@ def test_canonical_duplicate_prevention_with_precedence():
     print("  ✓ Canonical deduplication and identity precedence merge verified.")
 
 def test_unresolved_manual_input_safety():
-    print("7. Testing Unresolved Manual Input Candidate Safety...")
+    print("7. Testing Unresolved Manual Input Candidate Safety (Condition C)...")
     with IsolatedTestDatabase() as test_db:
+        # C. Unresolved manual input XYZUNKNOWN_CO
         candidate = resolve_canonical_company("XYZUNKNOWN_CO")
         assert candidate is not None
         assert candidate["symbol"] == "XYZUNKNOWN_CO"
-        assert candidate["source"] == "unresolved_input"
-        assert candidate["bse_code"] is None
-        assert candidate["isin"] is None
+        assert candidate["nse_symbol"] is None, "Manual unresolved candidate must have nse_symbol=None!"
+        assert candidate["bse_code"] is None, "Manual unresolved candidate must have bse_code=None!"
+        assert candidate["isin"] is None, "Manual unresolved candidate must have isin=None!"
+        assert candidate["exchange"] is None, "Manual unresolved candidate must have exchange=None!"
         assert candidate["sector"] is None
         assert candidate["industry"] is None
+        assert candidate["source"] == "unresolved_input"
         
-    print("  ✓ Unresolved manual inputs remain unverified without fabricated metadata.")
+        # Verified Seed Companies retain authoritative exchange metadata
+        rel_seed = database.get_company_by_symbol("RELIANCE")
+        assert rel_seed["exchange"] == "NSE", "Seeded verified records must keep real exchange metadata!"
+        assert rel_seed["nse_symbol"] == "RELIANCE"
+        assert rel_seed["bse_code"] == "500325"
+        assert rel_seed["isin"] == "INE002A01018"
+        assert rel_seed["source"] == "seed"
+
+    print("  ✓ Unresolved manual inputs remain unverified while seeded records retain verified metadata.")
 
 def test_add_company_flow_and_idempotency():
     print("8. Testing Add Company Flow & Universe Idempotency...")
@@ -367,7 +397,7 @@ if __name__ == "__main__":
     test_seed_preserves_user_removal()
     test_canonical_symbol_normalization_without_silent_rewrites()
     test_company_search_ranking_and_alias_expansion()
-    test_screener_discovery_does_not_fabricate_bse_code()
+    test_screener_discovery_does_not_fabricate_exchange_identity()
     test_canonical_duplicate_prevention_with_precedence()
     test_unresolved_manual_input_safety()
     test_add_company_flow_and_idempotency()

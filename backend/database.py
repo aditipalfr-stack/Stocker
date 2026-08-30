@@ -152,7 +152,7 @@ def init_db() -> None:
                     nse_symbol TEXT COLLATE NOCASE,
                     bse_code TEXT,
                     isin TEXT,
-                    exchange TEXT DEFAULT 'NSE',
+                    exchange TEXT,
                     sector TEXT DEFAULT 'Broad Market',
                     industry TEXT DEFAULT 'Indian Equities',
                     aliases TEXT DEFAULT '[]',
@@ -755,12 +755,13 @@ def upsert_company_registry_item(item: Dict[str, Any]) -> int:
         raise ValueError("Cannot upsert company registry item without a symbol")
         
     company_name = (item.get("company_name") or clean_sym).strip()
-    nse_symbol = (item.get("nse_symbol") or clean_sym).upper().strip()
+    raw_nse = item.get("nse_symbol")
+    nse_symbol = raw_nse.upper().strip() if raw_nse else None
     bse_code = str(item.get("bse_code") or "").strip() or None
     isin = (item.get("isin") or "").upper().strip() or None
-    exchange = item.get("exchange", "NSE")
-    sector = item.get("sector") or "Broad Market"
-    industry = item.get("industry") or "Indian Equities"
+    exchange = (item.get("exchange") or "").strip() or None
+    sector = item.get("sector")
+    industry = item.get("industry")
     incoming_aliases = item.get("aliases", [])
     
     in_universe_val = item.get("in_universe")
@@ -791,8 +792,8 @@ def upsert_company_registry_item(item: Dict[str, Any]) -> int:
                 up_bse = bse_code or existing["bse_code"]
                 up_isin = isin or existing["isin"]
                 up_exchange = exchange or existing["exchange"]
-                up_sector = sector if sector and sector != "Broad Market" else (existing["sector"] or sector)
-                up_industry = industry if industry and industry != "Indian Equities" else (existing["industry"] or industry)
+                up_sector = sector if sector and sector != "Broad Market" else (existing["sector"] or sector or "Broad Market")
+                up_industry = industry if industry and industry != "Indian Equities" else (existing["industry"] or industry or "Indian Equities")
                 
                 up_in_uni = (1 if in_universe_val else 0) if in_universe_val is not None else existing["in_universe"]
                 up_is_act = (1 if is_active_val else 0) if is_active_val is not None else existing["is_active"]
@@ -825,6 +826,8 @@ def upsert_company_registry_item(item: Dict[str, Any]) -> int:
                 aliases_json = _merge_aliases(None, incoming_aliases)
                 in_uni = 1 if in_universe_val is not False else 0
                 is_act = 1 if is_active_val is not False else 0
+                sec_val = sector or "Broad Market"
+                ind_val = industry or "Indian Equities"
                 
                 cur = conn.execute("""
                     INSERT INTO company_registry (
@@ -835,7 +838,7 @@ def upsert_company_registry_item(item: Dict[str, Any]) -> int:
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """, (
                     clean_sym, company_name, nse_symbol, bse_code, isin,
-                    exchange, sector, industry, aliases_json, is_act,
+                    exchange, sec_val, ind_val, aliases_json, is_act,
                     in_uni, source, source_last_verified_at, now_iso, now_iso
                 ))
                 return cur.lastrowid or 0

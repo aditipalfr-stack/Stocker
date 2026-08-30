@@ -584,7 +584,7 @@ export interface CompanySearchResult {
   nse_symbol?: string | null;
   bse_code?: string | null;
   isin?: string | null;
-  exchange?: string;
+  exchange?: string | null;
   sector?: string | null;
   industry?: string | null;
   already_added: boolean;
@@ -614,7 +614,7 @@ export interface CompanyRegistryItem {
   nse_symbol?: string | null;
   bse_code?: string | null;
   isin?: string | null;
-  exchange?: string;
+  exchange?: string | null;
   sector?: string;
   industry?: string;
   aliases?: string[];

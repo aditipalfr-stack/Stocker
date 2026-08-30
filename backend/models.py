@@ -211,9 +211,9 @@ class CompanyRegistryItem(BaseModel):
     nse_symbol: Optional[str] = None
     bse_code: Optional[str] = None
     isin: Optional[str] = None
-    exchange: str = "NSE"
-    sector: str = "Broad Market"
-    industry: str = "Indian Equities"
+    exchange: Optional[str] = None
+    sector: Optional[str] = "Broad Market"
+    industry: Optional[str] = "Indian Equities"
     aliases: List[str] = []
     is_active: bool = True
     in_universe: bool = True
@@ -229,11 +229,11 @@ class CompanySearchResult(BaseModel):
     nse_symbol: Optional[str] = None
     bse_code: Optional[str] = None
     isin: Optional[str] = None
-    exchange: str = "NSE"
+    exchange: Optional[str] = None
     sector: Optional[str] = None
     industry: Optional[str] = None
     already_added: bool = False
-    source: str = "local" # "local", "screener_search", "nse_master", "bse_master"
+    source: str = "local" # "local", "screener_search", "nse_master", "bse_master", "unresolved_input"
     match_score: Optional[int] = None
 
 class CompanySearchResponse(BaseModel):

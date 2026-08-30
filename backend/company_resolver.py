@@ -171,14 +171,14 @@ def search_screener_company_discovery(query: str) -> List[Dict[str, Any]]:
                     if not sym:
                         continue
                         
-                    # Screener internal 'id' is NOT an exchange BSE code. Keep bse_code and isin None.
+                    # Screener internal 'id' is NOT an exchange BSE code. Keep bse_code, isin, nse_symbol, exchange None.
                     candidates.append({
                         "symbol": sym,
                         "company_name": name or sym,
-                        "nse_symbol": sym,
+                        "nse_symbol": None,
                         "bse_code": None,
                         "isin": None,
-                        "exchange": "NSE",
+                        "exchange": None,
                         "sector": None,
                         "industry": None,
                         "aliases": [name, sym],
@@ -288,14 +288,14 @@ def resolve_canonical_company(symbol_or_name: str) -> Optional[Dict[str, Any]]:
         if top.get("match_score", 0) >= 70:
             return top
             
-    # 3. Explicit unverified candidate (no fabricated BSE code, ISIN, or sector)
+    # 3. Explicit unverified candidate (no fabricated NSE symbol, BSE code, ISIN, exchange, or sector)
     return {
         "symbol": norm_sym,
         "company_name": clean,
-        "nse_symbol": norm_sym,
+        "nse_symbol": None,
         "bse_code": None,
         "isin": None,
-        "exchange": "NSE",
+        "exchange": None,
         "sector": None,
         "industry": None,
         "aliases": [clean],

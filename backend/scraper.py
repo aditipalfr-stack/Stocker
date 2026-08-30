@@ -441,7 +441,6 @@ def fetch_stock_from_screener(symbol: str, force_refresh: bool = False) -> Optio
         database.upsert_company_registry_item({
             "symbol": clean_sym,
             "company_name": company_name,
-            "nse_symbol": clean_sym,
             "sector": sector,
             "industry": industry,
             "source": "screener_ingestion",
