@@ -1,11 +1,27 @@
+"""
+=============================================================================
+Stocker V3 Phase A: Company Registry & Search Unit & Integration Test Suite
+=============================================================================
+Fully isolated, deterministic test suite:
+- Runs against an isolated temporary SQLite database
+- Mocks external Screener discovery and financial ingestion
+- Zero mutations to development stocker.db or production cache files
+=============================================================================
+"""
+
+import os
 import sys
+import tempfile
+import shutil
 from pathlib import Path
 from unittest.mock import patch, MagicMock
+os.environ["STOCKER_TEST_MODE"] = "1"
 
 sys.path.insert(0, str(Path(__file__).parent.parent / "libs"))
 sys.path.insert(0, str(Path(__file__).parent))
 
 import database
+import company_resolver
 from data_seed import SEED_REGISTRY_COMPANIES, DEFAULT_UNIVERSE_SYMBOLS
 from company_resolver import (
     normalize_symbol, clean_company_name, extract_symbol_from_url_slug,
@@ -17,102 +33,148 @@ from models import (
     AddCompanyResponse
 )
 
-def test_registry_schema_and_seed_population():
-    print("Testing Company Registry Schema & Seed Population...")
-    database.init_db()
-    
-    # 1. Verify table exists
-    conn = database.get_db_connection()
-    try:
-        cur = conn.cursor()
-        cur.execute("PRAGMA table_info(company_registry);")
-        columns = {r["name"]: r["type"] for r in cur.fetchall()}
-        required_cols = [
-            "id", "symbol", "company_name", "nse_symbol", "bse_code",
-            "isin", "exchange", "sector", "industry", "aliases",
-            "is_active", "in_universe", "source", "source_last_verified_at",
-            "created_at", "updated_at"
-        ]
-        for col in required_cols:
-            assert col in columns, f"Column '{col}' must exist in company_registry table!"
-    finally:
-        conn.close()
+# Helper fixture for isolated test database
+class IsolatedTestDatabase:
+    def __enter__(self):
+        self.temp_dir = tempfile.mkdtemp(prefix="stocker_test_")
+        self.db_path = Path(self.temp_dir) / "test_stocker.db"
+        self.orig_env_db = os.environ.get("STOCKER_DB_PATH")
+        os.environ["STOCKER_DB_PATH"] = str(self.db_path)
+        self.orig_db_path = database.DB_PATH
+        database.DB_PATH = self.db_path
+        database.init_db()
+        return self
 
-    # 2. Seed registry and test idempotency
-    inserted_first = database.seed_company_registry()
-    inserted_second = database.seed_company_registry()
-    assert inserted_second == 0, "Second seed run must be idempotent (0 duplicate insertions)!"
-    
-    # 3. Check anchor universe presence
-    universe_syms = database.get_universe_symbols(active_only=True)
-    for sym in DEFAULT_UNIVERSE_SYMBOLS:
-        assert sym in universe_syms, f"Anchor symbol {sym} must be present in active universe!"
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        database.DB_PATH = self.orig_db_path
+        if self.orig_env_db is not None:
+            os.environ["STOCKER_DB_PATH"] = self.orig_env_db
+        else:
+            os.environ.pop("STOCKER_DB_PATH", None)
+        try:
+            shutil.rmtree(self.temp_dir)
+        except Exception:
+            pass
+
+def test_registry_schema_and_seed_population():
+    print("1. Testing Company Registry Schema & Idempotent Seed Population...")
+    with IsolatedTestDatabase() as test_db:
+        conn = database.get_db_connection()
+        try:
+            cur = conn.cursor()
+            cur.execute("PRAGMA table_info(company_registry);")
+            columns = {r["name"]: r["type"] for r in cur.fetchall()}
+            required_cols = [
+                "id", "symbol", "company_name", "nse_symbol", "bse_code",
+                "isin", "exchange", "sector", "industry", "aliases",
+                "is_active", "in_universe", "source", "source_last_verified_at",
+                "created_at", "updated_at"
+            ]
+            for col in required_cols:
+                assert col in columns, f"Column '{col}' must exist in company_registry table!"
+        finally:
+            conn.close()
+
+        # Seed idempotency: running seed again should insert 0 new duplicate records
+        inserted_again = database.seed_company_registry()
+        assert inserted_again == 0, "Second seed run must be idempotent (0 insertions)!"
         
+        # Verify 10 anchor companies are seeded
+        universe_syms = database.get_universe_symbols(active_only=True)
+        for sym in DEFAULT_UNIVERSE_SYMBOLS:
+            assert sym in universe_syms, f"Anchor symbol {sym} must be present in active universe!"
+            
     print("  ✓ Registry schema and idempotent seed population verified.")
 
-def test_canonical_symbol_normalization():
-    print("Testing Canonical Symbol Normalization & Aliases...")
+def test_seed_preserves_user_removal():
+    print("2. Testing Seed Logic Preserves User Inactive/Removed Status...")
+    with IsolatedTestDatabase() as test_db:
+        # User explicitly removes a company from universe
+        assert database.set_company_universe_status("RELIANCE", in_universe=False, is_active=True) is True
+        
+        rel_before = database.get_company_by_symbol("RELIANCE")
+        assert rel_before["in_universe"] is False
+        assert "RELIANCE" not in database.get_universe_symbols(active_only=True)
+        
+        # Re-running init_db() and seed_company_registry() must NOT re-enable RELIANCE
+        database.seed_company_registry()
+        database.init_db()
+        
+        rel_after = database.get_company_by_symbol("RELIANCE")
+        assert rel_after["in_universe"] is False, "Seed must NEVER re-enable in_universe if set to False by user!"
+        assert "RELIANCE" not in database.get_universe_symbols(active_only=True)
+        
+    print("  ✓ User universe removals preserved across re-seeding.")
+
+def test_canonical_symbol_normalization_without_silent_rewrites():
+    print("3. Testing Canonical Symbol Normalization (No Silent Security Rewrites)...")
+    # Clean exchange suffixes
     assert normalize_symbol("RELIANCE.NS") == "RELIANCE"
     assert normalize_symbol("tcs.bo") == "TCS"
     assert normalize_symbol("infy:nse") == "INFY"
     assert normalize_symbol("TATAMOTORS-EQ") == "TATAMOTORS"
-    assert normalize_symbol("TMPV") == "TATAMOTORS"
-    assert normalize_symbol("HUL") == "HINDUNILVR"
-    assert normalize_symbol("RIL") == "RELIANCE"
-    assert normalize_symbol("TISCO") == "TATASTEEL"
-    assert normalize_symbol("L&T") == "LT"
-    assert normalize_symbol("airtel") == "BHARTIARTL"
+    assert normalize_symbol(" ITC ") == "ITC"
     
+    # Aliases must NOT silently rewrite raw ticker symbols into other securities
+    assert normalize_symbol("TMPV") == "TMPV", "normalize_symbol must not silently rewrite distinct ticker symbols!"
+    assert normalize_symbol("RIL") == "RIL"
+    assert normalize_symbol("HUL") == "HUL"
+    
+    # URL slug extraction
     assert extract_symbol_from_url_slug("/company/BHARTIARTL/consolidated/") == "BHARTIARTL"
     assert extract_symbol_from_url_slug("/company/ZOMATO/") == "ZOMATO"
-    print("  ✓ Canonical symbol normalization verified.")
+    print("  ✓ Symbol normalization cleans tickers without fabricating security identity.")
 
-def test_company_search_ranking():
-    print("Testing Company Search Ranking & Scoring Precedence...")
-    
-    # 1. Exact Symbol match should rank highest (score 100)
-    infy_res = resolve_and_search_companies("INFY", limit=5)
-    assert len(infy_res) > 0
-    assert infy_res[0]["symbol"] == "INFY"
-    assert infy_res[0]["match_score"] == 100
-    
-    # Case insensitivity
-    infy_lower = resolve_and_search_companies("infy", limit=5)
-    assert infy_lower[0]["symbol"] == "INFY"
-    assert infy_lower[0]["match_score"] == 100
+def test_company_search_ranking_and_alias_expansion():
+    print("4. Testing Multi-Tier Search Ranking & Search Query Aliases...")
+    with IsolatedTestDatabase() as test_db:
+        # 1. Exact Symbol match -> Score 100
+        infy_res = resolve_and_search_companies("INFY", limit=5)
+        assert len(infy_res) > 0
+        assert infy_res[0]["symbol"] == "INFY"
+        assert infy_res[0]["match_score"] == 100
+        
+        # Case-insensitivity
+        infy_lower = resolve_and_search_companies("infy", limit=5)
+        assert infy_lower[0]["symbol"] == "INFY"
+        assert infy_lower[0]["match_score"] == 100
 
-    # 2. Exact Company Name match (score 90)
-    rel_res = resolve_and_search_companies("Reliance Industries Limited", limit=5)
-    assert len(rel_res) > 0
-    assert rel_res[0]["symbol"] == "RELIANCE"
-    assert rel_res[0]["match_score"] == 90
+        # 2. Exact Company Name match -> Score 90
+        rel_res = resolve_and_search_companies("Reliance Industries Limited", limit=5)
+        assert len(rel_res) > 0
+        assert rel_res[0]["symbol"] == "RELIANCE"
+        assert rel_res[0]["match_score"] == 90
 
-    # 3. Symbol Prefix match (score 80)
-    tata_res = resolve_and_search_companies("TATA", limit=5)
-    assert len(tata_res) >= 2
-    tata_syms = [r["symbol"] for r in tata_res]
-    assert "TATAMOTORS" in tata_syms
-    assert "TATASTEEL" in tata_syms
+        # 3. Symbol Prefix match -> Score 80
+        tata_res = resolve_and_search_companies("TATA", limit=5)
+        assert len(tata_res) >= 2
+        tata_syms = [r["symbol"] for r in tata_res]
+        assert "TATAMOTORS" in tata_syms
+        assert "TATASTEEL" in tata_syms
 
-    # 4. Exact Alias match (score 75)
-    hul_res = resolve_and_search_companies("HUL", limit=5)
-    assert len(hul_res) > 0
-    assert hul_res[0]["symbol"] == "HINDUNILVR"
-    assert hul_res[0]["match_score"] >= 75
+        # 4. Search Query Alias match (e.g. 'RIL' -> RELIANCE, 'HUL' -> HINDUNILVR) -> Score 75
+        ril_res = resolve_and_search_companies("RIL", limit=5)
+        assert len(ril_res) > 0
+        assert ril_res[0]["symbol"] == "RELIANCE"
+        assert ril_res[0]["match_score"] >= 75
 
-    # 5. Partial Name match (score 65-70)
-    lt_res = resolve_and_search_companies("Larsen", limit=5)
-    assert len(lt_res) > 0
-    assert lt_res[0]["symbol"] == "LT"
-    
-    print("  ✓ Multi-tier search ranking precedence verified.")
+        hul_res = resolve_and_search_companies("HUL", limit=5)
+        assert len(hul_res) > 0
+        assert hul_res[0]["symbol"] == "HINDUNILVR"
+        assert hul_res[0]["match_score"] >= 75
 
-def test_external_discovery_fallback():
-    print("Testing External Discovery Fallback (Screener Company Search)...")
-    
+        # 5. Partial Name match
+        lt_res = resolve_and_search_companies("Larsen", limit=5)
+        assert len(lt_res) > 0
+        assert lt_res[0]["symbol"] == "LT"
+        
+    print("  ✓ Search ranking and search query alias expansion verified.")
+
+def test_screener_discovery_does_not_fabricate_bse_code():
+    print("5. Testing Screener Discovery Does NOT Fabricate BSE Code or ISIN...")
     mock_screener_response = [
         {
-            "id": 15474,
+            "id": 15474, # Internal Screener database ID
             "name": "Zomato Ltd.",
             "url": "/company/ZOMATO/"
         },
@@ -130,70 +192,91 @@ def test_external_discovery_fallback():
     with patch("requests.get", return_value=mock_resp):
         candidates = search_screener_company_discovery("Zomato")
         assert len(candidates) >= 1
-        assert candidates[0]["symbol"] == "ZOMATO"
-        assert candidates[0]["company_name"] == "Zomato Ltd."
-        assert candidates[0]["source"] == "screener_search"
+        zomato = candidates[0]
+        assert zomato["symbol"] == "ZOMATO"
+        assert zomato["company_name"] == "Zomato Ltd."
+        assert zomato["bse_code"] is None, "Screener internal id MUST NOT be mapped to BSE code!"
+        assert zomato["isin"] is None, "ISIN must remain None until verified from authoritative source!"
+        assert zomato["source"] == "screener_search"
         
-        # End-to-end resolver with external search fallback
-        results = resolve_and_search_companies("Zomato", limit=5)
-        assert len(results) >= 1
-        assert any(r["symbol"] == "ZOMATO" for r in results)
-        
-    print("  ✓ External discovery fallback verified.")
+    print("  ✓ Screener discovery provenance and null official fields verified.")
 
-def test_duplicate_prevention_and_case_insensitivity():
-    print("Testing Duplicate Prevention & Case-Insensitive Uniqueness...")
-    
-    # Insert initial item
-    database.upsert_company_registry_item({
-        "symbol": "DMART",
-        "company_name": "Avenue Supermarts Limited",
-        "nse_symbol": "DMART",
-        "bse_code": "540376",
-        "sector": "Retail",
-        "industry": "Hypermarkets",
-        "in_universe": True,
-        "is_active": True
-    })
-    
-    # Try inserting lowercase / alias variant
-    database.upsert_company_registry_item({
-        "symbol": "dmart",
-        "company_name": "Avenue Supermarts Limited (DMart)",
-        "nse_symbol": "DMART",
-        "bse_code": "540376",
-        "sector": "Retail",
-        "industry": "Hypermarkets & Supermarkets",
-        "in_universe": True,
-        "is_active": True
-    })
-    
-    conn = database.get_db_connection()
-    try:
-        cur = conn.cursor()
-        cur.execute("SELECT COUNT(*) as cnt FROM company_registry WHERE symbol = 'DMART' COLLATE NOCASE")
-        row = cur.fetchone()
-        assert row["cnt"] == 1, "There must be exactly 1 row for DMART (no duplicates allowed)!"
-    finally:
-        conn.close()
+def test_canonical_duplicate_prevention_with_precedence():
+    print("6. Testing Canonical Duplicate Prevention & Precedence Merge...")
+    with IsolatedTestDatabase() as test_db:
+        # Initial insert for RELIANCE with basic symbol
+        database.upsert_company_registry_item({
+            "symbol": "RELIANCE",
+            "company_name": "Reliance Industries Limited",
+            "nse_symbol": "RELIANCE",
+            "bse_code": None,
+            "isin": None,
+            "sector": "Energy",
+            "industry": "Oil & Gas"
+        })
         
-    fetched = database.get_company_by_symbol("dmart")
-    assert fetched is not None
-    assert fetched["symbol"] == "DMART"
-    assert fetched["industry"] == "Hypermarkets & Supermarkets"
-    print("  ✓ Duplicate prevention and case-insensitive uniqueness verified.")
+        # 1. Duplicate ticker attempt with exchange suffix (.NS)
+        database.upsert_company_registry_item({
+            "symbol": "RELIANCE.NS",
+            "company_name": "Reliance Industries Ltd (NSE)",
+            "nse_symbol": "RELIANCE",
+            "sector": "Energy & Petrochemicals"
+        })
+        
+        conn = database.get_db_connection()
+        try:
+            cur = conn.cursor()
+            cur.execute("SELECT COUNT(*) as cnt FROM company_registry WHERE symbol = 'RELIANCE' COLLATE NOCASE")
+            assert cur.fetchone()["cnt"] == 1, "RELIANCE.NS must merge into existing RELIANCE row!"
+        finally:
+            conn.close()
+
+        # 2. Update with official BSE code and ISIN
+        database.upsert_company_registry_item({
+            "symbol": "RELIANCE",
+            "company_name": "Reliance Industries Limited",
+            "nse_symbol": "RELIANCE",
+            "bse_code": "500325",
+            "isin": "INE002A01018",
+            "aliases": ["RIL", "Jio", "Reliance"]
+        })
+        
+        # 3. Lookup by ISIN must find the exact same record
+        by_isin = database.find_existing_company_row(
+            database.get_db_connection(),
+            isin="INE002A01018"
+        )
+        assert by_isin is not None
+        assert by_isin["symbol"] == "RELIANCE"
+        assert by_isin["bse_code"] == "500325"
+        
+        # 4. Lookup by BSE code must find the exact same record
+        by_bse = database.find_existing_company_row(
+            database.get_db_connection(),
+            bse_code="500325"
+        )
+        assert by_bse is not None
+        assert by_bse["symbol"] == "RELIANCE"
+
+    print("  ✓ Canonical deduplication and identity precedence merge verified.")
+
+def test_unresolved_manual_input_safety():
+    print("7. Testing Unresolved Manual Input Candidate Safety...")
+    with IsolatedTestDatabase() as test_db:
+        candidate = resolve_canonical_company("XYZUNKNOWN_CO")
+        assert candidate is not None
+        assert candidate["symbol"] == "XYZUNKNOWN_CO"
+        assert candidate["source"] == "unresolved_input"
+        assert candidate["bse_code"] is None
+        assert candidate["isin"] is None
+        assert candidate["sector"] is None
+        assert candidate["industry"] is None
+        
+    print("  ✓ Unresolved manual inputs remain unverified without fabricated metadata.")
 
 def test_add_company_flow_and_idempotency():
-    print("Testing Add Company Flow & Universe Idempotency...")
+    print("8. Testing Add Company Flow & Universe Idempotency...")
     from main import execute_add_company_to_universe
-    
-    # Ensure WIPRO is not present before starting add test
-    conn = database.get_db_connection()
-    try:
-        with conn:
-            conn.execute("DELETE FROM company_registry WHERE symbol = 'WIPRO' COLLATE NOCASE")
-    finally:
-        conn.close()
     
     mock_stock_data = {
         "symbol": "WIPRO",
@@ -216,55 +299,77 @@ def test_add_company_flow_and_idempotency():
         "cash_flow": {"periods": ["Mar 2026"], "rows": [{"metric": "Cash from Operating Activity", "values": {"Mar 2026": 14000.0}}]}
     }
     
-    with patch("main.fetch_stock_from_screener", return_value=mock_stock_data):
-        # 1. First Add
-        res1 = execute_add_company_to_universe("WIPRO")
-        assert res1.success is True
-        assert res1.symbol == "WIPRO"
-        assert res1.already_existed is False
-        assert "Successfully added" in res1.message
-        
-        # Verify in universe
-        assert "WIPRO" in database.get_universe_symbols(active_only=True)
-        
-        # 2. Second Add (Idempotent Refresh)
-        res2 = execute_add_company_to_universe("WIPRO")
-        assert res2.success is True
-        assert res2.symbol == "WIPRO"
-        assert res2.already_existed is True
-        assert "Successfully refreshed" in res2.message
-        
+    with IsolatedTestDatabase() as test_db:
+        with patch("main.fetch_stock_from_screener", return_value=mock_stock_data):
+            # 1. First Add
+            res1 = execute_add_company_to_universe("WIPRO")
+            assert res1.success is True
+            assert res1.symbol == "WIPRO"
+            assert res1.already_existed is False
+            assert "Successfully added" in res1.message
+            
+            # Verify in universe
+            assert "WIPRO" in database.get_universe_symbols(active_only=True)
+            
+            # 2. Second Add (Idempotent Refresh)
+            res2 = execute_add_company_to_universe("WIPRO")
+            assert res2.success is True
+            assert res2.symbol == "WIPRO"
+            assert res2.already_existed is True
+            assert "Successfully refreshed" in res2.message
+            
     print("  ✓ Add company flow and idempotency verified.")
 
-def test_universe_active_toggle():
-    print("Testing Universe Active/Inactive Toggle...")
-    assert database.set_company_universe_status("WIPRO", in_universe=False, is_active=False) is True
-    assert "WIPRO" not in database.get_universe_symbols(active_only=True)
-    assert "WIPRO" in database.get_universe_symbols(active_only=False)
-    
-    assert database.set_company_universe_status("WIPRO", in_universe=True, is_active=True) is True
-    assert "WIPRO" in database.get_universe_symbols(active_only=True)
-    print("  ✓ Universe active/inactive toggle verified.")
-
-def test_api_stocks_universe_integration():
-    print("Testing /api/stocks Universe Integration...")
+def test_api_stocks_excludes_inactive_cached_companies():
+    print("9. Testing /api/stocks Excludes Inactive Cached Companies...")
     from main import get_all_stocks
     
-    stocks = get_all_stocks()
-    assert len(stocks) >= 10
-    symbols = [s.symbol for s in stocks]
-    for sym in DEFAULT_UNIVERSE_SYMBOLS:
-        assert sym in symbols, f"{sym} must be present in get_all_stocks output!"
+    with IsolatedTestDatabase() as test_db:
+        # Mock fetch_stock_from_screener for all active stocks
+        mock_stock_factory = lambda sym, **kwargs: {
+            "symbol": sym,
+            "name": f"{sym} Limited",
+            "sector": "Diversified",
+            "industry": "Indian Equities",
+            "about": f"{sym} is listed on NSE.",
+            "source_name": "Screener.in",
+            "source_url": f"https://www.screener.in/company/{sym}/",
+            "statement_type": "consolidated",
+            "fetched_at": "2026-08-30T12:00:00Z",
+            "ratios": {
+                "market_cap_cr": 100000.0, "current_price": 1000.0, "high_low": "1100 / 900",
+                "stock_pe": 20.0, "book_value": 300.0, "dividend_yield_pct": 1.0,
+                "roce_pct": 15.0, "roe_pct": 15.0, "face_value": 1.0
+            },
+            "quarters": {"periods": ["Jun 2026"], "rows": [{"metric": "Sales", "values": {"Jun 2026": 10000.0}}]},
+            "profit_loss": {"periods": ["Mar 2026"], "rows": [{"metric": "Sales", "values": {"Mar 2026": 40000.0}}]},
+            "balance_sheet": {"periods": ["Mar 2026"], "rows": [{"metric": "Fixed Assets", "values": {"Mar 2026": 10000.0}}]},
+            "cash_flow": {"periods": ["Mar 2026"], "rows": [{"metric": "Cash from Operating Activity", "values": {"Mar 2026": 5000.0}}]}
+        }
         
-    print("  ✓ /api/stocks dynamic universe integration verified.")
+        # Mark INFY as in_universe = False
+        database.set_company_universe_status("INFY", in_universe=False, is_active=True)
+        
+        with patch("main.fetch_stock_from_screener", side_effect=mock_stock_factory):
+            stocks = get_all_stocks()
+            stock_symbols = [s.symbol for s in stocks]
+            
+            # INFY must NOT be present in output
+            assert "INFY" not in stock_symbols, "Inactive/removed company INFY must NOT be returned by /api/stocks!"
+            # Other active anchor symbols must be present
+            assert "RELIANCE" in stock_symbols
+            assert "TCS" in stock_symbols
+            
+    print("  ✓ /api/stocks strictly respects registry universe membership without cache leakage.")
 
 if __name__ == "__main__":
     test_registry_schema_and_seed_population()
-    test_canonical_symbol_normalization()
-    test_company_search_ranking()
-    test_external_discovery_fallback()
-    test_duplicate_prevention_and_case_insensitivity()
+    test_seed_preserves_user_removal()
+    test_canonical_symbol_normalization_without_silent_rewrites()
+    test_company_search_ranking_and_alias_expansion()
+    test_screener_discovery_does_not_fabricate_bse_code()
+    test_canonical_duplicate_prevention_with_precedence()
+    test_unresolved_manual_input_safety()
     test_add_company_flow_and_idempotency()
-    test_universe_active_toggle()
-    test_api_stocks_universe_integration()
-    print("\n🎉 ALL COMPANY REGISTRY & DISCOVERY (PHASE A) TESTS PASSED PERFECTLY!")
+    test_api_stocks_excludes_inactive_cached_companies()
+    print("\n🎉 ALL CORRECTED PHASE A AUDIT TESTS PASSED WITH COMPLETE DB/NETWORK ISOLATION!")

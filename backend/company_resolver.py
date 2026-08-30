@@ -18,16 +18,14 @@ from typing import Dict, Any, List, Optional, Tuple
 
 import database
 
-# Canonical alias mapping for ticker renames / demergers / popular abbreviations
-CANONICAL_TICKER_ALIASES: Dict[str, str] = {
-    "TMPV": "TATAMOTORS",
-    "TMCV": "TATAMOTORS",
+# Search Query Alias expansion mapping (Used strictly for search query matching / ranking, NEVER for security identity rewrite)
+POPULAR_SEARCH_ALIASES: Dict[str, str] = {
     "RIL": "RELIANCE",
     "HUL": "HINDUNILVR",
     "TISCO": "TATASTEEL",
     "L&T": "LT",
-    "BHARTI": "BHARTIARTL",
-    "AIRTEL": "BHARTIARTL"
+    "AIRTEL": "BHARTIARTL",
+    "JIO": "RELIANCE"
 }
 
 def normalize_symbol(symbol: str) -> str:
@@ -35,7 +33,8 @@ def normalize_symbol(symbol: str) -> str:
     Normalizes a stock ticker symbol:
     - Uppercase & strip whitespace
     - Removes exchange suffixes (.NS, .BO, :NSE, :BSE, -EQ)
-    - Resolves known ticker renames / aliases
+    - Strips invalid characters
+    NOTE: Never silently rewrites ticker identity to avoid incorrectly merging securities.
     """
     if not symbol:
         return ""
@@ -45,8 +44,8 @@ def normalize_symbol(symbol: str) -> str:
         if clean.endswith(suffix):
             clean = clean[:-len(suffix)]
             break
-    clean = re.sub(r"[^A-Z0-9&]", "", clean)
-    return CANONICAL_TICKER_ALIASES.get(clean, clean)
+    clean = re.sub(r"[^A-Z0-9&_-]", "", clean)
+    return clean
 
 def clean_company_name(name: str) -> str:
     """Cleans company name string by normalizing whitespace and noise."""
@@ -98,6 +97,9 @@ def calculate_match_score(query: str, candidate: Dict[str, Any]) -> int:
             aliases = [aliases]
     aliases_lower = [str(a).strip().lower() for a in aliases]
 
+    # Check search query alias expansion
+    expanded_target = POPULAR_SEARCH_ALIASES.get(query.strip().upper(), "").lower()
+
     # 1. Exact Symbol match
     if q == sym or q == nse or (bse and q == bse):
         return 100
@@ -106,13 +108,13 @@ def calculate_match_score(query: str, candidate: Dict[str, Any]) -> int:
     if q == name:
         return 90
         
-    # 3. Symbol Prefix match
+    # 3. Exact Alias match or Popular Search Query Alias match (Direct user intention e.g. 'RIL' -> RELIANCE)
+    if q in aliases_lower or (expanded_target and (sym == expanded_target or nse == expanded_target)):
+        return 85
+
+    # 4. Symbol Prefix match
     if sym.startswith(q) or (nse and nse.startswith(q)):
         return 80
-        
-    # 4. Exact Alias match
-    if q in aliases_lower:
-        return 75
         
     # 5. Company Name Prefix match
     if name.startswith(q):
@@ -139,8 +141,9 @@ def calculate_match_score(query: str, candidate: Dict[str, Any]) -> int:
 
 def search_screener_company_discovery(query: str) -> List[Dict[str, Any]]:
     """
-    Queries Screener.in company search API as an external discovery fallback.
-    Treats results strictly as discovery candidates (stores source='screener_search').
+    Queries Screener.in company search API strictly as an external discovery fallback.
+    Treats results strictly as unverified discovery candidates (source='screener_search').
+    NOTE: Screener internal integer 'id' is NOT a BSE code and is NEVER mapped to bse_code.
     """
     clean_q = query.strip()
     if not clean_q:
@@ -168,20 +171,16 @@ def search_screener_company_discovery(query: str) -> List[Dict[str, Any]]:
                     if not sym:
                         continue
                         
-                    bse_code = None
-                    raw_id = item.get("id")
-                    if raw_id and str(raw_id).isdigit() and len(str(raw_id)) >= 5:
-                        bse_code = str(raw_id)
-                        
+                    # Screener internal 'id' is NOT an exchange BSE code. Keep bse_code and isin None.
                     candidates.append({
                         "symbol": sym,
                         "company_name": name or sym,
                         "nse_symbol": sym,
-                        "bse_code": bse_code,
+                        "bse_code": None,
                         "isin": None,
                         "exchange": "NSE",
-                        "sector": "Broad Market",
-                        "industry": "Indian Equities",
+                        "sector": None,
+                        "industry": None,
                         "aliases": [name, sym],
                         "source": "screener_search"
                     })
@@ -194,9 +193,10 @@ def resolve_and_search_companies(query: str, limit: int = 10) -> List[Dict[str, 
     """
     Master company search & identity resolution service:
     1. Searches local persistent registry.
-    2. If needed or to discover new companies, queries external search fallback.
-    3. Deduplicates candidates and checks current universe enrollment.
-    4. Ranks by match score, universe status, and relevance.
+    2. Also searches for popular alias targets if applicable.
+    3. If needed or to discover new companies, queries external search fallback.
+    4. Deduplicates candidates and checks current universe enrollment.
+    5. Ranks by match score, universe status, and relevance.
     """
     clean_q = query.strip()
     if not clean_q:
@@ -205,6 +205,12 @@ def resolve_and_search_companies(query: str, limit: int = 10) -> List[Dict[str, 
     # 1. Local Registry Search
     local_matches = database.search_local_registry(clean_q, limit=limit * 2)
     
+    # Check if query has an alias expansion
+    alias_target = POPULAR_SEARCH_ALIASES.get(clean_q.upper())
+    if alias_target:
+        alias_matches = database.search_local_registry(alias_target, limit=limit)
+        local_matches.extend(alias_matches)
+        
     seen_symbols = set()
     combined_candidates: List[Dict[str, Any]] = []
     
@@ -246,7 +252,7 @@ def resolve_and_search_companies(query: str, limit: int = 10) -> List[Dict[str, 
         cand["match_score"] = score
         scored_results.append(cand)
         
-    # Sort: Higher match score first, then already_added, then name
+    # Sort: Higher match score first, then already_added, then length of name
     scored_results.sort(
         key=lambda x: (
             x.get("match_score", 0),
@@ -260,8 +266,9 @@ def resolve_and_search_companies(query: str, limit: int = 10) -> List[Dict[str, 
 
 def resolve_canonical_company(symbol_or_name: str) -> Optional[Dict[str, Any]]:
     """
-    Resolves a symbol or company name to its canonical identity.
+    Resolves a symbol or company name to its canonical identity candidate.
     Checks local registry first, then discovery if missing.
+    If completely unresolved, returns an explicit unverified ticker candidate without fabricated metadata.
     """
     clean = symbol_or_name.strip()
     if not clean:
@@ -278,9 +285,10 @@ def resolve_canonical_company(symbol_or_name: str) -> Optional[Dict[str, Any]]:
     candidates = resolve_and_search_companies(clean, limit=1)
     if candidates:
         top = candidates[0]
-        if top.get("match_score", 0) >= 60:
+        if top.get("match_score", 0) >= 70:
             return top
             
+    # 3. Explicit unverified candidate (no fabricated BSE code, ISIN, or sector)
     return {
         "symbol": norm_sym,
         "company_name": clean,
@@ -288,10 +296,10 @@ def resolve_canonical_company(symbol_or_name: str) -> Optional[Dict[str, Any]]:
         "bse_code": None,
         "isin": None,
         "exchange": "NSE",
-        "sector": "Broad Market",
-        "industry": "Indian Equities",
-        "aliases": [clean, norm_sym],
-        "source": "manual_input",
+        "sector": None,
+        "industry": None,
+        "aliases": [clean],
+        "source": "unresolved_input",
         "in_universe": True,
         "is_active": True
     }

@@ -127,29 +127,18 @@ def health_check():
 def get_all_stocks(sector: Optional[str] = None, min_score: Optional[float] = None):
     results: List[StockSummary] = []
     
-    # 1. Retrieve persistent universe symbols from database registry
+    # 1. Retrieve persistent universe symbols strictly from database registry (in_universe=1 AND is_active=1)
     universe_symbols = database.get_universe_symbols(active_only=True)
     
-    # Bootstrap fallback if registry is empty
+    # Bootstrap fallback ONLY if registry is completely empty
     if not universe_symbols:
-        universe_symbols = list(DEFAULT_UNIVERSE_SYMBOLS)
         try:
             database.seed_company_registry()
+            universe_symbols = database.get_universe_symbols(active_only=True)
         except Exception:
             pass
-            
-    # Check cache for any additional legacy stocks
-    cache_file = os.path.join(os.path.dirname(__file__), "data", "stocks_cache.json")
-    if os.path.exists(cache_file):
-        try:
-            with open(cache_file, "r") as f:
-                cached = json.load(f)
-                for sym in cached.keys():
-                    clean_s = sym.upper().strip()
-                    if clean_s not in universe_symbols:
-                        universe_symbols.append(clean_s)
-        except Exception:
-            pass
+        if not universe_symbols:
+            universe_symbols = list(DEFAULT_UNIVERSE_SYMBOLS)
             
     details = []
     for sym in universe_symbols:

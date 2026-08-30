@@ -15,12 +15,13 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Dict, Any, List, Optional, Tuple
 
-DB_PATH = Path(__file__).parent / "data" / "stocker.db"
+DB_PATH = Path(os.environ.get("STOCKER_DB_PATH", str(Path(__file__).parent / "data" / "stocker.db")))
 
 def get_db_connection() -> sqlite3.Connection:
     """Returns a connection to the SQLite database with row factory enabled."""
-    DB_PATH.parent.mkdir(parents=True, exist_ok=True)
-    conn = sqlite3.connect(str(DB_PATH), timeout=15.0)
+    current_db_path = Path(os.environ.get("STOCKER_DB_PATH", str(DB_PATH)))
+    current_db_path.parent.mkdir(parents=True, exist_ok=True)
+    conn = sqlite3.connect(str(current_db_path), timeout=15.0)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA journal_mode=WAL;")
     conn.execute("PRAGMA synchronous=NORMAL;")
@@ -643,10 +644,111 @@ def clear_company_knowledge_facts(symbol: str) -> None:
 # COMPANY REGISTRY & UNIVERSE HELPERS
 # ---------------------------------------------------------
 
+def find_existing_company_row(
+    conn: sqlite3.Connection,
+    isin: Optional[str] = None,
+    nse_symbol: Optional[str] = None,
+    bse_code: Optional[str] = None,
+    symbol: str = "",
+    company_name: Optional[str] = None
+) -> Optional[sqlite3.Row]:
+    """
+    Searches for an existing company record following canonical identity precedence:
+    1. ISIN (International Securities Identification Number)
+    2. Verified NSE Symbol
+    3. Verified BSE Code
+    4. Canonical Symbol
+    5. Exact Company Name
+    """
+    cur = conn.cursor()
+    
+    # 1. ISIN Precedence
+    clean_isin = (isin or "").strip().upper()
+    if clean_isin:
+        cur.execute("SELECT * FROM company_registry WHERE isin IS NOT NULL AND isin != '' AND isin = ? COLLATE NOCASE LIMIT 1", (clean_isin,))
+        row = cur.fetchone()
+        if row:
+            return row
+            
+    # 2. NSE Symbol Precedence
+    clean_nse = (nse_symbol or "").strip().upper()
+    if clean_nse:
+        cur.execute("""
+            SELECT * FROM company_registry 
+            WHERE (nse_symbol IS NOT NULL AND nse_symbol != '' AND nse_symbol = ? COLLATE NOCASE)
+               OR symbol = ? COLLATE NOCASE
+            LIMIT 1
+        """, (clean_nse, clean_nse))
+        row = cur.fetchone()
+        if row:
+            return row
+            
+    # 3. BSE Code Precedence
+    clean_bse = str(bse_code or "").strip()
+    if clean_bse:
+        cur.execute("SELECT * FROM company_registry WHERE bse_code IS NOT NULL AND bse_code != '' AND bse_code = ? LIMIT 1", (clean_bse,))
+        row = cur.fetchone()
+        if row:
+            return row
+            
+    # 4. Canonical Symbol
+    clean_sym = symbol.strip().upper()
+    if clean_sym:
+        cur.execute("""
+            SELECT * FROM company_registry 
+            WHERE symbol = ? COLLATE NOCASE 
+               OR (nse_symbol IS NOT NULL AND nse_symbol != '' AND nse_symbol = ? COLLATE NOCASE)
+            LIMIT 1
+        """, (clean_sym, clean_sym))
+        row = cur.fetchone()
+        if row:
+            return row
+            
+    # 5. Exact Company Name
+    clean_name = (company_name or "").strip()
+    if clean_name and len(clean_name) >= 3:
+        cur.execute("SELECT * FROM company_registry WHERE company_name = ? COLLATE NOCASE LIMIT 1", (clean_name,))
+        row = cur.fetchone()
+        if row:
+            return row
+
+    return None
+
+def _merge_aliases(existing_aliases_json: Optional[str], incoming_aliases: Any) -> str:
+    """Merges existing and incoming aliases into a deduplicated JSON list."""
+    existing_list = []
+    if existing_aliases_json:
+        try:
+            parsed = json.loads(existing_aliases_json)
+            if isinstance(parsed, list):
+                existing_list = parsed
+        except Exception:
+            pass
+            
+    incoming_list = []
+    if isinstance(incoming_aliases, list):
+        incoming_list = incoming_aliases
+    elif isinstance(incoming_aliases, str):
+        try:
+            parsed = json.loads(incoming_aliases)
+            incoming_list = parsed if isinstance(parsed, list) else [parsed]
+        except Exception:
+            incoming_list = [incoming_aliases]
+            
+    combined = []
+    seen = set()
+    for a in existing_list + incoming_list:
+        a_str = str(a).strip()
+        if a_str and a_str.lower() not in seen:
+            seen.add(a_str.lower())
+            combined.append(a_str)
+    return json.dumps(combined)
+
 def upsert_company_registry_item(item: Dict[str, Any]) -> int:
     """
     Inserts or updates a company identity in the company_registry table.
-    Ensures symbol uniqueness case-insensitively and updates fields safely.
+    Uses canonical identity precedence (ISIN > NSE > BSE > Symbol > Name) to safely
+    deduplicate and prevent multiple rows for the same security under different identifiers.
     """
     clean_sym = item.get("symbol", "").upper().strip()
     if not clean_sym:
@@ -657,23 +759,12 @@ def upsert_company_registry_item(item: Dict[str, Any]) -> int:
     bse_code = str(item.get("bse_code") or "").strip() or None
     isin = (item.get("isin") or "").upper().strip() or None
     exchange = item.get("exchange", "NSE")
-    sector = item.get("sector", "Broad Market")
-    industry = item.get("industry", "Indian Equities")
+    sector = item.get("sector") or "Broad Market"
+    industry = item.get("industry") or "Indian Equities"
+    incoming_aliases = item.get("aliases", [])
     
-    aliases = item.get("aliases", [])
-    if isinstance(aliases, list):
-        aliases_json = json.dumps(aliases)
-    elif isinstance(aliases, str):
-        try:
-            parsed = json.loads(aliases)
-            aliases_json = json.dumps(parsed if isinstance(parsed, list) else [parsed])
-        except Exception:
-            aliases_json = json.dumps([aliases])
-    else:
-        aliases_json = json.dumps([])
-        
-    is_active = 1 if item.get("is_active", True) else 0
-    in_universe = 1 if item.get("in_universe", True) else 0
+    in_universe_val = item.get("in_universe")
+    is_active_val = item.get("is_active")
     source = item.get("source", "manual")
     now_iso = datetime.now(timezone.utc).isoformat()
     source_last_verified_at = item.get("source_last_verified_at") or now_iso
@@ -681,37 +772,73 @@ def upsert_company_registry_item(item: Dict[str, Any]) -> int:
     conn = get_db_connection()
     try:
         with conn:
-            conn.execute("""
-                INSERT INTO company_registry (
-                    symbol, company_name, nse_symbol, bse_code, isin,
-                    exchange, sector, industry, aliases, is_active,
-                    in_universe, source, source_last_verified_at, created_at, updated_at
-                )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                ON CONFLICT(symbol) DO UPDATE SET
-                    company_name = COALESCE(excluded.company_name, company_registry.company_name),
-                    nse_symbol = COALESCE(excluded.nse_symbol, company_registry.nse_symbol),
-                    bse_code = COALESCE(excluded.bse_code, company_registry.bse_code),
-                    isin = COALESCE(excluded.isin, company_registry.isin),
-                    exchange = COALESCE(excluded.exchange, company_registry.exchange),
-                    sector = CASE WHEN excluded.sector != 'Broad Market' THEN excluded.sector ELSE company_registry.sector END,
-                    industry = CASE WHEN excluded.industry != 'Indian Equities' THEN excluded.industry ELSE company_registry.industry END,
-                    aliases = COALESCE(excluded.aliases, company_registry.aliases),
-                    is_active = excluded.is_active,
-                    in_universe = excluded.in_universe,
-                    source = COALESCE(company_registry.source, excluded.source),
-                    source_last_verified_at = excluded.source_last_verified_at,
-                    updated_at = excluded.updated_at
-            """, (
-                clean_sym, company_name, nse_symbol, bse_code, isin,
-                exchange, sector, industry, aliases_json, is_active,
-                in_universe, source, source_last_verified_at, now_iso, now_iso
-            ))
+            existing = find_existing_company_row(
+                conn,
+                isin=isin,
+                nse_symbol=nse_symbol,
+                bse_code=bse_code,
+                symbol=clean_sym,
+                company_name=company_name
+            )
             
-            cur = conn.cursor()
-            cur.execute("SELECT id FROM company_registry WHERE symbol = ? COLLATE NOCASE", (clean_sym,))
-            row = cur.fetchone()
-            return row["id"] if row else 0
+            if existing:
+                row_id = existing["id"]
+                merged_aliases_json = _merge_aliases(existing["aliases"], incoming_aliases)
+                
+                # Determine updated field values
+                up_name = company_name if company_name and company_name != clean_sym else (existing["company_name"] or company_name)
+                up_nse = nse_symbol or existing["nse_symbol"]
+                up_bse = bse_code or existing["bse_code"]
+                up_isin = isin or existing["isin"]
+                up_exchange = exchange or existing["exchange"]
+                up_sector = sector if sector and sector != "Broad Market" else (existing["sector"] or sector)
+                up_industry = industry if industry and industry != "Indian Equities" else (existing["industry"] or industry)
+                
+                up_in_uni = (1 if in_universe_val else 0) if in_universe_val is not None else existing["in_universe"]
+                up_is_act = (1 if is_active_val else 0) if is_active_val is not None else existing["is_active"]
+                up_source = existing["source"] if existing["source"] == "seed" else source
+                
+                conn.execute("""
+                    UPDATE company_registry
+                    SET company_name = ?,
+                        nse_symbol = ?,
+                        bse_code = ?,
+                        isin = ?,
+                        exchange = ?,
+                        sector = ?,
+                        industry = ?,
+                        aliases = ?,
+                        in_universe = ?,
+                        is_active = ?,
+                        source = ?,
+                        source_last_verified_at = ?,
+                        updated_at = ?
+                    WHERE id = ?
+                """, (
+                    up_name, up_nse, up_bse, up_isin, up_exchange,
+                    up_sector, up_industry, merged_aliases_json,
+                    up_in_uni, up_is_act, up_source, source_last_verified_at, now_iso,
+                    row_id
+                ))
+                return row_id
+            else:
+                aliases_json = _merge_aliases(None, incoming_aliases)
+                in_uni = 1 if in_universe_val is not False else 0
+                is_act = 1 if is_active_val is not False else 0
+                
+                cur = conn.execute("""
+                    INSERT INTO company_registry (
+                        symbol, company_name, nse_symbol, bse_code, isin,
+                        exchange, sector, industry, aliases, is_active,
+                        in_universe, source, source_last_verified_at, created_at, updated_at
+                    )
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """, (
+                    clean_sym, company_name, nse_symbol, bse_code, isin,
+                    exchange, sector, industry, aliases_json, is_act,
+                    in_uni, source, source_last_verified_at, now_iso, now_iso
+                ))
+                return cur.lastrowid or 0
     finally:
         conn.close()
 
@@ -842,7 +969,9 @@ def search_local_registry(query: str, limit: int = 20) -> List[Dict[str, Any]]:
 def seed_company_registry(seed_records: Optional[List[Dict[str, Any]]] = None) -> int:
     """
     Seeds the company_registry table with anchor companies and any already-cached stocks.
-    Safe and idempotent (does not overwrite user changes or create duplicate rows).
+    Safe and idempotent:
+    - Never overwrites or resets user removal (in_universe=0 or is_active=0)
+    - Updates metadata without creating duplicates
     """
     try:
         from data_seed import SEED_REGISTRY_COMPANIES, COMPANY_METADATA
@@ -853,7 +982,7 @@ def seed_company_registry(seed_records: Optional[List[Dict[str, Any]]] = None) -
 
     records_to_seed = list(seed_records or SEED_REGISTRY_COMPANIES)
     
-    # Also check cached stocks in stocks_cache.json
+    # Check cached stocks in stocks_cache.json as one-time legacy bootstrap migration
     cache_file = DB_PATH.parent / "stocks_cache.json"
     if cache_file.exists():
         try:
@@ -895,30 +1024,66 @@ def seed_company_registry(seed_records: Optional[List[Dict[str, Any]]] = None) -
                 sector = rec.get("sector", "Broad Market")
                 industry = rec.get("industry", "Indian Equities")
                 aliases = rec.get("aliases", [])
-                aliases_json = json.dumps(aliases) if isinstance(aliases, list) else json.dumps([str(aliases)])
-                in_uni = 1 if rec.get("in_universe", True) else 0
-                is_act = 1 if rec.get("is_active", True) else 0
                 source = rec.get("source", "seed")
                 
-                cur = conn.execute("""
-                    INSERT INTO company_registry (
-                        symbol, company_name, nse_symbol, bse_code, isin,
-                        exchange, sector, industry, aliases, is_active,
-                        in_universe, source, source_last_verified_at, created_at, updated_at
-                    )
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                    ON CONFLICT(symbol) DO NOTHING
-                """, (
-                    sym, name, nse, bse, isin,
-                    exchange, sector, industry, aliases_json, is_act,
-                    in_uni, source, now_iso, now_iso, now_iso
-                ))
-                if cur.rowcount > 0:
+                existing = find_existing_company_row(
+                    conn,
+                    isin=isin,
+                    nse_symbol=nse,
+                    bse_code=bse,
+                    symbol=sym,
+                    company_name=name
+                )
+                
+                if existing:
+                    # Do NOT overwrite in_universe or is_active if user modified them!
+                    # Only update canonical identity metadata and merge aliases
+                    merged_aliases = _merge_aliases(existing["aliases"], aliases)
+                    conn.execute("""
+                        UPDATE company_registry
+                        SET company_name = COALESCE(?, company_name),
+                            nse_symbol = COALESCE(?, nse_symbol),
+                            bse_code = COALESCE(?, bse_code),
+                            isin = COALESCE(?, isin),
+                            exchange = COALESCE(?, exchange),
+                            sector = CASE WHEN ? != 'Broad Market' THEN ? ELSE sector END,
+                            industry = CASE WHEN ? != 'Indian Equities' THEN ? ELSE industry END,
+                            aliases = ?,
+                            updated_at = ?
+                        WHERE id = ?
+                    """, (
+                        name, nse, bse, isin, exchange,
+                        sector, sector, industry, industry,
+                        merged_aliases, now_iso,
+                        existing["id"]
+                    ))
+                else:
+                    aliases_json = _merge_aliases(None, aliases)
+                    in_uni = 1 if rec.get("in_universe", True) else 0
+                    is_act = 1 if rec.get("is_active", True) else 0
+                    
+                    conn.execute("""
+                        INSERT INTO company_registry (
+                            symbol, company_name, nse_symbol, bse_code, isin,
+                            exchange, sector, industry, aliases, is_active,
+                            in_universe, source, source_last_verified_at, created_at, updated_at
+                        )
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """, (
+                        sym, name, nse, bse, isin,
+                        exchange, sector, industry, aliases_json, is_act,
+                        in_uni, source, now_iso, now_iso, now_iso
+                    ))
                     inserted_count += 1
         return inserted_count
     finally:
         conn.close()
 
-# Auto-initialize on module load
-init_db()
+# Auto-initialize on module load unless test mode is active
+if not (os.environ.get("PYTEST_CURRENT_TEST") or os.environ.get("STOCKER_TEST_MODE") or os.environ.get("STOCKER_DB_PATH")):
+    try:
+        init_db()
+    except Exception:
+        pass
+
 
