@@ -782,6 +782,103 @@ def test_y_inr_vs_foreign_currency_validation():
     assert cmp_j["status"] == "INSUFFICIENT_EVIDENCE"
     print("  ✓ Test Y passed: Explicit INR vs foreign currency & ambiguous unit validation verified across all 10 scenarios (A-J).")
 
+# =============================================================================
+# TEST Z: HTML EPS Specific Unit Note Validation
+# =============================================================================
+def test_z_html_eps_specific_unit_validation():
+    print("Test Z: HTML EPS Specific Unit Note Validation...")
+    
+    # 1. HTML table "(Rs. in Crores)" + Basic EPS row, NO EPS-specific unit note -> EPS unit Unknown
+    html_no_eps_note = b"""
+    <html>
+        <body>
+            <h1>Statement of Consolidated Financial Results</h1>
+            <p>(Rs. in Crores)</p>
+            <table>
+                <tr><th>Particulars</th><th>30-Jun-2026</th><th>31-Mar-2026</th></tr>
+                <tr><td>Revenue from operations</td><td>48211.0</td><td>45000.0</td></tr>
+                <tr><td>Profit after tax</td><td>6800.0</td><td>6200.0</td></tr>
+                <tr><td>Basic EPS</td><td>16.40</td><td>15.10</td></tr>
+            </table>
+        </body>
+    </html>
+    """
+    parsed_no_note = parse_official_html_table(html_no_eps_note, {"symbol": "INFY", "document_title": "INFY HTML No Note"})
+    rows_no_note = parsed_no_note["financial_table"]
+    
+    rev_row = next(r for r in rows_no_note if r["canonical_metric"] == "REVENUE" and r["canonical_period"] == "2026-Q1")
+    pat_row = next(r for r in rows_no_note if r["canonical_metric"] == "PAT" and r["canonical_period"] == "2026-Q1")
+    eps_row = next(r for r in rows_no_note if r["canonical_metric"] == "BASIC_EPS" and r["canonical_period"] == "2026-Q1")
+    
+    # Revenue/PAT still use ₹ Cr correctly
+    assert rev_row["unit"] == "₹ Cr"
+    assert rev_row["currency"] == "INR"
+    assert rev_row["value"] == 48211.0
+    assert pat_row["unit"] == "₹ Cr"
+    assert pat_row["currency"] == "INR"
+    assert pat_row["value"] == 6800.0
+    
+    # EPS unit remains Unknown and currency Unknown (no auto-invented ₹ / Share)
+    assert eps_row["unit"] == "Unknown"
+    assert eps_row["currency"] == "Unknown"
+    assert eps_row["value"] == 16.40
+    cmp_eps = compare_financial_metric(16.40, eps_row["value"], "BASIC_EPS", official_unit=eps_row["unit"])
+    assert cmp_eps["status"] == "INSUFFICIENT_EVIDENCE"
+    
+    # 2. HTML table with explicit "(Rs. in Crores except EPS in Rs.)" -> EPS unit ₹ / Share, currency INR
+    html_with_eps_note = b"""
+    <html>
+        <body>
+            <h1>Statement of Consolidated Financial Results</h1>
+            <p>(Rs. in Crores except EPS in Rs.)</p>
+            <table>
+                <tr><th>Particulars</th><th>30-Jun-2026</th><th>31-Mar-2026</th></tr>
+                <tr><td>Revenue from operations</td><td>48211.0</td><td>45000.0</td></tr>
+                <tr><td>Profit after tax</td><td>6800.0</td><td>6200.0</td></tr>
+                <tr><td>Basic EPS</td><td>16.40</td><td>15.10</td></tr>
+            </table>
+        </body>
+    </html>
+    """
+    parsed_with_note = parse_official_html_table(html_with_eps_note, {"symbol": "INFY", "document_title": "INFY HTML With Note"})
+    rows_with_note = parsed_with_note["financial_table"]
+    
+    eps_note_row = next(r for r in rows_with_note if r["canonical_metric"] == "BASIC_EPS" and r["canonical_period"] == "2026-Q1")
+    assert eps_note_row["unit"] == "₹ / Share"
+    assert eps_note_row["currency"] == "INR"
+    assert eps_note_row["value"] == 16.40
+    cmp_note_eps = compare_financial_metric(
+        16.40, eps_note_row["value"], "BASIC_EPS",
+        official_unit=eps_note_row["unit"],
+        official_period_key=eps_note_row["canonical_period"],
+        screener_period_key="2026-Q1"
+    )
+    assert cmp_note_eps["status"] == "VERIFIED"
+    
+    # 3. HTML table with explicit row label "Basic EPS (in Rs.)" -> EPS unit ₹ / Share, currency INR
+    html_row_label = b"""
+    <html>
+        <body>
+            <h1>Statement of Consolidated Financial Results</h1>
+            <p>(Rs. in Crores)</p>
+            <table>
+                <tr><th>Particulars</th><th>30-Jun-2026</th><th>31-Mar-2026</th></tr>
+                <tr><td>Revenue from operations</td><td>48211.0</td><td>45000.0</td></tr>
+                <tr><td>Profit after tax</td><td>6800.0</td><td>6200.0</td></tr>
+                <tr><td>Basic EPS (in Rs.)</td><td>16.40</td><td>15.10</td></tr>
+            </table>
+        </body>
+    </html>
+    """
+    parsed_row_label = parse_official_html_table(html_row_label, {"symbol": "INFY", "document_title": "INFY HTML Row Label"})
+    rows_row_label = parsed_row_label["financial_table"]
+    
+    eps_row_label = next(r for r in rows_row_label if r["canonical_metric"] == "BASIC_EPS" and r["canonical_period"] == "2026-Q1")
+    assert eps_row_label["unit"] == "₹ / Share"
+    assert eps_row_label["currency"] == "INR"
+    assert eps_row_label["value"] == 16.40
+    print("  ✓ Test Z passed: HTML EPS unit isolation verified: Unknown without explicit EPS note; ₹ / Share with explicit note; Revenue/PAT preserve ₹ Cr.")
+
 if __name__ == "__main__":
     test_a_xbrl_unitref_inr()
     test_b_xbrl_eps_unitref_inr_per_share()
@@ -808,4 +905,5 @@ if __name__ == "__main__":
     test_w_xbrl_eps_unitref_missing_unknown_preservation()
     test_x_presupplied_metric_canonical_compatibility()
     test_y_inr_vs_foreign_currency_validation()
-    print("\n🎉 ALL 25 TESTS (A - Y) PASSED WITH 100% DETERMINISTIC ISOLATION & FAIL-CLOSED INTEGRITY!")
+    test_z_html_eps_specific_unit_validation()
+    print("\n🎉 ALL 26 TESTS (A - Z) PASSED WITH 100% DETERMINISTIC ISOLATION & FAIL-CLOSED INTEGRITY!")

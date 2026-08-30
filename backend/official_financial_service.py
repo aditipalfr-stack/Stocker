@@ -907,6 +907,35 @@ def parse_official_pdf_document(
         
     return doc
 
+def is_html_eps_inr_per_share(m_label: str, unit_context: str) -> bool:
+    """
+    Checks if an HTML table or row label explicitly proves INR per-share unit for EPS.
+    Must have explicit per-share or currency evidence specifically tied to EPS, such as:
+    - 'Basic EPS (in Rs.)', 'Basic EPS (₹/share)', 'EPS (in INR)'
+    - 'EPS in ₹', 'EPS in Rs', 'EPS in INR'
+    - '₹ per share', 'Rs per share', 'INR/share', 'INR per share'
+    - 'except EPS in Rs', 'except for EPS in ₹'
+    """
+    lbl = m_label.lower().strip()
+    ctx = unit_context.lower().strip()
+    
+    # 1. Row label itself has INR per-share evidence (e.g. 'Basic EPS (in Rs.)', 'Basic EPS in ₹')
+    if any(c in lbl for c in ["in rs", "in ₹", "in inr", "/share", "/ share", "per share", "pershare", "₹", "inr", "rs."]):
+        if any(cur in lbl for cur in ["rs", "₹", "inr", "rupee"]) and not any(f in lbl for f in ["usd", "eur", "gbp"]):
+            return True
+            
+    # 2. Table or section context has explicit EPS per-share or INR unit note
+    if re.search(r"eps\s+(?:is\s+)?(?:in\s+)?(?:₹|rs\.?|inr|rupees?)", ctx):
+        return True
+    if re.search(r"except\s+(?:for\s+)?eps\s+(?:in\s+)?(?:₹|rs\.?|inr|rupees?)", ctx):
+        return True
+    if re.search(r"(?:₹|rs\.?|inr|rupees?)\s*(?:/|per)\s*share", ctx):
+        return True
+    if re.search(r"\b(?:inr|rs\.?|₹)\s*/\s*share\b", ctx):
+        return True
+        
+    return False
+
 def parse_official_html_table(
     html_data: bytes,
     filing_ref: Dict[str, Any]
@@ -1022,7 +1051,10 @@ def parse_official_html_table(
                         num_str = cells[col_idx].replace(",", "")
                         try:
                             num_val = float(num_str)
-                            fact_unit = "₹ / Share" if (canon_m in ("BASIC_EPS", "DILUTED_EPS") and table_unit != "Unknown") else table_unit
+                            if canon_m in ("BASIC_EPS", "DILUTED_EPS"):
+                                fact_unit = "₹ / Share" if is_html_eps_inr_per_share(m_label, unit_context) else "Unknown"
+                            else:
+                                fact_unit = table_unit
                             table_rows.append({
                                 "metric": m_label,
                                 "canonical_metric": canon_m,
