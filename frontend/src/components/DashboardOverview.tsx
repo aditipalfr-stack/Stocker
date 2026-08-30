@@ -15,6 +15,17 @@ interface DashboardOverviewProps {
   onOpenCompare: () => void;
 }
 
+const isFiniteNumber = (value: unknown): value is number => typeof value === 'number' && Number.isFinite(value);
+const formatPercent = (value: number | null | undefined) => isFiniteNumber(value) ? `${value}%` : '—';
+const formatMultiple = (value: number | null | undefined) => isFiniteNumber(value) ? `${value}x` : '—';
+const highestStockBy = (stocks: StockSummary[], selector: (stock: StockSummary) => number | null | undefined) =>
+  stocks.reduce<StockSummary | null>((highest, stock) => {
+    const value = selector(stock);
+    if (!isFiniteNumber(value)) return highest;
+    const highestValue = highest ? selector(highest) : null;
+    return !isFiniteNumber(highestValue) || value > highestValue ? stock : highest;
+  }, null);
+
 export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
   stocks,
   onSelectStock,
@@ -32,6 +43,8 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
 
   // Top 5 High-Conviction Bets
   const topPicks = stocks.filter(s => s.rank <= 5);
+  const highestRoceStock = highestStockBy(stocks, stock => stock.roce_pct);
+  const highestFcfYieldStock = highestStockBy(stocks, stock => stock.fcf_yield_pct);
 
   // Filtered & Sorted Stocks for Table
   const filteredStocks = stocks
@@ -144,20 +157,20 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
           <div className="p-3.5 rounded-2xl bg-slate-950/60 border border-slate-800">
             <span className="text-xs text-slate-400 font-medium"><ConceptHelp term="roce" label="Highest ROCE In Group" /></span>
             <div className="text-xl font-bold text-primary mt-0.5">
-              {Math.max(...stocks.map(s => s.roce_pct))}%
+              {formatPercent(highestRoceStock?.roce_pct)}
             </div>
             <span className="text-[11px] text-slate-400 mt-1 block">
-              Highest reported · {stocks.find(s => s.roce_pct === Math.max(...stocks.map(x => x.roce_pct)))?.symbol}
+              {highestRoceStock ? `Highest reported · ${highestRoceStock.symbol}` : 'Reported value unavailable'}
             </span>
           </div>
 
           <div className="p-3.5 rounded-2xl bg-slate-950/60 border border-slate-800">
             <span className="text-xs text-slate-400 font-medium"><ConceptHelp term="fcf" label="Top FCF Yield" /></span>
             <div className="text-xl font-bold text-primary mt-0.5">
-              {Math.max(...stocks.map(s => s.fcf_yield_pct))}%
+              {formatPercent(highestFcfYieldStock?.fcf_yield_pct)}
             </div>
             <span className="text-[11px] text-slate-400 mt-1 block">
-              Highest reported · {stocks.find(s => s.fcf_yield_pct === Math.max(...stocks.map(x => x.fcf_yield_pct)))?.symbol}
+              {highestFcfYieldStock ? `Highest reported · ${highestFcfYieldStock.symbol}` : 'Calculated value unavailable'}
             </span>
           </div>
         </div>
@@ -227,15 +240,15 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
                 <div className="grid grid-cols-3 gap-2 bg-slate-950/70 p-3 rounded-xl border border-slate-800/80 text-center font-mono">
                   <div>
                     <span className="text-[10px] text-slate-500 uppercase block font-sans">P/E</span>
-                    <span className="text-xs font-semibold text-slate-200">{stock.pe_ratio}x</span>
+                    <span className="text-xs font-semibold text-slate-200">{formatMultiple(stock.pe_ratio)}</span>
                   </div>
                   <div>
                     <span className="text-[10px] text-slate-500 uppercase block font-sans">ROCE</span>
-                    <span className="text-xs font-semibold text-slate-200">{stock.roce_pct}%</span>
+                    <span className="text-xs font-semibold text-slate-200">{formatPercent(stock.roce_pct)}</span>
                   </div>
                   <div>
                     <span className="text-[10px] text-slate-500 uppercase block font-sans">FCF Yield</span>
-                    <span className="text-xs font-semibold text-slate-200">{stock.fcf_yield_pct}%</span>
+                    <span className="text-xs font-semibold text-slate-200">{formatPercent(stock.fcf_yield_pct)}</span>
                   </div>
                 </div>
 
@@ -425,25 +438,25 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
                     ₹{stock.current_price.toLocaleString('en-IN')}
                   </td>
                   <td className="py-3.5 px-4 text-slate-300">
-                    {stock.pe_ratio}x
+                    {formatMultiple(stock.pe_ratio)}
                   </td>
                   <td className="py-3.5 px-4 font-semibold text-slate-300">
-                    {stock.roce_pct}%
+                    {formatPercent(stock.roce_pct)}
                   </td>
                   <td className="py-3.5 px-4 text-slate-300">
-                    {stock.roe_pct}%
+                    {formatPercent(stock.roe_pct)}
                   </td>
                   <td className="py-3.5 px-4 font-semibold text-slate-300">
-                    {stock.fcf_yield_pct}%
+                    {formatPercent(stock.fcf_yield_pct)}
                   </td>
                   <td className="py-3.5 px-4 text-slate-300">
-                    {stock.sales_growth_3yr_pct}%
+                    {formatPercent(stock.sales_growth_3yr_pct)}
                   </td>
-                  <td className={`py-3.5 px-4 ${stock.cfo_to_pat_5yr_pct >= 90 ? 'text-emerald-400' : 'text-amber-400'}`}>
-                    {stock.cfo_to_pat_5yr_pct}%
+                  <td className={`py-3.5 px-4 ${!isFiniteNumber(stock.cfo_to_pat_5yr_pct) ? 'text-slate-400' : stock.cfo_to_pat_5yr_pct >= 90 ? 'text-emerald-400' : 'text-amber-400'}`}>
+                    {formatPercent(stock.cfo_to_pat_5yr_pct)}
                   </td>
                   <td className="py-3.5 px-4 text-slate-300">
-                    {stock.net_debt_to_equity}x
+                    {formatMultiple(stock.net_debt_to_equity)}
                   </td>
                   <td className="py-3.5 px-4">
                     <div className={`dashboard-score-cell ${getScoreBand(stock.verdict)}`}>

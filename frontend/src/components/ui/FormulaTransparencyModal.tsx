@@ -38,9 +38,9 @@ export const FormulaTransparencyModal: React.FC<FormulaTransparencyModalProps> =
           <div className="detail-block flex items-center justify-between gap-4">
             <span className="help-eyebrow">Calculated output</span>
             <span className="text-xl font-extrabold text-positive font-mono">
-              {item.value !== null && item.value !== undefined
-                ? typeof item.value === 'number' ? `${item.value.toLocaleString('en-IN')}${suffix}` : String(item.value)
-                : 'N/A'}
+              {typeof item.value === 'number'
+                ? Number.isFinite(item.value) ? `${item.value.toLocaleString('en-IN')}${suffix}` : 'N/A'
+                : item.value !== null && item.value !== undefined ? String(item.value) : 'N/A'}
             </span>
           </div>
 
@@ -56,7 +56,9 @@ export const FormulaTransparencyModal: React.FC<FormulaTransparencyModalProps> =
                 <div key={key} className="flex items-center justify-between gap-4 py-1 border-b border-theme last:border-0">
                   <span className="text-secondary">{key}:</span>
                   <span className="text-primary font-bold text-right">
-                    {value !== null && value !== undefined ? typeof value === 'number' ? value.toLocaleString('en-IN') : String(value) : 'N/A'}
+                    {typeof value === 'number'
+                      ? Number.isFinite(value) ? value.toLocaleString('en-IN') : 'N/A'
+                      : value !== null && value !== undefined ? String(value) : 'N/A'}
                   </span>
                 </div>
               ))}

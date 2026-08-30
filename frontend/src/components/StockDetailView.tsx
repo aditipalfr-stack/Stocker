@@ -56,6 +56,14 @@ const isFiniteNumber = (value: unknown): value is number => typeof value === 'nu
 const formatCrores = (value: number | null | undefined) => isFiniteNumber(value) ? `₹${value.toLocaleString('en-IN')} Cr` : '—';
 const formatPercent = (value: number | null | undefined) => isFiniteNumber(value) ? `${value.toLocaleString('en-IN')}%` : '—';
 const formatCompactCrores = (value: number) => isFiniteNumber(value) ? `₹${Intl.NumberFormat('en-IN', { notation: 'compact', maximumFractionDigits: 1 }).format(value)}` : '—';
+const formatIndianNumber = (value: number | null | undefined) => isFiniteNumber(value) ? value.toLocaleString('en-IN') : '—';
+const guidanceRunRateUsesPercent = (metricName: string) => {
+  const metric = metricName.toLowerCase();
+  const isOperational = ['capacity', 'order', 'arpu', 'subscriber', 'user', 'store', 'outlet', 'volume', 'tcv', 'deal']
+    .some(keyword => metric.includes(keyword));
+  return !isOperational && ['revenue', 'sales', 'margin', 'growth', 'pat', 'profit']
+    .some(keyword => metric.includes(keyword));
+};
 const toneFromSignedValue = (value: number | null | undefined): TrendTone => !isFiniteNumber(value) || value === 0 ? 'neutral' : value > 0 ? 'positive' : 'negative';
 const toneForPositiveMetric = (current: number | null | undefined, previous: number | null | undefined): TrendTone => {
   if (current === null || current === undefined) return 'neutral';
@@ -384,7 +392,7 @@ export const StockDetailView: React.FC<StockDetailViewProps> = ({ stock, onBack,
     {
       label: 'Debt/Equity',
       concept: 'debt_equity',
-      value: stock.analytics?.balance_sheet_efficiency?.latest_debt_to_equity == null ? '—' : `${stock.analytics.balance_sheet_efficiency.latest_debt_to_equity}x`,
+      value: isFiniteNumber(stock.analytics?.balance_sheet_efficiency?.latest_debt_to_equity) ? `${stock.analytics.balance_sheet_efficiency.latest_debt_to_equity}x` : '—',
       detail: 'Leverage needs business context',
       tone: 'neutral',
       onDetails: () => setSelectedFormulaKey('debt_to_equity')
@@ -651,12 +659,12 @@ export const StockDetailView: React.FC<StockDetailViewProps> = ({ stock, onBack,
                   )}
                 </div>
                 <p className="text-[11px] text-slate-400 leading-tight line-clamp-2">
-                  {docIntel.promise_vs_delivery[0]?.actual_outcome || "Proven historical execution record across key guided targets."}
+                  {docIntel.promise_vs_delivery[0]?.actual_outcome || 'Outcome evidence unavailable.'}
                 </p>
               </div>
             ) : (
               <p className="text-[11px] text-slate-400 italic">
-                Execution track record verified via audited filings.
+                Execution track record has not been analyzed yet.
               </p>
             )}
           </div>
@@ -669,10 +677,10 @@ export const StockDetailView: React.FC<StockDetailViewProps> = ({ stock, onBack,
             </span>
             <div>
               <p className="text-xs font-semibold text-slate-200 line-clamp-1">
-                {docIntel?.growth_drivers?.[0]?.driver_title || stock.score.key_catalysts[0] || "Active Expansion"}
+                {docIntel?.growth_drivers?.[0]?.driver_title || stock.score.key_catalysts[0] || 'No sourced growth driver'}
               </p>
               <p className="text-[11px] text-slate-400 leading-tight line-clamp-2 mt-0.5">
-                {docIntel?.growth_drivers?.[0]?.description || "Upcoming commercial capacity commissioning and volume market expansion."}
+                {docIntel?.growth_drivers?.[0]?.description || 'No filing-backed expansion detail is currently available.'}
               </p>
             </div>
           </div>
@@ -852,7 +860,7 @@ export const StockDetailView: React.FC<StockDetailViewProps> = ({ stock, onBack,
                 />
                 <div className="flex justify-between text-[10px] text-slate-500 font-mono">
                   <span>2% (Cautious)</span>
-                  <span>Hist 3Y: {stock.projection.historical_revenue_cagr_3yr}%</span>
+                  <span>Hist 3Y: {formatPercent(stock.projection.historical_revenue_cagr_3yr)}</span>
                   <span>35%</span>
                 </div>
               </div>
@@ -878,7 +886,7 @@ export const StockDetailView: React.FC<StockDetailViewProps> = ({ stock, onBack,
                 />
                 <div className="flex justify-between text-[10px] text-slate-500 font-mono">
                   <span>5%</span>
-                  <span>Median: {stock.projection.historical_opm_median}%</span>
+                  <span>Median: {formatPercent(stock.projection.historical_opm_median)}</span>
                   <span>60%</span>
                 </div>
               </div>
@@ -971,7 +979,9 @@ export const StockDetailView: React.FC<StockDetailViewProps> = ({ stock, onBack,
                   ₹{projectionResult.target_price_exit_pe.toLocaleString('en-IN')}
                 </div>
                 <p className="text-[11px] text-slate-400">
-                  Based on Projected Year 3 EPS (₹{projectionResult.projections[2]?.eps}) × {exitPe}x Exit Multiple.
+                  {isFiniteNumber(projectionResult.projections[2]?.eps)
+                    ? `Based on Projected Year 3 EPS (₹${formatIndianNumber(projectionResult.projections[2].eps)}) × ${exitPe}x Exit Multiple.`
+                    : 'Projected Year 3 EPS is unavailable.'}
                 </p>
               </div>
 
@@ -1072,7 +1082,7 @@ export const StockDetailView: React.FC<StockDetailViewProps> = ({ stock, onBack,
                       <ConceptHelp term="cfo" label="Cash from Operations (CFO)" />
                     </td>
                     {projectionResult.projections.map(p => (
-                      <td key={p.year} className="py-2.5 px-4 text-right">₹{p.cfo_cr.toLocaleString('en-IN')}</td>
+                      <td key={p.year} className="py-2.5 px-4 text-right">{isFiniteNumber(p.cfo_cr) ? `₹${formatIndianNumber(p.cfo_cr)}` : '—'}</td>
                     ))}
                   </tr>
 
@@ -1081,7 +1091,7 @@ export const StockDetailView: React.FC<StockDetailViewProps> = ({ stock, onBack,
                       <ConceptHelp term="capex" label="Estimated Capex" />
                     </td>
                     {projectionResult.projections.map(p => (
-                      <td key={p.year} className="py-2.5 px-4 text-right">₹{p.capex_cr.toLocaleString('en-IN')}</td>
+                      <td key={p.year} className="py-2.5 px-4 text-right">{isFiniteNumber(p.capex_cr) ? `₹${formatIndianNumber(p.capex_cr)}` : '—'}</td>
                     ))}
                   </tr>
 
@@ -1090,7 +1100,7 @@ export const StockDetailView: React.FC<StockDetailViewProps> = ({ stock, onBack,
                       <ConceptHelp term="fcf" label="Free Cash Flow (FCF)" />
                     </td>
                     {projectionResult.projections.map(p => (
-                      <td key={p.year} className="py-2.5 px-4 text-right text-emerald-300">₹{p.fcf_cr.toLocaleString('en-IN')}</td>
+                      <td key={p.year} className="py-2.5 px-4 text-right text-emerald-300">{isFiniteNumber(p.fcf_cr) ? `₹${formatIndianNumber(p.fcf_cr)}` : '—'}</td>
                     ))}
                   </tr>
                 </tbody>
@@ -2063,7 +2073,7 @@ export const StockDetailView: React.FC<StockDetailViewProps> = ({ stock, onBack,
                           </span>
                           <p className="text-sm font-bold text-white">
                             {isFiniteNumber(item.current_run_rate_value) ? (
-                              `${item.current_run_rate_value}${item.metric_name?.toLowerCase().includes('margin') || item.metric_name?.toLowerCase().includes('growth') || item.metric_name?.toLowerCase().includes('revenue') ? '%' : ''}`
+                              `${item.current_run_rate_value}${guidanceRunRateUsesPercent(item.metric_name) ? '%' : ''}`
                             ) : (
                               'Unavailable / Not Tracked'
                             )}
@@ -3088,7 +3098,7 @@ export const StockDetailView: React.FC<StockDetailViewProps> = ({ stock, onBack,
                       labelStyle={{ color: 'var(--text-primary)', fontWeight: 700 }}
                       cursor={{ fill: 'var(--hover-bg)' }}
                       formatter={(val: any, name: string) => [
-                        typeof val === 'number' ? (name.includes('OPM') ? `${val}%` : `₹${val.toLocaleString('en-IN')} Cr`) : val,
+                        isFiniteNumber(val) ? (name.includes('OPM') ? `${val}%` : `₹${val.toLocaleString('en-IN')} Cr`) : 'Unavailable',
                         name
                       ]}
                     />
@@ -3118,7 +3128,7 @@ export const StockDetailView: React.FC<StockDetailViewProps> = ({ stock, onBack,
                       contentStyle={{ backgroundColor: 'var(--card-bg)', borderColor: 'var(--border-strong)', color: 'var(--text-primary)', borderRadius: '12px' }}
                       labelStyle={{ color: 'var(--text-primary)', fontWeight: 700 }}
                       cursor={{ fill: 'var(--hover-bg)' }}
-                      formatter={(val: any) => [`₹${val?.toLocaleString('en-IN')} Cr`]}
+                      formatter={(val: any) => [isFiniteNumber(val) ? `₹${val.toLocaleString('en-IN')} Cr` : 'Unavailable']}
                     />
                     <Legend wrapperStyle={{ fontSize: '11px', paddingTop: '10px' }} />
                     <Bar dataKey="pat_cr" name="Net Profit (PAT)" fill="#64748b" radius={[4, 4, 0, 0]}>
@@ -3155,7 +3165,10 @@ export const StockDetailView: React.FC<StockDetailViewProps> = ({ stock, onBack,
                     contentStyle={{ backgroundColor: 'var(--card-bg)', borderColor: 'var(--border-strong)', color: 'var(--text-primary)', borderRadius: '12px' }}
                     labelStyle={{ color: 'var(--text-primary)', fontWeight: 700 }}
                     cursor={{ fill: 'var(--hover-bg)' }}
-                    formatter={(value: any, name: string) => [name.includes('%') ? `${value}%` : `₹${value?.toLocaleString('en-IN')} Cr`, name]}
+                    formatter={(value: any, name: string) => [
+                      isFiniteNumber(value) ? name.includes('%') ? `${value}%` : `₹${value.toLocaleString('en-IN')} Cr` : 'Unavailable',
+                      name
+                    ]}
                   />
                   <Legend wrapperStyle={{ fontSize: '11px', paddingTop: '10px' }} />
                   <Bar yAxisId="left" dataKey="fixed_assets_cr" name="Fixed Assets (₹ Cr)" fill="var(--chart-axis)" radius={[4, 4, 0, 0]} />

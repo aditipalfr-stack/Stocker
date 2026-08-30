@@ -83,7 +83,7 @@ export const calculatePeriodChange = (
   current: number | null | undefined,
   previous: number | null | undefined
 ): PeriodChange | null => {
-  if (current === null || current === undefined || previous === null || previous === undefined) return null;
+  if (typeof current !== 'number' || !Number.isFinite(current) || typeof previous !== 'number' || !Number.isFinite(previous)) return null;
 
   const presentation = getMetricPresentation(metric);
   if (presentation.direction === 'neutral') return null;
@@ -134,10 +134,10 @@ export const calculatePeriodChange = (
 };
 
 export const isGenuinelyNegativeResult = (metric: string, value: number | null | undefined) =>
-  typeof value === 'number' && value < 0 && getMetricPresentation(metric).negativeResultIsBad;
+  typeof value === 'number' && Number.isFinite(value) && value < 0 && getMetricPresentation(metric).negativeResultIsBad;
 
 export const formatFinancialValue = (metric: string, value: number | null | undefined): string => {
-  if (value === null || value === undefined) return '—';
+  if (typeof value !== 'number' || !Number.isFinite(value)) return '—';
   const normalized = normalizeMetricName(metric);
   if (normalized.includes('%') || normalized.includes('margin') || /^(roe|roce|opm)$/.test(normalized)) return `${value.toLocaleString('en-IN')}%`;
   if (normalized.startsWith('eps')) return `₹${value.toLocaleString('en-IN')}`;

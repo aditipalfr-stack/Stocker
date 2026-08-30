@@ -147,8 +147,10 @@ def get_all_stocks(sector: Optional[str] = None, min_score: Optional[float] = No
     
     for idx, d in enumerate(details):
         r = d.ratios
-        sales_cagr = d.analytics.get("growth_rates", {}).get("sales_cagr_3yr") or r.sales_growth_3yr_cagr or 0.0
-        cfo_to_pat = d.analytics.get("cash_flow_quality", {}).get("cfo_to_pat_5yr_pct") or 0.0
+        sales_cagr = d.analytics.get("growth_rates", {}).get("sales_cagr_3yr")
+        if sales_cagr is None:
+            sales_cagr = r.sales_growth_3yr_cagr
+        cfo_to_pat = d.analytics.get("cash_flow_quality", {}).get("cfo_to_pat_5yr_pct")
         
         summary = StockSummary(
             symbol=d.symbol,
@@ -160,10 +162,10 @@ def get_all_stocks(sector: Optional[str] = None, min_score: Optional[float] = No
             pe_ratio=r.stock_pe,
             roce_pct=r.roce_pct,
             roe_pct=r.roe_pct,
-            fcf_yield_pct=r.fcf_yield_pct or 0.0,
+            fcf_yield_pct=r.fcf_yield_pct,
             sales_growth_3yr_pct=sales_cagr,
             cfo_to_pat_5yr_pct=cfo_to_pat,
-            net_debt_to_equity=r.debt_to_equity or 0.0,
+            net_debt_to_equity=r.debt_to_equity,
             composite_score=d.score.total_composite_score,
             verdict=d.score.verdict,
             data_confidence=d.score.data_confidence,
@@ -448,9 +450,9 @@ def compare_stocks(req: CompareRequest):
                 "fcf_yield_pct": r.fcf_yield_pct,
                 "debt_to_equity": r.debt_to_equity,
                 "interest_coverage": r.interest_coverage,
-                "sales_cagr_3yr": detail.analytics.get("growth_rates", {}).get("sales_cagr_3yr", 0),
-                "cfo_to_pat_5yr": detail.analytics.get("cash_flow_quality", {}).get("cfo_to_pat_5yr_pct", 0),
-                "cwip_to_fixed_assets": detail.analytics.get("balance_sheet_efficiency", {}).get("latest_cwip_to_net_block_pct", 0),
+                "sales_cagr_3yr": detail.analytics.get("growth_rates", {}).get("sales_cagr_3yr"),
+                "cfo_to_pat_5yr": detail.analytics.get("cash_flow_quality", {}).get("cfo_to_pat_5yr_pct"),
+                "cwip_to_fixed_assets": detail.analytics.get("balance_sheet_efficiency", {}).get("latest_cwip_to_net_block_pct"),
                 "composite_score": detail.score.total_composite_score,
                 "verdict": detail.score.verdict,
                 "dcf_upside_pct": detail.projection.dcf_upside_pct,

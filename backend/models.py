@@ -162,10 +162,10 @@ class StockSummary(BaseModel):
     pe_ratio: float
     roce_pct: float
     roe_pct: float
-    fcf_yield_pct: float
-    sales_growth_3yr_pct: float
-    cfo_to_pat_5yr_pct: float
-    net_debt_to_equity: float
+    fcf_yield_pct: Optional[float] = None
+    sales_growth_3yr_pct: Optional[float] = None
+    cfo_to_pat_5yr_pct: Optional[float] = None
+    net_debt_to_equity: Optional[float] = None
     composite_score: float
     verdict: str
     data_confidence: str = "High"

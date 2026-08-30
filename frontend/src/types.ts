@@ -8,12 +8,12 @@ export interface KeyRatios {
   roce_pct: number;
   roe_pct: number;
   face_value: number;
-  industry_pe?: number;
-  debt_to_equity?: number;
-  interest_coverage?: number;
-  fcf_yield_pct?: number;
-  sales_growth_3yr_cagr?: number;
-  profit_growth_3yr_cagr?: number;
+  industry_pe?: number | null;
+  debt_to_equity?: number | null;
+  interest_coverage?: number | null;
+  fcf_yield_pct?: number | null;
+  sales_growth_3yr_cagr?: number | null;
+  profit_growth_3yr_cagr?: number | null;
 }
 
 export interface FinancialRow {
@@ -28,9 +28,9 @@ export interface FinancialStatement {
 
 export interface ConcallInsight {
   period: string;
-  transcript_url?: string;
-  presentation_url?: string;
-  audio_url?: string;
+  transcript_url?: string | null;
+  presentation_url?: string | null;
+  audio_url?: string | null;
   cfo_and_fcf_analysis: string;
   demand_drivers: string[];
   supply_and_capex: string[];
@@ -41,7 +41,7 @@ export interface ConcallInsight {
 
 export interface AnnualReportInsight {
   year: string;
-  report_url?: string;
+  report_url?: string | null;
   cfo_fcf_performance: string;
   capex_cwip_summary: string;
   strategic_priorities: string[];
@@ -52,6 +52,7 @@ export interface DocumentItem {
   ticker: string;
   company_name: string;
   title: string;
+  name?: string | null;
   url: string;
   doc_type: string;
   period_or_date?: string | null;
@@ -85,8 +86,8 @@ export interface DocumentLinks {
   concalls: DocumentItem[];
   presentations: DocumentItem[];
   material_announcements?: DocumentItem[];
-  diagnostics?: DocumentDiscoveryDiagnostics;
-  checked_at?: string;
+  diagnostics?: DocumentDiscoveryDiagnostics | null;
+  checked_at?: string | null;
 }
 
 export interface ProjectionAssumption {
@@ -117,15 +118,15 @@ export interface YearlyProjection {
   tax_cr: number;
   pat_cr: number;
   eps: number;
-  cfo_cr: number;
-  capex_cr: number;
-  fcf_cr: number;
+  cfo_cr: number | null;
+  capex_cr: number | null;
+  fcf_cr: number | null;
 }
 
 export interface ProjectionResult {
   assumptions: ProjectionAssumption;
-  historical_revenue_cagr_3yr: number;
-  historical_opm_median: number;
+  historical_revenue_cagr_3yr: number | null;
+  historical_opm_median: number | null;
   projections: YearlyProjection[];
   dcf_fair_value_per_share: number;
   dcf_upside_pct: number;
@@ -133,6 +134,7 @@ export interface ProjectionResult {
   target_price_upside_pct: number;
   projected_3yr_irr_cagr_pct: number;
   scenario_type: string;
+  data_quality: string;
 }
 
 export interface ScoreBreakdown {
@@ -141,8 +143,11 @@ export interface ScoreBreakdown {
   capital_efficiency_score: number;
   balance_sheet_safety_score: number;
   valuation_margin_score: number;
+  management_execution_impact: number;
+  future_visibility_impact: number;
   total_composite_score: number;
   verdict: string;
+  data_confidence: string;
   investment_thesis: string;
   key_catalysts: string[];
   key_risks: string[];
@@ -158,12 +163,13 @@ export interface StockSummary {
   pe_ratio: number;
   roce_pct: number;
   roe_pct: number;
-  fcf_yield_pct: number;
-  sales_growth_3yr_pct: number;
-  cfo_to_pat_5yr_pct: number;
-  net_debt_to_equity: number;
+  fcf_yield_pct: number | null;
+  sales_growth_3yr_pct: number | null;
+  cfo_to_pat_5yr_pct: number | null;
+  net_debt_to_equity: number | null;
   composite_score: number;
   verdict: string;
+  data_confidence: string;
   rank: number;
   is_top_conviction: boolean;
   investment_thesis_short: string;
@@ -192,7 +198,7 @@ export interface StockDetail {
   source_url?: string;
   statement_type?: string;
   fetched_at?: string;
-  documents_checked_at?: string;
+  documents_checked_at?: string | null;
   ratios: KeyRatios;
   quarters: FinancialStatement;
   profit_loss: FinancialStatement;
@@ -207,29 +213,29 @@ export interface StockDetail {
     quarterly_analysis: {
       trends: Array<{
         period: string;
-        sales: number;
-        operating_profit: number;
-        opm_pct: number;
-        net_profit: number;
-        sales_growth_qoq_pct?: number;
-        sales_growth_yoy_pct?: number;
-        pat_growth_qoq_pct?: number;
-        pat_growth_yoy_pct?: number;
+        sales: number | null;
+        operating_profit: number | null;
+        opm_pct: number | null;
+        net_profit: number | null;
+        sales_growth_qoq_pct?: number | null;
+        sales_growth_yoy_pct?: number | null;
+        pat_growth_qoq_pct?: number | null;
+        pat_growth_yoy_pct?: number | null;
       }>;
     };
     growth_rates: {
-      sales_cagr_3yr?: number;
-      pat_cagr_3yr?: number;
-      sales_cagr_5yr?: number;
-      pat_cagr_5yr?: number;
-      sales_cagr_10yr?: number;
-      pat_cagr_10yr?: number;
+      sales_cagr_3yr?: number | null;
+      pat_cagr_3yr?: number | null;
+      sales_cagr_5yr?: number | null;
+      pat_cagr_5yr?: number | null;
+      sales_cagr_10yr?: number | null;
+      pat_cagr_10yr?: number | null;
     };
     cash_flow_quality: {
-      cumulative_5y_pat_cr?: number;
-      cumulative_5y_cfo_cr?: number;
-      cumulative_5y_fcf_cr?: number;
-      cfo_to_pat_5yr_pct?: number;
+      cumulative_5y_pat_cr?: number | null;
+      cumulative_5y_cfo_cr?: number | null;
+      cumulative_5y_fcf_cr?: number | null;
+      cfo_to_pat_5yr_pct?: number | null;
       cash_conversion_quality?: string;
       is_cash_conversion_superior?: boolean;
       is_fcf_directly_reported?: boolean;
@@ -261,8 +267,8 @@ export interface StockDetail {
       }>;
     };
     balance_sheet_efficiency: {
-      latest_debt_to_equity?: number;
-      latest_cwip_to_net_block_pct?: number;
+      latest_debt_to_equity?: number | null;
+      latest_cwip_to_net_block_pct?: number | null;
       has_significant_capex_trigger?: boolean;
       bs_trends?: Array<{
         period: string;
@@ -274,11 +280,11 @@ export interface StockDetail {
         cwip_to_fixed_assets_pct?: number | null;
         debt_to_equity?: number | null;
       }>;
-      borrowings_cr?: number;
-      fixed_assets_cr?: number;
-      cwip_cr?: number;
-      cwip_to_fixed_assets_pct?: number;
-      debt_to_equity?: number;
+      borrowings_cr?: number | null;
+      fixed_assets_cr?: number | null;
+      cwip_cr?: number | null;
+      cwip_to_fixed_assets_pct?: number | null;
+      debt_to_equity?: number | null;
     };
     formula_transparency?: Record<string, FormulaTransparencyItem>;
   };
@@ -290,13 +296,15 @@ export interface ComparisonItem {
   sector: string;
   current_price: number;
   market_cap_cr: number;
-  pe_ratio?: number;
-  roce_pct?: number;
-  roe_pct?: number;
-  fcf_yield_pct?: number;
-  debt_to_equity?: number;
-  sales_cagr_3yr: number;
-  cfo_to_pat_5yr: number;
+  pe_ratio?: number | null;
+  roce_pct?: number | null;
+  roe_pct?: number | null;
+  fcf_yield_pct?: number | null;
+  debt_to_equity?: number | null;
+  interest_coverage?: number | null;
+  sales_cagr_3yr: number | null;
+  cfo_to_pat_5yr: number | null;
+  cwip_to_fixed_assets?: number | null;
   composite_score: number;
   verdict: string;
   dcf_upside_pct: number;

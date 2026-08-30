@@ -20,6 +20,10 @@ interface StockComparisonProps {
   onAddSymbol: (symbol: string) => void;
 }
 
+const isFiniteNumber = (value: unknown): value is number => typeof value === 'number' && Number.isFinite(value);
+const formatPercent = (value: number | null | undefined) => isFiniteNumber(value) ? `${value}%` : '—';
+const formatMultiple = (value: number | null | undefined) => isFiniteNumber(value) ? `${value}x` : '—';
+
 export const StockComparison: React.FC<StockComparisonProps> = ({
   comparisonData,
   onRemoveSymbol,
@@ -181,7 +185,7 @@ export const StockComparison: React.FC<StockComparisonProps> = ({
               <td className="py-3 px-4 sticky left-0 bg-slate-950 font-sans text-slate-400"><ConceptHelp term="pe" label="Stock P/E Multiple" /></td>
               {comparisonData.map(item => (
                 <td key={item.symbol} className="py-3 px-6 text-center text-slate-200">
-                  {item.pe_ratio == null ? '—' : `${item.pe_ratio}x`}
+                  {formatMultiple(item.pe_ratio)}
                 </td>
               ))}
             </tr>
@@ -191,7 +195,7 @@ export const StockComparison: React.FC<StockComparisonProps> = ({
               <td className="py-3 px-4 sticky left-0 bg-slate-950 font-sans text-slate-400"><ConceptHelp term="roce" label="ROCE %" /></td>
               {comparisonData.map(item => (
                 <td key={item.symbol} className="py-3 px-6 text-center font-bold">
-                  {directionalValue('roce_pct', item.roce_pct, item.roce_pct === undefined ? '—' : `${item.roce_pct}%`)}
+                  {directionalValue('roce_pct', item.roce_pct, formatPercent(item.roce_pct))}
                 </td>
               ))}
             </tr>
@@ -201,7 +205,7 @@ export const StockComparison: React.FC<StockComparisonProps> = ({
               <td className="py-3 px-4 sticky left-0 bg-slate-950 font-sans text-slate-400"><ConceptHelp term="roe" label="ROE %" /></td>
               {comparisonData.map(item => (
                 <td key={item.symbol} className="py-3 px-6 text-center text-slate-300 font-semibold">
-                  {item.roe_pct === undefined ? '—' : `${item.roe_pct}%`}
+                  {formatPercent(item.roe_pct)}
                 </td>
               ))}
             </tr>
@@ -211,7 +215,7 @@ export const StockComparison: React.FC<StockComparisonProps> = ({
               <td className="py-3 px-4 sticky left-0 bg-slate-950 font-sans text-slate-400"><ConceptHelp term="fcf" label="FCF Yield %" /></td>
               {comparisonData.map(item => (
                 <td key={item.symbol} className="py-3 px-6 text-center font-bold">
-                  {directionalValue('fcf_yield_pct', item.fcf_yield_pct, item.fcf_yield_pct === undefined ? '—' : `${item.fcf_yield_pct}%`)}
+                  {directionalValue('fcf_yield_pct', item.fcf_yield_pct, formatPercent(item.fcf_yield_pct))}
                 </td>
               ))}
             </tr>
@@ -221,7 +225,7 @@ export const StockComparison: React.FC<StockComparisonProps> = ({
               <td className="py-3 px-4 sticky left-0 bg-slate-950 font-sans text-slate-400"><ConceptHelp term="sales_cagr" label="3Y Sales CAGR %" /></td>
               {comparisonData.map(item => (
                 <td key={item.symbol} className="py-3 px-6 text-center text-slate-300">
-                  {item.sales_cagr_3yr}%
+                  {formatPercent(item.sales_cagr_3yr)}
                 </td>
               ))}
             </tr>
@@ -231,7 +235,7 @@ export const StockComparison: React.FC<StockComparisonProps> = ({
               <td className="py-3 px-4 sticky left-0 bg-slate-950 font-sans text-slate-400"><ConceptHelp term="cfo_pat" label="5Y CFO / PAT Conversion" /></td>
               {comparisonData.map(item => (
                 <td key={item.symbol} className="py-3 px-6 text-center font-semibold text-slate-300">
-                  {item.cfo_to_pat_5yr}%
+                  {formatPercent(item.cfo_to_pat_5yr)}
                 </td>
               ))}
             </tr>
@@ -241,7 +245,7 @@ export const StockComparison: React.FC<StockComparisonProps> = ({
               <td className="py-3 px-4 sticky left-0 bg-slate-950 font-sans text-slate-400"><ConceptHelp term="debt_equity" label="Debt to Equity" /></td>
               {comparisonData.map(item => (
                 <td key={item.symbol} className="py-3 px-6 text-center text-slate-300">
-                  {directionalValue('debt_to_equity', item.debt_to_equity, item.debt_to_equity === undefined ? '—' : `${item.debt_to_equity}x`)}
+                  {directionalValue('debt_to_equity', item.debt_to_equity, formatMultiple(item.debt_to_equity))}
                 </td>
               ))}
             </tr>
