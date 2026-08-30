@@ -1102,6 +1102,166 @@ def test_real_stocker_projections_wiring():
     assert "No directly comparable Stocker projection available" in res_10[0]["stocker_assessment"]
     print("  ✓ Test 10 passed: Operational target (1 GW) not mapped to DCF; uses baseline fact from knowledge store.")
 
+def test_extract_document_intelligence_production_projection_wiring():
+    """
+    Integration test preventing regression of commit 76f67b2:
+    Verifies that extract_document_intelligence_with_llm in production:
+    1. Obtains real projection assumptions and scenario CAGRs from projection_engine
+    2. Passes doc_intel=None to prevent circular guidance feedback
+    3. Passes projection_assumptions into process_and_verify_company_knowledge
+    4. Populates guidance_vs_projections with real Stocker projections
+    """
+    print("Testing Production AI Pipeline Real Stocker Projection Integration...")
+    from llm_service import extract_document_intelligence_with_llm
+    from doc_intelligence_models import BusinessOutlookResult
+    
+    mock_llm_json = {
+        "what_changed_recently": [],
+        "growth_drivers": [],
+        "promise_vs_delivery": [],
+        "demand_momentum": {"summary": "Strong demand", "company_specific_metrics": []},
+        "risks_and_cash": {"operational_bottlenecks": []},
+        "stocker_view": {
+            "execution_verdict": "Strong Execution",
+            "positive_triggers": ["Expansion"],
+            "main_risks": ["Competition"],
+            "what_to_watch_next": ["Q1"],
+            "investor_summary": "Summary"
+        }
+    }
+    
+    dummy_ratios = {
+        "market_cap_cr": 250000.0,
+        "current_price": 1500.0,
+        "high_low": "1600 / 1200",
+        "stock_pe": 25.0,
+        "book_value": 300.0,
+        "dividend_yield_pct": 1.5,
+        "roce_pct": 28.0,
+        "roe_pct": 24.0,
+        "face_value": 5.0,
+        "sales_growth_3yr_cagr": 14.5,
+        "profit_growth_3yr_cagr": 16.0
+    }
+    
+    dummy_pl = {
+        "periods": ["Mar 2024", "Mar 2025", "Mar 2026"],
+        "rows": [
+            {"metric": "Sales", "values": {"Mar 2024": 80000.0, "Mar 2025": 92000.0, "Mar 2026": 105000.0}},
+            {"metric": "Operating Profit", "values": {"Mar 2024": 16000.0, "Mar 2025": 19000.0, "Mar 2026": 23000.0}},
+            {"metric": "OPM %", "values": {"Mar 2024": 20.0, "Mar 2025": 20.7, "Mar 2026": 21.9}},
+            {"metric": "Net Profit", "values": {"Mar 2024": 12000.0, "Mar 2025": 14500.0, "Mar 2026": 17500.0}}
+        ]
+    }
+    dummy_quarters = {
+        "periods": ["Jun 2025", "Sep 2025", "Dec 2025", "Mar 2026"],
+        "rows": [
+            {"metric": "Sales", "values": {"Jun 2025": 25000.0, "Sep 2025": 26000.0, "Dec 2025": 26500.0, "Mar 2026": 27500.0}},
+            {"metric": "OPM %", "values": {"Jun 2025": 21.0, "Sep 2025": 21.5, "Dec 2025": 21.8, "Mar 2026": 22.0}}
+        ]
+    }
+    dummy_bs = {
+        "periods": ["Mar 2025", "Mar 2026"],
+        "rows": [
+            {"metric": "Fixed Assets", "values": {"Mar 2025": 30000.0, "Mar 2026": 34000.0}},
+            {"metric": "CWIP", "values": {"Mar 2025": 2000.0, "Mar 2026": 3000.0}}
+        ]
+    }
+    dummy_cf = {
+        "periods": ["Mar 2025", "Mar 2026"],
+        "rows": [
+            {"metric": "Cash from Operating Activity", "values": {"Mar 2025": 15000.0, "Mar 2026": 18000.0}}
+        ]
+    }
+    dummy_analytics = {
+        "historical_parameters": {
+            "opm_median_pct": 21.0,
+            "capex_to_sales_pct": 5.0,
+            "effective_tax_rate_pct": 25.0
+        },
+        "growth_rates": {
+            "sales_cagr_3yr": 14.5
+        }
+    }
+    dummy_cache = {
+        "ratios": dummy_ratios,
+        "analytics": dummy_analytics,
+        "profit_loss": dummy_pl,
+        "quarters": dummy_quarters,
+        "balance_sheet": dummy_bs,
+        "cash_flow": dummy_cf
+    }
+    
+    # Mock extracted facts containing Revenue Guidance
+    precomputed_summaries = [{
+        "doc_title": "Infosys Q4 Earnings Call",
+        "doc_url": "https://example.com/q4.pdf",
+        "doc_type": "concall_transcript",
+        "extracted_facts": [
+            {
+                "metric_name": "Revenue Guidance",
+                "stated_value_raw": "18.0%",
+                "numeric_value": 18.0,
+                "unit": "%",
+                "period_or_date": "Q4 FY26",
+                "target_period": "FY27",
+                "category": "management_guidance",
+                "claim_type": "management_guidance"
+            },
+            {
+                "metric_name": "EBITDA Margin Guidance",
+                "stated_value_raw": "22.5%",
+                "numeric_value": 22.5,
+                "unit": "%",
+                "period_or_date": "Q4 FY26",
+                "target_period": "FY27",
+                "category": "management_guidance",
+                "claim_type": "management_guidance"
+            }
+        ]
+    }]
+
+    with patch("llm_service.is_llm_available", return_value=True), \
+         patch("llm_service.call_gemini_api", return_value=(mock_llm_json, "gemini-3.1-flash-lite")), \
+         patch("database.get_stock_cache", return_value=dummy_cache), \
+         patch("database.get_company_knowledge_facts", return_value=[]):
+         
+        success, result, msg = extract_document_intelligence_with_llm(
+            symbol="INFY",
+            company_name="Infosys Ltd",
+            latest_doc_title="Infosys Q4 Earnings Call",
+            latest_doc_url="https://example.com/q4.pdf",
+            latest_pages=[],
+            older_doc_title=None,
+            older_doc_url=None,
+            older_pages=[],
+            financial_statements_summary="",
+            candidate_documents_meta=[{"title": "Infosys Q4", "url": "https://example.com/q4.pdf", "type": "concall_transcript", "period": "Q4 FY26"}],
+            precomputed_document_summaries=precomputed_summaries,
+            tagged_all_documents_text="",
+            pl_stmt=dummy_pl,
+            quarters_stmt=dummy_quarters,
+            bs_stmt=dummy_bs,
+            cf_stmt=dummy_cf
+        )
+        
+        assert success is True
+        assert result is not None
+        assert len(result.guidance_vs_projections) == 2
+        
+        rev_tri = next(g for g in result.guidance_vs_projections if "revenue" in g.metric_name.lower())
+        assert rev_tri.stocker_projected_base is not None, "Real Stocker revenue projection must be populated!"
+        assert rev_tri.stocker_projected_base == 14.5
+        assert rev_tri.variance_guidance_vs_base_bps == 350.0 # 18.0 - 14.5 = +350 bps
+        assert "+350 bps above Stocker's Base DCF projection of 14.5%" in rev_tri.stocker_assessment
+        
+        margin_tri = next(g for g in result.guidance_vs_projections if "margin" in g.metric_name.lower())
+        assert margin_tri.stocker_projected_base is not None, "Real Stocker margin projection must be populated!"
+        assert margin_tri.stocker_projected_base == 21.0
+        assert margin_tri.variance_guidance_vs_base_bps == 150.0 # 22.5 - 21.0 = +150 bps
+        assert "Latest reported quarterly OPM is 22.0%" in margin_tri.stocker_assessment
+        print("  ✓ Integration Test passed: Real Stocker projection engine accurately wired into production AI pipeline.")
+
 if __name__ == "__main__":
     test_case_a_missing_structured_financial_data()
     test_case_b_future_target_deadline_override()
@@ -1128,7 +1288,8 @@ if __name__ == "__main__":
     test_review_cases_g_h_i_j_k_guidance_triangulation_correctness()
     test_ebitda_margin_vs_ebitda_amount_separation()
     test_real_stocker_projections_wiring()
-    print("\n🎉 ALL TESTS 1-15, REVIEW CASES A-K, CASH FLOW CASES A-F & KNOWLEDGE PERSISTENCE PASSED PERFECTLY!")
+    test_extract_document_intelligence_production_projection_wiring()
+    print("\n🎉 ALL TESTS 1-15, REVIEW CASES A-K, CASH FLOW CASES A-F & PRODUCTION INTEGRATION PASSED PERFECTLY!")
 
 
 

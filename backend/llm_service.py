@@ -940,10 +940,79 @@ SYNTHESIS INSTRUCTIONS:
                 "cash_flow": cf_stmt
             }
             
+            projection_pkg = None
+            try:
+                from projection_engine import generate_scenario_suite
+                from models import KeyRatios, FinancialStatement
+                from financial_engine import get_row_values
+                cached_stock = database.get_stock_cache(symbol) or {}
+                r_dict = cached_stock.get("ratios")
+                if r_dict:
+                    ratios_obj = KeyRatios(**r_dict) if isinstance(r_dict, dict) else r_dict
+                    analytics = cached_stock.get("analytics") or {}
+                    pl_obj = FinancialStatement(**pl_stmt) if isinstance(pl_stmt, dict) else pl_stmt
+                    bs_obj = FinancialStatement(**bs_stmt) if isinstance(bs_stmt, dict) else bs_stmt
+                    cf_obj = FinancialStatement(**cf_stmt) if isinstance(cf_stmt, dict) else cf_stmt
+                    
+                    scenario_suite = generate_scenario_suite(
+                        ratios=ratios_obj,
+                        pl=pl_obj,
+                        bs=bs_obj,
+                        cf=cf_obj,
+                        analytics=analytics,
+                        doc_intel=None
+                    )
+                    base_case = scenario_suite.get("base_case")
+                    bull_case = scenario_suite.get("bull_case")
+                    bear_case = scenario_suite.get("bear_case")
+                    
+                    base_sales = base_case.assumptions.revenue_growth_rate_pct if base_case else None
+                    bull_sales = bull_case.assumptions.revenue_growth_rate_pct if bull_case else None
+                    bear_sales = bear_case.assumptions.revenue_growth_rate_pct if bear_case else None
+                    target_opm = base_case.assumptions.target_opm_pct if base_case else None
+                    capex_sales = base_case.assumptions.capex_pct_of_sales if base_case else None
+                    
+                    base_pat_cagr = None
+                    bull_pat_cagr = None
+                    bear_pat_cagr = None
+                    if base_case and len(base_case.projections) >= 3:
+                        y_pat = get_row_values(pl_obj, "Net Profit") or get_row_values(pl_obj, "PAT") if pl_obj else {}
+                        y_periods = pl_obj.periods if pl_obj else []
+                        latest_pat = y_pat.get(y_periods[-1], 0.0) if y_periods else 0.0
+                        if latest_pat > 0:
+                            yr3_pat_base = base_case.projections[2].pat_cr
+                            if yr3_pat_base > 0:
+                                base_pat_cagr = round(((yr3_pat_base / latest_pat) ** (1.0 / 3.0) - 1.0) * 100.0, 1)
+                            if bull_case and len(bull_case.projections) >= 3:
+                                yr3_pat_bull = bull_case.projections[2].pat_cr
+                                if yr3_pat_bull > 0:
+                                    bull_pat_cagr = round(((yr3_pat_bull / latest_pat) ** (1.0 / 3.0) - 1.0) * 100.0, 1)
+                            if bear_case and len(bear_case.projections) >= 3:
+                                yr3_pat_bear = bear_case.projections[2].pat_cr
+                                if yr3_pat_bear > 0:
+                                    bear_pat_cagr = round(((yr3_pat_bear / latest_pat) ** (1.0 / 3.0) - 1.0) * 100.0, 1)
+
+                    projection_pkg = {
+                        "revenue_growth_rate_pct": base_sales,
+                        "base_sales_cagr": base_sales,
+                        "bull_sales_cagr": bull_sales,
+                        "bear_sales_cagr": bear_sales,
+                        "target_opm_pct": target_opm,
+                        "capex_pct_of_sales": capex_sales,
+                        "base_pat_cagr": base_pat_cagr,
+                        "bull_pat_cagr": bull_pat_cagr,
+                        "bear_pat_cagr": bear_pat_cagr,
+                        "projection_source": "Stocker DCF Projection Engine"
+                    }
+            except Exception as e_proj:
+                print(f"Notice: Projection derivation skipped during knowledge verification: {e_proj}")
+                projection_pkg = None
+
             knowledge_res = process_and_verify_company_knowledge(
                 symbol=symbol,
                 facts_list=merged_facts,
-                stock_data=stock_data_pkg
+                stock_data=stock_data_pkg,
+                projection_assumptions=projection_pkg
             )
             
             from doc_intelligence_models import VerifiedFactComparison, InterDocumentKPITrend, GuidanceVsProjection
