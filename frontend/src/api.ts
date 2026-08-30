@@ -98,7 +98,7 @@ export async function configureAiKey(apiKey: string, provider: string = 'gemini'
   return res.json();
 }
 
-import { CompanySearchResponse, AddCompanyResponse, CompanyRegistryItem } from './types';
+import { CompanySearchResponse, AddCompanyResponse, CompanyRegistryItem, FinancialVerificationResponse } from './types';
 
 export async function searchCompanies(query: string, limit: number = 10): Promise<CompanySearchResponse> {
   const params = new URLSearchParams({ q: query, limit: limit.toString() });
@@ -127,6 +127,21 @@ export async function fetchRegisteredCompanies(activeOnly: boolean = false): Pro
   if (!res.ok) throw new Error('Failed to fetch registered companies');
   return res.json();
 }
+
+export async function fetchFinancialVerification(symbol: string): Promise<FinancialVerificationResponse> {
+  const res = await fetch(`${API_BASE}/stocks/${encodeURIComponent(symbol)}/financial-verification`);
+  if (!res.ok) throw new Error(`Failed to fetch financial verification for ${symbol}`);
+  return res.json();
+}
+
+export async function triggerFinancialVerification(symbol: string): Promise<FinancialVerificationResponse> {
+  const res = await fetch(`${API_BASE}/stocks/${encodeURIComponent(symbol)}/verify-financials`, {
+    method: 'POST'
+  });
+  if (!res.ok) throw new Error(`Failed to trigger financial verification for ${symbol}`);
+  return res.json();
+}
+
 
 
 

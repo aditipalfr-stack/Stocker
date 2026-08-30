@@ -27,14 +27,17 @@ from models import (
     StockSummary, StockDetail, ProjectionAssumption,
     ProjectionResult, ScoreBreakdown, DocumentLinks,
     CompanyRegistryItem, CompanySearchResult, CompanySearchResponse,
-    AddCompanyRequest, AddCompanyResponse
+    AddCompanyRequest, AddCompanyResponse,
+    FinancialVerificationItem, FinancialVerificationSummary, FinancialVerificationResponse
 )
+import database
 from data_seed import DEFAULT_UNIVERSE_SYMBOLS
 from scraper import fetch_stock_from_screener
 from financial_engine import compute_financial_analytics
 from projection_engine import run_projections
 from ranking_engine import compute_stock_score
 from company_resolver import resolve_and_search_companies, resolve_canonical_company, normalize_symbol
+from official_financial_service import run_official_financial_verification
 
 app = FastAPI(
     title="Stocker - Fundamental Stock Analysis & Decision Engine",
@@ -95,6 +98,10 @@ def build_full_stock_detail(stock_data: Dict[str, Any], custom_assumptions: Opti
     # 4. Multi-Factor Scoring & Thesis (with execution track record and confidence tracking)
     score = compute_stock_score(symbol, name, ratios, analytics, projection, sector=sector, doc_intel=doc_intel)
     
+    # 5. Authoritative Financial Verification Summary
+    verif_summary_dict = database.get_financial_verification_summary(symbol)
+    verif_summary = FinancialVerificationSummary(**verif_summary_dict) if verif_summary_dict else None
+
     return StockDetail(
         symbol=symbol,
         name=name,
@@ -116,7 +123,8 @@ def build_full_stock_detail(stock_data: Dict[str, Any], custom_assumptions: Opti
         source_url=source_url,
         statement_type=statement_type,
         fetched_at=fetched_at,
-        documents_checked_at=database.get_document_sources_checked_at(symbol) or stock_data.get("documents_checked_at")
+        documents_checked_at=database.get_document_sources_checked_at(symbol) or stock_data.get("documents_checked_at"),
+        verification_summary=verif_summary
     )
 
 @app.get("/api/health")
@@ -318,7 +326,60 @@ def get_stock_detail(symbol: str):
         raise HTTPException(status_code=404, detail=f"Stock {symbol} not found in database or Screener.in")
     return build_full_stock_detail(data)
 
-import database
+# =============================================================================
+# AUTHORITATIVE FINANCIAL VERIFICATION APIS (PHASE B)
+# =============================================================================
+
+@app.get("/api/stocks/{symbol}/financial-verification", response_model=FinancialVerificationResponse)
+def get_stock_financial_verification(symbol: str):
+    """
+    Returns authoritative financial verification records and summary for a stock.
+    If no verification records exist yet, automatically executes initial verification
+    against Screener statements and authoritative exchange sources.
+    """
+    clean_sym = symbol.strip().upper()
+    summary_dict = database.get_financial_verification_summary(clean_sym)
+    records_dict = database.get_financial_verification_records(clean_sym, limit=50)
+    
+    if not records_dict:
+        stock_data = fetch_stock_from_screener(clean_sym, force_refresh=False)
+        if stock_data:
+            res = run_official_financial_verification(clean_sym, screener_stock_data=stock_data)
+            return FinancialVerificationResponse(
+                symbol=clean_sym,
+                company_name=stock_data.get("name", clean_sym),
+                summary=FinancialVerificationSummary(**res["summary"]),
+                records=[FinancialVerificationItem(**r) for r in res["records"]]
+            )
+            
+    company = database.get_company_by_symbol(clean_sym) or {}
+    company_name = company.get("company_name", clean_sym)
+    
+    return FinancialVerificationResponse(
+        symbol=clean_sym,
+        company_name=company_name,
+        summary=FinancialVerificationSummary(**summary_dict),
+        records=[FinancialVerificationItem(**r) for r in records_dict]
+    )
+
+@app.post("/api/stocks/{symbol}/verify-financials", response_model=FinancialVerificationResponse)
+def trigger_stock_financial_verification(symbol: str):
+    """
+    Triggers an on-demand authoritative identity resolution and official financial statement verification.
+    """
+    clean_sym = symbol.strip().upper()
+    stock_data = fetch_stock_from_screener(clean_sym, force_refresh=False)
+    if not stock_data:
+        raise HTTPException(status_code=404, detail=f"Stock data not found for '{clean_sym}'")
+        
+    res = run_official_financial_verification(clean_sym, screener_stock_data=stock_data)
+    return FinancialVerificationResponse(
+        symbol=clean_sym,
+        company_name=stock_data.get("name", clean_sym),
+        summary=FinancialVerificationSummary(**res["summary"]),
+        records=[FinancialVerificationItem(**r) for r in res["records"]]
+    )
+
 from doc_intelligence_engine import get_company_doc_intelligence
 from llm_service import is_llm_available, get_available_llm_provider
 from doc_intelligence_pipeline import run_generic_document_pipeline, select_default_document_working_set, fetch_historical_evidence_document

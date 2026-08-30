@@ -199,6 +199,7 @@ export interface StockDetail {
   statement_type?: string;
   fetched_at?: string;
   documents_checked_at?: string | null;
+  verification_summary?: FinancialVerificationSummary | null;
   ratios: KeyRatios;
   quarters: FinancialStatement;
   profit_loss: FinancialStatement;
@@ -626,3 +627,52 @@ export interface CompanyRegistryItem {
   created_at?: string | null;
   updated_at?: string | null;
 }
+
+export interface FinancialVerificationItem {
+  id?: number;
+  symbol: string;
+  metric_name: string;
+  canonical_metric: string;
+  period: string;
+  canonical_period: string;
+  scope: string;
+  screener_value?: number | null;
+  official_value?: number | null;
+  variance_abs?: number | null;
+  variance_pct?: number | null;
+  unit: string;
+  currency: string;
+  status: "VERIFIED" | "DISCREPANCY" | "NOT_COMPARABLE" | "OFFICIAL_SOURCE_MISSING" | "SCREENER_VALUE_MISSING" | "INSUFFICIENT_EVIDENCE";
+  tolerance_used?: number | null;
+  screener_source_url?: string | null;
+  official_source_url?: string | null;
+  official_source_name?: string | null;
+  official_document_id?: string | null;
+  notes?: string | null;
+  verified_at?: string | null;
+}
+
+export interface FinancialVerificationSummary {
+  symbol: string;
+  overall_status: "VERIFIED" | "DISCREPANCY" | "NOT_COMPARABLE" | "UNVERIFIED";
+  total_metrics_checked: number;
+  verified_count: number;
+  discrepancy_count: number;
+  not_comparable_count: number;
+  missing_source_count: number;
+  authoritative_source_name?: string | null;
+  isin?: string | null;
+  nse_symbol?: string | null;
+  bse_code?: string | null;
+  exchange?: string | null;
+  last_verified_at?: string | null;
+  confidence_score: number;
+}
+
+export interface FinancialVerificationResponse {
+  symbol: string;
+  company_name: string;
+  summary: FinancialVerificationSummary;
+  records: FinancialVerificationItem[];
+}
+

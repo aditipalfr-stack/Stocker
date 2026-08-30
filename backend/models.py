@@ -199,9 +199,10 @@ class StockDetail(BaseModel):
     statement_type: str = "consolidated"
     fetched_at: str = ""
     documents_checked_at: Optional[str] = None
+    verification_summary: Optional["FinancialVerificationSummary"] = None
 
 # =============================================================================
-# COMPANY REGISTRY & IDENTITY MODELS (PHASE A)
+# COMPANY REGISTRY & IDENTITY MODELS (PHASE A & B)
 # =============================================================================
 
 class CompanyRegistryItem(BaseModel):
@@ -251,4 +252,59 @@ class AddCompanyResponse(BaseModel):
     company_name: str
     already_existed: bool = False
     stock: Optional[StockDetail] = None
+
+# =============================================================================
+# AUTHORITATIVE FINANCIAL VERIFICATION MODELS (PHASE B)
+# =============================================================================
+
+class FinancialVerificationItem(BaseModel):
+    id: Optional[int] = None
+    symbol: str
+    metric_name: str
+    canonical_metric: str # "REVENUE", "OPERATING_PROFIT", "PBT", "PAT", "EPS"
+    period: str # e.g. "Jun 2026", "Q1 FY27"
+    canonical_period: str # normalized key e.g. "2026-Q1", "2026-FY"
+    scope: str = "Consolidated" # "Consolidated" | "Standalone"
+    screener_value: Optional[float] = None
+    official_value: Optional[float] = None
+    variance_abs: Optional[float] = None
+    variance_pct: Optional[float] = None
+    unit: str = "₹ Cr"
+    currency: str = "INR"
+    status: str # "VERIFIED" | "DISCREPANCY" | "NOT_COMPARABLE" | "OFFICIAL_SOURCE_MISSING" | "SCREENER_VALUE_MISSING" | "INSUFFICIENT_EVIDENCE"
+    tolerance_used: Optional[float] = None
+    screener_source_url: Optional[str] = None
+    official_source_url: Optional[str] = None
+    official_source_name: Optional[str] = None # "NSE Filing", "BSE Filing", "Company IR"
+    official_document_id: Optional[str] = None
+    notes: Optional[str] = None
+    verified_at: Optional[str] = None
+
+class FinancialVerificationSummary(BaseModel):
+    symbol: str
+    overall_status: str # "VERIFIED", "DISCREPANCY", "NOT_COMPARABLE", "UNVERIFIED"
+    total_metrics_checked: int = 0
+    verified_count: int = 0
+    discrepancy_count: int = 0
+    not_comparable_count: int = 0
+    missing_source_count: int = 0
+    authoritative_source_name: Optional[str] = None
+    isin: Optional[str] = None
+    nse_symbol: Optional[str] = None
+    bse_code: Optional[str] = None
+    exchange: Optional[str] = None
+    last_verified_at: Optional[str] = None
+    confidence_score: float = 1.0
+
+class FinancialVerificationResponse(BaseModel):
+    symbol: str
+    company_name: str
+    summary: FinancialVerificationSummary
+    records: List[FinancialVerificationItem]
+
+# Rebuild models for forward references
+StockDetail.model_rebuild()
+FinancialVerificationResponse.model_rebuild()
+
+
 

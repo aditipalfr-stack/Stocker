@@ -170,6 +170,37 @@ def init_db() -> None:
             conn.execute("CREATE INDEX IF NOT EXISTS idx_reg_bse ON company_registry(bse_code);")
             conn.execute("CREATE INDEX IF NOT EXISTS idx_reg_isin ON company_registry(isin);")
             conn.execute("CREATE INDEX IF NOT EXISTS idx_reg_universe ON company_registry(in_universe, is_active);")
+
+            # 9. Persistent Authoritative Financial Verification Records (Phase B)
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS financial_verification_records (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    symbol TEXT NOT NULL COLLATE NOCASE,
+                    metric_name TEXT NOT NULL,
+                    canonical_metric TEXT NOT NULL,
+                    period TEXT NOT NULL,
+                    canonical_period TEXT NOT NULL,
+                    scope TEXT NOT NULL DEFAULT 'Consolidated',
+                    screener_value REAL,
+                    official_value REAL,
+                    variance_abs REAL,
+                    variance_pct REAL,
+                    unit TEXT DEFAULT '₹ Cr',
+                    currency TEXT DEFAULT 'INR',
+                    status TEXT NOT NULL,
+                    tolerance_used REAL,
+                    screener_source_url TEXT,
+                    official_source_url TEXT,
+                    official_source_name TEXT,
+                    official_document_id TEXT,
+                    notes TEXT,
+                    verified_at TEXT NOT NULL,
+                    created_at TEXT NOT NULL,
+                    updated_at TEXT NOT NULL
+                );
+            """)
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_verif_sym_period ON financial_verification_records(symbol, canonical_period, canonical_metric);")
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_verif_status ON financial_verification_records(status);")
     finally:
         conn.close()
 
@@ -1081,6 +1112,252 @@ def seed_company_registry(seed_records: Optional[List[Dict[str, Any]]] = None) -
         return inserted_count
     finally:
         conn.close()
+
+# Source precedence tier ranking (Higher integer = Higher authority)
+SOURCE_PRECEDENCE_TIER: Dict[str, int] = {
+    "NSE": 100,
+    "BSE": 100,
+    "seed": 100,
+    "nse_master": 100,
+    "bse_master": 100,
+    "Company IR": 80,
+    "company_ir": 80,
+    "screener_ingestion": 40,
+    "screener_search": 20,
+    "unresolved_input": 10,
+    "manual": 10,
+    "local": 10
+}
+
+def upgrade_company_authoritative_identity(symbol: str, official_data: Dict[str, Any]) -> bool:
+    """
+    Upgrades an existing company registry record with verified authoritative exchange/IR metadata
+    following strict source precedence.
+    - Never creates a duplicate company row.
+    - Preserves in_universe, is_active, aliases, and user status.
+    - Upgrades source only if incoming source tier is >= existing source tier.
+    """
+    clean_sym = symbol.strip().upper()
+    if not clean_sym:
+        return False
+        
+    conn = get_db_connection()
+    try:
+        with conn:
+            existing = find_existing_company_row(
+                conn,
+                isin=official_data.get("isin"),
+                nse_symbol=official_data.get("nse_symbol"),
+                bse_code=official_data.get("bse_code"),
+                symbol=clean_sym,
+                company_name=official_data.get("company_name")
+            )
+            
+            now_iso = datetime.now(timezone.utc).isoformat()
+            incoming_source = official_data.get("source", "NSE")
+            incoming_tier = SOURCE_PRECEDENCE_TIER.get(incoming_source, 50)
+            
+            if existing:
+                row_id = existing["id"]
+                existing_source = existing["source"] or "local"
+                existing_tier = SOURCE_PRECEDENCE_TIER.get(existing_source, 10)
+                
+                # Upgrade source if incoming tier is >= existing tier
+                final_source = incoming_source if incoming_tier >= existing_tier else existing_source
+                
+                # Verified fields: only update if provided
+                final_name = official_data.get("company_name") or existing["company_name"]
+                final_nse = official_data.get("nse_symbol") or existing["nse_symbol"]
+                final_bse = str(official_data.get("bse_code") or "").strip() or existing["bse_code"]
+                final_isin = (official_data.get("isin") or "").upper().strip() or existing["isin"]
+                final_exch = official_data.get("exchange") or existing["exchange"]
+                
+                # Merge aliases without losing existing ones
+                incoming_aliases = official_data.get("aliases", [])
+                merged_aliases_json = _merge_aliases(existing["aliases"], incoming_aliases)
+                
+                conn.execute("""
+                    UPDATE company_registry
+                    SET company_name = ?,
+                        nse_symbol = ?,
+                        bse_code = ?,
+                        isin = ?,
+                        exchange = ?,
+                        aliases = ?,
+                        source = ?,
+                        source_last_verified_at = ?,
+                        updated_at = ?
+                    WHERE id = ?
+                """, (
+                    final_name, final_nse, final_bse, final_isin, final_exch,
+                    merged_aliases_json, final_source, now_iso, now_iso,
+                    row_id
+                ))
+                return True
+            else:
+                # If record doesn't exist yet, insert with verified authoritative metadata
+                upsert_company_registry_item(official_data)
+                return True
+    finally:
+        conn.close()
+
+def save_financial_verification_records(records: List[Dict[str, Any]]) -> int:
+    """
+    Persists financial verification items into the financial_verification_records table.
+    Updates existing records for the same (symbol, canonical_period, canonical_metric, scope).
+    """
+    if not records:
+        return 0
+        
+    conn = get_db_connection()
+    now_iso = datetime.now(timezone.utc).isoformat()
+    saved_count = 0
+    
+    try:
+        with conn:
+            for rec in records:
+                sym = rec.get("symbol", "").upper().strip()
+                metric_name = rec.get("metric_name", "")
+                canon_metric = rec.get("canonical_metric", metric_name).upper().strip()
+                period = rec.get("period", "")
+                canon_period = rec.get("canonical_period", period).strip()
+                scope = rec.get("scope", "Consolidated").capitalize().strip()
+                
+                scr_val = rec.get("screener_value")
+                off_val = rec.get("official_value")
+                var_abs = rec.get("variance_abs")
+                var_pct = rec.get("variance_pct")
+                unit = rec.get("unit", "₹ Cr")
+                curr = rec.get("currency", "INR")
+                status = rec.get("status", "INSUFFICIENT_EVIDENCE")
+                tol_used = rec.get("tolerance_used")
+                scr_url = rec.get("screener_source_url")
+                off_url = rec.get("official_source_url")
+                off_name = rec.get("official_source_name", "NSE Filing")
+                off_doc_id = rec.get("official_document_id")
+                notes = rec.get("notes")
+                ver_at = rec.get("verified_at") or now_iso
+                
+                # Check for existing record
+                cur = conn.execute("""
+                    SELECT id FROM financial_verification_records
+                    WHERE symbol = ? AND canonical_period = ? AND canonical_metric = ? AND scope = ?
+                """, (sym, canon_period, canon_metric, scope))
+                row = cur.fetchone()
+                
+                if row:
+                    conn.execute("""
+                        UPDATE financial_verification_records
+                        SET metric_name = ?,
+                            period = ?,
+                            screener_value = ?,
+                            official_value = ?,
+                            variance_abs = ?,
+                            variance_pct = ?,
+                            unit = ?,
+                            currency = ?,
+                            status = ?,
+                            tolerance_used = ?,
+                            screener_source_url = ?,
+                            official_source_url = ?,
+                            official_source_name = ?,
+                            official_document_id = ?,
+                            notes = ?,
+                            verified_at = ?,
+                            updated_at = ?
+                        WHERE id = ?
+                    """, (
+                        metric_name, period, scr_val, off_val, var_abs, var_pct,
+                        unit, curr, status, tol_used, scr_url, off_url,
+                        off_name, off_doc_id, notes, ver_at, now_iso,
+                        row["id"]
+                    ))
+                else:
+                    conn.execute("""
+                        INSERT INTO financial_verification_records (
+                            symbol, metric_name, canonical_metric, period, canonical_period,
+                            scope, screener_value, official_value, variance_abs, variance_pct,
+                            unit, currency, status, tolerance_used, screener_source_url,
+                            official_source_url, official_source_name, official_document_id,
+                            notes, verified_at, created_at, updated_at
+                        )
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """, (
+                        sym, metric_name, canon_metric, period, canon_period,
+                        scope, scr_val, off_val, var_abs, var_pct,
+                        unit, curr, status, tol_used, scr_url,
+                        off_url, off_name, off_doc_id, notes, ver_at,
+                        now_iso, now_iso
+                    ))
+                saved_count += 1
+        return saved_count
+    finally:
+        conn.close()
+
+def get_financial_verification_records(symbol: str, limit: int = 50) -> List[Dict[str, Any]]:
+    """Retrieves chronological financial verification records for a company."""
+    clean_sym = symbol.strip().upper()
+    conn = get_db_connection()
+    try:
+        cur = conn.execute("""
+            SELECT * FROM financial_verification_records
+            WHERE symbol = ?
+            ORDER BY canonical_period DESC, canonical_metric ASC
+            LIMIT ?
+        """, (clean_sym, limit))
+        rows = cur.fetchall()
+        return [dict(r) for r in rows]
+    finally:
+        conn.close()
+
+def get_financial_verification_summary(symbol: str) -> Dict[str, Any]:
+    """
+    Computes an aggregated financial verification summary including authoritative identity metadata,
+    counts by verification status, and calculated confidence level.
+    """
+    clean_sym = symbol.strip().upper()
+    company = get_company_by_symbol(clean_sym) or {}
+    records = get_financial_verification_records(clean_sym, limit=100)
+    
+    total = len(records)
+    verified = sum(1 for r in records if r.get("status") == "VERIFIED")
+    discrepancy = sum(1 for r in records if r.get("status") == "DISCREPANCY")
+    not_comparable = sum(1 for r in records if r.get("status") == "NOT_COMPARABLE")
+    missing_source = sum(1 for r in records if r.get("status") in ("OFFICIAL_SOURCE_MISSING", "SCREENER_VALUE_MISSING", "INSUFFICIENT_EVIDENCE"))
+    
+    if discrepancy > 0:
+        overall_status = "DISCREPANCY"
+    elif verified > 0 and discrepancy == 0:
+        overall_status = "VERIFIED"
+    elif not_comparable > 0:
+        overall_status = "NOT_COMPARABLE"
+    else:
+        overall_status = "UNVERIFIED"
+        
+    confidence = round(verified / total, 2) if total > 0 else 0.0
+    if discrepancy > 0:
+        confidence = max(0.0, round(1.0 - (discrepancy / max(total, 1)), 2))
+        
+    last_verified = None
+    if records:
+        last_verified = max((r.get("verified_at") or "") for r in records)
+        
+    return {
+        "symbol": clean_sym,
+        "overall_status": overall_status,
+        "total_metrics_checked": total,
+        "verified_count": verified,
+        "discrepancy_count": discrepancy,
+        "not_comparable_count": not_comparable,
+        "missing_source_count": missing_source,
+        "authoritative_source_name": company.get("source") or "Screener Standardized",
+        "isin": company.get("isin"),
+        "nse_symbol": company.get("nse_symbol"),
+        "bse_code": company.get("bse_code"),
+        "exchange": company.get("exchange"),
+        "last_verified_at": last_verified or company.get("source_last_verified_at"),
+        "confidence_score": confidence if total > 0 else 1.0
+    }
 
 # Auto-initialize on module load unless test mode is active
 if not (os.environ.get("PYTEST_CURRENT_TEST") or os.environ.get("STOCKER_TEST_MODE") or os.environ.get("STOCKER_DB_PATH")):
