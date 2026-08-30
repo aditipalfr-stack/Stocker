@@ -25,11 +25,15 @@ Key Principles:
      provenance and document metadata, but numeric extraction fails closed as
      INSUFFICIENT_EVIDENCE to guarantee zero hallucination/misalignment.
 5. HTML & JSON Verification Policy:
-   - HTML true <table> structures with explicit <th> headers and cell indices map deterministically.
-   - JSON structured payloads must explicitly declare metric, value, period, scope, and unit.
-6. Banking / Financial Sector Safety:
+   - HTML true <table> structures with table-scoped headers, units, and explicit cells.
+   - Separate Standalone and Consolidated tables on the same page are evaluated independently.
+   - Structured JSON payloads must explicitly declare metric, value, period, scope, and unit.
+6. Shared Fail-Closed Row Validation:
+   - All input sources (XBRL, HTML, JSON, pre-supplied rows/financial_table) pass through
+     validate_and_normalize_official_rows to ensure uniform fail-closed dimension validation.
+7. Banking / Financial Sector Safety:
    - Rejects non-financial Revenue comparisons for banking / lending entities.
-7. Strict Exact Period & Exact Scope Matching:
+8. Strict Exact Period & Exact Scope Matching:
    - Zero nearest-period fallback
    - Ambiguous multiple official figures -> INSUFFICIENT_EVIDENCE
 =============================================================================
@@ -123,7 +127,7 @@ def normalize_metric_name(raw_metric: str) -> Optional[str]:
     """
     if not raw_metric:
         return None
-    clean = re.sub(r"[\(\)\[\],.:]", " ", raw_metric.lower()).strip()
+    clean = re.sub(r"[\(\)\[\],.:]", " ", str(raw_metric).lower()).strip()
     clean = re.sub(r"\s+", " ", clean)
     clean_no_space = re.sub(r"\s+", "", clean)
     
@@ -158,7 +162,7 @@ def normalize_period(period_str: str) -> Tuple[str, str]:
     if not period_str:
         return ("", "Unknown")
         
-    p = period_str.strip()
+    p = str(period_str).strip()
     p_lower = p.lower()
     
     # 1. Full Year / Annual phrases
@@ -232,7 +236,7 @@ def normalize_numeric_scale(value: float, raw_unit: Optional[str] = None) -> flo
     if not raw_unit or raw_unit == "Unknown":
         return float(value)
         
-    u = raw_unit.lower().strip()
+    u = str(raw_unit).lower().strip()
     if "lakh" in u:
         return round(float(value) / 100.0, 4)
     elif "million" in u or "mn" in u:
@@ -245,6 +249,93 @@ def normalize_numeric_scale(value: float, raw_unit: Optional[str] = None) -> flo
         return round(float(value) / 10000000.0, 4)
         
     return float(value)
+
+# =============================================================================
+# SHARED FAIL-CLOSED ROW VALIDATION & NORMALIZATION
+# =============================================================================
+
+def validate_and_normalize_official_rows(
+    raw_rows: List[Dict[str, Any]],
+    default_scope: str = "Unknown",
+    default_period: str = "",
+    default_unit: str = "Unknown"
+) -> List[Dict[str, Any]]:
+    """
+    Shared fail-closed validation and normalization for all official line-item rows.
+    Validates:
+    - Non-empty, recognized, non-ambiguous canonical metric (rejects generic EPS, operating profit, etc.)
+    - Valid numeric value (float/int)
+    - Valid canonical period (normalizes period strings to e.g. '2026-Q1', '2026-FY')
+    - Explicit or inherited scope ('Consolidated' / 'Standalone' / 'Unknown')
+    - Explicit or inherited unit ('₹ Cr', '₹ Lakhs', '₹ Millions', '₹ / Share', 'Unknown')
+    - Scale normalization: converts reported value to ₹ Cr (or preserves ₹/Share for EPS)
+    """
+    validated_rows: List[Dict[str, Any]] = []
+    
+    for row in raw_rows:
+        if not isinstance(row, dict):
+            continue
+            
+        raw_name = row.get("metric") or row.get("line_item") or row.get("name") or row.get("raw_metric") or ""
+        canon_m = row.get("canonical_metric") or normalize_metric_name(raw_name)
+        if not canon_m:
+            continue
+            
+        raw_val = row.get("value")
+        if raw_val is None:
+            continue
+        try:
+            num_val = float(raw_val)
+            if math.isnan(num_val) or math.isinf(num_val):
+                continue
+        except (ValueError, TypeError):
+            continue
+            
+        # Scope resolution
+        row_scope = (row.get("scope") or default_scope or "Unknown").capitalize().strip()
+        if row_scope not in ("Consolidated", "Standalone"):
+            row_scope = "Unknown"
+            
+        # Period resolution
+        row_canon_p = row.get("canonical_period")
+        row_disp_p = row.get("period") or default_period
+        if not row_canon_p or row_canon_p == "Unknown":
+            disp_p, row_canon_p = normalize_period(row_disp_p)
+            if not row_disp_p:
+                row_disp_p = disp_p
+        else:
+            if not row_disp_p:
+                row_disp_p = row_canon_p
+                
+        # Unit resolution
+        raw_unit = row.get("unit") or row.get("raw_unit") or default_unit or "Unknown"
+        if canon_m in ("BASIC_EPS", "DILUTED_EPS", "EPS"):
+            resolved_unit = "₹ / Share"
+            norm_val = num_val
+        else:
+            if raw_unit in ("Unknown", "unknown", None, ""):
+                resolved_unit = "Unknown"
+                norm_val = num_val
+            else:
+                resolved_unit = "₹ Cr"
+                norm_val = normalize_numeric_scale(num_val, raw_unit)
+                
+        validated_rows.append({
+            "metric": str(raw_name or canon_m),
+            "canonical_metric": canon_m,
+            "value": norm_val,
+            "raw_value": num_val,
+            "scope": row_scope,
+            "canonical_period": row_canon_p,
+            "period": row_disp_p,
+            "unit": resolved_unit,
+            "raw_unit": raw_unit,
+            "currency": "INR",
+            "context_ref": row.get("context_ref") or row.get("context_id"),
+            "unit_ref": row.get("unit_ref")
+        })
+        
+    return validated_rows
 
 def compare_financial_metric(
     screener_val: Optional[float],
@@ -673,7 +764,11 @@ def parse_official_xbrl_xml(
                     # Incompatible or conflicting values/units for same (metric, period, scope) -> skip (fail closed)
                     pass
                     
-        doc["financial_table"] = table_rows
+        doc["financial_table"] = validate_and_normalize_official_rows(
+            table_rows,
+            default_scope=doc_default_scope,
+            default_unit=doc_rounding_unit
+        )
         doc["scope"] = doc_default_scope
         doc["unit"] = doc_rounding_unit
     except Exception:
@@ -724,7 +819,8 @@ def parse_official_html_table(
 ) -> Dict[str, Any]:
     """
     Deterministically parses official HTML financial result announcements with BeautifulSoup
-    using header-driven column mapping.
+    using table-scoped scope, unit, and header-driven column mapping.
+    Handles pages with multiple tables (e.g. Standalone vs Consolidated) independently.
     """
     doc = dict(filing_ref)
     doc["extraction_method"] = "official_html_table"
@@ -732,36 +828,73 @@ def parse_official_html_table(
     
     try:
         soup = bs4.BeautifulSoup(html_data, "html.parser")
-        text_lower = soup.get_text().lower()
-        
-        # 1. Determine Scope
-        scope = "Unknown"
-        if "consolidated" in text_lower:
-            scope = "Consolidated"
-        elif "standalone" in text_lower:
-            scope = "Standalone"
-        doc["scope"] = scope
-        
-        # 2. Determine Unit
-        unit = "Unknown"
-        unit_match = re.search(r"\((?:rs\.?|in\s+rs\.?|₹|in\s+₹)\s*(?:in\s*)?(crores?|lakhs?|millions?|thousands?)\)", text_lower)
-        if unit_match:
-            u_word = unit_match.group(1)
-            if "crore" in u_word:
-                unit = "₹ Cr"
-            elif "lakh" in u_word:
-                unit = "₹ Lakhs"
-            elif "million" in u_word:
-                unit = "₹ Millions"
-        doc["unit"] = unit
-        
-        # 3. Locate Financial Result Table & Map Columns
         tables = soup.find_all("table")
+        
         for table in tables:
+            # 1. Determine Scope for THIS specific table
+            table_scope = "Unknown"
+            caption_elem = table.find("caption")
+            if caption_elem:
+                c_text = caption_elem.get_text().lower()
+                if "consolidated" in c_text:
+                    table_scope = "Consolidated"
+                elif "standalone" in c_text:
+                    table_scope = "Standalone"
+                    
+            if table_scope == "Unknown":
+                closest_h = table.find_previous(["h1", "h2", "h3", "h4", "h5", "h6", "caption"])
+                if closest_h:
+                    h_text = closest_h.get_text().lower()
+                    if "consolidated" in h_text:
+                        table_scope = "Consolidated"
+                    elif "standalone" in h_text:
+                        table_scope = "Standalone"
+                        
+            if table_scope == "Unknown":
+                parent = table.find_parent(["section", "div"])
+                while parent:
+                    p_id = (parent.get("id") or "") + " " + " ".join(parent.get("class") or [])
+                    if "consolidated" in p_id.lower():
+                        table_scope = "Consolidated"
+                        break
+                    elif "standalone" in p_id.lower():
+                        table_scope = "Standalone"
+                        break
+                    parent = parent.find_parent(["section", "div"])
+                    
+            if table_scope == "Unknown":
+                table_full_text = table.get_text().lower()
+                if "consolidated" in table_full_text and "standalone" not in table_full_text:
+                    table_scope = "Consolidated"
+                elif "standalone" in table_full_text and "consolidated" not in table_full_text:
+                    table_scope = "Standalone"
+                    
+            # 2. Determine Unit for THIS specific table
+            table_unit = "Unknown"
+            unit_context = table.get_text().lower()
+            closest_p = table.find_previous(["p", "span", "div", "caption", "h1", "h2", "h3", "h4", "h5", "h6"])
+            if closest_p:
+                unit_context = f"{closest_p.get_text().lower()} {unit_context}"
+                
+            unit_match = re.search(r"\((?:rs\.?|in\s+rs\.?|₹|in\s+₹)\s*(?:in\s*)?(crores?|lakhs?|millions?|thousands?)\)", unit_context)
+            if not unit_match:
+                unit_match = re.search(r"\bin\s+(crores?|lakhs?|millions?|thousands?)\b", unit_context)
+                
+            if unit_match:
+                u_word = unit_match.group(1)
+                if "crore" in u_word:
+                    table_unit = "₹ Cr"
+                elif "lakh" in u_word:
+                    table_unit = "₹ Lakhs"
+                elif "million" in u_word:
+                    table_unit = "₹ Millions"
+                elif "thousand" in u_word:
+                    table_unit = "₹ Thousands"
+                    
+            # 3. Locate Column Headers & Canonical Periods for THIS table
             header_columns: List[Dict[str, Any]] = []
-            
-            # Find header rows
-            for row in table.find_all("tr"):
+            rows = table.find_all("tr")
+            for row in rows[:10]:
                 cells = [c.get_text(strip=True) for c in row.find_all(["td", "th"])]
                 date_headers = []
                 for idx, cell_text in enumerate(cells):
@@ -779,8 +912,8 @@ def parse_official_html_table(
             if not header_columns:
                 continue
                 
-            # Parse data rows
-            for row in table.find_all("tr"):
+            # 4. Parse Metric Data Rows for THIS table
+            for row in rows:
                 cells = [c.get_text(strip=True) for c in row.find_all(["td", "th"])]
                 if len(cells) < 2:
                     continue
@@ -795,12 +928,12 @@ def parse_official_html_table(
                         num_str = cells[col_idx].replace(",", "")
                         try:
                             num_val = float(num_str)
-                            fact_unit = "₹ / Share" if canon_m in ("BASIC_EPS", "DILUTED_EPS") else unit
+                            fact_unit = "₹ / Share" if canon_m in ("BASIC_EPS", "DILUTED_EPS") else table_unit
                             table_rows.append({
                                 "metric": m_label,
                                 "canonical_metric": canon_m,
                                 "value": num_val,
-                                "scope": scope,
+                                "scope": table_scope,
                                 "canonical_period": col["canonical_period"],
                                 "period": col["period_display"],
                                 "unit": fact_unit
@@ -808,7 +941,12 @@ def parse_official_html_table(
                         except Exception:
                             pass
                             
-        doc["financial_table"] = table_rows
+        doc["financial_table"] = validate_and_normalize_official_rows(
+            table_rows,
+            default_scope="Consolidated" if any(r["scope"] == "Consolidated" for r in table_rows) else "Unknown"
+        )
+        doc["scope"] = "Consolidated" if any(r.get("scope") == "Consolidated" for r in table_rows) else (table_rows[0]["scope"] if table_rows else "Unknown")
+        doc["unit"] = table_rows[0]["unit"] if table_rows else "Unknown"
     except Exception:
         doc["financial_table"] = []
         
@@ -869,6 +1007,7 @@ def fetch_official_financial_result(
     """
     Fetches and deterministically parses structured financial results from official filing candidate.
     Supports XBRL/XML, PDF, HTML, and structured JSON payloads with strict schema validation.
+    Also applies validate_and_normalize_official_rows to pre-supplied financial_table / rows.
     """
     if not filing_ref:
         return None
@@ -876,8 +1015,18 @@ def fetch_official_financial_result(
     # If filing already contains extracted table rows (from mock fixture or structured test doc)
     if "financial_table" in filing_ref or "rows" in filing_ref:
         doc = dict(filing_ref)
-        if "rows" in doc and "financial_table" not in doc:
-            doc["financial_table"] = doc["rows"]
+        raw_table = doc.get("financial_table") or doc.get("rows") or []
+        doc_scope = doc.get("scope", "Unknown")
+        doc_period = doc.get("reporting_period", "")
+        doc_unit = doc.get("unit", "Unknown")
+        
+        validated = validate_and_normalize_official_rows(
+            raw_table,
+            default_scope=doc_scope,
+            default_period=doc_period,
+            default_unit=doc_unit
+        )
+        doc["financial_table"] = validated
         doc["extraction_method"] = doc.get("extraction_method", "structured_table_direct")
         return doc
         
@@ -908,15 +1057,16 @@ def fetch_official_financial_result(
                 parsed_json = json.loads(raw_bytes.decode("utf-8"))
                 filing_doc = dict(filing_ref)
                 raw_rows = parsed_json.get("rows", [])
-                validated_rows = []
-                for r in raw_rows:
-                    if isinstance(r, dict) and "metric" in r and "value" in r:
-                        # Row must have period, scope, and unit either explicitly or from doc
-                        has_period = bool(r.get("canonical_period") or r.get("period") or filing_doc.get("reporting_period"))
-                        has_scope = bool(r.get("scope") or (filing_doc.get("scope") and filing_doc.get("scope") != "Unknown"))
-                        has_unit = bool(r.get("unit") or (filing_doc.get("unit") and filing_doc.get("unit") != "Unknown"))
-                        if has_period and has_scope and has_unit:
-                            validated_rows.append(r)
+                doc_scope = filing_doc.get("scope", "Unknown")
+                doc_period = filing_doc.get("reporting_period", "")
+                doc_unit = filing_doc.get("unit", "Unknown")
+                
+                validated_rows = validate_and_normalize_official_rows(
+                    raw_rows,
+                    default_scope=doc_scope,
+                    default_period=doc_period,
+                    default_unit=doc_unit
+                )
                 filing_doc["financial_table"] = validated_rows
                 filing_doc["extraction_method"] = "official_json_structured" if validated_rows else "unsupported_or_failed"
                 return filing_doc
@@ -934,58 +1084,44 @@ def extract_official_filing_metrics(
 ) -> List[Dict[str, Any]]:
     """
     Extracts structured financial result line items from official filing payload.
+    Uses validate_and_normalize_official_rows for uniform fail-closed dimension validation.
     """
-    extracted_items = []
     doc_scope = filing_doc.get("scope", "Unknown")
     doc_unit = filing_doc.get("unit", "Unknown")
+    doc_period = filing_doc.get("reporting_period", "")
     source_url = filing_doc.get("source_url") or filing_doc.get("actual_source_url")
     source_name = filing_doc.get("source_name", "NSE Filing")
     doc_id = filing_doc.get("document_id") or filing_doc.get("document_title")
     ext_method = filing_doc.get("extraction_method", "deterministic")
     
-    line_items = filing_doc.get("financial_table") or filing_doc.get("rows") or []
-    for row in line_items:
-        raw_name = row.get("metric") or row.get("line_item") or row.get("name") or ""
-        canon_m = row.get("canonical_metric") or normalize_metric_name(raw_name)
-        if not canon_m:
-            continue
-            
-        raw_val = row.get("value")
-        if raw_val is None:
-            continue
-            
-        row_scope = row.get("scope") or doc_scope
-        row_period = row.get("period") or filing_doc.get("reporting_period", "")
-        row_canon_p = row.get("canonical_period")
-        if not row_canon_p:
-            disp_p, row_canon_p = normalize_period(row_period)
-        else:
-            disp_p = row.get("period") or row_canon_p
-            
-        row_unit = row.get("unit") or doc_unit
+    raw_table = filing_doc.get("financial_table") or filing_doc.get("rows") or []
+    validated_rows = validate_and_normalize_official_rows(
+        raw_table,
+        default_scope=doc_scope,
+        default_period=doc_period,
+        default_unit=doc_unit
+    )
+    
+    extracted_items = []
+    for row in validated_rows:
+        extracted_items.append({
+            "metric_name": row["metric"],
+            "canonical_metric": row["canonical_metric"],
+            "period": row["period"],
+            "canonical_period": row["canonical_period"],
+            "scope": row["scope"],
+            "official_value": row["value"],
+            "unit": row["unit"],
+            "raw_unit": row["raw_unit"],
+            "currency": row["currency"],
+            "official_source_url": source_url,
+            "official_source_name": source_name,
+            "official_document_id": doc_id,
+            "extraction_method": ext_method,
+            "context_ref": row.get("context_ref"),
+            "unit_ref": row.get("unit_ref")
+        })
         
-        try:
-            num_val = float(raw_val)
-            norm_val = normalize_numeric_scale(num_val, row_unit) if canon_m not in ("BASIC_EPS", "DILUTED_EPS", "EPS") else float(num_val)
-            
-            extracted_items.append({
-                "metric_name": raw_name,
-                "canonical_metric": canon_m,
-                "period": disp_p,
-                "canonical_period": row_canon_p,
-                "scope": row_scope,
-                "official_value": norm_val,
-                "unit": "₹ / Share" if canon_m in ("BASIC_EPS", "DILUTED_EPS", "EPS") else "₹ Cr",
-                "raw_unit": row_unit,
-                "currency": "INR",
-                "official_source_url": source_url,
-                "official_source_name": source_name,
-                "official_document_id": doc_id,
-                "extraction_method": ext_method
-            })
-        except Exception:
-            continue
-            
     return extracted_items
 
 # =============================================================================
@@ -1030,7 +1166,6 @@ def run_official_financial_verification(
         quarters = screener_stock_data.get("quarters", {})
         for row in quarters.get("rows", []):
             m_name = row.get("metric", "")
-            # Screener labels like "Basic EPS" map to BASIC_EPS; generic "EPS in Rs" maps to BASIC_EPS if Screener statement
             clean_m_lower = m_name.lower().strip()
             if clean_m_lower == "eps in rs":
                 canon_m = "BASIC_EPS"

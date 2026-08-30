@@ -367,6 +367,45 @@ def test_m_structured_html_table():
     print("  ✓ Test M passed: HTML table correctly extracts cells mapped to explicit column headers.")
 
 # =============================================================================
+# TEST M2: Multi-Table HTML Page (Isolated Scope per Table)
+# =============================================================================
+def test_m2_html_multi_table_scope_isolation():
+    print("Test M2: Multi-Table HTML Page with Standalone and Consolidated Tables (Isolated Scope)...")
+    multi_html = b"""
+    <html>
+        <body>
+            <div id="consolidated_section">
+                <h2>Statement of Consolidated Financial Results</h2>
+                <p>(Rs. in Crores)</p>
+                <table>
+                    <tr><th>Particulars</th><th>30-Jun-2026</th><th>31-Mar-2026</th></tr>
+                    <tr><td>Revenue from operations</td><td>48211.0</td><td>45000.0</td></tr>
+                    <tr><td>Profit after tax</td><td>6800.0</td><td>6200.0</td></tr>
+                </table>
+            </div>
+            <div id="standalone_section">
+                <h2>Statement of Standalone Financial Results</h2>
+                <p>(Rs. in Crores)</p>
+                <table>
+                    <tr><th>Particulars</th><th>30-Jun-2026</th><th>31-Mar-2026</th></tr>
+                    <tr><td>Revenue from operations</td><td>40000.0</td><td>38000.0</td></tr>
+                    <tr><td>Profit after tax</td><td>5500.0</td><td>5100.0</td></tr>
+                </table>
+            </div>
+        </body>
+    </html>
+    """
+    parsed = parse_official_html_table(multi_html, {"symbol": "INFY", "document_title": "INFY Multi HTML"})
+    rows = parsed["financial_table"]
+    
+    cons_rev = next((r for r in rows if r["scope"] == "Consolidated" and r["canonical_metric"] == "REVENUE" and r["canonical_period"] == "2026-Q1"), None)
+    stan_rev = next((r for r in rows if r["scope"] == "Standalone" and r["canonical_metric"] == "REVENUE" and r["canonical_period"] == "2026-Q1"), None)
+    
+    assert cons_rev is not None and cons_rev["value"] == 48211.0
+    assert stan_rev is not None and stan_rev["value"] == 40000.0
+    print("  ✓ Test M2 passed: Multi-table HTML isolates Consolidated vs Standalone scopes without page-global leakage.")
+
+# =============================================================================
 # TEST N: JSON with Explicit Schema Accepted
 # =============================================================================
 def test_n_json_explicit_schema_accepted():
@@ -541,6 +580,47 @@ def test_u_material_discrepancy():
     assert res["variance_abs"] == 6211.0
     print("  ✓ Test U passed: Material variance exceeding tolerance flagged as DISCREPANCY.")
 
+# =============================================================================
+# TEST V: Pre-Supplied rows / financial_table Enforces Shared Fail-Closed Validation
+# =============================================================================
+def test_v_presupplied_rows_shared_validation():
+    print("Test V: Pre-Supplied rows / financial_table enforces shared fail-closed validation...")
+    # Unfiltered raw rows containing invalid items (generic EPS, ambiguous metrics, non-numeric values)
+    raw_doc = {
+        "symbol": "INFY",
+        "document_title": "Infosys Injected Fixture",
+        "scope": "Consolidated",
+        "reporting_period": "30-Jun-2026",
+        "unit": "₹ Cr",
+        "rows": [
+            {"metric": "Revenue from operations", "value": 48211.0}, # Valid -> REVENUE
+            {"metric": "Operating Profit", "value": 12000.0}, # Ambiguous -> Rejected
+            {"metric": "EPS", "value": 16.40}, # Generic EPS -> Rejected
+            {"metric": "Profit after tax", "value": "corrupted_val"}, # Non-numeric -> Rejected
+            {"metric": "Basic EPS", "value": 16.40, "unit": "₹ / Share"} # Valid -> BASIC_EPS
+        ]
+    }
+    
+    # Passing to fetch_official_financial_result
+    fetched = fetch_official_financial_result("INFY", raw_doc)
+    valid_rows = fetched["financial_table"]
+    
+    # Must only contain the 2 valid canonical metrics
+    assert len(valid_rows) == 2
+    metrics = [r["canonical_metric"] for r in valid_rows]
+    assert "REVENUE" in metrics
+    assert "BASIC_EPS" in metrics
+    assert "DILUTED_EPS" not in metrics
+    
+    # Passing to extract_official_filing_metrics
+    extracted = extract_official_filing_metrics("INFY", raw_doc)
+    assert len(extracted) == 2
+    assert extracted[0]["canonical_metric"] == "REVENUE"
+    assert extracted[0]["official_value"] == 48211.0
+    assert extracted[1]["canonical_metric"] == "BASIC_EPS"
+    assert extracted[1]["official_value"] == 16.40
+    print("  ✓ Test V passed: Pre-supplied rows/financial_table enforces shared validation without shortcuts.")
+
 if __name__ == "__main__":
     test_a_xbrl_unitref_inr()
     test_b_xbrl_eps_unitref_inr_per_share()
@@ -554,6 +634,7 @@ if __name__ == "__main__":
     test_j_explicit_diluted_eps()
     test_k_l_pdf_fail_closed_policy()
     test_m_structured_html_table()
+    test_m2_html_multi_table_scope_isolation()
     test_n_json_explicit_schema_accepted()
     test_o_json_unmapped_rejected()
     test_p_official_unit_unknown()
@@ -562,4 +643,5 @@ if __name__ == "__main__":
     test_s_banking_revenue_safety()
     test_t_exact_aligned_verified()
     test_u_material_discrepancy()
-    print("\n🎉 ALL 21 TESTS (A - U) PASSED WITH 100% DETERMINISTIC ISOLATION & FAIL-CLOSED INTEGRITY!")
+    test_v_presupplied_rows_shared_validation()
+    print("\n🎉 ALL 22 TESTS (A - V) PASSED WITH 100% DETERMINISTIC ISOLATION & FAIL-CLOSED INTEGRITY!")
