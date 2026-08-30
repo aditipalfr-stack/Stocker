@@ -158,8 +158,11 @@ def init_db() -> None:
                     aliases TEXT DEFAULT '[]',
                     is_active INTEGER DEFAULT 1,
                     in_universe INTEGER DEFAULT 1,
-                    source TEXT DEFAULT 'seed',
+                    source TEXT DEFAULT 'seed_reference',
                     source_last_verified_at TEXT,
+                    identity_source_name TEXT,
+                    identity_source_url TEXT,
+                    identity_verified_at TEXT,
                     created_at TEXT NOT NULL,
                     updated_at TEXT NOT NULL
                 );
@@ -1017,6 +1020,7 @@ def seed_company_registry(seed_records: Optional[List[Dict[str, Any]]] = None) -
     records_to_seed = list(seed_records or SEED_REGISTRY_COMPANIES)
     
     # Check cached stocks in stocks_cache.json as one-time legacy bootstrap migration
+    # Note: cache-derived legacy identities have UNVERIFIED exchange fields (nse_symbol=None, exchange=None)
     cache_file = DB_PATH.parent / "stocks_cache.json"
     if cache_file.exists():
         try:
@@ -1029,16 +1033,19 @@ def seed_company_registry(seed_records: Optional[List[Dict[str, Any]]] = None) -
                         records_to_seed.append({
                             "symbol": clean_s,
                             "company_name": stock_dict.get("name") or clean_s,
-                            "nse_symbol": clean_s,
+                            "nse_symbol": None,
                             "bse_code": None,
                             "isin": None,
-                            "exchange": "NSE",
+                            "exchange": None,
                             "sector": stock_dict.get("sector") or meta.get("sector") or "Broad Market",
                             "industry": stock_dict.get("industry") or meta.get("industry") or "Indian Equities",
                             "aliases": [clean_s, stock_dict.get("name") or clean_s],
                             "in_universe": True,
                             "is_active": True,
-                            "source": "stocks_cache"
+                            "source": "stocks_cache",
+                            "identity_source_name": "stocks_cache",
+                            "identity_source_url": None,
+                            "identity_verified_at": None
                         })
         except Exception:
             pass
@@ -1051,14 +1058,17 @@ def seed_company_registry(seed_records: Optional[List[Dict[str, Any]]] = None) -
             for rec in records_to_seed:
                 sym = rec.get("symbol", "").upper().strip()
                 name = rec.get("company_name", sym).strip()
-                nse = (rec.get("nse_symbol") or sym).upper().strip()
+                nse = (rec.get("nse_symbol") or "").upper().strip() or None
                 bse = str(rec.get("bse_code") or "").strip() or None
                 isin = (rec.get("isin") or "").upper().strip() or None
-                exchange = rec.get("exchange", "NSE")
+                exchange = (rec.get("exchange") or "").strip() or None
                 sector = rec.get("sector", "Broad Market")
                 industry = rec.get("industry", "Indian Equities")
                 aliases = rec.get("aliases", [])
-                source = rec.get("source", "seed")
+                source = rec.get("source", "seed_reference")
+                id_src_name = rec.get("identity_source_name") or (source if source == "seed_reference" else None)
+                id_src_url = rec.get("identity_source_url")
+                id_ver_at = rec.get("identity_verified_at")
                 
                 existing = find_existing_company_row(
                     conn,
@@ -1100,13 +1110,17 @@ def seed_company_registry(seed_records: Optional[List[Dict[str, Any]]] = None) -
                         INSERT INTO company_registry (
                             symbol, company_name, nse_symbol, bse_code, isin,
                             exchange, sector, industry, aliases, is_active,
-                            in_universe, source, source_last_verified_at, created_at, updated_at
+                            in_universe, source, source_last_verified_at,
+                            identity_source_name, identity_source_url, identity_verified_at,
+                            created_at, updated_at
                         )
-                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """, (
                         sym, name, nse, bse, isin,
                         exchange, sector, industry, aliases_json, is_act,
-                        in_uni, source, now_iso, now_iso, now_iso
+                        in_uni, source, id_ver_at,
+                        id_src_name, id_src_url, id_ver_at,
+                        now_iso, now_iso
                     ))
                     inserted_count += 1
         return inserted_count
@@ -1115,18 +1129,21 @@ def seed_company_registry(seed_records: Optional[List[Dict[str, Any]]] = None) -
 
 # Source precedence tier ranking (Higher integer = Higher authority)
 SOURCE_PRECEDENCE_TIER: Dict[str, int] = {
+    "verified_official": 100,
     "NSE": 100,
     "BSE": 100,
-    "seed": 100,
     "nse_master": 100,
     "bse_master": 100,
     "Company IR": 80,
     "company_ir": 80,
-    "screener_ingestion": 40,
-    "screener_search": 20,
-    "unresolved_input": 10,
-    "manual": 10,
-    "local": 10
+    "seed_reference": 50,
+    "seed": 50,
+    "screener_ingestion": 30,
+    "stocks_cache": 20,
+    "screener_search": 10,
+    "unresolved_input": 5,
+    "manual": 5,
+    "local": 5
 }
 
 def upgrade_company_authoritative_identity(symbol: str, official_data: Dict[str, Any]) -> bool:
@@ -1136,6 +1153,7 @@ def upgrade_company_authoritative_identity(symbol: str, official_data: Dict[str,
     - Never creates a duplicate company row.
     - Preserves in_universe, is_active, aliases, and user status.
     - Upgrades source only if incoming source tier is >= existing source tier.
+    - Weaker discovery sources can NEVER overwrite verified official metadata.
     """
     clean_sym = symbol.strip().upper()
     if not clean_sym:
@@ -1154,7 +1172,7 @@ def upgrade_company_authoritative_identity(symbol: str, official_data: Dict[str,
             )
             
             now_iso = datetime.now(timezone.utc).isoformat()
-            incoming_source = official_data.get("source", "NSE")
+            incoming_source = official_data.get("source", "verified_official")
             incoming_tier = SOURCE_PRECEDENCE_TIER.get(incoming_source, 50)
             
             if existing:
@@ -1162,15 +1180,28 @@ def upgrade_company_authoritative_identity(symbol: str, official_data: Dict[str,
                 existing_source = existing["source"] or "local"
                 existing_tier = SOURCE_PRECEDENCE_TIER.get(existing_source, 10)
                 
-                # Upgrade source if incoming tier is >= existing tier
-                final_source = incoming_source if incoming_tier >= existing_tier else existing_source
-                
-                # Verified fields: only update if provided
-                final_name = official_data.get("company_name") or existing["company_name"]
-                final_nse = official_data.get("nse_symbol") or existing["nse_symbol"]
-                final_bse = str(official_data.get("bse_code") or "").strip() or existing["bse_code"]
-                final_isin = (official_data.get("isin") or "").upper().strip() or existing["isin"]
-                final_exch = official_data.get("exchange") or existing["exchange"]
+                # Check if incoming tier is high enough to upgrade
+                if incoming_tier >= existing_tier:
+                    final_source = incoming_source
+                    final_name = official_data.get("company_name") or existing["company_name"]
+                    final_nse = official_data.get("nse_symbol") or existing["nse_symbol"]
+                    final_bse = str(official_data.get("bse_code") or "").strip() or existing["bse_code"]
+                    final_isin = (official_data.get("isin") or "").upper().strip() or existing["isin"]
+                    final_exch = official_data.get("exchange") or existing["exchange"]
+                    id_src_name = official_data.get("identity_source_name") or incoming_source
+                    id_src_url = official_data.get("identity_source_url") or existing["identity_source_url"]
+                    id_ver_at = official_data.get("identity_verified_at") or now_iso
+                else:
+                    # Keep existing higher-tier metadata; do NOT overwrite verified fields with weaker source
+                    final_source = existing_source
+                    final_name = existing["company_name"]
+                    final_nse = existing["nse_symbol"]
+                    final_bse = existing["bse_code"]
+                    final_isin = existing["isin"]
+                    final_exch = existing["exchange"]
+                    id_src_name = existing["identity_source_name"]
+                    id_src_url = existing["identity_source_url"]
+                    id_ver_at = existing["identity_verified_at"]
                 
                 # Merge aliases without losing existing ones
                 incoming_aliases = official_data.get("aliases", [])
@@ -1186,16 +1217,20 @@ def upgrade_company_authoritative_identity(symbol: str, official_data: Dict[str,
                         aliases = ?,
                         source = ?,
                         source_last_verified_at = ?,
+                        identity_source_name = ?,
+                        identity_source_url = ?,
+                        identity_verified_at = ?,
                         updated_at = ?
                     WHERE id = ?
                 """, (
                     final_name, final_nse, final_bse, final_isin, final_exch,
-                    merged_aliases_json, final_source, now_iso, now_iso,
+                    merged_aliases_json, final_source, id_ver_at,
+                    id_src_name, id_src_url, id_ver_at, now_iso,
                     row_id
                 ))
                 return True
             else:
-                # If record doesn't exist yet, insert with verified authoritative metadata
+                # If record doesn't exist yet, insert with authoritative metadata
                 upsert_company_registry_item(official_data)
                 return True
     finally:
@@ -1331,6 +1366,8 @@ def get_financial_verification_summary(symbol: str) -> Dict[str, Any]:
         overall_status = "VERIFIED"
     elif not_comparable > 0:
         overall_status = "NOT_COMPARABLE"
+    elif missing_source > 0:
+        overall_status = "OFFICIAL_SOURCE_MISSING"
     else:
         overall_status = "UNVERIFIED"
         
@@ -1350,13 +1387,16 @@ def get_financial_verification_summary(symbol: str) -> Dict[str, Any]:
         "discrepancy_count": discrepancy,
         "not_comparable_count": not_comparable,
         "missing_source_count": missing_source,
-        "authoritative_source_name": company.get("source") or "Screener Standardized",
+        "authoritative_source_name": company.get("identity_source_name") or company.get("source") or "Screener Standardized",
+        "identity_source_name": company.get("identity_source_name"),
+        "identity_source_url": company.get("identity_source_url"),
+        "identity_verified_at": company.get("identity_verified_at") or company.get("source_last_verified_at"),
         "isin": company.get("isin"),
         "nse_symbol": company.get("nse_symbol"),
         "bse_code": company.get("bse_code"),
         "exchange": company.get("exchange"),
-        "last_verified_at": last_verified or company.get("source_last_verified_at"),
-        "confidence_score": confidence if total > 0 else 1.0
+        "last_verified_at": last_verified or company.get("identity_verified_at") or company.get("source_last_verified_at"),
+        "confidence_score": confidence if total > 0 else (1.0 if company.get("source") in ("NSE", "BSE", "verified_official") else 0.0)
     }
 
 # Auto-initialize on module load unless test mode is active
@@ -1365,5 +1405,6 @@ if not (os.environ.get("PYTEST_CURRENT_TEST") or os.environ.get("STOCKER_TEST_MO
         init_db()
     except Exception:
         pass
+
 
 

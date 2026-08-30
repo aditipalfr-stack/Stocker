@@ -94,7 +94,10 @@ SEED_REGISTRY_COMPANIES: List[Dict[str, Any]] = [
         "aliases": ["Reliance", "RIL", "Jio", "Reliance Industries"],
         "in_universe": True,
         "is_active": True,
-        "source": "seed"
+        "source": "seed_reference",
+        "identity_source_name": "seed_reference",
+        "identity_source_url": None,
+        "identity_verified_at": None
     },
     {
         "symbol": "TCS",
@@ -108,7 +111,10 @@ SEED_REGISTRY_COMPANIES: List[Dict[str, Any]] = [
         "aliases": ["Tata Consultancy Services", "TCS"],
         "in_universe": True,
         "is_active": True,
-        "source": "seed"
+        "source": "seed_reference",
+        "identity_source_name": "seed_reference",
+        "identity_source_url": None,
+        "identity_verified_at": None
     },
     {
         "symbol": "INFY",
@@ -122,7 +128,10 @@ SEED_REGISTRY_COMPANIES: List[Dict[str, Any]] = [
         "aliases": ["Infosys", "INFY"],
         "in_universe": True,
         "is_active": True,
-        "source": "seed"
+        "source": "seed_reference",
+        "identity_source_name": "seed_reference",
+        "identity_source_url": None,
+        "identity_verified_at": None
     },
     {
         "symbol": "LT",
@@ -136,7 +145,10 @@ SEED_REGISTRY_COMPANIES: List[Dict[str, Any]] = [
         "aliases": ["Larsen & Toubro", "L&T", "LT"],
         "in_universe": True,
         "is_active": True,
-        "source": "seed"
+        "source": "seed_reference",
+        "identity_source_name": "seed_reference",
+        "identity_source_url": None,
+        "identity_verified_at": None
     },
     {
         "symbol": "HDFCBANK",
@@ -150,7 +162,10 @@ SEED_REGISTRY_COMPANIES: List[Dict[str, Any]] = [
         "aliases": ["HDFC Bank", "HDFC"],
         "in_universe": True,
         "is_active": True,
-        "source": "seed"
+        "source": "seed_reference",
+        "identity_source_name": "seed_reference",
+        "identity_source_url": None,
+        "identity_verified_at": None
     },
     {
         "symbol": "ICICIBANK",
@@ -164,7 +179,10 @@ SEED_REGISTRY_COMPANIES: List[Dict[str, Any]] = [
         "aliases": ["ICICI Bank", "ICICI"],
         "in_universe": True,
         "is_active": True,
-        "source": "seed"
+        "source": "seed_reference",
+        "identity_source_name": "seed_reference",
+        "identity_source_url": None,
+        "identity_verified_at": None
     },
     {
         "symbol": "TATAMOTORS",
@@ -178,7 +196,10 @@ SEED_REGISTRY_COMPANIES: List[Dict[str, Any]] = [
         "aliases": ["Tata Motors", "TMPV", "TMCV", "JLR"],
         "in_universe": True,
         "is_active": True,
-        "source": "seed"
+        "source": "seed_reference",
+        "identity_source_name": "seed_reference",
+        "identity_source_url": None,
+        "identity_verified_at": None
     },
     {
         "symbol": "HINDUNILVR",
@@ -192,7 +213,10 @@ SEED_REGISTRY_COMPANIES: List[Dict[str, Any]] = [
         "aliases": ["Hindustan Unilever", "HUL", "HINDUNILVR"],
         "in_universe": True,
         "is_active": True,
-        "source": "seed"
+        "source": "seed_reference",
+        "identity_source_name": "seed_reference",
+        "identity_source_url": None,
+        "identity_verified_at": None
     },
     {
         "symbol": "ITC",
@@ -206,7 +230,10 @@ SEED_REGISTRY_COMPANIES: List[Dict[str, Any]] = [
         "aliases": ["ITC Limited", "ITC"],
         "in_universe": True,
         "is_active": True,
-        "source": "seed"
+        "source": "seed_reference",
+        "identity_source_name": "seed_reference",
+        "identity_source_url": None,
+        "identity_verified_at": None
     },
     {
         "symbol": "TATASTEEL",
@@ -220,6 +247,9 @@ SEED_REGISTRY_COMPANIES: List[Dict[str, Any]] = [
         "aliases": ["Tata Steel", "TISCO"],
         "in_universe": True,
         "is_active": True,
-        "source": "seed"
+        "source": "seed_reference",
+        "identity_source_name": "seed_reference",
+        "identity_source_url": None,
+        "identity_verified_at": None
     }
 ]

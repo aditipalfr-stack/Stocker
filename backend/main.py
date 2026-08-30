@@ -257,14 +257,14 @@ def execute_add_company_to_universe(symbol_or_query: str) -> AddCompanyResponse:
     database.upsert_company_registry_item({
         "symbol": canonical_sym,
         "company_name": real_name,
-        "nse_symbol": canonical_sym,
+        "nse_symbol": canonical_info.get("nse_symbol"),
         "bse_code": canonical_info.get("bse_code"),
         "isin": canonical_info.get("isin"),
-        "exchange": canonical_info.get("exchange", "NSE"),
+        "exchange": canonical_info.get("exchange"),
         "sector": sector,
         "industry": industry,
         "aliases": canonical_info.get("aliases", [real_name, canonical_sym]),
-        "source": canonical_info.get("source", "user_added"),
+        "source": canonical_info.get("source", "screener_ingestion"),
         "in_universe": True,
         "is_active": True
     })

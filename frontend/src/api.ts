@@ -99,7 +99,6 @@ export async function configureAiKey(apiKey: string, provider: string = 'gemini'
 }
 
 import { CompanySearchResponse, AddCompanyResponse, CompanyRegistryItem, FinancialVerificationResponse } from './types';
-
 export async function searchCompanies(query: string, limit: number = 10): Promise<CompanySearchResponse> {
   const params = new URLSearchParams({ q: query, limit: limit.toString() });
   const res = await fetch(`${API_BASE}/companies/search?${params.toString()}`);
@@ -141,7 +140,3 @@ export async function triggerFinancialVerification(symbol: string): Promise<Fina
   if (!res.ok) throw new Error(`Failed to trigger financial verification for ${symbol}`);
   return res.json();
 }
-
-
-
-

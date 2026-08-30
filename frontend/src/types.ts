@@ -624,6 +624,9 @@ export interface CompanyRegistryItem {
   already_added?: boolean;
   source?: string;
   source_last_verified_at?: string | null;
+  identity_source_name?: string | null;
+  identity_source_url?: string | null;
+  identity_verified_at?: string | null;
   created_at?: string | null;
   updated_at?: string | null;
 }
@@ -654,19 +657,23 @@ export interface FinancialVerificationItem {
 
 export interface FinancialVerificationSummary {
   symbol: string;
-  overall_status: "VERIFIED" | "DISCREPANCY" | "NOT_COMPARABLE" | "UNVERIFIED";
+  overall_status: "VERIFIED" | "DISCREPANCY" | "NOT_COMPARABLE" | "OFFICIAL_SOURCE_MISSING" | "UNVERIFIED";
   total_metrics_checked: number;
   verified_count: number;
   discrepancy_count: number;
   not_comparable_count: number;
   missing_source_count: number;
   authoritative_source_name?: string | null;
+  identity_source_name?: string | null;
+  identity_source_url?: string | null;
+  identity_verified_at?: string | null;
   isin?: string | null;
   nse_symbol?: string | null;
   bse_code?: string | null;
   exchange?: string | null;
   last_verified_at?: string | null;
   confidence_score: number;
+  unavailable_reason?: string | null;
 }
 
 export interface FinancialVerificationResponse {

@@ -300,7 +300,7 @@ def test_unresolved_manual_input_safety():
         assert rel_seed["nse_symbol"] == "RELIANCE"
         assert rel_seed["bse_code"] == "500325"
         assert rel_seed["isin"] == "INE002A01018"
-        assert rel_seed["source"] == "seed"
+        assert rel_seed["source"] in ("seed", "seed_reference")
 
     print("  ✓ Unresolved manual inputs remain unverified while seeded records retain verified metadata.")
 
