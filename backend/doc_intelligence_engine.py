@@ -49,13 +49,14 @@ def get_company_doc_intelligence(symbol: str, financial_analytics: Optional[Dict
     return None
 
 def _apply_financial_cross_check(doc_intel: CompanyDocumentIntelligence, financial_analytics: Optional[Dict[str, Any]]) -> None:
-    """Enriches the document cash flow claim with actual mathematical statements if available."""
+    """Enriches document intelligence with deterministic audited financial analytics."""
     if not financial_analytics:
         return
     cf_quality = financial_analytics.get("cash_flow_quality", {})
     cfo_pat = cf_quality.get("cfo_to_pat_5yr_pct")
     cum_cfo = cf_quality.get("cumulative_5y_cfo_cr", 0)
     cum_pat = cf_quality.get("cumulative_5y_pat_cr", 0)
+    cum_fcf = cf_quality.get("cumulative_5y_fcf_cr", 0)
     
     bs_eff = financial_analytics.get("balance_sheet_efficiency", {})
     cwip_pct = bs_eff.get("latest_cwip_to_net_block_pct", 0)
@@ -74,3 +75,28 @@ def _apply_financial_cross_check(doc_intel: CompanyDocumentIntelligence, financi
         if sales_3y is not None:
             stmt_text += f" Reported 3-Year Sales CAGR is {sales_3y:.1f}%."
         doc_intel.risks_and_cash.reported_numbers_comparison = stmt_text
+
+    # Deterministically enrich Capital Allocation if not populated
+    if doc_intel.capital_allocation:
+        if not doc_intel.capital_allocation.capex_efficiency and (cwip_pct or cum_fcf is not None):
+            doc_intel.capital_allocation.capex_efficiency = (
+                f"CWIP stands at {cwip_pct:.1f}% of net block with 5-Year cumulative FCF of ₹{cum_fcf:,.0f} Cr "
+                f"(after reinvesting ₹{(cum_cfo - cum_fcf):,.0f} Cr in capital assets)."
+            )
+        if not doc_intel.capital_allocation.shareholder_returns and cfo_pat is not None:
+            conv_qual = cf_quality.get("cash_conversion_quality", "Adequate")
+            doc_intel.capital_allocation.shareholder_returns = (
+                f"5-Year CFO/PAT conversion is {cfo_pat:.1f}% ({conv_qual} quality). Debt-to-Equity is {debt_eq}x."
+            )
+
+    # Deterministically enrich Governance / Accounting Watch working capital note
+    if doc_intel.governance_watch:
+        wc_audit = financial_analytics.get("working_capital_audit", {})
+        debtor_days = wc_audit.get("debtor_days")
+        inv_days = wc_audit.get("inventory_days")
+        if not doc_intel.governance_watch.working_capital_anomalies and (debtor_days or inv_days):
+            doc_intel.governance_watch.working_capital_anomalies = (
+                f"Working capital cycle: Debtor Days ~{debtor_days if debtor_days is not None else 'N/A'} days, "
+                f"Inventory Days ~{inv_days if inv_days is not None else 'N/A'} days."
+            )
+

@@ -385,6 +385,7 @@ from llm_service import is_llm_available, get_available_llm_provider
 from doc_intelligence_pipeline import run_generic_document_pipeline, select_default_document_working_set, fetch_historical_evidence_document
 
 @app.get("/api/stocks/{symbol}/doc-intelligence")
+@app.get("/api/stocks/{symbol}/business-analysis")
 def get_stock_doc_intelligence(symbol: str):
     clean_sym = symbol.upper().strip()
     data = fetch_stock_from_screener(clean_sym, force_refresh=False)
@@ -421,9 +422,32 @@ def get_stock_doc_intelligence(symbol: str):
             "demand_momentum": {"summary": "", "company_specific_metrics": [], "segment_trends": [], "headwinds_and_risks": []},
             "risks_and_cash": {"working_capital_and_receivables": "", "debt_and_capex_burden": "", "execution_and_bottlenecks": [], "regulatory_or_legal_headwinds": []},
             "stocker_view": {"execution_verdict": "Evolving / Watchlist", "investor_summary": "", "positive_triggers": [], "main_risks": [], "what_to_watch_next": []},
-            "document_summaries": []
+            "business_quality": {"business_model_summary": "", "segment_mix": [], "geography_mix": [], "revenue_characteristics": {}},
+            "competitive_position": {"moat_type": "Narrow / Evolving", "key_advantages": [], "competitive_threats": []},
+            "capital_allocation": {},
+            "governance_watch": {"regulatory_or_legal_risks": []},
+            "document_summaries": [],
+            "verified_facts": [],
+            "operational_kpi_evolution": [],
+            "guidance_vs_projections": []
         }
     return doc_intel
+
+@app.get("/api/stocks/{symbol}/source-filings")
+def get_stock_source_filings(symbol: str):
+    """Returns structured filing archive and per-document AI summaries."""
+    clean_sym = symbol.upper().strip()
+    data = fetch_stock_from_screener(clean_sym, force_refresh=False)
+    if not data:
+        raise HTTPException(status_code=404, detail=f"Stock {clean_sym} not found")
+    detail = build_full_stock_detail(data)
+    summaries = database.get_document_summaries(clean_sym)
+    return {
+        "symbol": clean_sym,
+        "company_name": detail.name,
+        "documents": detail.documents.model_dump() if detail.documents else {},
+        "summaries": summaries
+    }
 
 @app.get("/api/stocks/{symbol}/document-summaries")
 def get_stock_document_summaries(symbol: str):

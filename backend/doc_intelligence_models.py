@@ -117,7 +117,55 @@ class StockerView(BaseModel):
     what_to_watch_next: List[str] = Field(default_factory=list, description="Specific milestones and financial numbers to watch in next 2-4 quarters")
     investor_summary: str = Field(default="", description="Concise, plain-English synthesis for fundamental investors")
 
-# 7. PER-DOCUMENT EXECUTIVE SUMMARY
+# 7. BUSINESS QUALITY & MONETIZATION MODEL
+class BusinessQuality(BaseModel):
+    business_model_summary: str = Field(default="", description="How the company creates value, serves customers, and makes money")
+    segment_mix: List[Dict[str, Any]] = Field(default_factory=list, description="Segment revenue share, growth rate, and margin contribution")
+    geography_mix: List[Dict[str, Any]] = Field(default_factory=list, description="Domestic vs exports / regional revenue breakdown")
+    revenue_characteristics: Dict[str, Any] = Field(default_factory=dict, description="Recurring vs cyclical nature, customer concentration, pricing power signals")
+    source_page: Optional[int] = None
+    source_quote: Optional[str] = None
+    source_url: Optional[str] = None
+    confidence: float = Field(default=1.0, ge=0.0, le=1.0)
+
+# 8. COMPETITIVE POSITION & ECONOMIC MOAT
+class CompetitivePosition(BaseModel):
+    moat_type: str = Field(default="Narrow / Evolving", description="Cost Advantage | High Switching Costs | Network Effects | Brand / Intangibles | Scale Advantage | Narrow / None")
+    market_share_trend: Optional[str] = Field(default=None, description="Market share expansion, stability, or loss")
+    pricing_power_assessment: Optional[str] = Field(default=None, description="Ability to pass on cost increases without volume loss")
+    key_advantages: List[str] = Field(default_factory=list, description="Key competitive moats and differentiation pillars")
+    competitive_threats: List[str] = Field(default_factory=list, description="Direct competitors, emerging threats, technology shifts")
+    source_page: Optional[int] = None
+    source_quote: Optional[str] = None
+    source_url: Optional[str] = None
+    confidence: float = Field(default=1.0, ge=0.0, le=1.0)
+
+# 9. CAPITAL ALLOCATION & CASH CONVERSION QUALITY
+class CapitalAllocationAudit(BaseModel):
+    capex_efficiency: Optional[str] = Field(default=None, description="Gross block addition vs revenue generation, CWIP conversion")
+    reinvestment_rate: Optional[str] = Field(default=None, description="Percentage of cash flow reinvested into core growth vs payouts")
+    ma_track_record: Optional[str] = Field(default=None, description="Acquisitions synergy realization, integration discipline, goodwill")
+    shareholder_returns: Optional[str] = Field(default=None, description="Dividend payout sustainability, share buybacks, dilution history")
+    capital_deployed_vs_returns: Optional[str] = Field(default=None, description="Incremental return on invested capital vs cost of capital")
+    source_page: Optional[int] = None
+    source_quote: Optional[str] = None
+    source_url: Optional[str] = None
+    confidence: float = Field(default=1.0, ge=0.0, le=1.0)
+
+# 10. GOVERNANCE & ACCOUNTING / FORENSIC WATCH
+class GovernanceAndForensicWatch(BaseModel):
+    auditor_observations: Optional[str] = Field(default=None, description="Auditor qualifications, emphasis of matter, key audit matters")
+    related_party_transactions: Optional[str] = Field(default=None, description="Magnitude and business rationale of RPTs / promoter entity dealings")
+    contingent_liabilities: Optional[str] = Field(default=None, description="Tax disputes, claims not acknowledged as debts vs net worth")
+    working_capital_anomalies: Optional[str] = Field(default=None, description="Debtor days drift, unbilled revenue, inventory aging divergence")
+    regulatory_or_legal_risks: List[str] = Field(default_factory=list, description="Regulatory inquiries, environmental compliance, litigation")
+    promoter_and_shareholding_notes: Optional[str] = Field(default=None, description="Promoter holding, pledging changes, institutional holdings")
+    source_page: Optional[int] = None
+    source_quote: Optional[str] = None
+    source_url: Optional[str] = None
+    confidence: float = Field(default=1.0, ge=0.0, le=1.0)
+
+# 11. PER-DOCUMENT EXECUTIVE SUMMARY
 class ConcallSpecificSummary(BaseModel):
     demand_commentary: Optional[str] = None
     order_book_or_pipeline: Optional[str] = None
@@ -137,7 +185,7 @@ class AnnouncementSpecificSummary(BaseModel):
     business_impact: Optional[str] = None
     changes_management_guidance: Optional[str] = None
 
-# 8. PERSISTENT COMPANY FACT / KPI ITEM
+# 12. PERSISTENT COMPANY FACT / KPI ITEM
 class CompanyFactItem(BaseModel):
     metric_name: str = Field(description="Name of metric e.g. Revenue, EBITDA Margin, ARPU, Solar Capacity, Order Book")
     stated_value_raw: str = Field(description="Exact value as stated in filing e.g. 52%, ₹245, 1 GW, ₹14,500 Cr")
@@ -275,6 +323,12 @@ class BusinessOutlookResult(BaseModel):
     stocker_view: StockerView = Field(default_factory=StockerView)
     document_summaries: List[DocumentSummaryItem] = Field(default_factory=list)
 
+    # 4 Fundamental Completeness Dimensions
+    business_quality: BusinessQuality = Field(default_factory=BusinessQuality)
+    competitive_position: CompetitivePosition = Field(default_factory=CompetitivePosition)
+    capital_allocation: CapitalAllocationAudit = Field(default_factory=CapitalAllocationAudit)
+    governance_watch: GovernanceAndForensicWatch = Field(default_factory=GovernanceAndForensicWatch)
+
     # Integrated Knowledge & Triangulation Layer
     verified_facts: List[VerifiedFactComparison] = Field(default_factory=list)
     operational_kpi_evolution: List[InterDocumentKPITrend] = Field(default_factory=list)
@@ -408,3 +462,5 @@ GrowthPipelineItem = GrowthDriver
 DemandAndOrders = DemandMomentum
 CashAndProblems = RisksAndCashIssues
 CompanyDocumentIntelligence = BusinessOutlookResult
+BusinessAnalysisResult = BusinessOutlookResult
+

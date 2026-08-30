@@ -393,6 +393,54 @@ export interface StockerView {
   investor_summary: string;
 }
 
+export interface BusinessQuality {
+  business_model_summary?: string;
+  segment_mix?: Array<{ segment?: string; share_pct?: number; growth_pct?: number; [key: string]: unknown }>;
+  geography_mix?: Array<{ region?: string; share_pct?: number; [key: string]: unknown }>;
+  revenue_characteristics?: Record<string, unknown>;
+  source_page?: number | null;
+  source_quote?: string | null;
+  source_url?: string | null;
+  confidence?: number;
+}
+
+export interface CompetitivePosition {
+  moat_type?: string;
+  market_share_trend?: string | null;
+  pricing_power_assessment?: string | null;
+  key_advantages?: string[];
+  competitive_threats?: string[];
+  source_page?: number | null;
+  source_quote?: string | null;
+  source_url?: string | null;
+  confidence?: number;
+}
+
+export interface CapitalAllocationAudit {
+  capex_efficiency?: string | null;
+  reinvestment_rate?: string | null;
+  ma_track_record?: string | null;
+  shareholder_returns?: string | null;
+  capital_deployed_vs_returns?: string | null;
+  source_page?: number | null;
+  source_quote?: string | null;
+  source_url?: string | null;
+  confidence?: number;
+}
+
+export interface GovernanceAndForensicWatch {
+  auditor_observations?: string | null;
+  related_party_transactions?: string | null;
+  contingent_liabilities?: string | null;
+  working_capital_anomalies?: string | null;
+  regulatory_or_legal_risks?: string[];
+  promoter_and_shareholding_notes?: string | null;
+  source_page?: number | null;
+  source_quote?: string | null;
+  source_url?: string | null;
+  confidence?: number;
+}
+
 export interface ConcallSpecificSummary {
   demand_commentary?: string | null;
   order_book_or_pipeline?: string | null;
@@ -573,11 +621,17 @@ export interface BusinessOutlookIntelligence {
   demand_momentum: DemandMomentum;
   risks_and_cash: RisksAndCashIssues;
   stocker_view: StockerView;
+  business_quality?: BusinessQuality;
+  competitive_position?: CompetitivePosition;
+  capital_allocation?: CapitalAllocationAudit;
+  governance_watch?: GovernanceAndForensicWatch;
   document_summaries?: DocumentSummaryItem[];
   verified_facts?: VerifiedFactComparison[];
   operational_kpi_evolution?: InterDocumentKPITrend[];
   guidance_vs_projections?: GuidanceVsProjection[];
 }
+
+export type BusinessAnalysisIntelligence = BusinessOutlookIntelligence;
 
 export interface CompanySearchResult {
   symbol: string;
