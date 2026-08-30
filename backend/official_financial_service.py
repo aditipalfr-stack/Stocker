@@ -7,27 +7,26 @@ and provenance tracking between Screener.in standardized statements
 and official corporate filings / exchange outcomes (NSE / BSE / IR).
 
 Key Principles:
-1. FAIL CLOSED: Stocker outputs VERIFIED only when it can prove that the official
-   value belongs to the exact same company, reporting period, scope, metric
-   definition, column context, and known unit/currency.
-2. XBRL ContextRef & Dimension Grounding:
-   - Evaluates context period dates (quarter duration vs annual vs YTD)
-   - Evaluates context dimensional scope (Consolidated vs Standalone)
-   - Evaluates fact unitRef and LevelOfRounding
-   - Detects and rejects ambiguous multiple contexts
-3. PDF Section & Column-Header Mapping:
-   - Segments PDF into separate Standalone vs Consolidated table blocks
-   - Maps column headers (e.g. 30-Jun-2026, 31-Mar-2026) to period indices
-   - Strips Sr. No. and Note numbers to never mistake them for metrics
-   - Disallows taking 'the first number on the line'
-4. HTML Table Column Mapping:
-   - Header-driven column-to-period mapping
-5. Safe Canonical Metric Set:
-   - REVENUE (Non-financials only)
-   - PAT (Profit After Tax / Net Profit)
-   - BASIC_EPS & DILUTED_EPS (Separated strictly)
-   - PBT (Profit Before Tax - strictly bottom-line)
-   - (EBITDA / Operating Profit intentionally deferred for safety)
+1. NON-NEGOTIABLE FAIL CLOSED: Stocker outputs VERIFIED or DISCREPANCY only when
+   it can deterministically establish: same security, exact period, exact scope,
+   compatible metric definition, correct numeric fact, known unit/currency,
+   and exact Screener counterpart within tolerance.
+2. XBRL unitRef & contextRef Resolution:
+   - Builds units_by_id mapping from all <unit id="..."> definitions (INR, INR/shares, etc.)
+   - Validates each fact's own unitRef; missing/unresolved unitRef -> unit = Unknown
+   - Evaluates context duration (Quarter vs Annual vs YTD) and dimensional scope
+   - Rejects facts with ambiguous or conflicting multiple contexts/units
+3. Generic EPS Ambiguity:
+   - "EPS", "EPS in Rs", "Earnings Per Share" without explicit "Basic" or "Diluted"
+     qualifiers are treated as ambiguous (return None / no canonical mapping).
+   - Only explicit "Basic EPS" -> BASIC_EPS, and explicit "Diluted EPS" -> DILUTED_EPS.
+4. PDF Verification Policy:
+   - PDF plain text streams do not guarantee 2D table coordinates. PDF files provide
+     provenance and document metadata, but numeric extraction fails closed as
+     INSUFFICIENT_EVIDENCE to guarantee zero hallucination/misalignment.
+5. HTML & JSON Verification Policy:
+   - HTML true <table> structures with explicit <th> headers and cell indices map deterministically.
+   - JSON structured payloads must explicitly declare metric, value, period, scope, and unit.
 6. Banking / Financial Sector Safety:
    - Rejects non-financial Revenue comparisons for banking / lending entities.
 7. Strict Exact Period & Exact Scope Matching:
@@ -45,7 +44,7 @@ import urllib.request
 import urllib.error
 import xml.etree.ElementTree as ET
 from pathlib import Path
-from datetime import datetime, timezone, date
+from datetime import datetime, timezone
 from typing import Dict, Any, List, Optional, Tuple
 
 sys.path.insert(0, str(Path(__file__).parent.parent / "libs"))
@@ -81,7 +80,7 @@ CONSERVATIVE_METRIC_MAP: Dict[str, str] = {
     "revenuefromoperations": "REVENUE",
     "incomefromoperations": "REVENUE",
     
-    # PBT (Strict Profit Before Tax)
+    # PBT (Strict bottom-line Profit Before Tax)
     "profit before tax": "PBT",
     "pbt": "PBT",
     "profitlossbeforetax": "PBT",
@@ -96,16 +95,13 @@ CONSERVATIVE_METRIC_MAP: Dict[str, str] = {
     "profitlossforperiod": "PAT",
     "profitlossaftertax": "PAT",
     
-    # Basic EPS
+    # Explicit Basic EPS ONLY
     "basic eps": "BASIC_EPS",
     "basic eps in rs": "BASIC_EPS",
     "basic earnings per share": "BASIC_EPS",
     "basicearningslosspershare": "BASIC_EPS",
-    "eps in rs": "BASIC_EPS",
-    "eps": "BASIC_EPS",
-    "earnings per share": "BASIC_EPS",
     
-    # Diluted EPS
+    # Explicit Diluted EPS ONLY
     "diluted eps": "DILUTED_EPS",
     "diluted eps in rs": "DILUTED_EPS",
     "diluted earnings per share": "DILUTED_EPS",
@@ -116,13 +112,14 @@ CONSERVATIVE_METRIC_MAP: Dict[str, str] = {
 AMBIGUOUS_METRIC_KEYWORDS = [
     "ebit", "pbit", "ebitda", "operating profit", "operating profit before depreciation",
     "profit attributable to non-controlling", "exceptional items", "other income",
-    "profit before exceptional items and tax", "profit before tax and exceptional items"
+    "profit before exceptional items and tax", "profit before tax and exceptional items",
+    "eps in rs", "eps", "earnings per share" # Generic unqualified EPS is ambiguous
 ]
 
 def normalize_metric_name(raw_metric: str) -> Optional[str]:
     """
     Conservatively maps raw filing metric names to canonical metric keys.
-    Returns None if metric is ambiguous or deferred.
+    Returns None if metric is ambiguous, unqualified (like generic EPS), or deferred.
     """
     if not raw_metric:
         return None
@@ -130,9 +127,9 @@ def normalize_metric_name(raw_metric: str) -> Optional[str]:
     clean = re.sub(r"\s+", " ", clean)
     clean_no_space = re.sub(r"\s+", "", clean)
     
-    # Reject ambiguous / deferred line items
+    # Reject ambiguous / unqualified / deferred line items
     for amb in AMBIGUOUS_METRIC_KEYWORDS:
-        if clean == amb or f" {amb} " in f" {clean} " or clean_no_space == re.sub(r"\s+", "", amb):
+        if clean == amb or clean_no_space == re.sub(r"\s+", "", amb):
             return None
             
     # Direct lookup
@@ -232,7 +229,7 @@ def normalize_numeric_scale(value: float, raw_unit: Optional[str] = None) -> flo
     if value is None or math.isnan(value):
         return 0.0
         
-    if not raw_unit:
+    if not raw_unit or raw_unit == "Unknown":
         return float(value)
         
     u = raw_unit.lower().strip()
@@ -257,7 +254,7 @@ def compare_financial_metric(
     official_scope: str = "Consolidated",
     screener_period_key: str = "",
     official_period_key: str = "",
-    official_unit: str = "₹ Cr",
+    official_unit: str = "Unknown",
     is_banking_entity: bool = False
 ) -> Dict[str, Any]:
     """
@@ -399,7 +396,7 @@ def parse_official_xbrl_xml(
 ) -> Dict[str, Any]:
     """
     Deterministically parses official Ind-AS XBRL XML corporate filing results using
-    strict contextRef, dimension, period duration, and unitRef resolution.
+    strict contextRef, dimension, period duration, and fact-level unitRef resolution.
     """
     doc = dict(filing_ref)
     doc["extraction_method"] = "official_xbrl_context"
@@ -438,7 +435,77 @@ def parse_official_xbrl_xml(
                     doc_rounding_unit = "₹ Rupees"
                 break
                 
-        # 3. Parse all <context> definitions
+        # 3. Parse all <unit id="..."> definitions into units_by_id
+        units_by_id: Dict[str, Dict[str, Any]] = {}
+        for elem in root.iter():
+            tag = elem.tag.split("}")[-1] if "}" in elem.tag else elem.tag
+            if tag == "unit":
+                u_id = elem.attrib.get("id")
+                if not u_id:
+                    continue
+                    
+                has_divide = False
+                num_measure = ""
+                den_measure = ""
+                single_measure = ""
+                
+                for sub in elem.iter():
+                    s_tag = sub.tag.split("}")[-1] if "}" in sub.tag else sub.tag
+                    if s_tag == "divide":
+                        has_divide = True
+                    elif s_tag in ("unitNumerator", "numerator"):
+                        for m in sub.iter():
+                            if m.tag.split("}")[-1] == "measure" and m.text:
+                                num_measure = m.text.strip()
+                    elif s_tag in ("unitDenominator", "denominator"):
+                        for m in sub.iter():
+                            if m.tag.split("}")[-1] == "measure" and m.text:
+                                den_measure = m.text.strip()
+                    elif s_tag == "measure" and not has_divide and sub.text:
+                        single_measure = sub.text.strip()
+                        
+                num_clean = num_measure.split(":")[-1].upper() if ":" in num_measure else num_measure.upper()
+                den_clean = den_measure.split(":")[-1].upper() if ":" in den_measure else den_measure.upper()
+                sin_clean = single_measure.split(":")[-1].upper() if ":" in single_measure else single_measure.upper()
+                
+                if has_divide or ("SHARE" in u_id.upper() and "INR" in u_id.upper()):
+                    if ("INR" in num_clean or "INR" in u_id.upper()) and ("SHARE" in den_clean or "SHARE" in u_id.upper() or not den_clean):
+                        units_by_id[u_id] = {
+                            "type": "per_share",
+                            "currency": "INR",
+                            "numerator": num_clean,
+                            "denominator": den_clean or "SHARES",
+                            "resolved_unit": "₹ / Share"
+                        }
+                    else:
+                        units_by_id[u_id] = {
+                            "type": "unknown_divide",
+                            "currency": None,
+                            "resolved_unit": "Unknown"
+                        }
+                elif sin_clean == "INR" or u_id.upper() == "INR" or u_id.upper() == "U_INR":
+                    units_by_id[u_id] = {
+                        "type": "currency",
+                        "currency": "INR",
+                        "measure": "INR",
+                        "resolved_unit": None # Resolved via LevelOfRounding / scale
+                    }
+                elif sin_clean in ("SHARES", "PURE") or "SHARE" in u_id.upper():
+                    units_by_id[u_id] = {
+                        "type": "shares",
+                        "currency": None,
+                        "measure": sin_clean,
+                        "resolved_unit": "Shares"
+                    }
+                else:
+                    units_by_id[u_id] = {
+                        "type": "unknown",
+                        "currency": None,
+                        "measure": sin_clean,
+                        "resolved_unit": "Unknown"
+                    }
+                    
+        # 4. Parse all <context> definitions
         contexts: Dict[str, Dict[str, Any]] = {}
         for elem in root.iter():
             tag = elem.tag.split("}")[-1] if "}" in elem.tag else elem.tag
@@ -479,7 +546,6 @@ def parse_official_xbrl_xml(
                     elif p_tag == "instant" and p_elem.text:
                         ctx_info["instant"] = p_elem.text.strip()
                         
-                # Determine period duration and canonical period
                 if ctx_info["start_date"] and ctx_info["end_date"]:
                     try:
                         d_start = datetime.strptime(ctx_info["start_date"], "%Y-%m-%d").date()
@@ -507,8 +573,7 @@ def parse_official_xbrl_xml(
                     
                 contexts[ctx_id] = ctx_info
                 
-        # 4. Extract Safe Canonical Metric Facts
-        # candidate_facts: (canon_metric, canon_period, scope) -> list of fact values
+        # 5. Extract Safe Canonical Metric Facts with Fact-Level Context & Unit Resolution
         candidate_facts: Dict[Tuple[str, str, str], List[Dict[str, Any]]] = {}
         
         for elem in root.iter():
@@ -519,24 +584,36 @@ def parse_official_xbrl_xml(
                 
             ctx_ref = elem.attrib.get("contextRef")
             if not ctx_ref or ctx_ref not in contexts:
-                # If contextRef is missing or invalid, fail closed for this fact
+                # Missing or unresolvable contextRef -> skip fact
                 continue
                 
             ctx = contexts[ctx_ref]
-            # Discard non-standard YTD periods unless specifically comparing YTD
             if ctx["is_ytd"]:
+                # Non-standard YTD duration context -> skip
                 continue
                 
             fact_scope = ctx["scope"]
             fact_canon_p = ctx["canonical_period"]
             fact_disp_p = ctx["display_period"]
             
-            # Determine unit
-            if canon_m in ("BASIC_EPS", "DILUTED_EPS"):
-                fact_unit = "₹ / Share"
+            # Genuinely resolve fact unitRef against units_by_id
+            unit_ref = elem.attrib.get("unitRef")
+            if not unit_ref or unit_ref not in units_by_id:
+                # Fact missing unitRef or unresolvable unit id -> Unknown unit
+                fact_unit = "Unknown"
+                fact_currency = "INR"
             else:
-                fact_unit = doc_rounding_unit
-                
+                u_def = units_by_id[unit_ref]
+                if u_def["type"] == "per_share":
+                    fact_unit = "₹ / Share"
+                    fact_currency = "INR"
+                elif u_def["type"] == "currency" and u_def["currency"] == "INR":
+                    fact_currency = "INR"
+                    fact_unit = doc_rounding_unit if doc_rounding_unit != "Unknown" else "Unknown"
+                else:
+                    fact_unit = "Unknown"
+                    fact_currency = "INR"
+                    
             try:
                 num_val = float(elem.text.strip())
                 key = (canon_m, fact_canon_p, fact_scope)
@@ -550,12 +627,14 @@ def parse_official_xbrl_xml(
                     "canonical_period": fact_canon_p,
                     "period_display": fact_disp_p,
                     "unit": fact_unit,
-                    "context_id": ctx_ref
+                    "currency": fact_currency,
+                    "context_id": ctx_ref,
+                    "unit_ref": unit_ref
                 })
             except Exception:
                 pass
                 
-        # 5. Resolve Multiple Candidates for same (metric, period, scope)
+        # 6. Deduplicate equivalent facts or reject ambiguous multiple contexts
         for key, facts in candidate_facts.items():
             if len(facts) == 1:
                 f = facts[0]
@@ -566,12 +645,17 @@ def parse_official_xbrl_xml(
                     "scope": f["scope"],
                     "canonical_period": f["canonical_period"],
                     "period": f["period_display"],
-                    "unit": f["unit"]
+                    "unit": f["unit"],
+                    "currency": f["currency"],
+                    "context_ref": f["context_id"],
+                    "unit_ref": f["unit_ref"]
                 })
             else:
-                # If values are identical, keep single fact
-                unique_values = set(f["value"] for f in facts)
-                if len(unique_values) == 1:
+                # Compare context semantics and units across multiple facts
+                unique_vals = set(f["value"] for f in facts)
+                unique_units = set(f["unit"] for f in facts)
+                if len(unique_vals) == 1 and len(unique_units) == 1:
+                    # Genuinely identical duplicate facts
                     f = facts[0]
                     table_rows.append({
                         "metric": f["raw_metric"],
@@ -580,10 +664,13 @@ def parse_official_xbrl_xml(
                         "scope": f["scope"],
                         "canonical_period": f["canonical_period"],
                         "period": f["period_display"],
-                        "unit": f["unit"]
+                        "unit": f["unit"],
+                        "currency": f["currency"],
+                        "context_ref": f["context_id"],
+                        "unit_ref": f["unit_ref"]
                     })
                 else:
-                    # Ambiguous conflicting contexts for same metric/period/scope -> fail closed
+                    # Incompatible or conflicting values/units for same (metric, period, scope) -> skip (fail closed)
                     pass
                     
         doc["financial_table"] = table_rows
@@ -599,157 +686,35 @@ def parse_official_pdf_document(
     filing_ref: Dict[str, Any]
 ) -> Dict[str, Any]:
     """
-    Deterministically parses official PDF outcome filings using table-section segmentation
-    and header-driven column mapping. Never uses 'first number on the line'.
+    Parses official PDF outcome filings to capture document-level provenance, filing date,
+    scope, and period metadata. For numeric safety, unconstrained PDF text stream parsing
+    does not guarantee 2D table coordinates and is marked as INSUFFICIENT_EVIDENCE
+    for deterministic numeric verification.
     """
     doc = dict(filing_ref)
-    doc["extraction_method"] = "official_pdf_table"
-    table_rows: List[Dict[str, Any]] = []
+    doc["extraction_method"] = "official_pdf_document"
+    doc["financial_table"] = [] # Fail-closed for numeric extraction
     
     try:
         reader = pypdf.PdfReader(io.BytesIO(pdf_bytes))
         full_text = ""
-        for page in reader.pages:
+        for page in reader.pages[:5]:
             t = page.extract_text() or ""
             full_text += t + "\n"
             
-        # 1. Segment text into sections (Standalone vs Consolidated)
-        # Search for section demarcation boundaries
-        sections: List[Dict[str, Any]] = []
-        
-        # Split text on section headings
-        section_patterns = [
-            (r"(statement\s+of\s+consolidated\s+.*?(?:financial\s+results|profit\s+and\s+loss)|consolidated\s+financial\s+results)", "Consolidated"),
-            (r"(statement\s+of\s+standalone\s+.*?(?:financial\s+results|profit\s+and\s+loss)|standalone\s+financial\s+results)", "Standalone")
-        ]
-        
-        # Find match indices
-        matches = []
-        for pat, sc in section_patterns:
-            for m in re.finditer(pat, full_text, re.IGNORECASE):
-                matches.append((m.start(), m.group(0), sc))
-                
-        matches.sort(key=lambda x: x[0])
-        
-        if matches:
-            for i, (start_idx, heading, sc) in enumerate(matches):
-                end_idx = matches[i + 1][0] if i + 1 < len(matches) else len(full_text)
-                sec_text = full_text[start_idx:end_idx]
-                sections.append({
-                    "scope": sc,
-                    "text": sec_text
-                })
+        text_lower = full_text.lower()
+        if "statement of consolidated" in text_lower or "consolidated financial results" in text_lower:
+            doc["scope"] = "Consolidated"
+        elif "statement of standalone" in text_lower or "standalone financial results" in text_lower:
+            doc["scope"] = "Standalone"
         else:
-            # If no explicit section heading, create single section with Unknown scope
-            sections.append({
-                "scope": "Unknown",
-                "text": full_text
-            })
+            doc["scope"] = "Unknown"
             
-        # 2. Process each section independently
-        for sec in sections:
-            sec_scope = sec["scope"]
-            sec_text = sec["text"]
-            sec_lower = sec_text.lower()
-            
-            # A. Extract Unit for this section
-            sec_unit = "Unknown"
-            unit_match = re.search(r"\((?:rs\.?|in\s+rs\.?|₹|in\s+₹)\s*(?:in\s*)?(crores?|lakhs?|millions?|thousands?)\)", sec_lower)
-            if unit_match:
-                u_word = unit_match.group(1)
-                if "crore" in u_word:
-                    sec_unit = "₹ Cr"
-                elif "lakh" in u_word:
-                    sec_unit = "₹ Lakhs"
-                elif "million" in u_word:
-                    sec_unit = "₹ Millions"
-                elif "thousand" in u_word:
-                    sec_unit = "₹ Thousands"
-                    
-            # B. Extract Column Headers for this section
-            # Search for header line containing date markers
-            lines = [ln.strip() for ln in sec_text.split("\n") if ln.strip()]
-            header_columns: List[Dict[str, Any]] = []
-            
-            for line in lines[:30]:
-                # Look for dates on header lines (e.g. 30-Jun-2026, 31-Mar-2026, 30.06.2026, 30 June 2026)
-                date_tokens = re.findall(
-                    r"\b(?:\d{1,2}[-/.](?:[a-zA-Z]{3}|\d{2})[-/.]\d{4}|\d{1,2}\s+[a-zA-Z]{3,9}\s+\d{4})\b",
-                    line
-                )
-                if len(date_tokens) >= 2:
-                    for idx, dt_str in enumerate(date_tokens):
-                        disp_p, canon_p = normalize_period(dt_str)
-                        if canon_p != "Unknown":
-                            header_columns.append({
-                                "col_idx": idx,
-                                "raw_date": dt_str,
-                                "canonical_period": canon_p,
-                                "period_display": disp_p
-                            })
-                    if header_columns:
-                        break
-                        
-            # If no header columns could be mapped, skip section (fail closed)
-            if not header_columns:
-                continue
-                
-            # C. Parse Metric Rows in this section
-            for line in lines:
-                # Strip leading serial number or note markers: e.g. "1.", "1 (a)", "(i)", "Note 2", "1 "
-                clean_line = re.sub(r"^\s*(?:note\s*\d+|sr\s*no\s*\d+)\s*", "", line, flags=re.IGNORECASE).strip()
-                clean_line = re.sub(r"^\s*(?:\d+[\.\)]|\d+\s+|\([a-z0-9]+\)|[a-z]\))\s*", "", clean_line).strip()
-                clean_line = re.sub(r"^\s*(?:\([a-z0-9]+\))\s*", "", clean_line).strip()
-                
-                # Check if line begins with a recognized metric
-                clean_lower = clean_line.lower()
-                canon_m = None
-                after_metric = clean_line
-                for alias, c_m in CONSERVATIVE_METRIC_MAP.items():
-                    if clean_lower.startswith(alias):
-                        canon_m = c_m
-                        after_metric = clean_line[len(alias):]
-                        break
-                        
-                if not canon_m:
-                    seg = clean_line.split("  ")[0] if "  " in clean_line else clean_line[:40]
-                    canon_m = normalize_metric_name(seg)
-                    if canon_m:
-                        after_metric = clean_line[len(seg):]
-                    else:
-                        continue
-                        
-                # Extract numbers strictly from portion after the metric label
-                nums = re.findall(r"[-+]?[0-9,]+(?:\.[0-9]+)?", after_metric)
-                if not nums:
-                    continue
-                    
-                # Map extracted numbers to column headers
-                for col in header_columns:
-                    col_idx = col["col_idx"]
-                    if col_idx < len(nums):
-                        val_str = nums[col_idx].replace(",", "")
-                        try:
-                            num_val = float(val_str)
-                            fact_unit = "₹ / Share" if canon_m in ("BASIC_EPS", "DILUTED_EPS") else sec_unit
-                            
-                            table_rows.append({
-                                "metric": clean_line[:50].strip(),
-                                "canonical_metric": canon_m,
-                                "value": num_val,
-                                "scope": sec_scope,
-                                "canonical_period": col["canonical_period"],
-                                "period": col["period_display"],
-                                "unit": fact_unit
-                            })
-                        except Exception:
-                            pass
-                            
-        doc["financial_table"] = table_rows
-        doc["scope"] = sections[0]["scope"] if len(sections) == 1 else "Consolidated"
-        doc["unit"] = table_rows[0]["unit"] if table_rows else "Unknown"
+        period_match = re.search(r"(?:quarter|three\s*months|year|12\s*months)\s*ended\s*(\d{1,2}(?:st|nd|rd|th)?\s+[a-zA-Z]+\s+\d{4})", text_lower)
+        if period_match:
+            doc["reporting_period"] = f"Quarter ended {period_match.group(1).title()}"
     except Exception:
-        doc["financial_table"] = []
+        pass
         
     return doc
 
@@ -903,12 +868,12 @@ def fetch_official_financial_result(
 ) -> Optional[Dict[str, Any]]:
     """
     Fetches and deterministically parses structured financial results from official filing candidate.
-    Supports XBRL/XML, PDF, HTML, and JSON payloads.
+    Supports XBRL/XML, PDF, HTML, and structured JSON payloads with strict schema validation.
     """
     if not filing_ref:
         return None
         
-    # If filing already contains extracted table rows (from mock fixture or structured API)
+    # If filing already contains extracted table rows (from mock fixture or structured test doc)
     if "financial_table" in filing_ref or "rows" in filing_ref:
         doc = dict(filing_ref)
         if "rows" in doc and "financial_table" not in doc:
@@ -938,12 +903,22 @@ def fetch_official_financial_result(
             elif source_url.endswith(".html") or source_url.endswith(".htm") or "html" in content_type:
                 return parse_official_html_table(raw_bytes, filing_ref)
                 
-            # Format 4: JSON REST Response
+            # Format 4: JSON REST Response (with strict schema validation)
             elif "application/json" in content_type or source_url.endswith(".json"):
                 parsed_json = json.loads(raw_bytes.decode("utf-8"))
                 filing_doc = dict(filing_ref)
-                filing_doc["financial_table"] = parsed_json.get("rows", [])
-                filing_doc["extraction_method"] = "official_json_structured"
+                raw_rows = parsed_json.get("rows", [])
+                validated_rows = []
+                for r in raw_rows:
+                    if isinstance(r, dict) and "metric" in r and "value" in r:
+                        # Row must have period, scope, and unit either explicitly or from doc
+                        has_period = bool(r.get("canonical_period") or r.get("period") or filing_doc.get("reporting_period"))
+                        has_scope = bool(r.get("scope") or (filing_doc.get("scope") and filing_doc.get("scope") != "Unknown"))
+                        has_unit = bool(r.get("unit") or (filing_doc.get("unit") and filing_doc.get("unit") != "Unknown"))
+                        if has_period and has_scope and has_unit:
+                            validated_rows.append(r)
+                filing_doc["financial_table"] = validated_rows
+                filing_doc["extraction_method"] = "official_json_structured" if validated_rows else "unsupported_or_failed"
                 return filing_doc
     except Exception:
         pass
@@ -1055,7 +1030,12 @@ def run_official_financial_verification(
         quarters = screener_stock_data.get("quarters", {})
         for row in quarters.get("rows", []):
             m_name = row.get("metric", "")
-            canon_m = normalize_metric_name(m_name)
+            # Screener labels like "Basic EPS" map to BASIC_EPS; generic "EPS in Rs" maps to BASIC_EPS if Screener statement
+            clean_m_lower = m_name.lower().strip()
+            if clean_m_lower == "eps in rs":
+                canon_m = "BASIC_EPS"
+            else:
+                canon_m = normalize_metric_name(m_name)
             if not canon_m:
                 continue
             values = row.get("values", {})
@@ -1078,7 +1058,11 @@ def run_official_financial_verification(
         pl = screener_stock_data.get("profit_loss", {})
         for row in pl.get("rows", []):
             m_name = row.get("metric", "")
-            canon_m = normalize_metric_name(m_name)
+            clean_m_lower = m_name.lower().strip()
+            if clean_m_lower == "eps in rs":
+                canon_m = "BASIC_EPS"
+            else:
+                canon_m = normalize_metric_name(m_name)
             if not canon_m:
                 continue
             values = row.get("values", {})
@@ -1126,7 +1110,7 @@ def run_official_financial_verification(
     if not official_items:
         summary = database.get_financial_verification_summary(clean_sym)
         summary["overall_status"] = "INSUFFICIENT_EVIDENCE"
-        summary["unavailable_reason"] = "Official filing was retrieved but contains unsupported formatting or missing numerical tables."
+        summary["unavailable_reason"] = "Official filing was retrieved but contains unsupported formatting or missing numerical tables (e.g. PDF text stream without structured cell coordinates)."
         return {
             "symbol": clean_sym,
             "summary": summary,
@@ -1150,8 +1134,8 @@ def run_official_financial_verification(
         # Check for ambiguity
         if len(off_list) > 1:
             vals = set(x["official_value"] for x in off_list)
-            if len(vals) > 1:
-                # Multiple conflicting values for same key in official document -> INSUFFICIENT_EVIDENCE
+            units = set(x["raw_unit"] for x in off_list)
+            if len(vals) > 1 or len(units) > 1:
                 rec = {
                     "symbol": clean_sym,
                     "metric_name": off_list[0]["metric_name"],
@@ -1179,7 +1163,7 @@ def run_official_financial_verification(
                 
         off = off_list[0]
         off_val = off["official_value"]
-        off_unit = off.get("raw_unit", "₹ Cr")
+        off_unit = off.get("raw_unit", "Unknown")
         
         # Exact lookup in Screener
         matching_scr = screener_metrics.get(k)

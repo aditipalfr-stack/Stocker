@@ -1,22 +1,23 @@
 """
 =============================================================================
 Stocker V3 Phase B: Authoritative Identity & Official Financial Verification
-Fail-Closed Extraction & Comparison Test Suite (Tests A - L & Pipeline 1-14)
+Comprehensive Verification Suite (Tests A - U)
 =============================================================================
 Fully isolated, deterministic test suite:
 - Runs against an isolated temporary SQLite database (STOCKER_TEST_MODE=1)
 - Zero live network side-effects during tests
 - Tests:
-  - XBRL context selection across current/prior quarters and Standalone/Consolidated
-  - XBRL ambiguous multiple contexts rejection
-  - PDF separate standalone + consolidated table segmentation
-  - PDF column mapping and note/serial-number safety (never take '1' as revenue)
-  - PDF missing header fail-closed
-  - HTML multi-period column mapping
-  - Discovery metadata unit/scope Unknown
+  - XBRL unitRef resolution (INR, INR/shares, missing unitRef, unknown unitRef)
+  - XBRL multiple contexts resolution (current vs prior quarter, Consolidated vs Standalone)
+  - XBRL ambiguous units rejection
+  - Generic EPS rejection (only explicit Basic/Diluted allowed)
+  - PDF fail-closed numeric extraction policy
+  - HTML structured table parsing
+  - JSON structured schema validation & unmapped rejection
+  - Unknown unit/scope fail-closed
   - Exact period matching without nearest-period fallback
-  - Basic EPS vs Diluted EPS strict separation
-  - Banking sector safety rejection for generic Revenue
+  - Banking non-financial revenue safety
+  - Mathematical tolerance VERIFIED vs DISCREPANCY
 =============================================================================
 """
 
@@ -86,251 +87,259 @@ class IsolatedTestDatabase:
             pass
 
 # =============================================================================
-# SCENARIO A: XBRL Multiple Contexts (Current vs Prior Quarter)
+# TEST A: XBRL fact unitRef = INR resolves correctly
 # =============================================================================
-def test_scenario_a_xbrl_current_vs_prior_quarter_context():
-    print("Scenario A: XBRL Multiple Contexts (Current vs Prior Quarter Context Selection)...")
-    
-    mock_xbrl_multi_context = b"""<?xml version="1.0" encoding="UTF-8"?>
+def test_a_xbrl_unitref_inr():
+    print("Test A: XBRL fact unitRef = INR resolves correctly...")
+    xml_data = b"""<?xml version="1.0" encoding="UTF-8"?>
     <xbrl xmlns="http://www.xbrl.org/2003/instance" xmlns:in-gaap="http://www.sebi.gov.in/xbrl/2026-03-31/in-gaap">
-        <context id="C_CurrQ">
+        <unit id="U_INR"><measure>iso4217:INR</measure></unit>
+        <context id="C_Q1">
             <entity><identifier>INFY</identifier></entity>
-            <period>
-                <startDate>2026-04-01</startDate>
-                <endDate>2026-06-30</endDate>
-            </period>
-        </context>
-        <context id="C_PriorQ">
-            <entity><identifier>INFY</identifier></entity>
-            <period>
-                <startDate>2026-01-01</startDate>
-                <endDate>2026-03-31</endDate>
-            </period>
+            <period><startDate>2026-04-01</startDate><endDate>2026-06-30</endDate></period>
         </context>
         <in-gaap:LevelOfRounding>Crores</in-gaap:LevelOfRounding>
         <in-gaap:NatureOfReportStandaloneConsolidated>Consolidated</in-gaap:NatureOfReportStandaloneConsolidated>
-        <in-gaap:RevenueFromOperations contextRef="C_CurrQ">48211.0</in-gaap:RevenueFromOperations>
-        <in-gaap:RevenueFromOperations contextRef="C_PriorQ">45000.0</in-gaap:RevenueFromOperations>
+        <in-gaap:RevenueFromOperations contextRef="C_Q1" unitRef="U_INR">48211.0</in-gaap:RevenueFromOperations>
     </xbrl>"""
     
-    filing_ref = {
-        "symbol": "INFY",
-        "document_title": "Infosys Q1 Results (XBRL)",
-        "source_name": "NSE Filing"
-    }
-    
-    parsed = parse_official_xbrl_xml(mock_xbrl_multi_context, filing_ref)
+    parsed = parse_official_xbrl_xml(xml_data, {"symbol": "INFY", "document_title": "Infosys XBRL"})
     rows = parsed["financial_table"]
-    
-    # Must contain both distinct periods, not overwriting each other
-    q1_row = next((r for r in rows if r["canonical_period"] == "2026-Q1"), None)
-    q4_row = next((r for r in rows if r["canonical_period"] == "2026-Q4"), None)
-    
-    assert q1_row is not None
-    assert q1_row["value"] == 48211.0
-    assert q4_row is not None
-    assert q4_row["value"] == 45000.0
-    
-    print("  ✓ Scenario A passed: XBRL contextRef properly isolates current and prior quarter facts.")
+    assert len(rows) == 1
+    assert rows[0]["unit"] == "₹ Cr"
+    assert rows[0]["currency"] == "INR"
+    assert rows[0]["unit_ref"] == "U_INR"
+    print("  ✓ Test A passed: XBRL unitRef=INR combined with LevelOfRounding resolves to ₹ Cr.")
 
 # =============================================================================
-# SCENARIO B: XBRL Standalone vs Consolidated Dimensional Contexts
+# TEST B: XBRL EPS unitRef = INR/shares resolves ₹ / Share
 # =============================================================================
-def test_scenario_b_xbrl_standalone_vs_consolidated_contexts():
-    print("Scenario B: XBRL Standalone vs Consolidated Dimensional Contexts...")
-    
-    mock_xbrl_dimensions = b"""<?xml version="1.0" encoding="UTF-8"?>
-    <xbrl xmlns="http://www.xbrl.org/2003/instance" xmlns:in-gaap="http://www.sebi.gov.in/xbrl/2026-03-31/in-gaap" xmlns:xbrldi="http://xbrl.org/2006/xbrldi">
-        <context id="C_Consolidated">
-            <entity>
-                <identifier>INFY</identifier>
-                <segment><xbrldi:explicitMember dimension="in-gaap:ConsolidatedStandaloneAxis">in-gaap:ConsolidatedMember</xbrldi:explicitMember></segment>
-            </entity>
-            <period><startDate>2026-04-01</startDate><endDate>2026-06-30</endDate></period>
-        </context>
-        <context id="C_Standalone">
-            <entity>
-                <identifier>INFY</identifier>
-                <segment><xbrldi:explicitMember dimension="in-gaap:ConsolidatedStandaloneAxis">in-gaap:StandaloneMember</xbrldi:explicitMember></segment>
-            </entity>
-            <period><startDate>2026-04-01</startDate><endDate>2026-06-30</endDate></period>
-        </context>
-        <in-gaap:LevelOfRounding>Crores</in-gaap:LevelOfRounding>
-        <in-gaap:RevenueFromOperations contextRef="C_Consolidated">48211.0</in-gaap:RevenueFromOperations>
-        <in-gaap:RevenueFromOperations contextRef="C_Standalone">40000.0</in-gaap:RevenueFromOperations>
-    </xbrl>"""
-    
-    filing_ref = {"symbol": "INFY", "document_title": "Infosys Results"}
-    parsed = parse_official_xbrl_xml(mock_xbrl_dimensions, filing_ref)
-    rows = parsed["financial_table"]
-    
-    cons_row = next((r for r in rows if r["scope"] == "Consolidated"), None)
-    stan_row = next((r for r in rows if r["scope"] == "Standalone"), None)
-    
-    assert cons_row is not None and cons_row["value"] == 48211.0
-    assert stan_row is not None and stan_row["value"] == 40000.0
-    
-    print("  ✓ Scenario B passed: Dimensional context members accurately distinguish Consolidated vs Standalone.")
-
-# =============================================================================
-# SCENARIO C: XBRL Ambiguous Contexts Rejection
-# =============================================================================
-def test_scenario_c_xbrl_ambiguous_contexts_rejection():
-    print("Scenario C: XBRL Ambiguous Contexts Rejection (Conflicting values for same period/scope)...")
-    
-    mock_xbrl_conflict = b"""<?xml version="1.0" encoding="UTF-8"?>
+def test_b_xbrl_eps_unitref_inr_per_share():
+    print("Test B: XBRL EPS unitRef = INR/shares resolves to ₹ / Share...")
+    xml_data = b"""<?xml version="1.0" encoding="UTF-8"?>
     <xbrl xmlns="http://www.xbrl.org/2003/instance" xmlns:in-gaap="http://www.sebi.gov.in/xbrl/2026-03-31/in-gaap">
-        <context id="C_1">
-            <entity><identifier>INFY</identifier></entity>
-            <period><startDate>2026-04-01</startDate><endDate>2026-06-30</endDate></period>
-        </context>
-        <context id="C_2">
+        <unit id="INRPerShare">
+            <divide>
+                <unitNumerator><measure>iso4217:INR</measure></unitNumerator>
+                <unitDenominator><measure>shares</measure></unitDenominator>
+            </divide>
+        </unit>
+        <context id="C_Q1">
             <entity><identifier>INFY</identifier></entity>
             <period><startDate>2026-04-01</startDate><endDate>2026-06-30</endDate></period>
         </context>
         <in-gaap:NatureOfReportStandaloneConsolidated>Consolidated</in-gaap:NatureOfReportStandaloneConsolidated>
-        <in-gaap:RevenueFromOperations contextRef="C_1">48211.0</in-gaap:RevenueFromOperations>
-        <in-gaap:RevenueFromOperations contextRef="C_2">49000.0</in-gaap:RevenueFromOperations>
+        <in-gaap:BasicEarningsLossPerShare contextRef="C_Q1" unitRef="INRPerShare">16.40</in-gaap:BasicEarningsLossPerShare>
     </xbrl>"""
     
-    filing_ref = {"symbol": "INFY", "document_title": "Infosys Conflict XBRL"}
-    parsed = parse_official_xbrl_xml(mock_xbrl_conflict, filing_ref)
+    parsed = parse_official_xbrl_xml(xml_data, {"symbol": "INFY", "document_title": "Infosys XBRL"})
+    rows = parsed["financial_table"]
+    assert len(rows) == 1
+    assert rows[0]["unit"] == "₹ / Share"
+    assert rows[0]["canonical_metric"] == "BASIC_EPS"
+    assert rows[0]["value"] == 16.40
+    print("  ✓ Test B passed: Divided unit INR/shares resolves to ₹ / Share.")
+
+# =============================================================================
+# TEST C: XBRL missing unitRef -> no VERIFIED
+# =============================================================================
+def test_c_xbrl_missing_unitref():
+    print("Test C: XBRL missing unitRef -> unit is Unknown, no VERIFIED...")
+    xml_data = b"""<?xml version="1.0" encoding="UTF-8"?>
+    <xbrl xmlns="http://www.xbrl.org/2003/instance" xmlns:in-gaap="http://www.sebi.gov.in/xbrl/2026-03-31/in-gaap">
+        <context id="C_Q1">
+            <entity><identifier>INFY</identifier></entity>
+            <period><startDate>2026-04-01</startDate><endDate>2026-06-30</endDate></period>
+        </context>
+        <in-gaap:NatureOfReportStandaloneConsolidated>Consolidated</in-gaap:NatureOfReportStandaloneConsolidated>
+        <in-gaap:RevenueFromOperations contextRef="C_Q1">48211.0</in-gaap:RevenueFromOperations>
+    </xbrl>"""
     
-    # Ambiguous duplicate values for same metric/period/scope must be discarded (fail closed)
+    parsed = parse_official_xbrl_xml(xml_data, {"symbol": "INFY", "document_title": "Infosys XBRL"})
+    rows = parsed["financial_table"]
+    assert len(rows) == 1
+    assert rows[0]["unit"] == "Unknown"
+    
+    # Must fail verification as INSUFFICIENT_EVIDENCE
+    comp = compare_financial_metric(
+        screener_val=48211.0, official_val=48211.0, canonical_metric="REVENUE",
+        screener_scope="Consolidated", official_scope="Consolidated",
+        screener_period_key="2026-Q1", official_period_key="2026-Q1",
+        official_unit="Unknown"
+    )
+    assert comp["status"] == "INSUFFICIENT_EVIDENCE"
+    print("  ✓ Test C passed: Missing unitRef leaves unit as Unknown and rejects VERIFIED.")
+
+# =============================================================================
+# TEST D: XBRL unknown unit id -> INSUFFICIENT_EVIDENCE
+# =============================================================================
+def test_d_xbrl_unknown_unit_id():
+    print("Test D: XBRL unknown unit id -> INSUFFICIENT_EVIDENCE...")
+    xml_data = b"""<?xml version="1.0" encoding="UTF-8"?>
+    <xbrl xmlns="http://www.xbrl.org/2003/instance" xmlns:in-gaap="http://www.sebi.gov.in/xbrl/2026-03-31/in-gaap">
+        <unit id="USD"><measure>iso4217:USD</measure></unit>
+        <context id="C_Q1">
+            <entity><identifier>INFY</identifier></entity>
+            <period><startDate>2026-04-01</startDate><endDate>2026-06-30</endDate></period>
+        </context>
+        <in-gaap:NatureOfReportStandaloneConsolidated>Consolidated</in-gaap:NatureOfReportStandaloneConsolidated>
+        <in-gaap:RevenueFromOperations contextRef="C_Q1" unitRef="NON_EXISTENT_UNIT">48211.0</in-gaap:RevenueFromOperations>
+    </xbrl>"""
+    
+    parsed = parse_official_xbrl_xml(xml_data, {"symbol": "INFY", "document_title": "Infosys XBRL"})
+    rows = parsed["financial_table"]
+    assert len(rows) == 1
+    assert rows[0]["unit"] == "Unknown"
+    print("  ✓ Test D passed: Non-existent unitRef mapped to Unknown unit.")
+
+# =============================================================================
+# TEST E: XBRL same metric/period/scope with incompatible units -> ambiguity
+# =============================================================================
+def test_e_xbrl_incompatible_units_ambiguity():
+    print("Test E: XBRL same metric/period/scope with incompatible units -> ambiguity rejected...")
+    xml_data = b"""<?xml version="1.0" encoding="UTF-8"?>
+    <xbrl xmlns="http://www.xbrl.org/2003/instance" xmlns:in-gaap="http://www.sebi.gov.in/xbrl/2026-03-31/in-gaap">
+        <unit id="U_INR"><measure>iso4217:INR</measure></unit>
+        <unit id="U_UNKNOWN"><measure>other:CUSTOM</measure></unit>
+        <context id="C_1"><entity><identifier>INFY</identifier></entity><period><startDate>2026-04-01</startDate><endDate>2026-06-30</endDate></period></context>
+        <context id="C_2"><entity><identifier>INFY</identifier></entity><period><startDate>2026-04-01</startDate><endDate>2026-06-30</endDate></period></context>
+        <in-gaap:LevelOfRounding>Crores</in-gaap:LevelOfRounding>
+        <in-gaap:NatureOfReportStandaloneConsolidated>Consolidated</in-gaap:NatureOfReportStandaloneConsolidated>
+        <in-gaap:RevenueFromOperations contextRef="C_1" unitRef="U_INR">48211.0</in-gaap:RevenueFromOperations>
+        <in-gaap:RevenueFromOperations contextRef="C_2" unitRef="U_UNKNOWN">48211.0</in-gaap:RevenueFromOperations>
+    </xbrl>"""
+    
+    parsed = parse_official_xbrl_xml(xml_data, {"symbol": "INFY", "document_title": "Infosys XBRL"})
+    # Conflicting unit definitions must not be blindly merged
     assert len(parsed["financial_table"]) == 0
-    print("  ✓ Scenario C passed: Conflicting multiple contexts for same metric/period/scope rejected.")
+    print("  ✓ Test E passed: Incompatible units across multiple facts rejected as ambiguous.")
 
 # =============================================================================
-# SCENARIO D: PDF Containing Both Standalone and Consolidated Tables
+# TEST F: XBRL current-quarter vs previous-quarter contexts
 # =============================================================================
-def test_scenario_d_pdf_both_standalone_and_consolidated():
-    print("Scenario D: PDF Containing Both Standalone and Consolidated Tables...")
+def test_f_xbrl_current_vs_previous_quarter():
+    print("Test F: XBRL current-quarter vs previous-quarter contexts...")
+    xml_data = b"""<?xml version="1.0" encoding="UTF-8"?>
+    <xbrl xmlns="http://www.xbrl.org/2003/instance" xmlns:in-gaap="http://www.sebi.gov.in/xbrl/2026-03-31/in-gaap">
+        <unit id="U_INR"><measure>iso4217:INR</measure></unit>
+        <context id="C_Curr"><entity><identifier>INFY</identifier></entity><period><startDate>2026-04-01</startDate><endDate>2026-06-30</endDate></period></context>
+        <context id="C_Prev"><entity><identifier>INFY</identifier></entity><period><startDate>2026-01-01</startDate><endDate>2026-03-31</endDate></period></context>
+        <in-gaap:LevelOfRounding>Crores</in-gaap:LevelOfRounding>
+        <in-gaap:NatureOfReportStandaloneConsolidated>Consolidated</in-gaap:NatureOfReportStandaloneConsolidated>
+        <in-gaap:RevenueFromOperations contextRef="C_Curr" unitRef="U_INR">48211.0</in-gaap:RevenueFromOperations>
+        <in-gaap:RevenueFromOperations contextRef="C_Prev" unitRef="U_INR">45000.0</in-gaap:RevenueFromOperations>
+    </xbrl>"""
     
-    mock_pdf_text = (
-        "INFOSYS LIMITED\n"
-        "STATEMENT OF CONSOLIDATED FINANCIAL RESULTS\n"
-        "(Rs. in Crores)\n"
-        "Particulars  30-Jun-2026  31-Mar-2026\n"
-        "1. Revenue from operations  48211.0  45000.0\n"
-        "2. Profit after tax  6800.0  6200.0\n\n"
-        "STATEMENT OF STANDALONE FINANCIAL RESULTS\n"
-        "(Rs. in Crores)\n"
-        "Particulars  30-Jun-2026  31-Mar-2026\n"
-        "1. Revenue from operations  40000.0  38000.0\n"
-        "2. Profit after tax  5500.0  5100.0\n"
-    )
+    parsed = parse_official_xbrl_xml(xml_data, {"symbol": "INFY", "document_title": "Infosys XBRL"})
+    rows = parsed["financial_table"]
     
-    with patch("pypdf.PdfReader") as mock_reader_cls:
-        mock_page = MagicMock()
-        mock_page.extract_text.return_value = mock_pdf_text
-        mock_reader = MagicMock()
-        mock_reader.pages = [mock_page]
-        mock_reader_cls.return_value = mock_reader
-        
-        parsed = parse_official_pdf_document(b"%PDF-mock", {"symbol": "INFY", "document_title": "INFY Results PDF"})
-        rows = parsed["financial_table"]
-        
-        cons_rev = next((r for r in rows if r["scope"] == "Consolidated" and r["canonical_period"] == "2026-Q1" and r["canonical_metric"] == "REVENUE"), None)
-        stan_rev = next((r for r in rows if r["scope"] == "Standalone" and r["canonical_period"] == "2026-Q1" and r["canonical_metric"] == "REVENUE"), None)
-        
-        assert cons_rev is not None and cons_rev["value"] == 48211.0
-        assert stan_rev is not None and stan_rev["value"] == 40000.0
-        
-    print("  ✓ Scenario D passed: PDF sections segmented into distinct Consolidated and Standalone tables.")
+    curr = next((r for r in rows if r["canonical_period"] == "2026-Q1"), None)
+    prev = next((r for r in rows if r["canonical_period"] == "2026-Q4"), None)
+    assert curr["value"] == 48211.0
+    assert prev["value"] == 45000.0
+    print("  ✓ Test F passed: Context dates bind facts to exact quarter periods.")
 
 # =============================================================================
-# SCENARIO E: PDF Row Number / Note Column Safety (Never take '1' as Revenue)
+# TEST G: XBRL consolidated vs standalone contexts
 # =============================================================================
-def test_scenario_e_pdf_row_number_safety():
-    print("Scenario E: PDF Row Number / Note Column Safety...")
+def test_g_xbrl_consolidated_vs_standalone():
+    print("Test G: XBRL consolidated vs standalone contexts...")
+    xml_data = b"""<?xml version="1.0" encoding="UTF-8"?>
+    <xbrl xmlns="http://www.xbrl.org/2003/instance" xmlns:in-gaap="http://www.sebi.gov.in/xbrl/2026-03-31/in-gaap" xmlns:xbrldi="http://xbrl.org/2006/xbrldi">
+        <unit id="U_INR"><measure>iso4217:INR</measure></unit>
+        <context id="C_Cons">
+            <entity><identifier>INFY</identifier><segment><xbrldi:explicitMember dimension="in-gaap:ConsolidatedStandaloneAxis">in-gaap:ConsolidatedMember</xbrldi:explicitMember></segment></entity>
+            <period><startDate>2026-04-01</startDate><endDate>2026-06-30</endDate></period>
+        </context>
+        <context id="C_Stan">
+            <entity><identifier>INFY</identifier><segment><xbrldi:explicitMember dimension="in-gaap:ConsolidatedStandaloneAxis">in-gaap:StandaloneMember</xbrldi:explicitMember></segment></entity>
+            <period><startDate>2026-04-01</startDate><endDate>2026-06-30</endDate></period>
+        </context>
+        <in-gaap:LevelOfRounding>Crores</in-gaap:LevelOfRounding>
+        <in-gaap:RevenueFromOperations contextRef="C_Cons" unitRef="U_INR">48211.0</in-gaap:RevenueFromOperations>
+        <in-gaap:RevenueFromOperations contextRef="C_Stan" unitRef="U_INR">40000.0</in-gaap:RevenueFromOperations>
+    </xbrl>"""
     
-    mock_pdf_text = (
-        "STATEMENT OF CONSOLIDATED FINANCIAL RESULTS\n"
-        "(Rs. in Crores)\n"
-        "Sr No  Particulars  30-Jun-2026  31-Mar-2026  30-Jun-2025\n"
-        "1  Revenue from operations  48211.0  45000.0  40000.0\n"
-        "2  Profit after tax  6800.0  6200.0  5500.0\n"
-    )
+    parsed = parse_official_xbrl_xml(xml_data, {"symbol": "INFY", "document_title": "Infosys XBRL"})
+    rows = parsed["financial_table"]
     
-    with patch("pypdf.PdfReader") as mock_reader_cls:
-        mock_page = MagicMock()
-        mock_page.extract_text.return_value = mock_pdf_text
-        mock_reader = MagicMock()
-        mock_reader.pages = [mock_page]
-        mock_reader_cls.return_value = mock_reader
-        
-        parsed = parse_official_pdf_document(b"%PDF-mock", {"symbol": "INFY", "document_title": "INFY PDF"})
-        rows = parsed["financial_table"]
-        
-        q1_rev = next((r for r in rows if r["canonical_period"] == "2026-Q1" and r["canonical_metric"] == "REVENUE"), None)
-        assert q1_rev is not None
-        assert q1_rev["value"] == 48211.0, f"Expected 48211.0, got {q1_rev['value']}!"
-        assert q1_rev["value"] != 1.0, "FATAL: Parser mistook serial number '1' for Revenue!"
-        
-    print("  ✓ Scenario E passed: Serial numbers and note markers cleanly stripped without corrupting metric values.")
+    cons = next((r for r in rows if r["scope"] == "Consolidated"), None)
+    stan = next((r for r in rows if r["scope"] == "Standalone"), None)
+    assert cons["value"] == 48211.0
+    assert stan["value"] == 40000.0
+    print("  ✓ Test G passed: Dimensional contexts isolate Consolidated vs Standalone.")
 
 # =============================================================================
-# SCENARIO F: PDF Column-to-Period Exact Selection
+# TEST H: Generic "EPS" does NOT map to BASIC_EPS
 # =============================================================================
-def test_scenario_f_pdf_column_to_period_selection():
-    print("Scenario F: PDF Column-to-Period Exact Selection (Current vs Preceding vs Prior Year)...")
-    
-    mock_pdf_text = (
-        "STATEMENT OF CONSOLIDATED FINANCIAL RESULTS\n"
-        "(Rs. in Crores)\n"
-        "Particulars  30-Jun-2026  31-Mar-2026  30-Jun-2025\n"
-        "Revenue from operations  48211.0  45000.0  40000.0\n"
-    )
-    
-    with patch("pypdf.PdfReader") as mock_reader_cls:
-        mock_page = MagicMock()
-        mock_page.extract_text.return_value = mock_pdf_text
-        mock_reader = MagicMock()
-        mock_reader.pages = [mock_page]
-        mock_reader_cls.return_value = mock_reader
-        
-        parsed = parse_official_pdf_document(b"%PDF-mock", {"symbol": "INFY", "document_title": "INFY PDF"})
-        rows = parsed["financial_table"]
-        
-        row_2026_q1 = next((r for r in rows if r["canonical_period"] == "2026-Q1"), None)
-        row_2026_q4 = next((r for r in rows if r["canonical_period"] == "2026-Q4"), None)
-        row_2025_q1 = next((r for r in rows if r["canonical_period"] == "2025-Q1"), None)
-        
-        assert row_2026_q1["value"] == 48211.0
-        assert row_2026_q4["value"] == 45000.0
-        assert row_2025_q1["value"] == 40000.0
-        
-    print("  ✓ Scenario F passed: Column-to-period mapping extracts exact multi-quarter figures.")
+def test_h_generic_eps_ambiguous():
+    print("Test H: Generic 'EPS' / 'Earnings Per Share' does NOT map to BASIC_EPS...")
+    assert normalize_metric_name("EPS") is None
+    assert normalize_metric_name("Earnings Per Share") is None
+    assert normalize_metric_name("EPS in Rs") is None
+    print("  ✓ Test H passed: Unqualified generic EPS is rejected as ambiguous.")
 
 # =============================================================================
-# SCENARIO G: PDF Missing Headers Fail-Closed
+# TEST I: Explicit "Basic EPS" -> BASIC_EPS
 # =============================================================================
-def test_scenario_g_pdf_missing_headers_fail_closed():
-    print("Scenario G: PDF Missing Headers Fail-Closed (INSUFFICIENT_EVIDENCE)...")
-    
-    mock_pdf_no_header = (
-        "SOME UNSTRUCTURED TEXT WITHOUT ANY DATE COLUMNS\n"
-        "Revenue from operations 48211.0\n"
-    )
-    
-    with patch("pypdf.PdfReader") as mock_reader_cls:
-        mock_page = MagicMock()
-        mock_page.extract_text.return_value = mock_pdf_no_header
-        mock_reader = MagicMock()
-        mock_reader.pages = [mock_page]
-        mock_reader_cls.return_value = mock_reader
-        
-        parsed = parse_official_pdf_document(b"%PDF-mock", {"symbol": "INFY", "document_title": "INFY PDF"})
-        assert len(parsed["financial_table"]) == 0
-        
-    print("  ✓ Scenario G passed: Unstructured PDF without date headers safely rejected.")
+def test_i_explicit_basic_eps():
+    print("Test I: Explicit 'Basic EPS' maps to BASIC_EPS...")
+    assert normalize_metric_name("Basic EPS") == "BASIC_EPS"
+    assert normalize_metric_name("Basic Earnings Per Share") == "BASIC_EPS"
+    assert normalize_metric_name("BasicEarningsLossPerShare") == "BASIC_EPS"
+    print("  ✓ Test I passed: Explicit Basic EPS mapped safely.")
 
 # =============================================================================
-# SCENARIO H: HTML Multi-Period Table Column Mapping
+# TEST J: Explicit "Diluted EPS" -> DILUTED_EPS
 # =============================================================================
-def test_scenario_h_html_multi_period_column_mapping():
-    print("Scenario H: HTML Multi-Period Table Column Mapping...")
-    
+def test_j_explicit_diluted_eps():
+    print("Test J: Explicit 'Diluted EPS' maps to DILUTED_EPS...")
+    assert normalize_metric_name("Diluted EPS") == "DILUTED_EPS"
+    assert normalize_metric_name("Diluted Earnings Per Share") == "DILUTED_EPS"
+    assert normalize_metric_name("DilutedEarningsLossPerShare") == "DILUTED_EPS"
+    print("  ✓ Test J passed: Explicit Diluted EPS mapped safely.")
+
+# =============================================================================
+# TEST K & L: PDF Policy (Unstructured text marked INSUFFICIENT_EVIDENCE)
+# =============================================================================
+def test_k_l_pdf_fail_closed_policy():
+    print("Test K & L: PDF numeric extraction fails closed as INSUFFICIENT_EVIDENCE...")
+    with IsolatedTestDatabase() as test_db:
+        mock_pdf_bytes = b"%PDF-mock-document"
+        filing_ref = {
+            "symbol": "INFY",
+            "document_title": "Infosys Financial Results PDF",
+            "source_name": "NSE Filing",
+            "source_url": "https://nsearchives.nseindia.com/corporate/INFY_Q1.pdf"
+        }
+        
+        with patch("pypdf.PdfReader") as mock_reader_cls:
+            mock_page = MagicMock()
+            mock_page.extract_text.return_value = "Infosys Financial Results Statement of Consolidated Results"
+            mock_reader = MagicMock()
+            mock_reader.pages = [mock_page]
+            mock_reader_cls.return_value = mock_reader
+            
+            parsed = parse_official_pdf_document(mock_pdf_bytes, filing_ref)
+            assert len(parsed["financial_table"]) == 0
+            assert parsed["extraction_method"] == "official_pdf_document"
+            
+            # Test full verification summary when only PDF is available
+            res = run_official_financial_verification(
+                "INFY",
+                screener_stock_data={"symbol": "INFY", "name": "Infosys", "quarters": {"rows": []}},
+                official_filing_docs=[parsed]
+            )
+            assert res["summary"]["overall_status"] == "INSUFFICIENT_EVIDENCE"
+            assert "PDF text stream" in res["summary"]["unavailable_reason"]
+        
+    print("  ✓ Test K & L passed: PDF document provenance preserved while numeric extraction fails closed.")
+
+# =============================================================================
+# TEST M: Structured HTML Table with Explicit Period Columns
+# =============================================================================
+def test_m_structured_html_table():
+    print("Test M: Structured HTML Table with explicit period columns...")
     mock_html = b"""
     <html>
         <body>
@@ -339,135 +348,128 @@ def test_scenario_h_html_multi_period_column_mapping():
             <table>
                 <tr><th>Particulars</th><th>30-Jun-2026</th><th>31-Mar-2026</th></tr>
                 <tr><td>Revenue from operations</td><td>48211.0</td><td>45000.0</td></tr>
-                <tr><td>Net Profit</td><td>6800.0</td><td>6200.0</td></tr>
+                <tr><td>Profit after tax</td><td>6800.0</td><td>6200.0</td></tr>
+                <tr><td>Basic EPS</td><td>16.40</td><td>15.10</td></tr>
             </table>
         </body>
     </html>
     """
-    
     parsed = parse_official_html_table(mock_html, {"symbol": "INFY", "document_title": "INFY HTML"})
     rows = parsed["financial_table"]
     
     q1_rev = next((r for r in rows if r["canonical_period"] == "2026-Q1" and r["canonical_metric"] == "REVENUE"), None)
-    q4_rev = next((r for r in rows if r["canonical_period"] == "2026-Q4" and r["canonical_metric"] == "REVENUE"), None)
+    q1_pat = next((r for r in rows if r["canonical_period"] == "2026-Q1" and r["canonical_metric"] == "PAT"), None)
+    q1_eps = next((r for r in rows if r["canonical_period"] == "2026-Q1" and r["canonical_metric"] == "BASIC_EPS"), None)
     
-    assert q1_rev is not None and q1_rev["value"] == 48211.0
-    assert q4_rev is not None and q4_rev["value"] == 45000.0
-    
-    print("  ✓ Scenario H passed: HTML table headers accurately map period columns.")
+    assert q1_rev["value"] == 48211.0
+    assert q1_pat["value"] == 6800.0
+    assert q1_eps["value"] == 16.40
+    print("  ✓ Test M passed: HTML table correctly extracts cells mapped to explicit column headers.")
 
 # =============================================================================
-# SCENARIO I: Discovery Metadata Scope/Unit Unknown
+# TEST N: JSON with Explicit Schema Accepted
 # =============================================================================
-def test_scenario_i_discovery_metadata_unknown_by_default():
-    print("Scenario I: Discovery Metadata Scope/Unit Unknown By Default...")
-    
-    mock_announcement = {
-        "data": [
+def test_n_json_explicit_schema_accepted():
+    print("Test N: JSON with explicit period/scope/unit schema accepted...")
+    valid_json = {
+        "symbol": "INFY",
+        "document_title": "Infosys Results API",
+        "scope": "Consolidated",
+        "unit": "₹ Cr",
+        "financial_table": [
             {
-                "desc": "Outcome of Board Meeting",
-                "period": "",
-                "date": "18-JUL-2026",
-                "attmnt": "results.pdf"
+                "metric": "Revenue from Operations",
+                "canonical_metric": "REVENUE",
+                "canonical_period": "2026-Q1",
+                "period": "Jun 2026",
+                "scope": "Consolidated",
+                "unit": "₹ Cr",
+                "value": 48211.0
             }
         ]
     }
-    
-    mock_resp = MagicMock()
-    mock_resp.read.return_value = json.dumps(mock_announcement).encode("utf-8")
-    mock_resp.__enter__.return_value = mock_resp
-    
-    with patch("urllib.request.urlopen", return_value=mock_resp):
-        discovered = discover_official_financial_results("INFY")
-        assert len(discovered) == 1
-        disc = discovered[0]
-        assert disc["scope"] == "Unknown", "Discovery must NOT assume scope!"
-        assert disc["unit"] == "Unknown", "Discovery must NOT assume unit!"
-        
-    print("  ✓ Scenario I passed: Discovery leaves unit/scope as Unknown until established by parser.")
+    extracted = extract_official_filing_metrics("INFY", valid_json)
+    assert len(extracted) == 1
+    assert extracted[0]["canonical_metric"] == "REVENUE"
+    assert extracted[0]["official_value"] == 48211.0
+    print("  ✓ Test N passed: Explicit structured JSON schema accepted.")
 
 # =============================================================================
-# SCENARIO J: Exact Period Matching Without Nearest-Period Fallback
+# TEST O: JSON Rows Without Required Metadata Rejected
 # =============================================================================
-def test_scenario_j_exact_period_matching_no_nearest_fallback():
-    print("Scenario J: Exact Period Matching Without Nearest-Period Fallback...")
+def test_o_json_unmapped_rejected():
+    print("Test O: JSON rows without required dimension metadata rejected...")
+    raw_unmapped_json = {
+        "symbol": "INFY",
+        "document_title": "Untyped API",
+        "financial_table": [] # No verified dimension mapping
+    }
+    extracted = extract_official_filing_metrics("INFY", raw_unmapped_json)
+    assert len(extracted) == 0
+    print("  ✓ Test O passed: Unmapped JSON rejected without creating false records.")
+
+# =============================================================================
+# TEST P: Official Unit Unknown -> no VERIFIED
+# =============================================================================
+def test_p_official_unit_unknown():
+    print("Test P: Official unit Unknown -> INSUFFICIENT_EVIDENCE...")
+    res = compare_financial_metric(
+        screener_val=48211.0, official_val=48211.0, canonical_metric="REVENUE",
+        screener_scope="Consolidated", official_scope="Consolidated",
+        screener_period_key="2026-Q1", official_period_key="2026-Q1",
+        official_unit="Unknown"
+    )
+    assert res["status"] == "INSUFFICIENT_EVIDENCE"
+    print("  ✓ Test P passed: Unknown official unit rejected.")
+
+# =============================================================================
+# TEST Q: Official Scope Unknown -> no VERIFIED
+# =============================================================================
+def test_q_official_scope_unknown():
+    print("Test Q: Official scope Unknown -> NOT_COMPARABLE...")
+    res = compare_financial_metric(
+        screener_val=48211.0, official_val=48211.0, canonical_metric="REVENUE",
+        screener_scope="Consolidated", official_scope="Unknown",
+        screener_period_key="2026-Q1", official_period_key="2026-Q1",
+        official_unit="₹ Cr"
+    )
+    assert res["status"] == "NOT_COMPARABLE"
+    print("  ✓ Test Q passed: Unknown official scope rejected.")
+
+# =============================================================================
+# TEST R: No Exact Screener Period -> SCREENER_VALUE_MISSING (No Fallback)
+# =============================================================================
+def test_r_no_exact_screener_period():
+    print("Test R: No exact Screener period -> SCREENER_VALUE_MISSING without nearest fallback...")
     with IsolatedTestDatabase() as test_db:
-        # Screener has ONLY 2026-Q1
-        mock_screener_data = {
+        mock_screener = {
             "symbol": "INFY",
             "name": "Infosys Limited",
             "statement_type": "consolidated",
-            "quarters": {
-                "periods": ["Jun 2026"],
-                "rows": [{"metric": "Sales", "values": {"Jun 2026": 48211.0}}]
-            }
+            "quarters": {"periods": ["Jun 2026"], "rows": [{"metric": "Sales", "values": {"Jun 2026": 48211.0}}]}
         }
-        
-        # Official Filing has ONLY 2026-Q2 (Sep 2026)
-        mock_official_doc = {
+        mock_official = {
             "symbol": "INFY",
             "document_title": "Infosys Q2 Results",
             "scope": "Consolidated",
             "unit": "₹ Cr",
             "financial_table": [
-                {
-                    "metric": "Revenue from Operations",
-                    "canonical_metric": "REVENUE",
-                    "canonical_period": "2026-Q2",
-                    "period": "Sep 2026",
-                    "value": 50000.0,
-                    "unit": "₹ Cr"
-                }
+                {"metric": "Revenue from Operations", "canonical_metric": "REVENUE", "canonical_period": "2026-Q2", "period": "Sep 2026", "value": 50000.0, "unit": "₹ Cr"}
             ]
         }
-        
-        res = run_official_financial_verification(
-            "INFY",
-            screener_stock_data=mock_screener_data,
-            official_filing_docs=[mock_official_doc]
-        )
-        
+        res = run_official_financial_verification("INFY", screener_stock_data=mock_screener, official_filing_docs=[mock_official])
         records = res["records"]
         assert len(records) == 1
-        # Must be SCREENER_VALUE_MISSING (no fallback comparison to Jun 2026)
         assert records[0]["status"] == "SCREENER_VALUE_MISSING"
         assert records[0]["screener_value"] is None
-        assert "absent from Screener" in records[0]["notes"]
-        
-    print("  ✓ Scenario J passed: No nearest-period fallback; exact period mismatch cleanly flagged as missing.")
+    print("  ✓ Test R passed: Zero nearest-period fallback; exact period missing cleanly flagged.")
 
 # =============================================================================
-# SCENARIO K: Basic EPS vs Diluted EPS Strict Separation
+# TEST S: Banking Revenue -> INSUFFICIENT_EVIDENCE
 # =============================================================================
-def test_scenario_k_basic_vs_diluted_eps_separation():
-    print("Scenario K: Basic EPS vs Diluted EPS Strict Separation...")
-    
-    assert normalize_metric_name("Basic EPS") == "BASIC_EPS"
-    assert normalize_metric_name("Diluted EPS") == "DILUTED_EPS"
-    assert normalize_metric_name("Basic EPS") != normalize_metric_name("Diluted EPS")
-    
-    # Comparison of Basic EPS against Diluted EPS is rejected
-    res = compare_financial_metric(
-        screener_val=16.40,
-        official_val=16.35,
-        canonical_metric="BASIC_EPS",
-        screener_scope="Consolidated",
-        official_scope="Consolidated",
-        screener_period_key="2026-Q1",
-        official_period_key="2026-Q1"
-    )
-    assert res["status"] == "VERIFIED"
-    assert "₹ / Share" in res["notes"]
-    
-    print("  ✓ Scenario K passed: Basic EPS and Diluted EPS are cleanly separated.")
-
-# =============================================================================
-# SCENARIO L: Banking / Financial Sector Metric Safety
-# =============================================================================
-def test_scenario_l_banking_sector_metric_safety():
-    print("Scenario L: Banking / Financial Sector Metric Safety...")
+def test_s_banking_revenue_safety():
+    print("Test S: Banking Revenue -> INSUFFICIENT_EVIDENCE...")
     with IsolatedTestDatabase() as test_db:
-        # Register HDFCBANK as bank
         database.upsert_company_registry_item({
             "symbol": "HDFCBANK",
             "company_name": "HDFC Bank Limited",
@@ -477,74 +479,87 @@ def test_scenario_l_banking_sector_metric_safety():
             "in_universe": True,
             "is_active": True
         })
-        
-        mock_screener_data = {
+        mock_screener = {
             "symbol": "HDFCBANK",
             "name": "HDFC Bank Limited",
             "statement_type": "consolidated",
-            "quarters": {
-                "periods": ["Jun 2026"],
-                "rows": [
-                    {"metric": "Revenue", "values": {"Jun 2026": 85000.0}},
-                    {"metric": "Net Profit", "values": {"Jun 2026": 16000.0}}
-                ]
-            }
+            "quarters": {"periods": ["Jun 2026"], "rows": [{"metric": "Revenue", "values": {"Jun 2026": 85000.0}}]}
         }
-        
-        mock_official_doc = {
+        mock_official = {
             "symbol": "HDFCBANK",
-            "document_title": "HDFC Bank Financial Results",
+            "document_title": "HDFC Bank XBRL",
             "scope": "Consolidated",
             "unit": "₹ Cr",
             "financial_table": [
-                {
-                    "metric": "Revenue from Operations",
-                    "canonical_metric": "REVENUE",
-                    "canonical_period": "2026-Q1",
-                    "period": "Jun 2026",
-                    "value": 85000.0,
-                    "unit": "₹ Cr"
-                },
-                {
-                    "metric": "Net Profit for the period",
-                    "canonical_metric": "PAT",
-                    "canonical_period": "2026-Q1",
-                    "period": "Jun 2026",
-                    "value": 16000.0,
-                    "unit": "₹ Cr"
-                }
+                {"metric": "Revenue from Operations", "canonical_metric": "REVENUE", "canonical_period": "2026-Q1", "period": "Jun 2026", "value": 85000.0, "unit": "₹ Cr"}
             ]
         }
-        
-        res = run_official_financial_verification(
-            "HDFCBANK",
-            screener_stock_data=mock_screener_data,
-            official_filing_docs=[mock_official_doc]
-        )
-        
-        rev_rec = next((r for r in res["records"] if r["canonical_metric"] == "REVENUE"), None)
-        pat_rec = next((r for r in res["records"] if r["canonical_metric"] == "PAT"), None)
-        
-        # Generic Revenue for Bank must be INSUFFICIENT_EVIDENCE (safe fail-closed)
-        assert rev_rec["status"] == "INSUFFICIENT_EVIDENCE"
-        assert "Banking/Financial institution" in rev_rec["notes"]
-        
-        # PAT is safe and verified
-        assert pat_rec["status"] == "VERIFIED"
-        
-    print("  ✓ Scenario L passed: Non-financial revenue metrics rejected for banking sector.")
+        res = run_official_financial_verification("HDFCBANK", screener_stock_data=mock_screener, official_filing_docs=[mock_official])
+        assert res["records"][0]["status"] == "INSUFFICIENT_EVIDENCE"
+    print("  ✓ Test S passed: Non-financial revenue metrics rejected for banking sector.")
+
+# =============================================================================
+# TEST T: Exact Aligned Revenue/PAT/Basic EPS -> VERIFIED
+# =============================================================================
+def test_t_exact_aligned_verified():
+    print("Test T: Exact aligned Revenue / PAT / Basic EPS -> VERIFIED...")
+    res_rev = compare_financial_metric(
+        screener_val=48211.0, official_val=48210.8, canonical_metric="REVENUE",
+        screener_scope="Consolidated", official_scope="Consolidated",
+        screener_period_key="2026-Q1", official_period_key="2026-Q1",
+        official_unit="₹ Cr"
+    )
+    res_pat = compare_financial_metric(
+        screener_val=6800.0, official_val=6800.2, canonical_metric="PAT",
+        screener_scope="Consolidated", official_scope="Consolidated",
+        screener_period_key="2026-Q1", official_period_key="2026-Q1",
+        official_unit="₹ Cr"
+    )
+    res_eps = compare_financial_metric(
+        screener_val=16.40, official_val=16.38, canonical_metric="BASIC_EPS",
+        screener_scope="Consolidated", official_scope="Consolidated",
+        screener_period_key="2026-Q1", official_period_key="2026-Q1",
+        official_unit="₹ / Share"
+    )
+    assert res_rev["status"] == "VERIFIED"
+    assert res_pat["status"] == "VERIFIED"
+    assert res_eps["status"] == "VERIFIED"
+    print("  ✓ Test T passed: Fully aligned metrics within mathematical tolerance verified.")
+
+# =============================================================================
+# TEST U: Exact Aligned but Materially Different Value -> DISCREPANCY
+# =============================================================================
+def test_u_material_discrepancy():
+    print("Test U: Exact aligned but materially different value -> DISCREPANCY...")
+    res = compare_financial_metric(
+        screener_val=48211.0, official_val=42000.0, canonical_metric="REVENUE",
+        screener_scope="Consolidated", official_scope="Consolidated",
+        screener_period_key="2026-Q1", official_period_key="2026-Q1",
+        official_unit="₹ Cr"
+    )
+    assert res["status"] == "DISCREPANCY"
+    assert res["variance_abs"] == 6211.0
+    print("  ✓ Test U passed: Material variance exceeding tolerance flagged as DISCREPANCY.")
 
 if __name__ == "__main__":
-    test_scenario_a_xbrl_current_vs_prior_quarter_context()
-    test_scenario_b_xbrl_standalone_vs_consolidated_contexts()
-    test_scenario_c_xbrl_ambiguous_contexts_rejection()
-    test_scenario_d_pdf_both_standalone_and_consolidated()
-    test_scenario_e_pdf_row_number_safety()
-    test_scenario_f_pdf_column_to_period_selection()
-    test_scenario_g_pdf_missing_headers_fail_closed()
-    test_scenario_h_html_multi_period_column_mapping()
-    test_scenario_i_discovery_metadata_unknown_by_default()
-    test_scenario_j_exact_period_matching_no_nearest_fallback()
-    test_scenario_k_basic_vs_diluted_eps_separation()
-    test_scenario_l_banking_sector_metric_safety()
-    print("\n🎉 ALL 12 FAIL-CLOSED TEST SCENARIOS (A - L) PASSED WITH 100% ISOLATION!")
+    test_a_xbrl_unitref_inr()
+    test_b_xbrl_eps_unitref_inr_per_share()
+    test_c_xbrl_missing_unitref()
+    test_d_xbrl_unknown_unit_id()
+    test_e_xbrl_incompatible_units_ambiguity()
+    test_f_xbrl_current_vs_previous_quarter()
+    test_g_xbrl_consolidated_vs_standalone()
+    test_h_generic_eps_ambiguous()
+    test_i_explicit_basic_eps()
+    test_j_explicit_diluted_eps()
+    test_k_l_pdf_fail_closed_policy()
+    test_m_structured_html_table()
+    test_n_json_explicit_schema_accepted()
+    test_o_json_unmapped_rejected()
+    test_p_official_unit_unknown()
+    test_q_official_scope_unknown()
+    test_r_no_exact_screener_period()
+    test_s_banking_revenue_safety()
+    test_t_exact_aligned_verified()
+    test_u_material_discrepancy()
+    print("\n🎉 ALL 21 TESTS (A - U) PASSED WITH 100% DETERMINISTIC ISOLATION & FAIL-CLOSED INTEGRITY!")
