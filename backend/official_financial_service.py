@@ -254,6 +254,17 @@ def normalize_numeric_scale(value: float, raw_unit: Optional[str] = None) -> flo
 # SHARED FAIL-CLOSED ROW VALIDATION & NORMALIZATION
 # =============================================================================
 
+def is_per_share_unit(raw_unit: Optional[str]) -> bool:
+    """Checks if unit string definitively indicates a per-share measure."""
+    if not raw_unit:
+        return False
+    u = str(raw_unit).lower().strip()
+    return any(p in u for p in [
+        "₹ / share", "₹/share", "₹ / per share", "₹ per share",
+        "inr / share", "inr/share", "inr / shares", "inr/shares",
+        "rs. / share", "rs/share", "rs / share", "per share", "inrpershare"
+    ])
+
 def validate_and_normalize_official_rows(
     raw_rows: List[Dict[str, Any]],
     default_scope: str = "Unknown",
@@ -263,12 +274,14 @@ def validate_and_normalize_official_rows(
     """
     Shared fail-closed validation and normalization for all official line-item rows.
     Validates:
-    - Non-empty, recognized, non-ambiguous canonical metric (rejects generic EPS, operating profit, etc.)
+    - Canonical metric must belong to SAFE_CANONICAL_METRICS
+    - Compatibility between raw metric label and canonical metric (rejects ambiguous generic EPS / Operating profit)
     - Valid numeric value (float/int)
     - Valid canonical period (normalizes period strings to e.g. '2026-Q1', '2026-FY')
     - Explicit or inherited scope ('Consolidated' / 'Standalone' / 'Unknown')
-    - Explicit or inherited unit ('₹ Cr', '₹ Lakhs', '₹ Millions', '₹ / Share', 'Unknown')
-    - Scale normalization: converts reported value to ₹ Cr (or preserves ₹/Share for EPS)
+    - Unit validation:
+      - EPS (BASIC_EPS, DILUTED_EPS): must have genuine per-share unit evidence -> '₹ / Share', else 'Unknown'
+      - Financial totals (REVENUE, PAT, PBT): scales to '₹ Cr' if known scale, else 'Unknown'
     """
     validated_rows: List[Dict[str, Any]] = []
     
@@ -276,10 +289,22 @@ def validate_and_normalize_official_rows(
         if not isinstance(row, dict):
             continue
             
-        raw_name = row.get("metric") or row.get("line_item") or row.get("name") or row.get("raw_metric") or ""
-        canon_m = row.get("canonical_metric") or normalize_metric_name(raw_name)
-        if not canon_m:
-            continue
+        raw_name = str(row.get("metric") or row.get("line_item") or row.get("name") or row.get("raw_metric") or "").strip()
+        supplied_canon = row.get("canonical_metric")
+        
+        # Validate supplied canonical_metric and raw label compatibility
+        if raw_name:
+            mapped_from_raw = normalize_metric_name(raw_name)
+            if not mapped_from_raw or mapped_from_raw not in SAFE_CANONICAL_METRICS:
+                continue
+            if supplied_canon and supplied_canon != mapped_from_raw:
+                # Incompatible raw label vs supplied canonical metric
+                continue
+            canon_m = mapped_from_raw
+        else:
+            if not supplied_canon or supplied_canon not in SAFE_CANONICAL_METRICS:
+                continue
+            canon_m = supplied_canon
             
         raw_val = row.get("value")
         if raw_val is None:
@@ -307,21 +332,25 @@ def validate_and_normalize_official_rows(
             if not row_disp_p:
                 row_disp_p = row_canon_p
                 
-        # Unit resolution
+        # Unit resolution: never auto-invent per-share unit without evidence
         raw_unit = row.get("unit") or row.get("raw_unit") or default_unit or "Unknown"
-        if canon_m in ("BASIC_EPS", "DILUTED_EPS", "EPS"):
-            resolved_unit = "₹ / Share"
-            norm_val = num_val
+        if canon_m in ("BASIC_EPS", "DILUTED_EPS"):
+            if is_per_share_unit(raw_unit):
+                resolved_unit = "₹ / Share"
+                norm_val = num_val
+            else:
+                resolved_unit = "Unknown"
+                norm_val = num_val
         else:
             if raw_unit in ("Unknown", "unknown", None, ""):
                 resolved_unit = "Unknown"
                 norm_val = num_val
             else:
-                resolved_unit = "₹ Cr"
                 norm_val = normalize_numeric_scale(num_val, raw_unit)
+                resolved_unit = "₹ Cr"
                 
         validated_rows.append({
-            "metric": str(raw_name or canon_m),
+            "metric": raw_name or canon_m,
             "canonical_metric": canon_m,
             "value": norm_val,
             "raw_value": num_val,

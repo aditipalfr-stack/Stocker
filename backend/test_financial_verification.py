@@ -621,6 +621,79 @@ def test_v_presupplied_rows_shared_validation():
     assert extracted[1]["official_value"] == 16.40
     print("  ✓ Test V passed: Pre-supplied rows/financial_table enforces shared validation without shortcuts.")
 
+# =============================================================================
+# TEST W: XBRL EPS Unit-Preservation (Missing/Unknown unitRef stays Unknown)
+# =============================================================================
+def test_w_xbrl_eps_unitref_missing_unknown_preservation():
+    print("Test W: XBRL EPS Unit-Preservation (Missing/Unknown unitRef stays Unknown)...")
+    
+    # 1. Basic EPS with missing unitRef -> unit remains Unknown
+    xml_missing_unit = b"""<?xml version="1.0" encoding="UTF-8"?>
+    <xbrl xmlns="http://www.xbrl.org/2003/instance" xmlns:in-gaap="http://www.sebi.gov.in/xbrl/2026-03-31/in-gaap">
+        <context id="C_Q1"><entity><identifier>INFY</identifier></entity><period><startDate>2026-04-01</startDate><endDate>2026-06-30</endDate></period></context>
+        <in-gaap:NatureOfReportStandaloneConsolidated>Consolidated</in-gaap:NatureOfReportStandaloneConsolidated>
+        <in-gaap:BasicEarningsLossPerShare contextRef="C_Q1">16.40</in-gaap:BasicEarningsLossPerShare>
+    </xbrl>"""
+    doc_missing = parse_official_xbrl_xml(xml_missing_unit, {"symbol": "INFY", "document_title": "INFY Missing Unit XBRL"})
+    assert len(doc_missing["financial_table"]) == 1
+    assert doc_missing["financial_table"][0]["unit"] == "Unknown"
+    
+    # 2. Diluted EPS with unknown unitRef -> unit remains Unknown
+    xml_unknown_unit = b"""<?xml version="1.0" encoding="UTF-8"?>
+    <xbrl xmlns="http://www.xbrl.org/2003/instance" xmlns:in-gaap="http://www.sebi.gov.in/xbrl/2026-03-31/in-gaap">
+        <context id="C_Q1"><entity><identifier>INFY</identifier></entity><period><startDate>2026-04-01</startDate><endDate>2026-06-30</endDate></period></context>
+        <in-gaap:NatureOfReportStandaloneConsolidated>Consolidated</in-gaap:NatureOfReportStandaloneConsolidated>
+        <in-gaap:DilutedEarningsLossPerShare contextRef="C_Q1" unitRef="NON_EXISTENT_REF">16.30</in-gaap:DilutedEarningsLossPerShare>
+    </xbrl>"""
+    doc_unknown = parse_official_xbrl_xml(xml_unknown_unit, {"symbol": "INFY", "document_title": "INFY Unknown Unit XBRL"})
+    assert len(doc_unknown["financial_table"]) == 1
+    assert doc_unknown["financial_table"][0]["unit"] == "Unknown"
+    
+    # 3. Basic EPS with valid per-share unitRef -> unit is ₹ / Share
+    xml_valid_unit = b"""<?xml version="1.0" encoding="UTF-8"?>
+    <xbrl xmlns="http://www.xbrl.org/2003/instance" xmlns:in-gaap="http://www.sebi.gov.in/xbrl/2026-03-31/in-gaap">
+        <unit id="INRPerShare">
+            <divide>
+                <unitNumerator><measure>iso4217:INR</measure></unitNumerator>
+                <unitDenominator><measure>shares</measure></unitDenominator>
+            </divide>
+        </unit>
+        <context id="C_Q1"><entity><identifier>INFY</identifier></entity><period><startDate>2026-04-01</startDate><endDate>2026-06-30</endDate></period></context>
+        <in-gaap:NatureOfReportStandaloneConsolidated>Consolidated</in-gaap:NatureOfReportStandaloneConsolidated>
+        <in-gaap:BasicEarningsLossPerShare contextRef="C_Q1" unitRef="INRPerShare">16.40</in-gaap:BasicEarningsLossPerShare>
+    </xbrl>"""
+    doc_valid = parse_official_xbrl_xml(xml_valid_unit, {"symbol": "INFY", "document_title": "INFY Valid Unit XBRL"})
+    assert len(doc_valid["financial_table"]) == 1
+    assert doc_valid["financial_table"][0]["unit"] == "₹ / Share"
+    print("  ✓ Test W passed: XBRL unitRef resolution strictly preserved without auto-inventing ₹ / Share.")
+
+# =============================================================================
+# TEST X: Pre-Supplied Metric / Canonical Compatibility Enforced
+# =============================================================================
+def test_x_presupplied_metric_canonical_compatibility():
+    print("Test X: Pre-Supplied Metric / Canonical Compatibility Enforced...")
+    
+    from official_financial_service import validate_and_normalize_official_rows
+    
+    # D: metric="EPS", canonical_metric="BASIC_EPS", unit="₹ / Share" -> reject because generic EPS is ambiguous
+    res_d = validate_and_normalize_official_rows([{"metric": "EPS", "canonical_metric": "BASIC_EPS", "value": 16.4, "unit": "₹ / Share"}])
+    assert len(res_d) == 0, "FATAL: Generic EPS must be rejected even if canonical_metric is BASIC_EPS!"
+    
+    # E: metric="Operating Profit", canonical_metric="PAT" -> reject because raw label is incompatible
+    res_e = validate_and_normalize_official_rows([{"metric": "Operating Profit", "canonical_metric": "PAT", "value": 5000.0, "unit": "₹ Cr"}])
+    assert len(res_e) == 0, "FATAL: Operating Profit must not be mapped to PAT!"
+    
+    # F: pre-supplied canonical_metric outside SAFE_CANONICAL_METRICS -> reject
+    res_f = validate_and_normalize_official_rows([{"canonical_metric": "CUSTOM_UNSAFE_METRIC", "value": 100.0, "unit": "₹ Cr"}])
+    assert len(res_f) == 0, "FATAL: Unsafe canonical metrics outside safe set must be rejected!"
+    
+    # G: valid: metric="Profit after tax", canonical_metric="PAT" -> accepted
+    res_g = validate_and_normalize_official_rows([{"metric": "Profit after tax", "canonical_metric": "PAT", "value": 6800.0, "unit": "₹ Cr"}])
+    assert len(res_g) == 1
+    assert res_g[0]["canonical_metric"] == "PAT"
+    assert res_g[0]["value"] == 6800.0
+    print("  ✓ Test X passed: Raw label compatibility and safe canonical metric enforcement verified.")
+
 if __name__ == "__main__":
     test_a_xbrl_unitref_inr()
     test_b_xbrl_eps_unitref_inr_per_share()
@@ -644,4 +717,6 @@ if __name__ == "__main__":
     test_t_exact_aligned_verified()
     test_u_material_discrepancy()
     test_v_presupplied_rows_shared_validation()
-    print("\n🎉 ALL 22 TESTS (A - V) PASSED WITH 100% DETERMINISTIC ISOLATION & FAIL-CLOSED INTEGRITY!")
+    test_w_xbrl_eps_unitref_missing_unknown_preservation()
+    test_x_presupplied_metric_canonical_compatibility()
+    print("\n🎉 ALL 24 TESTS (A - X) PASSED WITH 100% DETERMINISTIC ISOLATION & FAIL-CLOSED INTEGRITY!")
