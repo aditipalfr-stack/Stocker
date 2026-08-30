@@ -186,7 +186,7 @@ SEED_REGISTRY_COMPANIES: List[Dict[str, Any]] = [
     },
     {
         "symbol": "TATAMOTORS",
-        "company_name": "Tata Motors Passenger Vehicles Limited",
+        "company_name": "Tata Motors Limited",
         "nse_symbol": "TATAMOTORS",
         "bse_code": "500570",
         "isin": "INE155A01022",
