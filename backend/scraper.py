@@ -45,6 +45,14 @@ def parse_num(val_str: Optional[str]) -> Optional[float]:
     except Exception:
         return None
 
+NON_RAW_CASH_FLOW_METRICS = {
+    "free cash flow",
+    "cfo/op",
+    "cfo / op",
+    "cfo/pat",
+    "cfo / pat"
+}
+
 def parse_screener_table(soup: BeautifulSoup, section_id: str) -> Optional[FinancialStatement]:
     section = soup.find("section", {"id": section_id})
     if not section:
@@ -77,6 +85,10 @@ def parse_screener_table(soup: BeautifulSoup, section_id: str) -> Optional[Finan
         
         # Skip auxiliary or empty rows
         if not metric_name or metric_name.lower() in ("raw pdf", "notes", "download"):
+            continue
+            
+        # Ensure non-raw injected rows from Screener do not pollute raw cash flow statement
+        if section_id == "cash-flow" and metric_name.lower().strip() in NON_RAW_CASH_FLOW_METRICS:
             continue
             
         values: Dict[str, Optional[float]] = {}
@@ -208,7 +220,26 @@ def hydrate_stock_data(cached_dict: Dict[str, Any]) -> Dict[str, Any]:
     data["quarters"] = FinancialStatement(**data["quarters"])
     data["profit_loss"] = FinancialStatement(**data["profit_loss"])
     data["balance_sheet"] = FinancialStatement(**data["balance_sheet"])
-    data["cash_flow"] = FinancialStatement(**data["cash_flow"])
+    
+    # Filter out non-raw injected rows from cash flow statement
+    cf_data = data["cash_flow"]
+    if isinstance(cf_data, dict) and "rows" in cf_data:
+        clean_cf_rows = [
+            r for r in cf_data.get("rows", [])
+            if clean_metric_name(r.get("metric", "") if isinstance(r, dict) else getattr(r, "metric", "")).lower().strip() not in NON_RAW_CASH_FLOW_METRICS
+        ]
+        cf_dict = dict(cf_data)
+        cf_dict["rows"] = clean_cf_rows
+        data["cash_flow"] = FinancialStatement(**cf_dict)
+    elif hasattr(cf_data, "rows"):
+        cf_data.rows = [
+            r for r in cf_data.rows
+            if clean_metric_name(getattr(r, "metric", "")).lower().strip() not in NON_RAW_CASH_FLOW_METRICS
+        ]
+        data["cash_flow"] = cf_data
+    else:
+        data["cash_flow"] = FinancialStatement(**cf_data)
+        
     data["concall_insights"] = [ConcallInsight(**c) for c in data.get("concall_insights", [])]
     data["annual_report_insights"] = [AnnualReportInsight(**a) for a in data.get("annual_report_insights", [])]
     

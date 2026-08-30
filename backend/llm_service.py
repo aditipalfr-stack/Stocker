@@ -7,6 +7,68 @@ from pathlib import Path
 
 import database
 
+
+GEMINI_API_BASE = "https://generativelanguage.googleapis.com/v1beta"
+
+
+class AIServiceError(RuntimeError):
+    """Base exception for failures that callers can safely classify."""
+
+
+class AIProviderNetworkError(AIServiceError):
+    """The provider could not be reached because of DNS, connection, or timeout failures."""
+
+
+class AIProviderAuthError(AIServiceError):
+    """The provider rejected the configured credential."""
+
+
+class AIProviderQuotaError(AIServiceError):
+    """The provider rejected the request because its quota or rate limit was exhausted."""
+
+
+def sanitize_ai_error(error: Any, api_key: Optional[str] = None) -> str:
+    """Remove credentials from provider and requests-library error messages."""
+    message = str(error)
+    message = re.sub(r"([?&]key=)[^&\s'\"]+", r"\1[REDACTED]", message, flags=re.IGNORECASE)
+    if api_key:
+        message = message.replace(api_key, "[REDACTED]")
+    return message
+
+
+def format_ai_error_for_user(error: Any, provider: str = "gemini") -> str:
+    """Convert an internal provider error into a safe, actionable UI message."""
+    safe_message = sanitize_ai_error(error)
+    lower_message = safe_message.lower()
+
+    if isinstance(error, AIProviderNetworkError) or any(marker in lower_message for marker in (
+        "nameresolutionerror",
+        "failed to resolve",
+        "name resolution",
+        "connection error",
+        "network/timeout",
+    )):
+        if provider.lower() == "gemini":
+            return (
+                "Could not reach Google Gemini because the backend has a DNS/network connection problem. "
+                "This is not an API-key error. Check that the backend can resolve and access "
+                "generativelanguage.googleapis.com, then retry."
+            )
+        return "Could not reach the AI provider because the backend has a DNS/network connection problem. Retry after connectivity is restored."
+
+    if isinstance(error, AIProviderAuthError):
+        return "Google Gemini rejected the configured API key. Verify or replace the key and try again."
+    if isinstance(error, AIProviderQuotaError):
+        return "Google Gemini quota or rate limit was exceeded. Check the API project's quota and retry later."
+
+    # Keep useful model/schema context while ensuring a provider response cannot expose a key.
+    return safe_message[:500]
+
+
+def _gemini_headers(api_key: str) -> Dict[str, str]:
+    # Sending the key in a header prevents requests from embedding it in exception URLs.
+    return {"Content-Type": "application/json", "x-goog-api-key": api_key}
+
 try:
     from dotenv import load_dotenv
     env_path = Path(__file__).parent.parent / ".env"
@@ -31,6 +93,7 @@ Focus strictly on:
 - Segment performance & operational highlights
 - Cash flow, net debt & working capital management
 - Major risks, compliance, and long-term management targets
+- Specific quantitative facts, operational KPIs (ARPU, capacity, order book, margins, volumes), and targets
 
 Output MUST be a valid JSON object matching this schema:
 {
@@ -40,7 +103,22 @@ Output MUST be a valid JSON object matching this schema:
   "capex_and_expansion": "Capex numbers and capacity additions",
   "cash_debt_working_capital": "Cash generation, leverage, and working capital commentary",
   "major_risks": ["Key operational/financial risk 1", "Key risk 2"],
-  "long_term_targets": "Management's multi-year vision or numerical targets"
+  "long_term_targets": "Management's multi-year vision or numerical targets",
+  "extracted_facts": [
+    {
+      "metric_name": "EBITDA Margin / ARPU / Capacity / Revenue / Order Book / Stores",
+      "stated_value_raw": "52% / ₹245 / 1 GW / ₹14,500 Cr",
+      "numeric_value": 52.0,
+      "unit": "% / ₹ / MW / ₹ Cr / bps / units",
+      "period_or_date": "FY26",
+      "target_period": null,
+      "category": "financial_metric" | "operational_kpi" | "management_guidance" | "strategic_initiative",
+      "scope": "Consolidated" | "Standalone" | "Segment",
+      "claim_type": "reported_fact" | "management_guidance" | "management_target",
+      "source_quote": "Verbatim quote snippet",
+      "source_page": 15
+    }
+  ]
 }
 """
 
@@ -52,6 +130,7 @@ Focus strictly on:
 - Capex deployment & execution updates
 - Key operational shifts vs previous quarter
 - Management tone & analyst Q&A sentiment
+- Specific stated KPIs, volume metrics, price movements, and forward guidance numbers
 
 Output MUST be a valid JSON object matching this schema:
 {
@@ -61,7 +140,22 @@ Output MUST be a valid JSON object matching this schema:
   "demand_and_orders": "Demand commentary, order intake, backlog",
   "margin_outlook": "Margin trajectory and cost pressures",
   "capex_and_execution": "Capex timeline and project execution updates",
-  "quarterly_shifts": "Key changes vs prior quarters"
+  "quarterly_shifts": "Key changes vs prior quarters",
+  "extracted_facts": [
+    {
+      "metric_name": "Metric Name e.g. Guidance Revenue Growth / Order Inflow / Utilization",
+      "stated_value_raw": "14-16% / ₹8,200 Cr / 85%",
+      "numeric_value": 15.0,
+      "unit": "% / ₹ Cr / bps",
+      "period_or_date": "Q3 FY26",
+      "target_period": "FY27",
+      "category": "management_guidance" | "operational_kpi" | "financial_metric",
+      "scope": "Consolidated",
+      "claim_type": "management_guidance" | "reported_fact",
+      "source_quote": "Verbatim quote snippet",
+      "source_page": 6
+    }
+  ]
 }
 """
 
@@ -71,6 +165,7 @@ Focus strictly on:
 - Capacity additions and expansion roadmap
 - Segment growth highlights
 - Forward-looking financial and operational targets
+- Quantitative operational milestones (stores, megawatts, subscriber metrics, capacity utilization)
 
 Output MUST be a valid JSON object matching this schema:
 {
@@ -79,7 +174,22 @@ Output MUST be a valid JSON object matching this schema:
   "major_kpis": ["Key KPI 1", "Key KPI 2"],
   "expansion_roadmap": "Capacity additions and project milestones",
   "segment_highlights": ["Segment 1 trajectory", "Segment 2 trajectory"],
-  "forward_targets": "Target numbers and expected milestones"
+  "forward_targets": "Target numbers and expected milestones",
+  "extracted_facts": [
+    {
+      "metric_name": "Solar Capacity / Subscriber Count / Store Count / ARPU",
+      "stated_value_raw": "420 MW / 125M / 1,450 Stores / ₹230",
+      "numeric_value": 420.0,
+      "unit": "MW / Subscribers / Stores / ₹",
+      "period_or_date": "Q2 FY26",
+      "target_period": null,
+      "category": "operational_kpi" | "management_guidance",
+      "scope": "Consolidated",
+      "claim_type": "reported_fact" | "management_target",
+      "source_quote": "Verbatim quote snippet",
+      "source_page": 10
+    }
+  ]
 }
 """
 
@@ -96,7 +206,22 @@ Output MUST be a valid JSON object matching this schema:
   "event_summary": "Concise summary of the corporate action/announcement",
   "fundamental_importance": "Why this matters fundamentally for equity value",
   "business_and_financial_impact": "Quantifiable revenue, margin, or operational impact",
-  "guidance_impact": "Whether this modifies previous guidance or strategy"
+  "guidance_impact": "Whether this modifies previous guidance or strategy",
+  "extracted_facts": [
+    {
+      "metric_name": "Order Win / Outlay / Acquisition Value / Capacity Addition",
+      "stated_value_raw": "₹1,200 Cr / 100 MW",
+      "numeric_value": 1200.0,
+      "unit": "₹ Cr / MW",
+      "period_or_date": "Announcement Date",
+      "target_period": null,
+      "category": "strategic_initiative" | "operational_kpi",
+      "scope": "Consolidated",
+      "claim_type": "reported_fact",
+      "source_quote": "Verbatim quote snippet",
+      "source_page": 1
+    }
+  ]
 }
 """
 
@@ -247,10 +372,10 @@ def test_ai_key_connectivity() -> Dict[str, Any]:
     masked_key = f"{key[:6]}...{key[-4:]}" if len(key) > 10 else "***"
     
     if provider == "gemini":
-        test_url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite:generateContent?key={key}"
+        test_url = f"{GEMINI_API_BASE}/models/gemini-3.1-flash-lite:generateContent"
         payload = {"contents": [{"parts": [{"text": "Reply with OK"}]}]}
         try:
-            r = requests.post(test_url, json=payload, headers={"Content-Type": "application/json"}, timeout=8)
+            r = requests.post(test_url, json=payload, headers=_gemini_headers(key), timeout=8)
             if r.status_code == 200:
                 return {
                     "configured": True,
@@ -283,13 +408,16 @@ def test_ai_key_connectivity() -> Dict[str, Any]:
                     "key_preview": masked_key,
                     "message": f"Gemini API returned status {r.status_code}: {r.text[:150]}"
                 }
-        except Exception as e:
+        except requests.exceptions.RequestException:
             return {
                 "configured": True,
                 "provider": "Google Gemini",
                 "status": "network_error",
                 "key_preview": masked_key,
-                "message": f"Network connection to Google Gemini failed: {str(e)[:120]}"
+                "message": (
+                    "Could not reach Google Gemini because the backend has a DNS/network connection problem. "
+                    "The configured key was not rejected; check backend internet and DNS access."
+                )
             }
     else:
         test_url = "https://api.openai.com/v1/chat/completions"
@@ -349,7 +477,7 @@ def call_gemini_api(api_key: str, prompt: str, system_prompt: str = SYSTEM_PROMP
     ]
     last_err = None
     for model in models_to_try:
-        url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={api_key}"
+        url = f"{GEMINI_API_BASE}/models/{model}:generateContent"
         payload = {
             "contents": [{"parts": [{"text": prompt}]}],
             "systemInstruction": {"parts": [{"text": system_prompt}]},
@@ -358,34 +486,44 @@ def call_gemini_api(api_key: str, prompt: str, system_prompt: str = SYSTEM_PROMP
                 "temperature": 0.1
             }
         }
-        try:
-            print(f"    • Invoking Gemini model: {model}...")
-            resp = requests.post(url, json=payload, headers={"Content-Type": "application/json"}, timeout=40)
-            if resp.status_code == 200:
-                data = resp.json()
-                raw_text = data["candidates"][0]["content"]["parts"][0]["text"]
-                return json.loads(raw_text), model
-            elif resp.status_code in (404, 503, 429, 500, 502, 504):
-                last_err = f"Model {model} returned HTTP {resp.status_code}: {resp.text[:120]}"
-                print(f"      ⚠️ {last_err}. Falling back to next available model...")
-                time.sleep(1)
-                continue
-            else:
-                raise RuntimeError(f"Gemini API error ({resp.status_code}): {resp.text[:250]}")
-        except json.JSONDecodeError as je:
-            last_err = f"Model {model} JSON parse error: {je}"
-            print(f"      ⚠️ {last_err}. Retrying with next model...")
-            continue
-        except requests.exceptions.RequestException as re:
-            last_err = f"Model {model} network/timeout error: {re}"
-            print(f"      ⚠️ {last_err}. Retrying with next model...")
-            time.sleep(1)
-            continue
-        except Exception as e:
-            if any(code in str(e) for code in ["404", "503", "429", "timeout"]):
-                last_err = str(e)
-                continue
-            raise e
+        print(f"    • Invoking Gemini model: {model}...")
+        for network_attempt in range(3):
+            try:
+                resp = requests.post(url, json=payload, headers=_gemini_headers(api_key), timeout=40)
+                if resp.status_code == 200:
+                    data = resp.json()
+                    raw_text = data["candidates"][0]["content"]["parts"][0]["text"]
+                    return json.loads(raw_text), model
+                if resp.status_code in (401, 403):
+                    raise AIProviderAuthError("Gemini rejected the configured API key.")
+                if resp.status_code == 429:
+                    raise AIProviderQuotaError("Gemini quota or rate limit was exceeded.")
+                if resp.status_code in (404, 500, 502, 503, 504):
+                    last_err = f"Model {model} returned HTTP {resp.status_code}: {resp.text[:120]}"
+                    print(f"      ⚠️ {last_err}. Falling back to next available model...")
+                    time.sleep(1)
+                    break
+                raise AIServiceError(f"Gemini API error ({resp.status_code}): {resp.text[:250]}")
+            except json.JSONDecodeError as json_error:
+                last_err = f"Model {model} JSON parse error: {json_error}"
+                print(f"      ⚠️ {last_err}. Retrying with next model...")
+                break
+            except requests.exceptions.ConnectionError as network_error:
+                # Every model uses the same hostname, so switching models cannot fix DNS/connectivity.
+                if network_attempt < 2:
+                    time.sleep(0.5 * (2 ** network_attempt))
+                    continue
+                safe_error = sanitize_ai_error(network_error, api_key)
+                raise AIProviderNetworkError(f"Gemini network connection failed after 3 attempts: {safe_error}") from network_error
+            except requests.exceptions.Timeout as timeout_error:
+                if network_attempt < 2:
+                    time.sleep(0.5 * (2 ** network_attempt))
+                    continue
+                safe_error = sanitize_ai_error(timeout_error, api_key)
+                raise AIProviderNetworkError(f"Gemini request timed out after 3 attempts: {safe_error}") from timeout_error
+            except requests.exceptions.RequestException as request_error:
+                safe_error = sanitize_ai_error(request_error, api_key)
+                raise AIProviderNetworkError(f"Gemini network request failed: {safe_error}") from request_error
             
     raise RuntimeError(f"All Gemini models failed. Last error: {last_err}")
 
@@ -462,7 +600,39 @@ OFFICIAL URL: {doc_url}
         summary["model_version"] = used_model
         summary["ai_provider"] = f"{provider.upper()} ({used_model})"
         summary["analyzed_at"] = datetime.now(timezone.utc).isoformat()
+        
+        # Enrich and persist extracted knowledge facts
+        facts_list = summary.get("extracted_facts", [])
+        clean_facts = []
+        if isinstance(facts_list, list):
+            for f in facts_list:
+                if isinstance(f, dict):
+                    f_item = dict(f)
+                    f_item["symbol"] = symbol.upper().strip()
+                    f_item["doc_url"] = doc_url
+                    f_item["doc_title"] = doc_title
+                    f_item["doc_type"] = doc_type
+                    if not f_item.get("period_or_date"):
+                        f_item["period_or_date"] = period_or_date
+                    # Ensure numeric_value is float if parsable
+                    if f_item.get("numeric_value") is None and f_item.get("stated_value_raw"):
+                        m_num = re.search(r'[-+]?\d*\.?\d+', str(f_item["stated_value_raw"]))
+                        if m_num:
+                            try:
+                                f_item["numeric_value"] = float(m_num.group(0))
+                            except Exception:
+                                pass
+                    clean_facts.append(f_item)
+            summary["extracted_facts"] = clean_facts
+            try:
+                database.save_company_knowledge_facts(symbol, clean_facts, clear_doc_urls=[doc_url])
+            except Exception as e_db:
+                print(f"Notice: Could not persist knowledge facts for {doc_title}: {e_db}")
+                
         return summary
+    except AIServiceError:
+        # A provider outage should stop this run instead of being retried once per document.
+        raise
     except Exception as e:
         print(f"    ⚠️ Failed to generate single doc summary for {doc_title}: {e}")
         return None
@@ -742,9 +912,119 @@ SYNTHESIS INSTRUCTIONS:
             else:
                 result.risks_and_cash.source_page = None
                 result.risks_and_cash.source_quote = None
-            
-        return True, result, "Extraction succeeded"
-    except Exception as e:
-        return False, None, f"Error running LLM extraction with {provider.upper()}: {e}"
 
+        # 6. Integrated Persistent Company Knowledge & Triangulation Layer
+        try:
+            from financial_engine import process_and_verify_company_knowledge
+            # Collect facts from precomputed summaries and database
+            all_facts: List[Dict[str, Any]] = []
+            if precomputed_document_summaries:
+                for s in precomputed_document_summaries:
+                    for f in s.get("extracted_facts", []):
+                        if isinstance(f, dict):
+                            all_facts.append(f)
+            # Merge with database facts
+            db_facts = database.get_company_knowledge_facts(symbol)
+            seen_fact_keys = set()
+            merged_facts = []
+            for f in (all_facts + db_facts):
+                key = (f.get("metric_name", ""), f.get("period_or_date", ""), f.get("doc_url", ""))
+                if key not in seen_fact_keys:
+                    seen_fact_keys.add(key)
+                    merged_facts.append(f)
+                    
+            stock_data_pkg = {
+                "profit_loss": pl_stmt,
+                "quarters": quarters_stmt,
+                "balance_sheet": bs_stmt,
+                "cash_flow": cf_stmt
+            }
+            
+            projection_pkg = None
+            try:
+                from projection_engine import generate_scenario_suite
+                from models import KeyRatios, FinancialStatement
+                from financial_engine import get_row_values
+                cached_stock = database.get_stock_cache(symbol) or {}
+                r_dict = cached_stock.get("ratios")
+                if r_dict:
+                    ratios_obj = KeyRatios(**r_dict) if isinstance(r_dict, dict) else r_dict
+                    analytics = cached_stock.get("analytics") or {}
+                    pl_obj = FinancialStatement(**pl_stmt) if isinstance(pl_stmt, dict) else pl_stmt
+                    bs_obj = FinancialStatement(**bs_stmt) if isinstance(bs_stmt, dict) else bs_stmt
+                    cf_obj = FinancialStatement(**cf_stmt) if isinstance(cf_stmt, dict) else cf_stmt
+                    
+                    scenario_suite = generate_scenario_suite(
+                        ratios=ratios_obj,
+                        pl=pl_obj,
+                        bs=bs_obj,
+                        cf=cf_obj,
+                        analytics=analytics,
+                        doc_intel=None
+                    )
+                    base_case = scenario_suite.get("base_case")
+                    bull_case = scenario_suite.get("bull_case")
+                    bear_case = scenario_suite.get("bear_case")
+                    
+                    base_sales = base_case.assumptions.revenue_growth_rate_pct if base_case else None
+                    bull_sales = bull_case.assumptions.revenue_growth_rate_pct if bull_case else None
+                    bear_sales = bear_case.assumptions.revenue_growth_rate_pct if bear_case else None
+                    target_opm = base_case.assumptions.target_opm_pct if base_case else None
+                    capex_sales = base_case.assumptions.capex_pct_of_sales if base_case else None
+                    
+                    base_pat_cagr = None
+                    bull_pat_cagr = None
+                    bear_pat_cagr = None
+                    if base_case and len(base_case.projections) >= 3:
+                        y_pat = get_row_values(pl_obj, "Net Profit") or get_row_values(pl_obj, "PAT") if pl_obj else {}
+                        y_periods = pl_obj.periods if pl_obj else []
+                        latest_pat = y_pat.get(y_periods[-1], 0.0) if y_periods else 0.0
+                        if latest_pat > 0:
+                            yr3_pat_base = base_case.projections[2].pat_cr
+                            if yr3_pat_base > 0:
+                                base_pat_cagr = round(((yr3_pat_base / latest_pat) ** (1.0 / 3.0) - 1.0) * 100.0, 1)
+                            if bull_case and len(bull_case.projections) >= 3:
+                                yr3_pat_bull = bull_case.projections[2].pat_cr
+                                if yr3_pat_bull > 0:
+                                    bull_pat_cagr = round(((yr3_pat_bull / latest_pat) ** (1.0 / 3.0) - 1.0) * 100.0, 1)
+                            if bear_case and len(bear_case.projections) >= 3:
+                                yr3_pat_bear = bear_case.projections[2].pat_cr
+                                if yr3_pat_bear > 0:
+                                    bear_pat_cagr = round(((yr3_pat_bear / latest_pat) ** (1.0 / 3.0) - 1.0) * 100.0, 1)
+
+                    projection_pkg = {
+                        "revenue_growth_rate_pct": base_sales,
+                        "base_sales_cagr": base_sales,
+                        "bull_sales_cagr": bull_sales,
+                        "bear_sales_cagr": bear_sales,
+                        "target_opm_pct": target_opm,
+                        "capex_pct_of_sales": capex_sales,
+                        "base_pat_cagr": base_pat_cagr,
+                        "bull_pat_cagr": bull_pat_cagr,
+                        "bear_pat_cagr": bear_pat_cagr,
+                        "projection_source": "Stocker DCF Projection Engine"
+                    }
+            except Exception as e_proj:
+                print(f"Notice: Projection derivation skipped during knowledge verification: {e_proj}")
+                projection_pkg = None
+
+            knowledge_res = process_and_verify_company_knowledge(
+                symbol=symbol,
+                facts_list=merged_facts,
+                stock_data=stock_data_pkg,
+                projection_assumptions=projection_pkg
+            )
+            
+            from doc_intelligence_models import VerifiedFactComparison, InterDocumentKPITrend, GuidanceVsProjection
+            result.verified_facts = [VerifiedFactComparison(**vf) for vf in knowledge_res.get("verified_facts", [])]
+            result.operational_kpi_evolution = [InterDocumentKPITrend(**it) for it in knowledge_res.get("operational_kpi_evolution", [])]
+            result.guidance_vs_projections = [GuidanceVsProjection(**gp) for gp in knowledge_res.get("guidance_vs_projections", [])]
+        except Exception as e_k:
+            print(f"Notice: Knowledge verification engine error: {e_k}")
+
+        return True, result, "Extraction succeeded"
+    except AIServiceError:
+        raise
+    except Exception as e:
+        return False, None, f"Error running LLM extraction with {provider.upper()}: {format_ai_error_for_user(e, provider)}"
 

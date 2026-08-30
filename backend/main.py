@@ -349,7 +349,22 @@ def generate_stock_doc_intelligence(symbol: str):
         )
         return res
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"AI Document Intelligence generation failed: {e}")
+        from llm_service import (
+            AIProviderAuthError,
+            AIProviderNetworkError,
+            AIProviderQuotaError,
+            format_ai_error_for_user,
+        )
+        if isinstance(e, AIProviderAuthError):
+            status_code = 401
+        elif isinstance(e, AIProviderQuotaError):
+            status_code = 429
+        elif isinstance(e, AIProviderNetworkError):
+            status_code = 503
+        else:
+            status_code = 500
+        safe_detail = format_ai_error_for_user(e, "gemini")
+        raise HTTPException(status_code=status_code, detail=f"AI Document Intelligence generation failed: {safe_detail}")
 
 @app.post("/api/stocks/{symbol}/project", response_model=ProjectionResult)
 def project_stock_future(symbol: str, assumptions: ProjectionAssumption):

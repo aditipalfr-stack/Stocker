@@ -8,7 +8,7 @@ import path from 'path'
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '')
   const frontendPort = parseInt(process.env.FRONTEND_PORT || env.FRONTEND_PORT || '5188', 10)
-  const backendPort = parseInt(process.env.BACKEND_PORT || env.BACKEND_PORT || '8088', 10)
+  const backendPort = parseInt(process.env.BACKEND_PORT || env.BACKEND_PORT || '8080', 10)
 
   return {
     plugins: [react()],

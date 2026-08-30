@@ -78,7 +78,7 @@ export const StockDetailView: React.FC<StockDetailViewProps> = ({ stock, onBack,
   const [loadingDocIntel, setLoadingDocIntel] = useState<boolean>(false);
   const [generatingDocIntel, setGeneratingDocIntel] = useState<boolean>(false);
   const [docIntelError, setDocIntelError] = useState<string | null>(null);
-  const [outlookSubTab, setOutlookSubTab] = useState<'summary' | 'promise_delivery' | 'growth_pipeline' | 'risks_demand' | 'filings_ai' | 'filings'>('summary');
+  const [outlookSubTab, setOutlookSubTab] = useState<'summary' | 'promise_delivery' | 'kpi_evolution' | 'guidance_projections' | 'growth_pipeline' | 'risks_demand' | 'filings_ai' | 'filings'>('summary');
   const [selectedFormulaKey, setSelectedFormulaKey] = useState<string | null>(null);
 
   // AI Configuration & Progress State
@@ -125,6 +125,15 @@ export const StockDetailView: React.FC<StockDetailViewProps> = ({ stock, onBack,
       const status = await fetchAiStatus();
       setAiStatus(status);
       if (!status.configured || status.status === 'missing_key') {
+        setIsKeyModalOpen(true);
+        return;
+      }
+      if (status.status === 'network_error' || status.status === 'quota_exceeded') {
+        setDocIntelError(status.message);
+        return;
+      }
+      if (status.status === 'invalid_key') {
+        setDocIntelError(status.message);
         setIsKeyModalOpen(true);
         return;
       }
@@ -1246,6 +1255,44 @@ export const StockDetailView: React.FC<StockDetailViewProps> = ({ stock, onBack,
             </button>
 
             <button
+              onClick={() => setOutlookSubTab('kpi_evolution')}
+              className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 whitespace-nowrap ${
+                outlookSubTab === 'kpi_evolution'
+                  ? 'bg-emerald-500 text-slate-950 shadow-md shadow-emerald-500/20'
+                  : 'text-slate-400 hover:text-white hover:bg-slate-900'
+              }`}
+            >
+              <Activity className="w-3.5 h-3.5" />
+              <span>KPI & Knowledge Evolution</span>
+              {(docIntel?.verified_facts?.length || docIntel?.operational_kpi_evolution?.length) ? (
+                <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-mono font-bold ${
+                  outlookSubTab === 'kpi_evolution' ? 'bg-slate-950 text-emerald-300' : 'bg-slate-900 text-slate-400'
+                }`}>
+                  {(docIntel?.verified_facts?.length || 0) + (docIntel?.operational_kpi_evolution?.length || 0)}
+                </span>
+              ) : null}
+            </button>
+
+            <button
+              onClick={() => setOutlookSubTab('guidance_projections')}
+              className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 whitespace-nowrap ${
+                outlookSubTab === 'guidance_projections'
+                  ? 'bg-emerald-500 text-slate-950 shadow-md shadow-emerald-500/20'
+                  : 'text-slate-400 hover:text-white hover:bg-slate-900'
+              }`}
+            >
+              <Calculator className="w-3.5 h-3.5" />
+              <span>Guidance vs Projections</span>
+              {docIntel?.guidance_vs_projections?.length ? (
+                <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-mono font-bold ${
+                  outlookSubTab === 'guidance_projections' ? 'bg-slate-950 text-emerald-300' : 'bg-slate-900 text-slate-400'
+                }`}>
+                  {docIntel.guidance_vs_projections.length}
+                </span>
+              ) : null}
+            </button>
+
+            <button
               onClick={() => setOutlookSubTab('growth_pipeline')}
               className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 whitespace-nowrap ${
                 outlookSubTab === 'growth_pipeline'
@@ -1723,6 +1770,290 @@ export const StockDetailView: React.FC<StockDetailViewProps> = ({ stock, onBack,
                       </div>
                     );
                   })}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* SUB-VIEW: OPERATIONAL KPI & KNOWLEDGE EVOLUTION */}
+          {outlookSubTab === 'kpi_evolution' && (
+            <div className="space-y-8">
+              {/* Section 1: Statement Claim Verifications */}
+              <div className="glass-panel rounded-3xl p-6 md:p-8 border border-slate-800 space-y-6">
+                <div className="flex items-center gap-2.5 border-b border-slate-800 pb-4">
+                  <Activity className="w-5 h-5 text-cyan-400" />
+                  <div>
+                    <h4 className="text-lg font-bold text-white">Audited Financial Statement Verifications & Context</h4>
+                    <p className="text-xs text-slate-400">
+                      Cross-examining filing claims against audited 10-year financial statements with prior-period baselines and deterministic variance.
+                    </p>
+                  </div>
+                </div>
+
+                {(!docIntel?.verified_facts || docIntel.verified_facts.length === 0) ? (
+                  <div className="p-8 text-center bg-slate-950/60 rounded-2xl border border-slate-800 text-slate-400 text-xs">
+                    No verified statement claims available. Run AI Analysis on official filings to extract and verify metrics.
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {docIntel.verified_facts.map((fact, idx) => {
+                      const isVerified = fact.statement_verification_status === 'Verified against Reported Financials';
+                      const isDiscrepancy = fact.statement_verification_status?.includes('Discrepancy');
+                      const isContextOnly = fact.statement_verification_status?.includes('Statement Context') || fact.statement_verification_status?.includes('Not Directly Comparable');
+                      const isOperational = fact.statement_verification_status?.includes('Operational');
+
+                      return (
+                        <div key={idx} className="bg-slate-950/80 rounded-2xl border border-slate-800 p-5 space-y-3.5 flex flex-col justify-between">
+                          <div className="space-y-3">
+                            <div className="flex items-start justify-between gap-2 flex-wrap">
+                              <h5 className="text-sm font-bold text-white">{fact.metric_name}</h5>
+                              <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
+                                isVerified ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30' :
+                                isDiscrepancy ? 'bg-rose-500/20 text-rose-300 border-rose-500/30' :
+                                isContextOnly ? 'bg-amber-500/20 text-amber-300 border-amber-500/30' :
+                                isOperational ? 'bg-cyan-500/20 text-cyan-300 border-cyan-500/30' :
+                                'bg-slate-800 text-slate-300 border-slate-700'
+                              }`}>
+                                {fact.statement_verification_status}
+                              </span>
+                            </div>
+
+                            {/* Comparison Numbers Grid */}
+                            <div className="grid grid-cols-2 gap-2 text-xs font-mono bg-slate-900/70 p-3 rounded-xl border border-slate-800/80">
+                              <div>
+                                <span className="text-[10px] text-slate-500 uppercase font-sans block">
+                                  {fact.latest_period || 'Current Filing'}
+                                </span>
+                                <span className={`font-bold text-sm ${isDiscrepancy ? 'text-rose-400' : 'text-emerald-400'}`}>
+                                  {fact.latest_value_raw}
+                                </span>
+                              </div>
+                              <div>
+                                <span className="text-[10px] text-slate-500 uppercase font-sans block">
+                                  {fact.prior_period || 'Prior Baseline'}
+                                </span>
+                                <span className="text-slate-300 font-medium text-sm">
+                                  {fact.prior_value_raw || 'N/A'}
+                                </span>
+                              </div>
+                              {(fact.delta_numeric !== null && fact.delta_numeric !== undefined) && (
+                                <div className="col-span-2 pt-2 border-t border-slate-800/60 flex items-center justify-between text-[11px]">
+                                  <span className="text-slate-400 font-sans">Period Movement:</span>
+                                  <span className={`font-bold ${fact.delta_numeric >= 0 ? 'text-emerald-300' : 'text-rose-300'}`}>
+                                    {fact.delta_numeric >= 0 ? '+' : ''}{fact.delta_numeric} {fact.unit || ''} {fact.pct_change !== null ? `(${fact.pct_change >= 0 ? '+' : ''}${fact.pct_change}%)` : ''}
+                                  </span>
+                                </div>
+                              )}
+                            </div>
+
+                            {/* Audited Statement Check */}
+                            {fact.statement_reported_value && (
+                              <div className={`p-2.5 rounded-lg border text-[11px] font-mono ${
+                                isDiscrepancy ? 'bg-rose-950/30 border-rose-800/40 text-rose-200' : 'bg-cyan-950/30 border-cyan-800/40 text-cyan-200'
+                              }`}>
+                                <span className={`font-sans font-bold text-[10px] uppercase block ${isDiscrepancy ? 'text-rose-400' : 'text-cyan-400'}`}>
+                                  {isDiscrepancy ? 'Audited Financial Statement Reality' : 'Reported Statement Fact'}
+                                </span>
+                                <span>{fact.statement_reported_value}</span>
+                              </div>
+                            )}
+
+                            {/* Stocker Assessment Note */}
+                            {fact.stocker_assessment && (
+                              <div className="text-xs text-slate-300 bg-slate-900/40 p-3 rounded-xl border border-slate-800/60">
+                                <span className={`font-bold text-[10px] uppercase block mb-1 ${isDiscrepancy ? 'text-rose-400' : 'text-emerald-400'}`}>
+                                  Stocker Assessment
+                                </span>
+                                <p className="leading-relaxed">{fact.stocker_assessment}</p>
+                              </div>
+                            )}
+
+                            {/* Management Quote */}
+                            {fact.management_explanation && (
+                              <p className="text-[11px] text-slate-400 italic bg-slate-950/50 p-2 rounded border border-slate-900">
+                                "{fact.management_explanation}"
+                              </p>
+                            )}
+                          </div>
+
+                          {/* Source Link */}
+                          <div className="pt-2 border-t border-slate-900 flex items-center justify-between text-[11px] font-mono text-slate-500">
+                            <span>{fact.source_doc_title || 'Official Filing'}{fact.source_page ? ` (p. ${fact.source_page})` : ''}</span>
+                            {fact.source_url && (
+                              <a href={fact.source_url} target="_blank" rel="noreferrer" className="text-emerald-400 hover:underline flex items-center gap-1 font-sans">
+                                <span>Open PDF</span> <ExternalLink className="w-3 h-3" />
+                              </a>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+
+              {/* Section 2: Inter-Document Operational KPI Evolution */}
+              <div className="glass-panel rounded-3xl p-6 md:p-8 border border-slate-800 space-y-6">
+                <div className="flex items-center gap-2.5 border-b border-slate-800 pb-4">
+                  <Layers className="w-5 h-5 text-purple-400" />
+                  <div>
+                    <h4 className="text-lg font-bold text-white">Operational KPI Evolution Across Filings</h4>
+                    <p className="text-xs text-slate-400">
+                      Tracking metrics like ARPU, order books, capacity additions, and subscriber counts across official company filings over time.
+                    </p>
+                  </div>
+                </div>
+
+                {(!docIntel?.operational_kpi_evolution || docIntel.operational_kpi_evolution.length === 0) ? (
+                  <div className="p-8 text-center bg-slate-950/60 rounded-2xl border border-slate-800 text-slate-400 text-xs">
+                    No multi-document operational KPI time-series extracted yet.
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {docIntel.operational_kpi_evolution.map((kpi, idx) => (
+                      <div key={idx} className="bg-slate-950/80 rounded-2xl border border-slate-800 p-5 space-y-4">
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-800/80 pb-3">
+                          <div className="flex items-center gap-2.5 flex-wrap">
+                            <h5 className="text-sm font-bold text-white">{kpi.metric_name}</h5>
+                            <span className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full border ${
+                              kpi.trajectory?.includes('Expanding') ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30' :
+                              kpi.trajectory?.includes('Contracting') ? 'bg-rose-500/20 text-rose-300 border-rose-500/30' :
+                              'bg-purple-500/20 text-purple-300 border-purple-500/30'
+                            }`}>
+                              {kpi.trajectory}
+                            </span>
+                          </div>
+                          {kpi.latest_vs_prior_change && (
+                            <span className="text-xs font-mono font-bold text-emerald-400 bg-emerald-950/40 px-2.5 py-1 rounded-lg border border-emerald-800/40">
+                              Latest Movement: {kpi.latest_vs_prior_change}
+                            </span>
+                          )}
+                        </div>
+
+                        {/* Chronological Series Trail */}
+                        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2 text-xs">
+                          {kpi.data_points.map((pt, pIdx) => (
+                            <div key={pIdx} className="bg-slate-900/70 p-3 rounded-xl border border-slate-800/80 space-y-1">
+                              <span className="text-[10px] font-mono text-slate-400 block">{pt.period}</span>
+                              <span className="font-bold text-white text-sm block">{pt.stated_value}</span>
+                              <p className="text-[9px] text-slate-500 truncate" title={pt.doc_title}>{pt.doc_title || 'Official Filing'}</p>
+                            </div>
+                          ))}
+                        </div>
+
+                        {kpi.insight && (
+                          <p className="text-xs text-slate-300 bg-slate-900/40 p-3 rounded-xl border border-slate-800/60 leading-relaxed">
+                            <strong className="text-emerald-400">Insight:</strong> {kpi.insight}
+                          </p>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* SUB-VIEW: GUIDANCE VS STOCKER PROJECTIONS */}
+          {outlookSubTab === 'guidance_projections' && (
+            <div className="glass-panel rounded-3xl p-6 md:p-8 border border-slate-800 space-y-6">
+              <div className="flex items-center gap-2.5 border-b border-slate-800 pb-4">
+                <Calculator className="w-5 h-5 text-amber-400" />
+                <div>
+                  <h4 className="text-lg font-bold text-white">Management Guidance vs Stocker DCF Projections</h4>
+                  <p className="text-xs text-slate-400">
+                    Triangulating forward management guidance from filings against Stocker's 3-year DCF scenario projections and current quarterly run rate.
+                  </p>
+                </div>
+              </div>
+
+              {(!docIntel?.guidance_vs_projections || docIntel.guidance_vs_projections.length === 0) ? (
+                <div className="p-8 text-center bg-slate-950/60 rounded-2xl border border-slate-800 text-slate-400 text-xs">
+                  No forward management guidance items identified for triangulation. Click "Run Live AI Analysis" to extract guidance targets.
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {docIntel.guidance_vs_projections.map((item, idx) => (
+                    <div key={idx} className="bg-slate-950/80 rounded-2xl border border-slate-800 p-5 space-y-4">
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-800/80 pb-3">
+                        <div className="space-y-0.5">
+                          <h5 className="text-sm font-bold text-white">{item.metric_name}</h5>
+                          <span className="text-[11px] font-mono text-slate-400">Target Horizon: <strong className="text-emerald-400">{item.period_target}</strong></span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs font-mono font-bold px-2.5 py-1 rounded-lg bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                            Management Guided: {item.management_guidance_raw}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* 3-Column Triangulation Comparison */}
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs">
+                        {/* Column 1: Management Guidance */}
+                        <div className="bg-purple-950/20 p-4 rounded-xl border border-purple-900/30 space-y-2">
+                          <span className="text-[10px] font-bold uppercase tracking-wider text-purple-400 block">
+                            Management Guidance
+                          </span>
+                          <p className="text-sm font-bold text-white">{item.management_guidance_raw}</p>
+                          <p className="text-[10px] text-slate-400">Source: {item.guidance_source_doc}</p>
+                          {item.guidance_source_url && (
+                            <a href={item.guidance_source_url} target="_blank" rel="noreferrer" className="text-[10px] text-purple-300 underline flex items-center gap-1">
+                              <span>Open Sourced Filing</span> <ExternalLink className="w-2.5 h-2.5" />
+                            </a>
+                          )}
+                        </div>
+
+                        {/* Column 2: Stocker DCF Projections */}
+                        <div className="bg-cyan-950/20 p-4 rounded-xl border border-cyan-900/30 space-y-2">
+                          <span className="text-[10px] font-bold uppercase tracking-wider text-cyan-400 block">
+                            Stocker DCF Projection
+                          </span>
+                          {item.stocker_projected_base !== null && item.stocker_projected_base !== undefined ? (
+                            <div className="space-y-1">
+                              <p className="text-sm font-bold text-cyan-200">Base Case: {item.stocker_projected_base}%</p>
+                              {(item.stocker_projected_bull !== null && item.stocker_projected_bull !== undefined && item.stocker_projected_bear !== null && item.stocker_projected_bear !== undefined) && (
+                                <p className="text-[11px] text-slate-400 font-mono">Bull: {item.stocker_projected_bull}% | Bear: {item.stocker_projected_bear}%</p>
+                              )}
+                              {item.variance_guidance_vs_base_bps !== null && item.variance_guidance_vs_base_bps !== undefined && (
+                                <span className={`text-[10px] font-mono px-2 py-0.5 rounded inline-block mt-1 ${
+                                  item.variance_guidance_vs_base_bps >= 0 ? 'bg-emerald-950 text-emerald-300' : 'bg-rose-950 text-rose-300'
+                                }`}>
+                                  Variance vs Base: {item.variance_guidance_vs_base_bps >= 0 ? '+' : ''}{item.variance_guidance_vs_base_bps} bps
+                                </span>
+                              )}
+                            </div>
+                          ) : (
+                            <div className="space-y-1">
+                              <p className="text-xs font-semibold text-slate-400">No Direct DCF Model</p>
+                              <p className="text-[10px] text-slate-500">Operational / non-DCF guidance metric</p>
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Column 3: Current Run Rate */}
+                        <div className="bg-slate-900/60 p-4 rounded-xl border border-slate-800 space-y-2">
+                          <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-400 block">
+                            Current Run-Rate / Baseline
+                          </span>
+                          <p className="text-sm font-bold text-white">
+                            {item.current_run_rate_value !== null && item.current_run_rate_value !== undefined ? (
+                              `${item.current_run_rate_value}${item.metric_name?.toLowerCase().includes('margin') || item.metric_name?.toLowerCase().includes('growth') || item.metric_name?.toLowerCase().includes('revenue') ? '%' : ''}`
+                            ) : (
+                              'Unavailable / Not Tracked'
+                            )}
+                          </p>
+                          <p className="text-[10px] text-slate-400">Period: {item.current_run_rate_period || 'Ongoing'}</p>
+                        </div>
+                      </div>
+
+                      {/* Stocker Valuation & Triangulation Note */}
+                      {item.stocker_assessment && (
+                        <div className="bg-slate-900/40 p-3 rounded-xl border border-slate-800/60 text-xs text-slate-300 leading-relaxed">
+                          <strong className="text-emerald-400">Stocker Triangulation Note:</strong> {item.stocker_assessment}
+                        </div>
+                      )}
+                    </div>
+                  ))}
                 </div>
               )}
             </div>
