@@ -633,6 +633,13 @@ export interface BusinessOutlookIntelligence {
 
 export type BusinessAnalysisIntelligence = BusinessOutlookIntelligence;
 
+export interface SourceFilingsResponse {
+  symbol: string;
+  company_name: string;
+  documents: DocumentLinks;
+  summaries: Record<string, DocumentSummaryItem>;
+}
+
 export interface CompanySearchResult {
   symbol: string;
   company_name: string;

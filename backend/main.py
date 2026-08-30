@@ -384,9 +384,89 @@ from doc_intelligence_engine import get_company_doc_intelligence
 from llm_service import is_llm_available, get_available_llm_provider
 from doc_intelligence_pipeline import run_generic_document_pipeline, select_default_document_working_set, fetch_historical_evidence_document
 
-@app.get("/api/stocks/{symbol}/doc-intelligence")
+def _get_minimal_financial_analytics(symbol: str) -> Optional[Dict[str, Any]]:
+    """Retrieves or minimally computes only the essential analytics needed for business analysis cross-checks."""
+    clean_sym = symbol.upper().strip()
+    cached = database.get_stock_cache(clean_sym)
+    if cached and "analytics" in cached:
+        return cached["analytics"]
+    
+    try:
+        data = cached or fetch_stock_from_screener(clean_sym, force_refresh=False)
+        if data:
+            from financial_engine import compute_financial_analytics
+            from models import FinancialStatement
+            pl_raw = data.get("profit_loss") or data.get("profit_and_loss")
+            bs_raw = data.get("balance_sheet")
+            cf_raw = data.get("cash_flow")
+            quarters_raw = data.get("quarters")
+            
+            pl = FinancialStatement(**pl_raw) if pl_raw else None
+            bs = FinancialStatement(**bs_raw) if bs_raw else None
+            cf = FinancialStatement(**cf_raw) if cf_raw else None
+            quarters = FinancialStatement(**quarters_raw) if quarters_raw else None
+            
+            return compute_financial_analytics(quarters, pl, bs, cf)
+    except Exception as e:
+        print(f"Notice: Minimal analytics computation note: {e}")
+    return None
+
 @app.get("/api/stocks/{symbol}/business-analysis")
+def get_stock_business_analysis(symbol: str):
+    """
+    Lightweight, high-performance endpoint returning the verified Business Analysis synthesis
+    (Investment View, Business & Growth, Management & Execution) without full filing archives.
+    """
+    clean_sym = symbol.upper().strip()
+    analytics = _get_minimal_financial_analytics(clean_sym)
+    
+    # Retrieve company name cleanly from registry or cache
+    company_name = clean_sym
+    reg = database.get_company_by_symbol(clean_sym)
+    if reg:
+        company_name = reg.get("company_name", clean_sym)
+    else:
+        cached = database.get_stock_cache(clean_sym)
+        if cached:
+            company_name = cached.get("company_name", clean_sym)
+            
+    doc_intel = get_company_doc_intelligence(clean_sym, financial_analytics=analytics, include_document_summaries=False)
+    if not doc_intel:
+        return {
+            "symbol": clean_sym,
+            "company_name": company_name,
+            "status": "not_analyzed",
+            "message": f"Deep AI fundamental analysis has not been executed for {company_name} ({clean_sym}) yet.",
+            "ai_provider_used": "None",
+            "model_version": None,
+            "extraction_timestamp": "",
+            "latest_document_period": "Not Analyzed",
+            "older_document_period": None,
+            "source_documents": [],
+            "what_changed_recently": [],
+            "growth_drivers": [],
+            "promise_vs_delivery": [],
+            "demand_momentum": {"summary": "", "company_specific_metrics": [], "segment_trends": [], "headwinds_and_risks": []},
+            "risks_and_cash": {"working_capital_and_receivables": "", "debt_and_capex_burden": "", "execution_and_bottlenecks": [], "regulatory_or_legal_headwinds": []},
+            "stocker_view": {"execution_verdict": "Evolving / Watchlist", "investor_summary": "", "positive_triggers": [], "main_risks": [], "what_to_watch_next": []},
+            "business_quality": {"business_model_summary": "", "segment_mix": [], "geography_mix": [], "revenue_characteristics": {}},
+            "competitive_position": {"moat_type": "Narrow / Evolving", "key_advantages": [], "competitive_threats": []},
+            "capital_allocation": {},
+            "governance_watch": {"regulatory_or_legal_risks": []},
+            "document_summaries": [],
+            "verified_facts": [],
+            "operational_kpi_evolution": [],
+            "guidance_vs_projections": []
+        }
+        
+    res_dict = doc_intel.model_dump()
+    res_dict["source_documents"] = []
+    res_dict["document_summaries"] = []
+    return res_dict
+
+@app.get("/api/stocks/{symbol}/doc-intelligence")
 def get_stock_doc_intelligence(symbol: str):
+    """Backward-compatible endpoint returning full document intelligence with working set & summaries."""
     clean_sym = symbol.upper().strip()
     data = fetch_stock_from_screener(clean_sym, force_refresh=False)
     analytics = None
@@ -397,19 +477,15 @@ def get_stock_doc_intelligence(symbol: str):
         analytics = detail.analytics
         company_name = detail.name
         database.save_stock_cache(clean_sym, detail.name, detail.sector, detail.industry, data)
-        
-        # Collect default visible working set
         queued_docs = select_default_document_working_set(detail.documents)
             
-    doc_intel = get_company_doc_intelligence(clean_sym, financial_analytics=analytics)
+    doc_intel = get_company_doc_intelligence(clean_sym, financial_analytics=analytics, include_document_summaries=True)
     if not doc_intel:
         return {
             "symbol": clean_sym,
             "company_name": company_name,
             "status": "not_analyzed",
-            "message": (
-                f"Deep AI fundamental analysis has not been executed for {company_name} ({clean_sym}) yet."
-            ),
+            "message": f"Deep AI fundamental analysis has not been executed for {company_name} ({clean_sym}) yet.",
             "ai_provider_used": "None",
             "model_version": None,
             "extraction_timestamp": "",
@@ -435,17 +511,69 @@ def get_stock_doc_intelligence(symbol: str):
 
 @app.get("/api/stocks/{symbol}/source-filings")
 def get_stock_source_filings(symbol: str):
-    """Returns structured filing archive and per-document AI summaries."""
+    """
+    Returns structured filing archive and per-document AI summaries directly
+    from the persisted document layer without expensive full-detail recalculations.
+    """
     clean_sym = symbol.upper().strip()
-    data = fetch_stock_from_screener(clean_sym, force_refresh=False)
-    if not data:
-        raise HTTPException(status_code=404, detail=f"Stock {clean_sym} not found")
-    detail = build_full_stock_detail(data)
+    company_name = clean_sym
+    
+    # 1. Retrieve company name from registry or cache
+    reg_entry = database.get_company_by_symbol(clean_sym)
+    if reg_entry:
+        company_name = reg_entry.get("company_name", clean_sym)
+    else:
+        cached = database.get_stock_cache(clean_sym)
+        if cached:
+            company_name = cached.get("company_name", clean_sym)
+
+    # 2. Retrieve persisted source documents
+    db_docs = database.get_source_documents(clean_sym)
+    from models import DocumentLinks, DocumentItem
+    doc_links = DocumentLinks()
+    
+    if db_docs:
+        for r in db_docs:
+            d_item = DocumentItem(
+                ticker=clean_sym,
+                company_name=company_name,
+                title=r.get("title", ""),
+                url=r.get("url", ""),
+                doc_type=r.get("doc_type", "general"),
+                period_or_date=r.get("period_or_date"),
+                discovery_source=r.get("discovery_source", "Database"),
+                actual_source_host=r.get("actual_source_host", "bseindia.com")
+            )
+            dt = (d_item.doc_type or "").lower()
+            if "annual" in dt:
+                doc_links.annual_reports.append(d_item)
+            elif "concall" in dt:
+                doc_links.concalls.append(d_item)
+            elif "presentation" in dt:
+                doc_links.presentations.append(d_item)
+            elif "announcement" in dt:
+                doc_links.material_announcements.append(d_item)
+    else:
+        # Fast fallback: fetch screener raw documents without full analytics/projections calculation
+        cached = database.get_stock_cache(clean_sym)
+        if cached and "documents" in cached:
+            raw_d = cached["documents"]
+            if isinstance(raw_d, dict):
+                doc_links = DocumentLinks(**raw_d)
+        else:
+            data = fetch_stock_from_screener(clean_sym, force_refresh=False)
+            if data and "documents" in data:
+                raw_d = data["documents"]
+                if isinstance(raw_d, dict):
+                    doc_links = DocumentLinks(**raw_d)
+                company_name = data.get("company_name", company_name)
+    
     summaries = database.get_document_summaries(clean_sym)
+    
     return {
         "symbol": clean_sym,
-        "company_name": detail.name,
-        "documents": detail.documents.model_dump() if detail.documents else {},
+        "company_name": company_name,
+        "documents": doc_links.model_dump(),
         "summaries": summaries
     }
 

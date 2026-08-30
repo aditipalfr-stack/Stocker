@@ -250,9 +250,55 @@ def test_4_inter_document_kpi_evolution():
     
     print("  ✓ Test 4 passed: Multi-filing KPI time series accurately tracked.")
 
+def test_5_endpoints_payload_efficiency_and_field_names():
+    print("Test 5: Lightweight /business-analysis and /source-filings Endpoints...")
+    from main import get_stock_business_analysis, get_stock_source_filings, get_stock_doc_intelligence
+    
+    # 1. Test /business-analysis for INFY
+    data_ba = get_stock_business_analysis("INFY")
+    if hasattr(data_ba, "model_dump"):
+        data_ba = data_ba.model_dump()
+    assert "symbol" in data_ba
+    assert data_ba["symbol"] == "INFY"
+    # Verify lightweight payload: no heavy filing archive arrays embedded
+    assert "source_documents" in data_ba
+    assert data_ba["source_documents"] == []
+    assert "document_summaries" in data_ba
+    assert data_ba["document_summaries"] == []
+    assert "business_quality" in data_ba
+    assert "competitive_position" in data_ba
+    assert "capital_allocation" in data_ba
+    assert "governance_watch" in data_ba
+    print("  ✓ /business-analysis returned lightweight payload without embedded filing archive.")
+    
+    # 2. Test /source-filings for INFY
+    data_sf = get_stock_source_filings("INFY")
+    if hasattr(data_sf, "model_dump"):
+        data_sf = data_sf.model_dump()
+    assert data_sf["symbol"] == "INFY"
+    assert "documents" in data_sf
+    assert "summaries" in data_sf
+    docs = data_sf["documents"]
+    # Check strictly typed field names
+    assert "annual_reports" in docs
+    assert "concalls" in docs
+    assert "presentations" in docs
+    assert "material_announcements" in docs
+    assert "investor_presentations" not in docs
+    print("  ✓ /source-filings returned verified documents with exact DocumentLinks fields.")
+    
+    # 3. Test backward-compatible /doc-intelligence
+    data_di = get_stock_doc_intelligence("INFY")
+    if hasattr(data_di, "model_dump"):
+        data_di = data_di.model_dump()
+    assert data_di["symbol"] == "INFY"
+    assert "what_changed_recently" in data_di
+    print("  ✓ Backward-compatible /doc-intelligence endpoint operates smoothly.")
+
 if __name__ == "__main__":
     test_1_models_and_backward_compatibility()
     test_2_deterministic_financial_cross_check_enrichment()
     test_3_guidance_vs_projections_triangulation()
     test_4_inter_document_kpi_evolution()
-    print("\n🎉 ALL V4 BUSINESS ANALYSIS TESTS PASSED CLEANLY!")
+    test_5_endpoints_payload_efficiency_and_field_names()
+    print("\n🎉 ALL V4 BUSINESS ANALYSIS TESTS (1-5) PASSED CLEANLY!")

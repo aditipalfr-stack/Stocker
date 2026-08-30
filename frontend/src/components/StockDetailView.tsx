@@ -2,10 +2,10 @@ import { BusinessAnalysisView } from './business_analysis/BusinessAnalysisView';
 import React, { useState, useEffect } from 'react';
 import { 
   StockDetail, ProjectionAssumption, ProjectionResult, 
-  FinancialStatement, BusinessOutlookIntelligence 
+  FinancialStatement, BusinessAnalysisIntelligence 
 } from '../types';
 import { 
-  projectStock, fetchDocIntelligence, generateDocIntelligence,
+  projectStock, fetchBusinessAnalysis, generateDocIntelligence,
   fetchAiStatus, configureAiKey, AiStatusResult
 } from '../api';
 import { 
@@ -83,12 +83,11 @@ export const StockDetailView: React.FC<StockDetailViewProps> = ({ stock, onBack,
   const [activeTab, setActiveTab] = useState<'financials' | 'charts' | 'projection' | 'outlook' | 'scorecard'>('projection');
   const [financialSubTab, setFinancialSubTab] = useState<'quarters' | 'pl' | 'balance_sheet' | 'cash_flow'>('quarters');
   
-  // Document Intelligence (Business Outlook) State
-  const [docIntel, setDocIntel] = useState<BusinessOutlookIntelligence | null>(null);
+  // Business Analysis State
+  const [docIntel, setDocIntel] = useState<BusinessAnalysisIntelligence | null>(null);
   const [loadingDocIntel, setLoadingDocIntel] = useState<boolean>(false);
   const [generatingDocIntel, setGeneratingDocIntel] = useState<boolean>(false);
   const [docIntelError, setDocIntelError] = useState<string | null>(null);
-  const [outlookSubTab, setOutlookSubTab] = useState<'summary' | 'promise_delivery' | 'kpi_evolution' | 'guidance_projections' | 'growth_pipeline' | 'risks_demand' | 'filings_ai' | 'filings'>('summary');
   const [selectedFormulaKey, setSelectedFormulaKey] = useState<string | null>(null);
 
   // AI Configuration & Progress State
@@ -110,7 +109,7 @@ export const StockDetailView: React.FC<StockDetailViewProps> = ({ stock, onBack,
   const [projectionResult, setProjectionResult] = useState<ProjectionResult>(stock.projection);
   const [isProjecting, setIsProjecting] = useState<boolean>(false);
 
-  // Load document intelligence and check AI status on mount / stock change
+  // Load business analysis and check AI status on mount / stock change
   useEffect(() => {
     fetchAiStatus().then(setAiStatus).catch(() => {});
     
@@ -118,10 +117,10 @@ export const StockDetailView: React.FC<StockDetailViewProps> = ({ stock, onBack,
       setLoadingDocIntel(true);
       setDocIntelError(null);
       try {
-        const intel = await fetchDocIntelligence(stock.symbol);
+        const intel = await fetchBusinessAnalysis(stock.symbol);
         setDocIntel(intel);
       } catch (err: any) {
-        setDocIntelError(err.message || 'Failed to load document intelligence');
+        setDocIntelError(err.message || 'Failed to load business analysis');
       } finally {
         setLoadingDocIntel(false);
       }

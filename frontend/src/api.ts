@@ -50,23 +50,23 @@ export async function compareStocks(symbols: string[]): Promise<ComparisonItem[]
   return data.comparison;
 }
 
-import { BusinessOutlookIntelligence, BusinessAnalysisIntelligence } from './types';
+import { BusinessOutlookIntelligence, BusinessAnalysisIntelligence, SourceFilingsResponse } from './types';
 
 export async function fetchDocIntelligence(symbol: string): Promise<BusinessOutlookIntelligence | null> {
-  const res = await fetch(`${API_BASE}/stocks/${symbol}/doc-intelligence`);
+  const res = await fetch(`${API_BASE}/stocks/${encodeURIComponent(symbol)}/doc-intelligence`);
   if (!res.ok) return null;
   return res.json();
 }
 
 export async function fetchBusinessAnalysis(symbol: string): Promise<BusinessAnalysisIntelligence | null> {
-  const res = await fetch(`${API_BASE}/stocks/${symbol}/business-analysis`);
+  const res = await fetch(`${API_BASE}/stocks/${encodeURIComponent(symbol)}/business-analysis`);
   if (!res.ok) return null;
   return res.json();
 }
 
-export async function fetchSourceFilings(symbol: string): Promise<any> {
-  const res = await fetch(`${API_BASE}/stocks/${symbol}/source-filings`);
-  if (!res.ok) throw new Error('Failed to fetch source filings');
+export async function fetchSourceFilings(symbol: string): Promise<SourceFilingsResponse> {
+  const res = await fetch(`${API_BASE}/stocks/${encodeURIComponent(symbol)}/source-filings`);
+  if (!res.ok) throw new Error(`Failed to fetch source filings for ${symbol}`);
   return res.json();
 }
 

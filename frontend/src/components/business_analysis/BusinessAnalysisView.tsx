@@ -55,8 +55,8 @@ export const BusinessAnalysisView: React.FC<BusinessAnalysisViewProps> = ({
   const totalFilingsCount = (
     (stock.documents?.annual_reports?.length || 0) +
     (stock.documents?.concalls?.length || 0) +
-    (stock.documents?.investor_presentations?.length || 0) +
-    (stock.documents?.announcements?.length || 0)
+    (stock.documents?.presentations?.length || 0) +
+    (stock.documents?.material_announcements?.length || 0)
   );
 
   return (
@@ -238,7 +238,7 @@ export const BusinessAnalysisView: React.FC<BusinessAnalysisViewProps> = ({
           )}
 
           {activeSubTab === 'filings' && (
-            <SourceFilingsView docIntel={docIntel} documents={stock.documents} companyName={stock.name} />
+            <SourceFilingsView symbol={stock.symbol} companyName={stock.name} />
           )}
         </>
       )}

@@ -13,16 +13,23 @@ DOC_INTEL_BASELINE_DIR = Path(__file__).parent / "data" / "doc_intelligence"
 
 import database
 
-def get_company_doc_intelligence(symbol: str, financial_analytics: Optional[Dict[str, Any]] = None) -> Optional[CompanyDocumentIntelligence]:
+def get_company_doc_intelligence(
+    symbol: str, 
+    financial_analytics: Optional[Dict[str, Any]] = None,
+    include_document_summaries: bool = True
+) -> Optional[CompanyDocumentIntelligence]:
     clean_sym = symbol.upper().strip()
     
     # Priority 1: Check SQLite database cache
     db_data = database.get_cached_ai_analysis(clean_sym)
     if db_data and (db_data.get("promise_vs_delivery") or db_data.get("growth_drivers") or db_data.get("plan_vs_reality")):
         try:
-            doc_sums = database.get_document_summaries(clean_sym)
-            if doc_sums and not db_data.get("document_summaries"):
-                db_data["document_summaries"] = list(doc_sums.values())
+            if include_document_summaries:
+                doc_sums = database.get_document_summaries(clean_sym)
+                if doc_sums and not db_data.get("document_summaries"):
+                    db_data["document_summaries"] = list(doc_sums.values())
+            else:
+                db_data["document_summaries"] = []
             doc_intel = CompanyDocumentIntelligence(**db_data)
             _apply_financial_cross_check(doc_intel, financial_analytics)
             return doc_intel
@@ -36,9 +43,12 @@ def get_company_doc_intelligence(symbol: str, financial_analytics: Optional[Dict
             with open(gen_path, "r", encoding="utf-8") as f:
                 data = json.load(f)
             if data.get("status") != "ai_unavailable" and (data.get("promise_vs_delivery") or data.get("growth_drivers") or data.get("plan_vs_reality")):
-                doc_sums = database.get_document_summaries(clean_sym)
-                if doc_sums and not data.get("document_summaries"):
-                    data["document_summaries"] = list(doc_sums.values())
+                if include_document_summaries:
+                    doc_sums = database.get_document_summaries(clean_sym)
+                    if doc_sums and not data.get("document_summaries"):
+                        data["document_summaries"] = list(doc_sums.values())
+                else:
+                    data["document_summaries"] = []
                 doc_intel = CompanyDocumentIntelligence(**data)
                 _apply_financial_cross_check(doc_intel, financial_analytics)
                 return doc_intel
