@@ -694,6 +694,94 @@ def test_x_presupplied_metric_canonical_compatibility():
     assert res_g[0]["value"] == 6800.0
     print("  ✓ Test X passed: Raw label compatibility and safe canonical metric enforcement verified.")
 
+# =============================================================================
+# TEST Y: Explicit INR vs Foreign Currency & Ambiguous Units Validation
+# =============================================================================
+def test_y_inr_vs_foreign_currency_validation():
+    print("Test Y: Explicit INR vs Foreign Currency & Ambiguous Units Validation...")
+    
+    from official_financial_service import validate_and_normalize_official_rows, parse_official_xbrl_xml
+    
+    # A. non-EPS unit = "USD" -> resolved_unit Unknown, currency Unknown, no VERIFIED
+    res_a = validate_and_normalize_official_rows([{"metric": "Revenue from operations", "value": 500.0, "unit": "USD"}])
+    assert len(res_a) == 1
+    assert res_a[0]["unit"] == "Unknown"
+    assert res_a[0]["currency"] == "Unknown"
+    cmp_a = compare_financial_metric(500.0, res_a[0]["value"], "REVENUE", official_unit=res_a[0]["unit"])
+    assert cmp_a["status"] == "INSUFFICIENT_EVIDENCE"
+    
+    # B. non-EPS unit = "USD millions" -> resolved_unit Unknown, currency Unknown
+    res_b = validate_and_normalize_official_rows([{"metric": "Revenue from operations", "value": 500.0, "unit": "USD millions"}])
+    assert len(res_b) == 1
+    assert res_b[0]["unit"] == "Unknown"
+    assert res_b[0]["currency"] == "Unknown"
+    cmp_b = compare_financial_metric(500.0, res_b[0]["value"], "REVENUE", official_unit=res_b[0]["unit"])
+    assert cmp_b["status"] == "INSUFFICIENT_EVIDENCE"
+    
+    # C. EPS unit = "USD/share" -> Unknown, no VERIFIED
+    res_c = validate_and_normalize_official_rows([{"metric": "Basic EPS", "value": 1.5, "unit": "USD/share"}])
+    assert len(res_c) == 1
+    assert res_c[0]["unit"] == "Unknown"
+    assert res_c[0]["currency"] == "Unknown"
+    cmp_c = compare_financial_metric(1.5, res_c[0]["value"], "BASIC_EPS", official_unit=res_c[0]["unit"])
+    assert cmp_c["status"] == "INSUFFICIENT_EVIDENCE"
+    
+    # D. EPS unit = "per share" (unanchored) -> Unknown, no VERIFIED
+    res_d = validate_and_normalize_official_rows([{"metric": "Basic EPS", "value": 16.4, "unit": "per share"}])
+    assert len(res_d) == 1
+    assert res_d[0]["unit"] == "Unknown"
+    assert res_d[0]["currency"] == "Unknown"
+    cmp_d = compare_financial_metric(16.4, res_d[0]["value"], "BASIC_EPS", official_unit=res_d[0]["unit"])
+    assert cmp_d["status"] == "INSUFFICIENT_EVIDENCE"
+    
+    # E. EPS unit = "INR/share" -> ₹ / Share, currency INR
+    res_e = validate_and_normalize_official_rows([{"metric": "Basic EPS", "value": 16.4, "unit": "INR/share"}])
+    assert len(res_e) == 1
+    assert res_e[0]["unit"] == "₹ / Share"
+    assert res_e[0]["currency"] == "INR"
+    
+    # F. EPS unit = "₹ / Share" -> ₹ / Share, currency INR
+    res_f = validate_and_normalize_official_rows([{"metric": "Basic EPS", "value": 16.4, "unit": "₹ / Share"}])
+    assert len(res_f) == 1
+    assert res_f[0]["unit"] == "₹ / Share"
+    assert res_f[0]["currency"] == "INR"
+    
+    # G. Revenue unit = "INR Crores" -> normalized ₹ Cr, currency INR
+    res_g = validate_and_normalize_official_rows([{"metric": "Revenue from operations", "value": 48211.0, "unit": "INR Crores"}])
+    assert len(res_g) == 1
+    assert res_g[0]["unit"] == "₹ Cr"
+    assert res_g[0]["currency"] == "INR"
+    assert res_g[0]["value"] == 48211.0
+    
+    # H. Revenue unit = "₹ Lakhs" -> normalized correctly to ₹ Cr
+    res_h = validate_and_normalize_official_rows([{"metric": "Revenue from operations", "value": 4821100.0, "unit": "₹ Lakhs"}])
+    assert len(res_h) == 1
+    assert res_h[0]["unit"] == "₹ Cr"
+    assert res_h[0]["currency"] == "INR"
+    assert res_h[0]["value"] == 48211.0
+    
+    # I. Revenue unit = "EUR" -> Unknown
+    res_i = validate_and_normalize_official_rows([{"metric": "Revenue from operations", "value": 400.0, "unit": "EUR"}])
+    assert len(res_i) == 1
+    assert res_i[0]["unit"] == "Unknown"
+    assert res_i[0]["currency"] == "Unknown"
+    
+    # J. XBRL USD unitRef -> no VERIFIED
+    xml_usd_xbrl = b"""<?xml version="1.0" encoding="UTF-8"?>
+    <xbrl xmlns="http://www.xbrl.org/2003/instance" xmlns:in-gaap="http://www.sebi.gov.in/xbrl/2026-03-31/in-gaap">
+        <unit id="USD"><measure>iso4217:USD</measure></unit>
+        <context id="C_Q1"><entity><identifier>INFY</identifier></entity><period><startDate>2026-04-01</startDate><endDate>2026-06-30</endDate></period></context>
+        <in-gaap:NatureOfReportStandaloneConsolidated>Consolidated</in-gaap:NatureOfReportStandaloneConsolidated>
+        <in-gaap:RevenueFromOperations contextRef="C_Q1" unitRef="USD">5000.0</in-gaap:RevenueFromOperations>
+    </xbrl>"""
+    doc_usd = parse_official_xbrl_xml(xml_usd_xbrl, {"symbol": "INFY", "document_title": "INFY USD XBRL"})
+    assert len(doc_usd["financial_table"]) == 1
+    assert doc_usd["financial_table"][0]["unit"] == "Unknown"
+    assert doc_usd["financial_table"][0]["currency"] == "Unknown"
+    cmp_j = compare_financial_metric(5000.0, doc_usd["financial_table"][0]["value"], "REVENUE", official_unit=doc_usd["financial_table"][0]["unit"])
+    assert cmp_j["status"] == "INSUFFICIENT_EVIDENCE"
+    print("  ✓ Test Y passed: Explicit INR vs foreign currency & ambiguous unit validation verified across all 10 scenarios (A-J).")
+
 if __name__ == "__main__":
     test_a_xbrl_unitref_inr()
     test_b_xbrl_eps_unitref_inr_per_share()
@@ -719,4 +807,5 @@ if __name__ == "__main__":
     test_v_presupplied_rows_shared_validation()
     test_w_xbrl_eps_unitref_missing_unknown_preservation()
     test_x_presupplied_metric_canonical_compatibility()
-    print("\n🎉 ALL 24 TESTS (A - X) PASSED WITH 100% DETERMINISTIC ISOLATION & FAIL-CLOSED INTEGRITY!")
+    test_y_inr_vs_foreign_currency_validation()
+    print("\n🎉 ALL 25 TESTS (A - Y) PASSED WITH 100% DETERMINISTIC ISOLATION & FAIL-CLOSED INTEGRITY!")

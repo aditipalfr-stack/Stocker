@@ -228,24 +228,95 @@ def normalize_period(period_str: str) -> Tuple[str, str]:
             
     return (p, "Unknown")
 
+def is_inr_currency_indicator(u_str: str) -> bool:
+    """Checks if unit string definitively indicates Indian Rupee currency (INR / ₹ / Rs / Rupee)."""
+    clean = u_str.lower()
+    return any(p in clean for p in ["₹", "inr", "rs.", "rs ", "rs/", "rs/share", "rupee", "rupees"]) and not any(
+        f in clean for f in ["usd", "eur", "gbp", "jpy", "cny", "aud", "cad", "chf", "dollar", "euro", "pound"]
+    )
+
+def is_inr_per_share_unit(raw_unit: Optional[str]) -> bool:
+    """
+    Checks if unit string definitively indicates an INR per-share measure.
+    Requires BOTH INR/₹/Rs currency indicator AND per-share indicator.
+    Rejects foreign currencies (USD/share) and generic unanchored 'per share'.
+    """
+    if not raw_unit:
+        return False
+    u = str(raw_unit).lower().strip()
+    
+    # Reject foreign currency indicators
+    if any(f in u for f in ["usd", "eur", "gbp", "jpy", "cny", "aud", "cad", "chf", "dollar", "euro", "pound"]):
+        return False
+        
+    has_inr = any(p in u for p in ["₹", "inr", "rs", "rupee"])
+    has_per_share = any(p in u for p in ["/ share", "/share", "per share", "pershare", "/ shares", "/shares"])
+    
+    return has_inr and has_per_share
+
+def parse_or_validate_inr_monetary_unit(raw_unit: Optional[str]) -> Tuple[Optional[str], str]:
+    """
+    Validates whether raw_unit represents a supported INR monetary unit and resolves scale.
+    Returns (resolved_scale, currency):
+    - ('crore', 'INR'), ('lakh', 'INR'), ('million', 'INR'), ('thousand', 'INR'), ('rupee', 'INR')
+    - If foreign currency, non-INR, ambiguous, or Unknown -> (None, 'Unknown')
+    """
+    if not raw_unit:
+        return (None, "Unknown")
+    u = str(raw_unit).lower().strip()
+    
+    # Reject unknown/empty
+    if u in ("unknown", "none", "", "null"):
+        return (None, "Unknown")
+        
+    # Reject foreign currency
+    if any(f in u for f in ["usd", "eur", "gbp", "jpy", "cny", "aud", "cad", "chf", "dollar", "euro", "pound"]):
+        return (None, "Unknown")
+        
+    # Must have INR evidence or explicit Indian denomination (Crore, Lakh)
+    has_indian_scale = "crore" in u or "cr" in u or "lakh" in u or "lac" in u
+    has_inr = is_inr_currency_indicator(u)
+    
+    if not (has_inr or has_indian_scale):
+        return (None, "Unknown")
+        
+    # Determine scale
+    if "crore" in u or re.search(r"\bcr\b", u):
+        return ("crore", "INR")
+    elif "lakh" in u or "lac" in u:
+        return ("lakh", "INR")
+    elif "million" in u or re.search(r"\bmn\b", u):
+        return ("million", "INR")
+    elif "thousand" in u:
+        return ("thousand", "INR")
+    elif "billion" in u or re.search(r"\bbn\b", u):
+        return ("billion", "INR")
+    elif has_inr:
+        # Plain INR / Rupees (units)
+        return ("rupee", "INR")
+        
+    return (None, "Unknown")
+
 def normalize_numeric_scale(value: float, raw_unit: Optional[str] = None) -> float:
-    """Converts reported financial figures to normalized ₹ Crore (Cr)."""
+    """Converts reported financial figures to normalized ₹ Crore (Cr) if valid INR unit."""
     if value is None or math.isnan(value):
         return 0.0
         
-    if not raw_unit or raw_unit == "Unknown":
+    scale, currency = parse_or_validate_inr_monetary_unit(raw_unit)
+    if not scale or currency != "INR":
         return float(value)
         
-    u = str(raw_unit).lower().strip()
-    if "lakh" in u:
+    if scale == "crore":
+        return round(float(value), 4)
+    elif scale == "lakh":
         return round(float(value) / 100.0, 4)
-    elif "million" in u or "mn" in u:
+    elif scale == "million":
         return round(float(value) / 10.0, 4)
-    elif "billion" in u or "bn" in u:
+    elif scale == "billion":
         return round(float(value) * 100.0, 4)
-    elif "thousand" in u:
+    elif scale == "thousand":
         return round(float(value) / 100000.0, 4)
-    elif "rupee" in u and "crore" not in u and "lakh" not in u:
+    elif scale == "rupee":
         return round(float(value) / 10000000.0, 4)
         
     return float(value)
@@ -253,17 +324,6 @@ def normalize_numeric_scale(value: float, raw_unit: Optional[str] = None) -> flo
 # =============================================================================
 # SHARED FAIL-CLOSED ROW VALIDATION & NORMALIZATION
 # =============================================================================
-
-def is_per_share_unit(raw_unit: Optional[str]) -> bool:
-    """Checks if unit string definitively indicates a per-share measure."""
-    if not raw_unit:
-        return False
-    u = str(raw_unit).lower().strip()
-    return any(p in u for p in [
-        "₹ / share", "₹/share", "₹ / per share", "₹ per share",
-        "inr / share", "inr/share", "inr / shares", "inr/shares",
-        "rs. / share", "rs/share", "rs / share", "per share", "inrpershare"
-    ])
 
 def validate_and_normalize_official_rows(
     raw_rows: List[Dict[str, Any]],
@@ -279,9 +339,9 @@ def validate_and_normalize_official_rows(
     - Valid numeric value (float/int)
     - Valid canonical period (normalizes period strings to e.g. '2026-Q1', '2026-FY')
     - Explicit or inherited scope ('Consolidated' / 'Standalone' / 'Unknown')
-    - Unit validation:
-      - EPS (BASIC_EPS, DILUTED_EPS): must have genuine per-share unit evidence -> '₹ / Share', else 'Unknown'
-      - Financial totals (REVENUE, PAT, PBT): scales to '₹ Cr' if known scale, else 'Unknown'
+    - Unit and currency validation:
+      - EPS (BASIC_EPS, DILUTED_EPS): must have genuine INR per-share unit evidence -> '₹ / Share' & 'INR', else 'Unknown'
+      - Financial totals (REVENUE, PAT, PBT): scales to '₹ Cr' and 'INR' if valid INR unit, else 'Unknown'
     """
     validated_rows: List[Dict[str, Any]] = []
     
@@ -332,22 +392,27 @@ def validate_and_normalize_official_rows(
             if not row_disp_p:
                 row_disp_p = row_canon_p
                 
-        # Unit resolution: never auto-invent per-share unit without evidence
+        # Unit and currency resolution: never auto-invent INR or per-share unit without evidence
         raw_unit = row.get("unit") or row.get("raw_unit") or default_unit or "Unknown"
         if canon_m in ("BASIC_EPS", "DILUTED_EPS"):
-            if is_per_share_unit(raw_unit):
+            if is_inr_per_share_unit(raw_unit):
                 resolved_unit = "₹ / Share"
+                resolved_currency = "INR"
                 norm_val = num_val
             else:
                 resolved_unit = "Unknown"
+                resolved_currency = "Unknown"
                 norm_val = num_val
         else:
-            if raw_unit in ("Unknown", "unknown", None, ""):
-                resolved_unit = "Unknown"
-                norm_val = num_val
-            else:
+            scale, curr = parse_or_validate_inr_monetary_unit(raw_unit)
+            if scale and curr == "INR":
                 norm_val = normalize_numeric_scale(num_val, raw_unit)
                 resolved_unit = "₹ Cr"
+                resolved_currency = "INR"
+            else:
+                resolved_unit = "Unknown"
+                resolved_currency = "Unknown"
+                norm_val = num_val
                 
         validated_rows.append({
             "metric": raw_name or canon_m,
@@ -359,7 +424,7 @@ def validate_and_normalize_official_rows(
             "period": row_disp_p,
             "unit": resolved_unit,
             "raw_unit": raw_unit,
-            "currency": "INR",
+            "currency": resolved_currency,
             "context_ref": row.get("context_ref") or row.get("context_id"),
             "unit_ref": row.get("unit_ref")
         })
@@ -719,20 +784,20 @@ def parse_official_xbrl_xml(
             # Genuinely resolve fact unitRef against units_by_id
             unit_ref = elem.attrib.get("unitRef")
             if not unit_ref or unit_ref not in units_by_id:
-                # Fact missing unitRef or unresolvable unit id -> Unknown unit
+                # Fact missing unitRef or unresolvable unit id -> Unknown unit & Unknown currency
                 fact_unit = "Unknown"
-                fact_currency = "INR"
+                fact_currency = "Unknown"
             else:
                 u_def = units_by_id[unit_ref]
-                if u_def["type"] == "per_share":
+                if u_def["type"] == "per_share" and u_def.get("currency") == "INR":
                     fact_unit = "₹ / Share"
                     fact_currency = "INR"
-                elif u_def["type"] == "currency" and u_def["currency"] == "INR":
+                elif u_def["type"] == "currency" and u_def.get("currency") == "INR":
                     fact_currency = "INR"
                     fact_unit = doc_rounding_unit if doc_rounding_unit != "Unknown" else "Unknown"
                 else:
                     fact_unit = "Unknown"
-                    fact_currency = "INR"
+                    fact_currency = "Unknown"
                     
             try:
                 num_val = float(elem.text.strip())
@@ -957,7 +1022,7 @@ def parse_official_html_table(
                         num_str = cells[col_idx].replace(",", "")
                         try:
                             num_val = float(num_str)
-                            fact_unit = "₹ / Share" if canon_m in ("BASIC_EPS", "DILUTED_EPS") else table_unit
+                            fact_unit = "₹ / Share" if (canon_m in ("BASIC_EPS", "DILUTED_EPS") and table_unit != "Unknown") else table_unit
                             table_rows.append({
                                 "metric": m_label,
                                 "canonical_metric": canon_m,
