@@ -141,8 +141,42 @@ def init_db() -> None:
             conn.execute("CREATE INDEX IF NOT EXISTS idx_facts_sym_metric ON company_knowledge_facts(symbol, metric_name);")
             conn.execute("CREATE INDEX IF NOT EXISTS idx_facts_sym_cat ON company_knowledge_facts(symbol, category);")
             conn.execute("CREATE INDEX IF NOT EXISTS idx_facts_doc_url ON company_knowledge_facts(doc_url);")
+
+            # 8. Persistent Company Registry & Universe Directory
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS company_registry (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    symbol TEXT NOT NULL UNIQUE COLLATE NOCASE,
+                    company_name TEXT NOT NULL,
+                    nse_symbol TEXT COLLATE NOCASE,
+                    bse_code TEXT,
+                    isin TEXT,
+                    exchange TEXT DEFAULT 'NSE',
+                    sector TEXT DEFAULT 'Broad Market',
+                    industry TEXT DEFAULT 'Indian Equities',
+                    aliases TEXT DEFAULT '[]',
+                    is_active INTEGER DEFAULT 1,
+                    in_universe INTEGER DEFAULT 1,
+                    source TEXT DEFAULT 'seed',
+                    source_last_verified_at TEXT,
+                    created_at TEXT NOT NULL,
+                    updated_at TEXT NOT NULL
+                );
+            """)
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_reg_sym ON company_registry(symbol);")
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_reg_name ON company_registry(company_name);")
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_reg_nse ON company_registry(nse_symbol);")
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_reg_bse ON company_registry(bse_code);")
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_reg_isin ON company_registry(isin);")
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_reg_universe ON company_registry(in_universe, is_active);")
     finally:
         conn.close()
+
+    # Automatically seed initial registry if empty
+    try:
+        seed_company_registry()
+    except Exception:
+        pass
 
 # ---------------------------------------------------------
 # STOCKS FINANCIALS CACHE HELPERS
@@ -602,6 +636,286 @@ def clear_company_knowledge_facts(symbol: str) -> None:
     try:
         with conn:
             conn.execute("DELETE FROM company_knowledge_facts WHERE symbol = ?", (clean_sym,))
+    finally:
+        conn.close()
+
+# ---------------------------------------------------------
+# COMPANY REGISTRY & UNIVERSE HELPERS
+# ---------------------------------------------------------
+
+def upsert_company_registry_item(item: Dict[str, Any]) -> int:
+    """
+    Inserts or updates a company identity in the company_registry table.
+    Ensures symbol uniqueness case-insensitively and updates fields safely.
+    """
+    clean_sym = item.get("symbol", "").upper().strip()
+    if not clean_sym:
+        raise ValueError("Cannot upsert company registry item without a symbol")
+        
+    company_name = (item.get("company_name") or clean_sym).strip()
+    nse_symbol = (item.get("nse_symbol") or clean_sym).upper().strip()
+    bse_code = str(item.get("bse_code") or "").strip() or None
+    isin = (item.get("isin") or "").upper().strip() or None
+    exchange = item.get("exchange", "NSE")
+    sector = item.get("sector", "Broad Market")
+    industry = item.get("industry", "Indian Equities")
+    
+    aliases = item.get("aliases", [])
+    if isinstance(aliases, list):
+        aliases_json = json.dumps(aliases)
+    elif isinstance(aliases, str):
+        try:
+            parsed = json.loads(aliases)
+            aliases_json = json.dumps(parsed if isinstance(parsed, list) else [parsed])
+        except Exception:
+            aliases_json = json.dumps([aliases])
+    else:
+        aliases_json = json.dumps([])
+        
+    is_active = 1 if item.get("is_active", True) else 0
+    in_universe = 1 if item.get("in_universe", True) else 0
+    source = item.get("source", "manual")
+    now_iso = datetime.now(timezone.utc).isoformat()
+    source_last_verified_at = item.get("source_last_verified_at") or now_iso
+    
+    conn = get_db_connection()
+    try:
+        with conn:
+            conn.execute("""
+                INSERT INTO company_registry (
+                    symbol, company_name, nse_symbol, bse_code, isin,
+                    exchange, sector, industry, aliases, is_active,
+                    in_universe, source, source_last_verified_at, created_at, updated_at
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(symbol) DO UPDATE SET
+                    company_name = COALESCE(excluded.company_name, company_registry.company_name),
+                    nse_symbol = COALESCE(excluded.nse_symbol, company_registry.nse_symbol),
+                    bse_code = COALESCE(excluded.bse_code, company_registry.bse_code),
+                    isin = COALESCE(excluded.isin, company_registry.isin),
+                    exchange = COALESCE(excluded.exchange, company_registry.exchange),
+                    sector = CASE WHEN excluded.sector != 'Broad Market' THEN excluded.sector ELSE company_registry.sector END,
+                    industry = CASE WHEN excluded.industry != 'Indian Equities' THEN excluded.industry ELSE company_registry.industry END,
+                    aliases = COALESCE(excluded.aliases, company_registry.aliases),
+                    is_active = excluded.is_active,
+                    in_universe = excluded.in_universe,
+                    source = COALESCE(company_registry.source, excluded.source),
+                    source_last_verified_at = excluded.source_last_verified_at,
+                    updated_at = excluded.updated_at
+            """, (
+                clean_sym, company_name, nse_symbol, bse_code, isin,
+                exchange, sector, industry, aliases_json, is_active,
+                in_universe, source, source_last_verified_at, now_iso, now_iso
+            ))
+            
+            cur = conn.cursor()
+            cur.execute("SELECT id FROM company_registry WHERE symbol = ? COLLATE NOCASE", (clean_sym,))
+            row = cur.fetchone()
+            return row["id"] if row else 0
+    finally:
+        conn.close()
+
+def get_company_by_symbol(symbol: str) -> Optional[Dict[str, Any]]:
+    """Retrieves a single company identity by symbol (case-insensitive) or NSE symbol / BSE code."""
+    clean_sym = symbol.upper().strip()
+    conn = get_db_connection()
+    try:
+        cur = conn.cursor()
+        cur.execute("""
+            SELECT * FROM company_registry 
+            WHERE symbol = ? COLLATE NOCASE OR nse_symbol = ? COLLATE NOCASE OR bse_code = ?
+            LIMIT 1
+        """, (clean_sym, clean_sym, clean_sym))
+        row = cur.fetchone()
+        if row:
+            res = dict(row)
+            try:
+                res["aliases"] = json.loads(res.get("aliases") or "[]")
+            except Exception:
+                res["aliases"] = []
+            res["is_active"] = bool(res.get("is_active"))
+            res["in_universe"] = bool(res.get("in_universe"))
+            return res
+        return None
+    finally:
+        conn.close()
+
+def get_universe_companies(active_only: bool = True) -> List[Dict[str, Any]]:
+    """Retrieves all companies currently enrolled in the Stocker universe."""
+    conn = get_db_connection()
+    try:
+        cur = conn.cursor()
+        if active_only:
+            cur.execute("""
+                SELECT * FROM company_registry 
+                WHERE in_universe = 1 AND is_active = 1
+                ORDER BY symbol ASC
+            """)
+        else:
+            cur.execute("""
+                SELECT * FROM company_registry 
+                ORDER BY symbol ASC
+            """)
+        rows = cur.fetchall()
+        results = []
+        for r in rows:
+            res = dict(r)
+            try:
+                res["aliases"] = json.loads(res.get("aliases") or "[]")
+            except Exception:
+                res["aliases"] = []
+            res["is_active"] = bool(res.get("is_active"))
+            res["in_universe"] = bool(res.get("in_universe"))
+            results.append(res)
+        return results
+    finally:
+        conn.close()
+
+def get_universe_symbols(active_only: bool = True) -> List[str]:
+    """Retrieves canonical symbols for all active universe companies."""
+    companies = get_universe_companies(active_only=active_only)
+    return [c["symbol"] for c in companies]
+
+def set_company_universe_status(symbol: str, in_universe: bool = True, is_active: bool = True) -> bool:
+    """Updates active/in_universe status for a registered company."""
+    clean_sym = symbol.upper().strip()
+    now_iso = datetime.now(timezone.utc).isoformat()
+    conn = get_db_connection()
+    try:
+        with conn:
+            cur = conn.execute("""
+                UPDATE company_registry
+                SET in_universe = ?, is_active = ?, updated_at = ?
+                WHERE symbol = ? COLLATE NOCASE OR nse_symbol = ? COLLATE NOCASE
+            """, (1 if in_universe else 0, 1 if is_active else 0, now_iso, clean_sym, clean_sym))
+            return cur.rowcount > 0
+    finally:
+        conn.close()
+
+def search_local_registry(query: str, limit: int = 20) -> List[Dict[str, Any]]:
+    """
+    Searches the local SQLite company registry across symbol, company_name, and aliases.
+    """
+    clean_q = query.strip()
+    if not clean_q:
+        return []
+        
+    conn = get_db_connection()
+    try:
+        cur = conn.cursor()
+        pattern = f"%{clean_q}%"
+        cur.execute("""
+            SELECT * FROM company_registry
+            WHERE symbol LIKE ? OR company_name LIKE ? OR nse_symbol LIKE ? OR aliases LIKE ? OR bse_code LIKE ?
+            ORDER BY 
+                CASE 
+                    WHEN symbol = ? COLLATE NOCASE THEN 1
+                    WHEN nse_symbol = ? COLLATE NOCASE THEN 2
+                    WHEN company_name = ? COLLATE NOCASE THEN 3
+                    WHEN symbol LIKE ? THEN 4
+                    WHEN company_name LIKE ? THEN 5
+                    ELSE 6
+                END,
+                symbol ASC
+            LIMIT ?
+        """, (
+            pattern, pattern, pattern, pattern, pattern,
+            clean_q, clean_q, clean_q,
+            f"{clean_q}%", f"{clean_q}%",
+            limit
+        ))
+        rows = cur.fetchall()
+        results = []
+        for r in rows:
+            res = dict(r)
+            try:
+                res["aliases"] = json.loads(res.get("aliases") or "[]")
+            except Exception:
+                res["aliases"] = []
+            res["is_active"] = bool(res.get("is_active"))
+            res["in_universe"] = bool(res.get("in_universe"))
+            results.append(res)
+        return results
+    finally:
+        conn.close()
+
+def seed_company_registry(seed_records: Optional[List[Dict[str, Any]]] = None) -> int:
+    """
+    Seeds the company_registry table with anchor companies and any already-cached stocks.
+    Safe and idempotent (does not overwrite user changes or create duplicate rows).
+    """
+    try:
+        from data_seed import SEED_REGISTRY_COMPANIES, COMPANY_METADATA
+    except ImportError:
+        import sys
+        sys.path.insert(0, str(Path(__file__).parent))
+        from data_seed import SEED_REGISTRY_COMPANIES, COMPANY_METADATA
+
+    records_to_seed = list(seed_records or SEED_REGISTRY_COMPANIES)
+    
+    # Also check cached stocks in stocks_cache.json
+    cache_file = DB_PATH.parent / "stocks_cache.json"
+    if cache_file.exists():
+        try:
+            with open(cache_file, "r") as f:
+                cached_json = json.load(f)
+                for sym, stock_dict in cached_json.items():
+                    clean_s = sym.upper().strip()
+                    if not any(r.get("symbol", "").upper() == clean_s for r in records_to_seed):
+                        meta = COMPANY_METADATA.get(clean_s, {})
+                        records_to_seed.append({
+                            "symbol": clean_s,
+                            "company_name": stock_dict.get("name") or clean_s,
+                            "nse_symbol": clean_s,
+                            "bse_code": None,
+                            "isin": None,
+                            "exchange": "NSE",
+                            "sector": stock_dict.get("sector") or meta.get("sector") or "Broad Market",
+                            "industry": stock_dict.get("industry") or meta.get("industry") or "Indian Equities",
+                            "aliases": [clean_s, stock_dict.get("name") or clean_s],
+                            "in_universe": True,
+                            "is_active": True,
+                            "source": "stocks_cache"
+                        })
+        except Exception:
+            pass
+
+    inserted_count = 0
+    now_iso = datetime.now(timezone.utc).isoformat()
+    conn = get_db_connection()
+    try:
+        with conn:
+            for rec in records_to_seed:
+                sym = rec.get("symbol", "").upper().strip()
+                name = rec.get("company_name", sym).strip()
+                nse = (rec.get("nse_symbol") or sym).upper().strip()
+                bse = str(rec.get("bse_code") or "").strip() or None
+                isin = (rec.get("isin") or "").upper().strip() or None
+                exchange = rec.get("exchange", "NSE")
+                sector = rec.get("sector", "Broad Market")
+                industry = rec.get("industry", "Indian Equities")
+                aliases = rec.get("aliases", [])
+                aliases_json = json.dumps(aliases) if isinstance(aliases, list) else json.dumps([str(aliases)])
+                in_uni = 1 if rec.get("in_universe", True) else 0
+                is_act = 1 if rec.get("is_active", True) else 0
+                source = rec.get("source", "seed")
+                
+                cur = conn.execute("""
+                    INSERT INTO company_registry (
+                        symbol, company_name, nse_symbol, bse_code, isin,
+                        exchange, sector, industry, aliases, is_active,
+                        in_universe, source, source_last_verified_at, created_at, updated_at
+                    )
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    ON CONFLICT(symbol) DO NOTHING
+                """, (
+                    sym, name, nse, bse, isin,
+                    exchange, sector, industry, aliases_json, is_act,
+                    in_uni, source, now_iso, now_iso, now_iso
+                ))
+                if cur.rowcount > 0:
+                    inserted_count += 1
+        return inserted_count
     finally:
         conn.close()
 

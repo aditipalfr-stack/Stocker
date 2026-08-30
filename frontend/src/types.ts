@@ -577,3 +577,52 @@ export interface BusinessOutlookIntelligence {
   operational_kpi_evolution?: InterDocumentKPITrend[];
   guidance_vs_projections?: GuidanceVsProjection[];
 }
+
+export interface CompanySearchResult {
+  symbol: string;
+  company_name: string;
+  nse_symbol?: string | null;
+  bse_code?: string | null;
+  isin?: string | null;
+  exchange?: string;
+  sector?: string | null;
+  industry?: string | null;
+  already_added: boolean;
+  source?: string;
+  match_score?: number | null;
+}
+
+export interface CompanySearchResponse {
+  query: string;
+  count: number;
+  results: CompanySearchResult[];
+}
+
+export interface AddCompanyResponse {
+  success: boolean;
+  message: string;
+  symbol: string;
+  company_name: string;
+  already_existed?: boolean;
+  stock?: StockDetail;
+}
+
+export interface CompanyRegistryItem {
+  id?: number;
+  symbol: string;
+  company_name: string;
+  nse_symbol?: string | null;
+  bse_code?: string | null;
+  isin?: string | null;
+  exchange?: string;
+  sector?: string;
+  industry?: string;
+  aliases?: string[];
+  is_active?: boolean;
+  in_universe?: boolean;
+  already_added?: boolean;
+  source?: string;
+  source_last_verified_at?: string | null;
+  created_at?: string | null;
+  updated_at?: string | null;
+}

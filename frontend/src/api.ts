@@ -98,4 +98,35 @@ export async function configureAiKey(apiKey: string, provider: string = 'gemini'
   return res.json();
 }
 
+import { CompanySearchResponse, AddCompanyResponse, CompanyRegistryItem } from './types';
+
+export async function searchCompanies(query: string, limit: number = 10): Promise<CompanySearchResponse> {
+  const params = new URLSearchParams({ q: query, limit: limit.toString() });
+  const res = await fetch(`${API_BASE}/companies/search?${params.toString()}`);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: 'Failed to search companies' }));
+    throw new Error(err.detail || 'Failed to search companies');
+  }
+  return res.json();
+}
+
+export async function addCompanyToUniverse(symbol: string): Promise<AddCompanyResponse> {
+  const res = await fetch(`${API_BASE}/companies/${encodeURIComponent(symbol)}/add`, {
+    method: 'POST'
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: 'Failed to add company to universe' }));
+    throw new Error(err.detail || 'Failed to add company to universe');
+  }
+  return res.json();
+}
+
+export async function fetchRegisteredCompanies(activeOnly: boolean = false): Promise<CompanyRegistryItem[]> {
+  const params = activeOnly ? '?active_only=true' : '';
+  const res = await fetch(`${API_BASE}/companies${params}`);
+  if (!res.ok) throw new Error('Failed to fetch registered companies');
+  return res.json();
+}
+
+
 

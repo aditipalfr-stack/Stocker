@@ -199,3 +199,56 @@ class StockDetail(BaseModel):
     statement_type: str = "consolidated"
     fetched_at: str = ""
     documents_checked_at: Optional[str] = None
+
+# =============================================================================
+# COMPANY REGISTRY & IDENTITY MODELS (PHASE A)
+# =============================================================================
+
+class CompanyRegistryItem(BaseModel):
+    id: Optional[int] = None
+    symbol: str
+    company_name: str
+    nse_symbol: Optional[str] = None
+    bse_code: Optional[str] = None
+    isin: Optional[str] = None
+    exchange: str = "NSE"
+    sector: str = "Broad Market"
+    industry: str = "Indian Equities"
+    aliases: List[str] = []
+    is_active: bool = True
+    in_universe: bool = True
+    already_added: bool = False
+    source: str = "seed"
+    source_last_verified_at: Optional[str] = None
+    created_at: Optional[str] = None
+    updated_at: Optional[str] = None
+
+class CompanySearchResult(BaseModel):
+    symbol: str
+    company_name: str
+    nse_symbol: Optional[str] = None
+    bse_code: Optional[str] = None
+    isin: Optional[str] = None
+    exchange: str = "NSE"
+    sector: Optional[str] = None
+    industry: Optional[str] = None
+    already_added: bool = False
+    source: str = "local" # "local", "screener_search", "nse_master", "bse_master"
+    match_score: Optional[int] = None
+
+class CompanySearchResponse(BaseModel):
+    query: str
+    count: int
+    results: List[CompanySearchResult]
+
+class AddCompanyRequest(BaseModel):
+    symbol: str
+
+class AddCompanyResponse(BaseModel):
+    success: bool
+    message: str
+    symbol: str
+    company_name: str
+    already_existed: bool = False
+    stock: Optional[StockDetail] = None
+

@@ -422,17 +422,33 @@ def fetch_stock_from_screener(symbol: str, force_refresh: bool = False) -> Optio
         "documents_checked_at": getattr(documents, "checked_at", None) or fetched_at
     }
     
-    # Save to Cache
+    # Save to Cache (JSON & SQLite)
+    serialized = serialize_stock_data(stock_data)
     try:
         cache_data = {}
         if os.path.exists(CACHE_FILE):
             with open(CACHE_FILE, "r") as f:
                 cache_data = json.load(f)
                 
-        cache_data[clean_sym] = serialize_stock_data(stock_data)
+        cache_data[clean_sym] = serialized
         with open(CACHE_FILE, "w") as f:
             json.dump(cache_data, f, indent=2)
     except Exception as e:
         print(f"Error updating cache for {clean_sym}: {e}")
+        
+    try:
+        database.save_stock_cache(clean_sym, company_name, sector, industry, serialized)
+        database.upsert_company_registry_item({
+            "symbol": clean_sym,
+            "company_name": company_name,
+            "nse_symbol": clean_sym,
+            "sector": sector,
+            "industry": industry,
+            "source": "screener_ingestion",
+            "in_universe": True,
+            "is_active": True
+        })
+    except Exception as e_db:
+        print(f"Notice: Database sync skipped for {clean_sym}: {e_db}")
         
     return stock_data

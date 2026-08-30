@@ -25,13 +25,16 @@ from pydantic import BaseModel
 
 from models import (
     StockSummary, StockDetail, ProjectionAssumption,
-    ProjectionResult, ScoreBreakdown
+    ProjectionResult, ScoreBreakdown, DocumentLinks,
+    CompanyRegistryItem, CompanySearchResult, CompanySearchResponse,
+    AddCompanyRequest, AddCompanyResponse
 )
 from data_seed import DEFAULT_UNIVERSE_SYMBOLS
 from scraper import fetch_stock_from_screener
 from financial_engine import compute_financial_analytics
 from projection_engine import run_projections
 from ranking_engine import compute_stock_score
+from company_resolver import resolve_and_search_companies, resolve_canonical_company, normalize_symbol
 
 app = FastAPI(
     title="Stocker - Fundamental Stock Analysis & Decision Engine",
@@ -49,6 +52,10 @@ app.add_middleware(
 )
 
 def build_full_stock_detail(stock_data: Dict[str, Any], custom_assumptions: Optional[ProjectionAssumption] = None) -> StockDetail:
+    if isinstance(stock_data.get("ratios"), dict) or isinstance(stock_data.get("quarters"), dict):
+        from scraper import hydrate_stock_data
+        stock_data = hydrate_stock_data(stock_data)
+        
     symbol = stock_data["symbol"]
     name = stock_data["name"]
     sector = stock_data.get("sector", "Diversified")
@@ -120,23 +127,32 @@ def health_check():
 def get_all_stocks(sector: Optional[str] = None, min_score: Optional[float] = None):
     results: List[StockSummary] = []
     
-    # Universe starts with default symbols
-    symbols = list(DEFAULT_UNIVERSE_SYMBOLS)
+    # 1. Retrieve persistent universe symbols from database registry
+    universe_symbols = database.get_universe_symbols(active_only=True)
     
-    # Check cache for additional scraped stocks
+    # Bootstrap fallback if registry is empty
+    if not universe_symbols:
+        universe_symbols = list(DEFAULT_UNIVERSE_SYMBOLS)
+        try:
+            database.seed_company_registry()
+        except Exception:
+            pass
+            
+    # Check cache for any additional legacy stocks
     cache_file = os.path.join(os.path.dirname(__file__), "data", "stocks_cache.json")
     if os.path.exists(cache_file):
         try:
             with open(cache_file, "r") as f:
                 cached = json.load(f)
                 for sym in cached.keys():
-                    if sym not in symbols:
-                        symbols.append(sym)
+                    clean_s = sym.upper().strip()
+                    if clean_s not in universe_symbols:
+                        universe_symbols.append(clean_s)
         except Exception:
             pass
             
     details = []
-    for sym in symbols:
+    for sym in universe_symbols:
         data = fetch_stock_from_screener(sym, force_refresh=False)
         if data:
             detail = build_full_stock_detail(data)
@@ -186,6 +202,115 @@ def get_all_stocks(sector: Optional[str] = None, min_score: Optional[float] = No
         results.append(summary)
         
     return results
+
+# =============================================================================
+# COMPANY REGISTRY & SEARCH / ADD APIS (PHASE A)
+# =============================================================================
+
+@app.get("/api/companies/search", response_model=CompanySearchResponse)
+def search_companies(q: str = Query(..., min_length=1, description="Company name, symbol, or partial ticker"), limit: int = 10):
+    """
+    Searches for listed companies by symbol, full/partial name, or aliases.
+    Searches local registry first with automatic fallback to external discovery.
+    """
+    clean_q = q.strip()
+    if not clean_q:
+        return CompanySearchResponse(query=q, count=0, results=[])
+        
+    matches = resolve_and_search_companies(clean_q, limit=limit)
+    search_results = [CompanySearchResult(**m) for m in matches]
+    return CompanySearchResponse(
+        query=clean_q,
+        count=len(search_results),
+        results=search_results
+    )
+
+def execute_add_company_to_universe(symbol_or_query: str) -> AddCompanyResponse:
+    clean_input = symbol_or_query.strip()
+    if not clean_input:
+        raise HTTPException(status_code=400, detail="Company symbol or query cannot be empty.")
+        
+    canonical_info = resolve_canonical_company(clean_input)
+    if not canonical_info:
+        raise HTTPException(status_code=404, detail=f"Could not resolve listed company for '{clean_input}'.")
+        
+    canonical_sym = canonical_info.get("symbol", "").upper().strip()
+    company_name = canonical_info.get("company_name", canonical_sym)
+    
+    # Check if already existed in universe
+    existing = database.get_company_by_symbol(canonical_sym)
+    already_existed = bool(existing and existing.get("in_universe") and existing.get("is_active"))
+    
+    # Ingest financial statements using standardized Screener ingestion
+    stock_data = fetch_stock_from_screener(canonical_sym, force_refresh=True)
+    if not stock_data:
+        # If live scrape failed, attempt fallback resolution without force_refresh
+        stock_data = fetch_stock_from_screener(canonical_sym, force_refresh=False)
+        if not stock_data:
+            raise HTTPException(
+                status_code=400, 
+                detail=f"Unable to ingest standardized financial statements for '{canonical_sym}'. Please verify ticker symbol."
+            )
+            
+    # Update company registry with verified metadata and set in_universe=1
+    sector = stock_data.get("sector") or canonical_info.get("sector") or "Broad Market"
+    industry = stock_data.get("industry") or canonical_info.get("industry") or "Indian Equities"
+    real_name = stock_data.get("name") or company_name
+    
+    database.upsert_company_registry_item({
+        "symbol": canonical_sym,
+        "company_name": real_name,
+        "nse_symbol": canonical_sym,
+        "bse_code": canonical_info.get("bse_code"),
+        "isin": canonical_info.get("isin"),
+        "exchange": canonical_info.get("exchange", "NSE"),
+        "sector": sector,
+        "industry": industry,
+        "aliases": canonical_info.get("aliases", [real_name, canonical_sym]),
+        "source": canonical_info.get("source", "user_added"),
+        "in_universe": True,
+        "is_active": True
+    })
+    
+    detail = build_full_stock_detail(stock_data)
+    
+    msg = (
+        f"Successfully refreshed financial data for {real_name} ({canonical_sym})"
+        if already_existed else
+        f"Successfully added {real_name} ({canonical_sym}) to Stocker universe"
+    )
+    
+    return AddCompanyResponse(
+        success=True,
+        message=msg,
+        symbol=canonical_sym,
+        company_name=real_name,
+        already_existed=already_existed,
+        stock=detail
+    )
+
+@app.post("/api/companies/{symbol}/add", response_model=AddCompanyResponse)
+def add_company_to_universe_by_path(symbol: str):
+    """
+    Resolves canonical company identity, enrolls it in the persistent Stocker universe,
+    and ingests 10-year financial statements on demand.
+    """
+    return execute_add_company_to_universe(symbol)
+
+@app.post("/api/companies/add", response_model=AddCompanyResponse)
+def add_company_to_universe_by_body(req: AddCompanyRequest):
+    """
+    Enrolls a company in the active Stocker universe by symbol in request body.
+    """
+    return execute_add_company_to_universe(req.symbol)
+
+@app.get("/api/companies", response_model=List[CompanyRegistryItem])
+def get_registered_companies(active_only: bool = False):
+    """
+    Lists all companies in the persistent SQLite registry.
+    """
+    companies = database.get_universe_companies(active_only=active_only)
+    return [CompanyRegistryItem(**c) for c in companies]
 
 @app.get("/api/stocks/top-picks")
 def get_top_picks():
