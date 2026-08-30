@@ -1251,7 +1251,7 @@ def test_extract_document_intelligence_production_projection_wiring():
         ]
     }]
 
-    with patch("llm_service.is_llm_available", return_value=True), \
+    with patch("llm_service.get_available_llm_provider", return_value=("gemini", "test-api-key")), \
          patch("llm_service.call_gemini_api", return_value=(mock_llm_json, "gemini-3.1-flash-lite")), \
          patch("database.get_stock_cache", return_value=dummy_cache), \
          patch("database.get_company_knowledge_facts", return_value=[]):

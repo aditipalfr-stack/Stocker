@@ -54,14 +54,15 @@ export interface DocumentItem {
   title: string;
   url: string;
   doc_type: string;
-  period_or_date?: string;
+  period_or_date?: string | null;
   discovery_source: string;
   actual_source_host: string;
   actual_source_url: string;
   is_direct_pdf: boolean;
   validation_status: string;
-  file_size_bytes?: number;
-  fetched_date?: string;
+  file_size_bytes?: number | null;
+  fetched_date?: string | null;
+  checksum_sha256?: string | null;
 }
 
 export interface DocumentDiscoveryDiagnostics {
@@ -313,22 +314,22 @@ export interface RecentChange {
   headline: string;
   category: string;
   detail: string;
-  source_doc?: string;
-  source_page?: number;
-  source_url?: string;
+  source_doc?: string | null;
+  source_page?: number | null;
+  source_url?: string | null;
 }
 
 export interface GrowthDriver {
   driver_title: string;
   driver_type: string;
   description: string;
-  target_timeline?: string;
-  stated_outlay_or_value?: string;
+  target_timeline?: string | null;
+  stated_outlay_or_value?: string | null;
   execution_status: string;
-  expected_impact?: string;
-  source_page?: number;
-  source_quote?: string;
-  source_url?: string;
+  expected_impact?: string | null;
+  source_page?: number | null;
+  source_quote?: string | null;
+  source_url?: string | null;
   confidence?: number;
 }
 
@@ -336,42 +337,42 @@ export interface PromiseVsDeliveryItem {
   area: string;
   management_promise: string;
   promised_in_period: string;
-  promise_source_page?: number;
-  promise_quote?: string;
+  promise_source_page?: number | null;
+  promise_quote?: string | null;
   actual_outcome: string;
   actual_in_period: string;
-  actual_source_page?: number;
-  actual_quote?: string;
+  actual_source_page?: number | null;
+  actual_quote?: string | null;
   status: 'Delivered' | 'In Progress' | 'Delayed' | 'Missed' | 'Not Enough Data' | 'Not Enough Evidence';
   stocker_analysis: string;
-  financial_numbers_check?: string;
-  source_url_promise?: string;
-  source_url_actual?: string;
+  financial_numbers_check?: string | null;
+  source_url_promise?: string | null;
+  source_url_actual?: string | null;
   confidence?: number;
 }
 
 export interface DemandMomentum {
   summary: string;
-  company_specific_metrics: Array<{ metric: string; value: string }>;
-  segment_trends: Array<{ segment: string; trend: string }>;
-  market_share_and_pricing?: string;
+  company_specific_metrics: Array<{ metric?: string | null; value?: string | number | null; [key: string]: unknown }>;
+  segment_trends: Array<{ segment?: string | null; trend?: string | null; [key: string]: unknown }>;
+  market_share_and_pricing?: string | null;
   headwinds_and_risks: string[];
-  source_page?: number;
-  source_quote?: string;
-  source_url?: string;
+  source_page?: number | null;
+  source_quote?: string | null;
+  source_url?: string | null;
   confidence?: number;
 }
 
 export interface RisksAndCashIssues {
-  working_capital_and_receivables?: string;
-  debt_and_capex_burden?: string;
-  margin_and_cost_pressures?: string;
+  working_capital_and_receivables?: string | null;
+  debt_and_capex_burden?: string | null;
+  margin_and_cost_pressures?: string | null;
   execution_and_bottlenecks: string[];
   regulatory_or_legal_headwinds: string[];
-  reported_numbers_comparison?: string;
-  source_page?: number;
-  source_quote?: string;
-  source_url?: string;
+  reported_numbers_comparison?: string | null;
+  source_page?: number | null;
+  source_quote?: string | null;
+  source_url?: string | null;
   confidence?: number;
 }
 
@@ -384,41 +385,47 @@ export interface StockerView {
 }
 
 export interface ConcallSpecificSummary {
-  demand_commentary?: string;
-  order_book_or_pipeline?: string;
-  margin_outlook?: string;
-  execution_updates?: string;
-  quarterly_changes_or_shifts?: string;
+  demand_commentary?: string | null;
+  order_book_or_pipeline?: string | null;
+  margin_outlook?: string | null;
+  execution_updates?: string | null;
+  quarterly_changes_or_shifts?: string | null;
 }
 
 export interface PresentationSpecificSummary {
   major_kpis?: string[];
-  expansion_roadmap?: string;
+  expansion_roadmap?: string | null;
   segment_highlights?: string[];
-  forward_targets?: string;
+  forward_targets?: string | null;
 }
 
 export interface AnnouncementSpecificSummary {
-  event_summary?: string;
-  fundamental_importance?: string;
-  business_impact?: string;
-  changes_management_guidance?: string;
+  event_summary?: string | null;
+  fundamental_importance?: string | null;
+  business_impact?: string | null;
+  changes_management_guidance?: string | null;
 }
 
 export interface CompanyFactItem {
   metric_name: string;
   stated_value_raw: string;
-  numeric_value?: number;
-  unit?: string;
+  numeric_value?: number | null;
+  unit?: string | null;
   period_or_date: string;
-  target_period?: string;
+  target_period?: string | null;
   category: string;
   scope?: string;
   claim_type?: string;
-  source_doc_title?: string;
-  source_url?: string;
-  source_page?: number;
-  source_quote?: string;
+  source_doc_title?: string | null;
+  source_url?: string | null;
+  source_page?: number | null;
+  source_quote?: string | null;
+  id?: number;
+  symbol?: string;
+  doc_title?: string;
+  doc_url?: string;
+  doc_type?: string;
+  extracted_at?: string;
 }
 
 export interface VerifiedFactComparison {
@@ -427,39 +434,39 @@ export interface VerifiedFactComparison {
   scope: string;
   latest_period: string;
   latest_value_raw: string;
-  latest_numeric?: number;
-  prior_period?: string;
-  prior_value_raw?: string;
-  prior_numeric?: number;
-  delta_numeric?: number;
-  pct_change?: number;
-  unit?: string;
+  latest_numeric?: number | null;
+  prior_period?: string | null;
+  prior_value_raw?: string | null;
+  prior_numeric?: number | null;
+  delta_numeric?: number | null;
+  pct_change?: number | null;
+  unit?: string | null;
   statement_verification_status: string;
-  statement_reported_value?: string;
-  management_explanation?: string;
+  statement_reported_value?: string | null;
+  management_explanation?: string | null;
   stocker_assessment: string;
-  source_doc_title?: string;
-  source_url?: string;
-  source_page?: number;
+  source_doc_title?: string | null;
+  source_url?: string | null;
+  source_page?: number | null;
   newer_evidence_available?: boolean;
-  newer_evidence_note?: string;
+  newer_evidence_note?: string | null;
 }
 
 export interface InterDocumentKPITrend {
   metric_name: string;
   category: string;
-  unit?: string;
+  unit?: string | null;
   trajectory: string;
   data_points: Array<{
     period: string;
     stated_value: string;
-    numeric_value?: number;
-    doc_title?: string;
-    doc_url?: string;
-    doc_type?: string;
+    numeric_value?: number | null;
+    doc_title?: string | null;
+    doc_url?: string | null;
+    doc_type?: string | null;
   }>;
-  latest_vs_prior_change?: string;
-  pct_change?: number;
+  latest_vs_prior_change?: string | null;
+  pct_change?: number | null;
   insight: string;
 }
 
@@ -467,67 +474,90 @@ export interface GuidanceVsProjection {
   metric_name: string;
   period_target: string;
   management_guidance_raw: string;
-  management_guidance_numeric?: number;
+  management_guidance_numeric?: number | null;
   guidance_source_doc: string;
-  guidance_source_url?: string;
-  stocker_projected_base?: number;
-  stocker_projected_bull?: number;
-  stocker_projected_bear?: number;
-  current_run_rate_value?: number;
-  current_run_rate_period?: string;
-  variance_guidance_vs_base_bps?: number;
+  guidance_source_url?: string | null;
+  stocker_projected_base?: number | null;
+  stocker_projected_bull?: number | null;
+  stocker_projected_bear?: number | null;
+  current_run_rate_value?: number | null;
+  current_run_rate_period?: string | null;
+  variance_guidance_vs_base_bps?: number | null;
   stocker_assessment: string;
 }
 
 export interface DocumentSummaryItem {
   doc_title: string;
   doc_url: string;
-  doc_type?: string;
-  period_or_date?: string;
-  analyzed_at?: string;
+  doc_type?: string | null;
+  period_or_date?: string | null;
+  analyzed_at?: string | null;
   key_takeaways: string[];
-  management_tone?: string;
-  guidance_and_capex?: string;
+  management_tone?: string | null;
+  guidance_and_capex?: string | null;
   risks_and_headwinds?: string[];
-  capex_or_guidance_highlight?: string;
+  capex_or_guidance_highlight?: string | null;
   extracted_facts?: CompanyFactItem[];
   
   // Document-Type Specialized Extractions
-  strategic_priorities?: string;
-  capex_and_expansion?: string;
-  cash_debt_working_capital?: string;
+  strategic_priorities?: string | null;
+  capex_and_expansion?: string | null;
+  cash_debt_working_capital?: string | null;
   major_risks?: string[];
-  long_term_targets?: string;
-  management_guidance?: string;
-  demand_and_orders?: string;
-  margin_outlook?: string;
-  capex_and_execution?: string;
-  quarterly_shifts?: string;
+  long_term_targets?: string | null;
+  management_guidance?: string | null;
+  demand_and_orders?: string | null;
+  margin_outlook?: string | null;
+  capex_and_execution?: string | null;
+  quarterly_shifts?: string | null;
   major_kpis?: string[];
-  expansion_roadmap?: string;
+  expansion_roadmap?: string | null;
   segment_highlights?: string[];
-  forward_targets?: string;
-  event_summary?: string;
-  fundamental_importance?: string;
-  business_and_financial_impact?: string;
-  guidance_impact?: string;
+  forward_targets?: string | null;
+  event_summary?: string | null;
+  fundamental_importance?: string | null;
+  business_and_financial_impact?: string | null;
+  guidance_impact?: string | null;
 
-  concall_specific?: ConcallSpecificSummary;
-  presentation_specific?: PresentationSpecificSummary;
-  announcement_specific?: AnnouncementSpecificSummary;
+  concall_specific?: ConcallSpecificSummary | null;
+  presentation_specific?: PresentationSpecificSummary | null;
+  announcement_specific?: AnnouncementSpecificSummary | null;
+}
+
+export interface SourceDocumentReference {
+  title: string;
+  url: string;
+  symbol?: string;
+  type?: string | null;
+  period?: string | null;
+  ticker?: string;
+  company_name?: string;
+  name?: string | null;
+  doc_type?: string;
+  period_or_date?: string | null;
+  discovery_source?: string;
+  actual_source_host?: string;
+  actual_source_url?: string;
+  is_direct_pdf?: boolean;
+  validation_status?: string;
+  is_valid?: boolean | number;
+  file_size_bytes?: number | null;
+  fetched_date?: string | null;
+  checksum_sha256?: string | null;
+  added_at?: string;
 }
 
 export interface BusinessOutlookIntelligence {
   symbol: string;
   company_name: string;
-  status?: string;
-  message?: string;
+  status?: string | null;
+  message?: string | null;
   latest_document_period: string;
-  older_document_period?: string;
-  source_documents: Array<{ title: string; url: string; type?: string; period?: string }>;
+  older_document_period?: string | null;
+  source_documents: SourceDocumentReference[];
   ai_provider_used: string;
-  model_version?: string;
-  extraction_timestamp?: string;
+  model_version?: string | null;
+  extraction_timestamp?: string | null;
   what_changed_recently: RecentChange[];
   growth_drivers: GrowthDriver[];
   promise_vs_delivery: PromiseVsDeliveryItem[];
@@ -539,6 +569,3 @@ export interface BusinessOutlookIntelligence {
   operational_kpi_evolution?: InterDocumentKPITrend[];
   guidance_vs_projections?: GuidanceVsProjection[];
 }
-
-
-

@@ -52,10 +52,11 @@ const latestRowPair = (statement: FinancialStatement, aliases: string[]) => {
   };
 };
 
-const formatCrores = (value: number | null | undefined) => value === null || value === undefined ? '—' : `₹${value.toLocaleString('en-IN')} Cr`;
-const formatPercent = (value: number | null | undefined) => value === null || value === undefined ? '—' : `${value.toLocaleString('en-IN')}%`;
-const formatCompactCrores = (value: number) => `₹${Intl.NumberFormat('en-IN', { notation: 'compact', maximumFractionDigits: 1 }).format(value)}`;
-const toneFromSignedValue = (value: number | null | undefined): TrendTone => value === null || value === undefined || value === 0 ? 'neutral' : value > 0 ? 'positive' : 'negative';
+const isFiniteNumber = (value: unknown): value is number => typeof value === 'number' && Number.isFinite(value);
+const formatCrores = (value: number | null | undefined) => isFiniteNumber(value) ? `₹${value.toLocaleString('en-IN')} Cr` : '—';
+const formatPercent = (value: number | null | undefined) => isFiniteNumber(value) ? `${value.toLocaleString('en-IN')}%` : '—';
+const formatCompactCrores = (value: number) => isFiniteNumber(value) ? `₹${Intl.NumberFormat('en-IN', { notation: 'compact', maximumFractionDigits: 1 }).format(value)}` : '—';
+const toneFromSignedValue = (value: number | null | undefined): TrendTone => !isFiniteNumber(value) || value === 0 ? 'neutral' : value > 0 ? 'positive' : 'negative';
 const toneForPositiveMetric = (current: number | null | undefined, previous: number | null | undefined): TrendTone => {
   if (current === null || current === undefined) return 'neutral';
   if (current < 0) return 'negative';
@@ -302,7 +303,7 @@ export const StockDetailView: React.FC<StockDetailViewProps> = ({ stock, onBack,
     {
       label: 'QoQ momentum',
       concept: 'qoq',
-      value: latestQuarterTrend?.sales_growth_qoq_pct == null ? '—' : `${latestQuarterTrend.sales_growth_qoq_pct > 0 ? '+' : ''}${latestQuarterTrend.sales_growth_qoq_pct.toFixed(1)}%`,
+      value: isFiniteNumber(latestQuarterTrend?.sales_growth_qoq_pct) ? `${latestQuarterTrend.sales_growth_qoq_pct > 0 ? '+' : ''}${latestQuarterTrend.sales_growth_qoq_pct.toFixed(1)}%` : '—',
       detail: <ExplicitChangeIndicator value={latestQuarterTrend?.sales_growth_qoq_pct} label="Sales" />,
       tone: toneFromSignedValue(latestQuarterTrend?.sales_growth_qoq_pct)
     }
@@ -416,7 +417,7 @@ export const StockDetailView: React.FC<StockDetailViewProps> = ({ stock, onBack,
     : null;
 
   const formatConfidence = (confidence?: number) => {
-    if (confidence === undefined || confidence === null) return null;
+    if (!isFiniteNumber(confidence)) return null;
     return `${Math.round(confidence <= 1 ? confidence * 100 : confidence)}% confidence`;
   };
 
@@ -561,7 +562,7 @@ export const StockDetailView: React.FC<StockDetailViewProps> = ({ stock, onBack,
                 <ConceptHelp term="fcf" label="FCF Yield" onCalculationDetails={() => setSelectedFormulaKey('free_cash_flow')} />
               </span>
             </div>
-            <span className="text-sm font-bold text-teal-400">{stock.ratios.fcf_yield_pct}%</span>
+            <span className="text-sm font-bold text-teal-400">{formatPercent(stock.ratios.fcf_yield_pct)}</span>
           </div>
           <div className="bg-slate-950/60 p-3 rounded-xl border border-slate-800/80 text-center relative group">
             <div className="flex items-center justify-center gap-1">
@@ -570,7 +571,7 @@ export const StockDetailView: React.FC<StockDetailViewProps> = ({ stock, onBack,
               </span>
             </div>
             <span className="text-sm font-bold text-slate-100">
-              {stock.analytics?.growth_rates?.sales_cagr_3yr ?? stock.ratios.sales_growth_3yr_cagr}%
+              {formatPercent(stock.analytics?.growth_rates?.sales_cagr_3yr ?? stock.ratios.sales_growth_3yr_cagr)}
             </span>
           </div>
           <div className="bg-slate-950/60 p-3 rounded-xl border border-slate-800/80 text-center relative group">
@@ -580,7 +581,7 @@ export const StockDetailView: React.FC<StockDetailViewProps> = ({ stock, onBack,
               </span>
             </div>
             <span className="text-sm font-bold text-emerald-400">
-              {stock.analytics?.cash_flow_quality?.cfo_to_pat_5yr_pct}%
+              {formatPercent(stock.analytics?.cash_flow_quality?.cfo_to_pat_5yr_pct)}
             </span>
           </div>
           <div className="bg-slate-950/60 p-3 rounded-xl border border-slate-800/80 text-center relative group">
@@ -589,7 +590,7 @@ export const StockDetailView: React.FC<StockDetailViewProps> = ({ stock, onBack,
                 <ConceptHelp term="debt_equity" label="Debt / Equity" onCalculationDetails={() => setSelectedFormulaKey('debt_to_equity')} />
               </span>
             </div>
-            <span className="text-sm font-bold text-slate-100">{stock.ratios.debt_to_equity}x</span>
+            <span className="text-sm font-bold text-slate-100">{isFiniteNumber(stock.ratios.debt_to_equity) ? `${stock.ratios.debt_to_equity}x` : '—'}</span>
           </div>
           <div className="bg-slate-950/60 p-3 rounded-xl border border-slate-800/80 text-center">
             <span className="text-[10px] text-slate-500 uppercase font-sans block">Div Yield</span>
@@ -684,10 +685,10 @@ export const StockDetailView: React.FC<StockDetailViewProps> = ({ stock, onBack,
             </span>
             <div>
               <div className="flex items-center gap-2 font-mono text-xs my-1">
-                <span className="text-emerald-400 font-bold">5Y CFO/PAT: {stock.analytics?.cash_flow_quality?.cfo_to_pat_5yr_pct}%</span>
+                <span className="text-emerald-400 font-bold">5Y CFO/PAT: {formatPercent(stock.analytics?.cash_flow_quality?.cfo_to_pat_5yr_pct)}</span>
               </div>
               <p className="text-[11px] text-slate-400 leading-tight">
-                Debt/Equity: <strong className="text-slate-200">{stock.ratios.debt_to_equity}x</strong> | CWIP: <strong className="text-slate-200">{stock.analytics?.balance_sheet_efficiency?.latest_cwip_to_net_block_pct}%</strong>
+                Debt/Equity: <strong className="text-slate-200">{isFiniteNumber(stock.ratios.debt_to_equity) ? `${stock.ratios.debt_to_equity}x` : '—'}</strong> | CWIP: <strong className="text-slate-200">{formatPercent(stock.analytics?.balance_sheet_efficiency?.latest_cwip_to_net_block_pct)}</strong>
               </p>
             </div>
           </div>
@@ -1824,7 +1825,13 @@ export const StockDetailView: React.FC<StockDetailViewProps> = ({ stock, onBack,
                                 <span className="text-[10px] text-slate-500 uppercase font-sans block">
                                   {fact.latest_period || 'Current Filing'}
                                 </span>
-                                <span className={`font-bold text-sm ${isDiscrepancy ? 'text-rose-400' : 'text-emerald-400'}`}>
+                                <span className={`font-bold text-sm ${
+                                  isDiscrepancy ? 'text-rose-400' :
+                                  isVerified ? 'text-emerald-400' :
+                                  isContextOnly ? 'text-amber-300' :
+                                  isOperational ? 'text-cyan-300' :
+                                  'text-slate-300'
+                                }`}>
                                   {fact.latest_value_raw}
                                 </span>
                               </div>
@@ -1836,11 +1843,11 @@ export const StockDetailView: React.FC<StockDetailViewProps> = ({ stock, onBack,
                                   {fact.prior_value_raw || 'N/A'}
                                 </span>
                               </div>
-                              {(fact.delta_numeric !== null && fact.delta_numeric !== undefined) && (
+                              {isFiniteNumber(fact.delta_numeric) && (
                                 <div className="col-span-2 pt-2 border-t border-slate-800/60 flex items-center justify-between text-[11px]">
                                   <span className="text-slate-400 font-sans">Period Movement:</span>
                                   <span className={`font-bold ${fact.delta_numeric >= 0 ? 'text-emerald-300' : 'text-rose-300'}`}>
-                                    {fact.delta_numeric >= 0 ? '+' : ''}{fact.delta_numeric} {fact.unit || ''} {fact.pct_change !== null ? `(${fact.pct_change >= 0 ? '+' : ''}${fact.pct_change}%)` : ''}
+                                    {fact.delta_numeric >= 0 ? '+' : ''}{fact.delta_numeric} {fact.unit || ''} {isFiniteNumber(fact.pct_change) ? `(${fact.pct_change >= 0 ? '+' : ''}${fact.pct_change}%)` : ''}
                                   </span>
                                 </div>
                               )}
@@ -1861,7 +1868,13 @@ export const StockDetailView: React.FC<StockDetailViewProps> = ({ stock, onBack,
                             {/* Stocker Assessment Note */}
                             {fact.stocker_assessment && (
                               <div className="text-xs text-slate-300 bg-slate-900/40 p-3 rounded-xl border border-slate-800/60">
-                                <span className={`font-bold text-[10px] uppercase block mb-1 ${isDiscrepancy ? 'text-rose-400' : 'text-emerald-400'}`}>
+                                <span className={`font-bold text-[10px] uppercase block mb-1 ${
+                                  isDiscrepancy ? 'text-rose-400' :
+                                  isVerified ? 'text-emerald-400' :
+                                  isContextOnly ? 'text-amber-300' :
+                                  isOperational ? 'text-cyan-300' :
+                                  'text-slate-400'
+                                }`}>
                                   Stocker Assessment
                                 </span>
                                 <p className="leading-relaxed">{fact.stocker_assessment}</p>
@@ -1936,7 +1949,20 @@ export const StockDetailView: React.FC<StockDetailViewProps> = ({ stock, onBack,
                             <div key={pIdx} className="bg-slate-900/70 p-3 rounded-xl border border-slate-800/80 space-y-1">
                               <span className="text-[10px] font-mono text-slate-400 block">{pt.period}</span>
                               <span className="font-bold text-white text-sm block">{pt.stated_value}</span>
-                              <p className="text-[9px] text-slate-500 truncate" title={pt.doc_title}>{pt.doc_title || 'Official Filing'}</p>
+                              {pt.doc_url ? (
+                                <a
+                                  href={pt.doc_url}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="text-[9px] text-slate-500 hover:text-purple-300 truncate flex items-center gap-1"
+                                  title={pt.doc_title || 'Official Filing'}
+                                >
+                                  <span className="truncate">{pt.doc_title || 'Official Filing'}</span>
+                                  <ExternalLink className="w-2.5 h-2.5 shrink-0" />
+                                </a>
+                              ) : (
+                                <p className="text-[9px] text-slate-500 truncate" title={pt.doc_title || undefined}>{pt.doc_title || 'Official Filing'}</p>
+                              )}
                             </div>
                           ))}
                         </div>
@@ -2008,13 +2034,13 @@ export const StockDetailView: React.FC<StockDetailViewProps> = ({ stock, onBack,
                           <span className="text-[10px] font-bold uppercase tracking-wider text-cyan-400 block">
                             Stocker DCF Projection
                           </span>
-                          {item.stocker_projected_base !== null && item.stocker_projected_base !== undefined ? (
+                          {isFiniteNumber(item.stocker_projected_base) ? (
                             <div className="space-y-1">
                               <p className="text-sm font-bold text-cyan-200">Base Case: {item.stocker_projected_base}%</p>
-                              {(item.stocker_projected_bull !== null && item.stocker_projected_bull !== undefined && item.stocker_projected_bear !== null && item.stocker_projected_bear !== undefined) && (
+                              {(isFiniteNumber(item.stocker_projected_bull) && isFiniteNumber(item.stocker_projected_bear)) && (
                                 <p className="text-[11px] text-slate-400 font-mono">Bull: {item.stocker_projected_bull}% | Bear: {item.stocker_projected_bear}%</p>
                               )}
-                              {item.variance_guidance_vs_base_bps !== null && item.variance_guidance_vs_base_bps !== undefined && (
+                              {isFiniteNumber(item.variance_guidance_vs_base_bps) && (
                                 <span className={`text-[10px] font-mono px-2 py-0.5 rounded inline-block mt-1 ${
                                   item.variance_guidance_vs_base_bps >= 0 ? 'bg-emerald-950 text-emerald-300' : 'bg-rose-950 text-rose-300'
                                 }`}>
@@ -2024,8 +2050,8 @@ export const StockDetailView: React.FC<StockDetailViewProps> = ({ stock, onBack,
                             </div>
                           ) : (
                             <div className="space-y-1">
-                              <p className="text-xs font-semibold text-slate-400">No Direct DCF Model</p>
-                              <p className="text-[10px] text-slate-500">Operational / non-DCF guidance metric</p>
+                              <p className="text-xs font-semibold text-slate-400">No Direct Comparable Projection</p>
+                              <p className="text-[10px] text-slate-500">This metric is not directly comparable to a Stocker financial projection.</p>
                             </div>
                           )}
                         </div>
@@ -2036,7 +2062,7 @@ export const StockDetailView: React.FC<StockDetailViewProps> = ({ stock, onBack,
                             Current Run-Rate / Baseline
                           </span>
                           <p className="text-sm font-bold text-white">
-                            {item.current_run_rate_value !== null && item.current_run_rate_value !== undefined ? (
+                            {isFiniteNumber(item.current_run_rate_value) ? (
                               `${item.current_run_rate_value}${item.metric_name?.toLowerCase().includes('margin') || item.metric_name?.toLowerCase().includes('growth') || item.metric_name?.toLowerCase().includes('revenue') ? '%' : ''}`
                             ) : (
                               'Unavailable / Not Tracked'
@@ -2170,8 +2196,8 @@ export const StockDetailView: React.FC<StockDetailViewProps> = ({ stock, onBack,
                       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
                         {docIntel.demand_momentum.company_specific_metrics.map((m, idx) => (
                           <div key={idx} className="bg-slate-900/70 p-3.5 rounded-2xl border border-slate-800/80 space-y-1">
-                            <span className="text-[10px] uppercase font-bold tracking-wider text-slate-400 block">{m.metric}</span>
-                            <span className="text-sm font-bold text-white font-mono">{m.value}</span>
+                            <span className="text-[10px] uppercase font-bold tracking-wider text-slate-400 block">{m.metric || 'Operational Metric'}</span>
+                            <span className="text-sm font-bold text-white font-mono">{m.value === null || m.value === undefined ? 'Unavailable' : String(m.value)}</span>
                           </div>
                         ))}
                       </div>
@@ -2184,8 +2210,8 @@ export const StockDetailView: React.FC<StockDetailViewProps> = ({ stock, onBack,
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                           {docIntel.demand_momentum.segment_trends.map((s, idx) => (
                             <div key={idx} className="bg-slate-900/50 p-3 rounded-xl border border-slate-800 text-xs">
-                              <span className="font-bold text-emerald-300">{s.segment}:</span>{' '}
-                              <span className="text-slate-300">{s.trend}</span>
+                              <span className="font-bold text-emerald-300">{s.segment || 'Business Segment'}:</span>{' '}
+                              <span className="text-slate-300">{s.trend || 'Trend unavailable'}</span>
                             </div>
                           ))}
                         </div>
@@ -2997,21 +3023,21 @@ export const StockDetailView: React.FC<StockDetailViewProps> = ({ stock, onBack,
                           <tr key={idx} className="hover:bg-slate-900/50 transition-colors">
                             <td className="py-2.5 px-3 font-bold text-slate-200">{row.period}</td>
                             <td className="py-2.5 px-3 text-right text-cyan-300 font-bold">
-                              {row.reported_cfo_cr !== null && row.reported_cfo_cr !== undefined ? row.reported_cfo_cr.toLocaleString('en-IN') : '-'}
+                              {isFiniteNumber(row.reported_cfo_cr) ? row.reported_cfo_cr.toLocaleString('en-IN') : '—'}
                             </td>
                             <td className="py-2.5 px-3 text-right text-slate-300">
-                              {row.reported_pat_cr !== null && row.reported_pat_cr !== undefined ? row.reported_pat_cr.toLocaleString('en-IN') : '-'}
+                              {isFiniteNumber(row.reported_pat_cr) ? row.reported_pat_cr.toLocaleString('en-IN') : '—'}
                             </td>
                             <td className="py-2.5 px-3 text-right text-amber-300">
-                              {row.capex_cr !== null && row.capex_cr !== undefined ? row.capex_cr.toLocaleString('en-IN') : '-'}
+                              {isFiniteNumber(row.capex_cr) ? row.capex_cr.toLocaleString('en-IN') : '—'}
                             </td>
                             <td className={`py-2.5 px-3 text-right font-bold ${
-                              (row.stocker_derived_fcf_cr || 0) >= 0 ? 'text-emerald-400' : 'text-rose-400'
+                              !isFiniteNumber(row.stocker_derived_fcf_cr) ? 'text-slate-400' : row.stocker_derived_fcf_cr >= 0 ? 'text-emerald-400' : 'text-rose-400'
                             }`}>
-                              {row.stocker_derived_fcf_cr !== null && row.stocker_derived_fcf_cr !== undefined ? row.stocker_derived_fcf_cr.toLocaleString('en-IN') : '-'}
+                              {isFiniteNumber(row.stocker_derived_fcf_cr) ? row.stocker_derived_fcf_cr.toLocaleString('en-IN') : '—'}
                             </td>
                             <td className="py-2.5 px-3 text-right text-slate-300">
-                              {row.cfo_to_pat_pct !== null && row.cfo_to_pat_pct !== undefined ? `${row.cfo_to_pat_pct}%` : '-'}
+                              {formatPercent(row.cfo_to_pat_pct)}
                             </td>
                             <td className="py-2.5 px-3 text-slate-400 text-[11px] font-sans">
                               <span className="px-2 py-0.5 rounded bg-slate-900 border border-slate-800 text-slate-300">
