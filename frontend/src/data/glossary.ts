@@ -214,6 +214,38 @@ const glossaryData = {
     howStockerUses: 'Stocker displays the available standardized ratio and keeps missing values unavailable rather than zero.',
     aliases: ['return on equity']
   },
+  roa: {
+    title: 'ROA',
+    meaning: 'Return on assets measures how efficiently a bank or business generates profit from its total asset base.',
+    whyItMatters: 'For banks, ROA is a primary measure of balance sheet profitability and asset efficiency.',
+    formula: 'Profit after tax ÷ 2-year Average Total Assets × 100',
+    howStockerUses: 'Stocker strictly uses consecutive 2-year average total assets and fails closed to unavailable if prior assets are missing.',
+    aliases: ['return on assets']
+  },
+  cd_ratio: {
+    title: 'CD Ratio',
+    meaning: 'Credit-to-Deposit ratio measures the proportion of customer deposits deployed as loans and advances.',
+    whyItMatters: 'It indicates lending capacity and liquidity; very high ratios may pressure liquidity, while low ratios may mean unutilised deposit funds.',
+    formula: 'Advances ÷ Deposits × 100',
+    howStockerUses: 'Stocker calculates CD ratio directly from reported bank balance sheet rows and avoids division by zero.',
+    aliases: ['credit deposit ratio', 'loan to deposit ratio', 'LDR']
+  },
+  credit_cost: {
+    title: 'Credit Cost',
+    meaning: 'The annualized cost of provisions for bad and doubtful loans as a proportion of total advances.',
+    whyItMatters: 'It reflects loan book stress and the provisioning required to cushion credit risks.',
+    formula: 'Provisions ÷ 2-year Average Gross Advances × 100',
+    howStockerUses: 'Stocker calculates credit cost only when exact provisions and consecutive 2-year advances are available.',
+    aliases: ['credit cost ratio', 'provisioning cost']
+  },
+  cost_to_income: {
+    title: 'Cost to Income',
+    meaning: 'The ratio of operating expenses to total net operating income (Net Interest Income + Other Income).',
+    whyItMatters: 'It measures the operational efficiency of a banking institution; a lower ratio shows better cost management.',
+    formula: 'Operating Expenses ÷ (Net Interest Income + Other Income) × 100',
+    howStockerUses: 'Stocker calculates this ratio only when explicit bank operating expenses and complete net income items are present.',
+    aliases: ['cost to income ratio', 'cost income ratio']
+  },
   roce: {
     title: 'ROCE',
     meaning: 'Return on capital employed measures operating returns from the long-term capital in the business.',

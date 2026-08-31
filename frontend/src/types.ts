@@ -165,6 +165,42 @@ export interface CompanyTaxonomy {
   updated_at?: string | null;
 }
 
+export interface BankTrendItem {
+  period: string;
+  deposits_cr?: number | null;
+  advances_cr?: number | null;
+  borrowings_cr?: number | null;
+  cd_ratio_pct?: number | null;
+  pat_cr?: number | null;
+  total_assets_cr?: number | null;
+  total_equity_cr?: number | null;
+  roa_pct?: number | null;
+  roe_pct?: number | null;
+  gross_npa_pct?: number | null;
+  net_npa_pct?: number | null;
+  credit_cost_pct?: number | null;
+  cost_to_income_pct?: number | null;
+}
+
+export interface BankAnalytics {
+  applicability: string;
+  latest_period?: string | null;
+  deposit_growth_yoy_pct?: number | null;
+  deposit_growth_3yr_cagr_pct?: number | null;
+  advances_growth_yoy_pct?: number | null;
+  advances_growth_3yr_cagr_pct?: number | null;
+  credit_deposit_ratio_pct?: number | null;
+  roa_pct?: number | null;
+  roe_pct?: number | null;
+  gross_npa_pct?: number | null;
+  net_npa_pct?: number | null;
+  cost_to_income_pct?: number | null;
+  credit_cost_pct?: number | null;
+  trends?: BankTrendItem[];
+  provenance?: Record<string, any>;
+  unavailable_reasons?: Record<string, string>;
+}
+
 export interface StockSummary {
   symbol: string;
   name: string;
@@ -191,6 +227,7 @@ export interface StockSummary {
   source_url?: string;
   statement_type?: string;
   financial_business_model?: string;
+  bank_analytics?: BankAnalytics;
   fetched_at?: string;
 }
 
@@ -215,6 +252,7 @@ export interface StockDetail {
   source_url?: string;
   statement_type?: string;
   financial_business_model?: string;
+  bank_analytics?: BankAnalytics;
   fetched_at?: string;
   documents_checked_at?: string | null;
   verification_summary?: FinancialVerificationSummary | null;
@@ -231,6 +269,7 @@ export interface StockDetail {
   score: ScoreBreakdown;
   analytics: {
     financial_business_model?: string;
+    bank_analytics?: BankAnalytics;
     bank_metrics?: {
       latest_deposits_cr?: number | null;
       latest_advances_cr?: number | null;

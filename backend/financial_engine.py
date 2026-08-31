@@ -626,26 +626,29 @@ def compute_financial_analytics(
         "bs_trends": bs_trends
     }
 
-    # Bank-specific reported metrics
-    if is_financial_business:
-        deposits_vals = get_row_values(bs, "Deposits") or get_row_values(bs, "Total Deposits")
-        advances_vals = get_row_values(bs, "Advances") or get_row_values(bs, "Loans & Advances")
-        gnpa_vals = get_row_values(quarters, "Gross NPA %") or get_row_values(pl, "Gross NPA %")
-        nnpa_vals = get_row_values(quarters, "Net NPA %") or get_row_values(pl, "Net NPA %")
+    # Bank-specific reported metrics and Tier 1 Analytics (BANK ONLY)
+    if business_model == "BANK":
+        from bank_engine import compute_bank_analytics
+        bank_res = compute_bank_analytics(
+            quarters=quarters,
+            pl=pl,
+            bs=bs,
+            cf=cf,
+            ratios=ratios if 'ratios' in locals() else None,
+            symbol=symbol,
+            financial_truth=financial_truth,
+            sector=sector,
+            industry=industry
+        )
+        analytics["bank_analytics"] = bank_res.model_dump()
         
-        latest_bs_p = bs.periods[-1] if (bs and bs.periods) else None
-        latest_q_p = quarters.periods[-1] if (quarters and quarters.periods) else None
-        
-        latest_dep = deposits_vals.get(latest_bs_p) if (deposits_vals and latest_bs_p) else None
-        latest_adv = advances_vals.get(latest_bs_p) if (advances_vals and latest_bs_p) else None
-        latest_gnpa = gnpa_vals.get(latest_q_p) if (gnpa_vals and latest_q_p) else (gnpa_vals.get(latest_bs_p) if gnpa_vals else None)
-        latest_nnpa = nnpa_vals.get(latest_q_p) if (nnpa_vals and latest_q_p) else (nnpa_vals.get(latest_bs_p) if nnpa_vals else None)
-        
+        # Derive backward-compatible bank_metrics from BankEngine
+        latest_t = bank_res.trends[-1] if bank_res.trends else None
         analytics["bank_metrics"] = {
-            "latest_deposits_cr": latest_dep,
-            "latest_advances_cr": latest_adv,
-            "latest_gross_npa_pct": latest_gnpa,
-            "latest_net_npa_pct": latest_nnpa
+            "latest_deposits_cr": latest_t.deposits_cr if latest_t else None,
+            "latest_advances_cr": latest_t.advances_cr if latest_t else None,
+            "latest_gross_npa_pct": bank_res.gross_npa_pct,
+            "latest_net_npa_pct": bank_res.net_npa_pct
         }
 
     # -------------------------------------------------------------------------
@@ -677,15 +680,22 @@ def compute_financial_analytics(
     ).model_dump()
 
     # -------------------------------------------------------------------------
-    # 5. DuPont Analysis (Latest Full Year)
+    # 5. DuPont Analysis (Latest Full Year — Quarantined for Financial Businesses)
     # -------------------------------------------------------------------------
-    if y_periods and bs_periods:
+    if is_financial_business:
+        analytics["du_pont_analysis"] = {
+            "applicability": "not_applicable_financial_business"
+        }
+    elif y_periods and bs_periods:
         lp_y = y_periods[-1]
         lp_b = bs_periods[-1]
         sales_val = y_sales.get(lp_y)
         pat_val = y_pat.get(lp_y)
-        eq_val = ((equity_cap.get(lp_b) or 0.0) + (reserves.get(lp_b) or 0.0))
-        assets_val = total_assets.get(lp_b) or (eq_val + (borrowings.get(lp_b) or 0.0))
+        
+        c_val = equity_cap.get(lp_b)
+        r_val = reserves.get(lp_b)
+        eq_val = (c_val + r_val) if (c_val is not None and r_val is not None) else None
+        assets_val = total_assets.get(lp_b)
 
         net_margin = round((pat_val / sales_val) * 100.0, 2) if (pat_val and sales_val and sales_val > 0) else None
         asset_turnover = round(sales_val / assets_val, 2) if (sales_val and assets_val and assets_val > 0) else None
@@ -693,6 +703,7 @@ def compute_financial_analytics(
         roe_dupont = round((pat_val / eq_val) * 100.0, 2) if (pat_val and eq_val and eq_val > 0) else None
 
         analytics["du_pont_analysis"] = {
+            "applicability": "applicable",
             "period": lp_y,
             "net_profit_margin_pct": net_margin,
             "asset_turnover_ratio": asset_turnover,

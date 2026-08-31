@@ -181,6 +181,7 @@ def build_full_stock_detail(stock_data: Dict[str, Any], custom_assumptions: Opti
         source_url=source_url,
         statement_type=statement_type,
         financial_business_model=biz_model,
+        bank_analytics=analytics.get("bank_analytics") if biz_model == "BANK" else None,
         fetched_at=fetched_at,
         documents_checked_at=database.get_document_sources_checked_at(symbol) or stock_data.get("documents_checked_at"),
         verification_summary=verif_summary,
@@ -253,6 +254,7 @@ def get_all_stocks(sector: Optional[str] = None, min_score: Optional[float] = No
             source_url=d.source_url,
             statement_type=d.statement_type,
             financial_business_model=d.financial_business_model,
+            bank_analytics=d.bank_analytics if d.financial_business_model == "BANK" else None,
             fetched_at=d.fetched_at
         )
         

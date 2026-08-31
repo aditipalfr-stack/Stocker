@@ -463,39 +463,44 @@ export const StockDetailView: React.FC<StockDetailViewProps> = ({
     }
   ];
 
-  const bankDeposits = stock.analytics?.bank_metrics?.latest_deposits_cr ?? latestRowPair(stock.balance_sheet, ['deposits', 'total deposits']).current;
-  const bankAdvances = stock.analytics?.bank_metrics?.latest_advances_cr ?? latestRowPair(stock.balance_sheet, ['advances', 'loans & advances']).current;
-  const bankGnpa = stock.analytics?.bank_metrics?.latest_gross_npa_pct;
-  const bankNnpa = stock.analytics?.bank_metrics?.latest_net_npa_pct;
+  const bankAnalytics = stock.bank_analytics || stock.analytics?.bank_analytics;
+  const bankDeposits = bankAnalytics?.trends?.[bankAnalytics.trends.length - 1]?.deposits_cr ?? stock.analytics?.bank_metrics?.latest_deposits_cr ?? latestRowPair(stock.balance_sheet, ['deposits', 'total deposits']).current;
+  const bankAdvances = bankAnalytics?.trends?.[bankAnalytics.trends.length - 1]?.advances_cr ?? stock.analytics?.bank_metrics?.latest_advances_cr ?? latestRowPair(stock.balance_sheet, ['advances', 'loans & advances']).current;
+  const bankGnpa = bankAnalytics?.gross_npa_pct ?? stock.analytics?.bank_metrics?.latest_gross_npa_pct;
+  const bankNnpa = bankAnalytics?.net_npa_pct ?? stock.analytics?.bank_metrics?.latest_net_npa_pct;
+  const bankRoa = bankAnalytics?.roa_pct;
+  const bankRoe = bankAnalytics?.roe_pct;
+  const bankCdRatio = bankAnalytics?.credit_deposit_ratio_pct;
+  const bankDepositGrowthYoY = bankAnalytics?.deposit_growth_yoy_pct;
+  const bankAdvancesGrowthYoY = bankAnalytics?.advances_growth_yoy_pct;
 
   const balanceSheetSummary: StatementSummaryItem[] = isBank ? [
     {
       label: 'Deposits',
       concept: 'deposits',
       value: formatCrores(bankDeposits),
-      detail: 'Total customer deposits',
+      detail: isFiniteNumber(bankDepositGrowthYoY) ? `YoY: ${bankDepositGrowthYoY > 0 ? '+' : ''}${bankDepositGrowthYoY}%` : 'Total customer deposits',
       tone: 'neutral'
     },
     {
-      label: 'Borrowings',
-      concept: 'borrowings',
-      value: formatCrores(latestBsTrend?.borrowings_cr ?? stock.analytics?.balance_sheet_efficiency?.borrowings_cr),
-      detail: <ChangeIndicator metric="Borrowings" current={latestBsTrend?.borrowings_cr} previous={previousBsTrend?.borrowings_cr} />,
-      tone: 'neutral',
-      provenance: latestBsTrend?.provenance?.borrowings
-    },
-    {
-      label: 'Advances / Loans',
+      label: 'Advances (Loans)',
       concept: 'advances',
       value: formatCrores(bankAdvances),
-      detail: 'Loan book size',
+      detail: isFiniteNumber(bankAdvancesGrowthYoY) ? `YoY: ${bankAdvancesGrowthYoY > 0 ? '+' : ''}${bankAdvancesGrowthYoY}% (CD: ${isFiniteNumber(bankCdRatio) ? `${bankCdRatio}%` : '—'})` : 'Loan book size',
       tone: 'neutral'
     },
     {
-      label: 'Gross NPA %',
+      label: 'Return on Assets (ROA)',
+      concept: 'roa',
+      value: isFiniteNumber(bankRoa) ? `${bankRoa}%` : (isFiniteNumber(bankRoe) ? `${bankRoe}% ROE` : '—'),
+      detail: isFiniteNumber(bankRoa) ? `Avg Assets (ROE: ${isFiniteNumber(bankRoe) ? `${bankRoe}%` : '—'})` : 'Balance sheet return',
+      tone: 'neutral'
+    },
+    {
+      label: 'Asset Quality (NPA)',
       concept: 'gnpa',
-      value: formatPercent(bankGnpa),
-      detail: isFiniteNumber(bankNnpa) ? `Net NPA: ${bankNnpa}%` : (bankGnpa === null || bankGnpa === undefined ? 'Bank-specific metric unavailable in current source' : 'Asset Quality'),
+      value: isFiniteNumber(bankGnpa) ? `${bankGnpa}% GNPA` : '—',
+      detail: isFiniteNumber(bankNnpa) ? `Net NPA: ${bankNnpa}%` : (bankGnpa === null || bankGnpa === undefined ? 'Bank metric unavailable in statement' : 'Asset Quality'),
       tone: 'neutral'
     }
   ] : [
@@ -876,10 +881,16 @@ export const StockDetailView: React.FC<StockDetailViewProps> = ({
                 </span>
                 <div>
                   <div className="flex items-center gap-2 font-mono text-xs my-1">
-                    <span className="text-cyan-300 font-bold"><ConceptHelp term="deposits" label={`Deposits: ${formatCrores(bankDeposits)}`} businessModel={businessModel} /></span>
+                    <span className="text-cyan-300 font-bold">
+                      <ConceptHelp
+                        term="deposits"
+                        label={`Deposits: ${formatCrores(bankDeposits)}${isFiniteNumber(bankDepositGrowthYoY) ? ` (${bankDepositGrowthYoY > 0 ? '+' : ''}${bankDepositGrowthYoY}% YoY)` : ''}`}
+                        businessModel={businessModel}
+                      />
+                    </span>
                   </div>
                   <p className="text-[11px] text-slate-400 leading-tight">
-                    <ConceptHelp term="gnpa" label={`GNPA: ${formatPercent(bankGnpa)}`} businessModel={businessModel} /> | <ConceptHelp term="nnpa" label={`NNPA: ${formatPercent(bankNnpa)}`} businessModel={businessModel} /> | <ConceptHelp term="advances" label={`Advances: ${formatCrores(bankAdvances)}`} businessModel={businessModel} />
+                    <ConceptHelp term="cd_ratio" label={`CD Ratio: ${isFiniteNumber(bankCdRatio) ? `${bankCdRatio}%` : '—'}`} businessModel={businessModel} /> | <ConceptHelp term="roa" label={`ROA: ${isFiniteNumber(bankRoa) ? `${bankRoa}%` : '—'}`} businessModel={businessModel} /> | <ConceptHelp term="gnpa" label={`GNPA: ${formatPercent(bankGnpa)}`} businessModel={businessModel} />
                   </p>
                 </div>
               </>

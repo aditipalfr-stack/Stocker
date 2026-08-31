@@ -163,6 +163,40 @@ class CompanyTaxonomy(BaseModel):
     classified_at: Optional[str] = None
     updated_at: Optional[str] = None
 
+class BankTrendItem(BaseModel):
+    period: str
+    deposits_cr: Optional[float] = None
+    advances_cr: Optional[float] = None
+    borrowings_cr: Optional[float] = None
+    cd_ratio_pct: Optional[float] = None
+    pat_cr: Optional[float] = None
+    total_assets_cr: Optional[float] = None
+    total_equity_cr: Optional[float] = None
+    roa_pct: Optional[float] = None
+    roe_pct: Optional[float] = None
+    gross_npa_pct: Optional[float] = None
+    net_npa_pct: Optional[float] = None
+    credit_cost_pct: Optional[float] = None
+    cost_to_income_pct: Optional[float] = None
+
+class BankAnalytics(BaseModel):
+    applicability: str = "applicable" # "applicable", "insufficient", "not_applicable"
+    latest_period: Optional[str] = None
+    deposit_growth_yoy_pct: Optional[float] = None
+    deposit_growth_3yr_cagr_pct: Optional[float] = None
+    advances_growth_yoy_pct: Optional[float] = None
+    advances_growth_3yr_cagr_pct: Optional[float] = None
+    credit_deposit_ratio_pct: Optional[float] = None
+    roa_pct: Optional[float] = None
+    roe_pct: Optional[float] = None
+    gross_npa_pct: Optional[float] = None
+    net_npa_pct: Optional[float] = None
+    cost_to_income_pct: Optional[float] = None
+    credit_cost_pct: Optional[float] = None
+    trends: List[BankTrendItem] = []
+    provenance: Dict[str, Any] = {}
+    unavailable_reasons: Dict[str, str] = {}
+
 class StockSummary(BaseModel):
     symbol: str
     name: str
@@ -189,6 +223,7 @@ class StockSummary(BaseModel):
     source_url: str = ""
     statement_type: str = "consolidated"
     financial_business_model: str = "GENERAL_CORPORATE"
+    bank_analytics: Optional[BankAnalytics] = None
     fetched_at: str = ""
 
 class StockDetail(BaseModel):
@@ -214,6 +249,7 @@ class StockDetail(BaseModel):
     source_url: str = ""
     statement_type: str = "consolidated"
     financial_business_model: str = "GENERAL_CORPORATE"
+    bank_analytics: Optional[BankAnalytics] = None
     fetched_at: str = ""
     documents_checked_at: Optional[str] = None
     verification_summary: Optional["FinancialVerificationSummary"] = None
