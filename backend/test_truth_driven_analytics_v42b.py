@@ -876,8 +876,94 @@ def run_all_tests():
         assert sales_fact.unit == "₹ Cr", f"Expected unit = '₹ Cr', got {sales_fact.unit}"
         print("  ✓ Scenario R passed: Explicit unit and currency accurately resolved across metrics.")
 
+    # -------------------------------------------------------------------------
+    # SCENARIO S: Financial Cross-Check Null Handling (Missing != Zero)
+    # -------------------------------------------------------------------------
+    print("\n--- Scenario S: Financial Cross-Check Null Handling ---")
+    from doc_intelligence_models import BusinessAnalysisResult
+    from doc_intelligence_engine import _apply_financial_cross_check
+
+    # Sub-case A: Everything missing (None) -> Must NOT generate fake '0x', '0.0%', '₹0 Cr'
+    res_a = BusinessAnalysisResult(symbol="NULLAI", company_name="Null AI Ltd")
+    mock_analytics_a = {
+        "cash_flow_quality": {
+            "cumulative_5y_pat_cr": None,
+            "cumulative_5y_cfo_cr": None,
+            "cumulative_5y_fcf_cr": None,
+            "cfo_to_pat_5yr_pct": None,
+            "cash_conversion_quality": "Inconclusive / Incomplete Data"
+        },
+        "balance_sheet_efficiency": {
+            "latest_debt_to_equity": None,
+            "latest_cwip_to_net_block_pct": None
+        },
+        "growth_rates": {
+            "sales_cagr_3yr": None,
+            "pat_cagr_3yr": None
+        },
+        "working_capital_audit": {
+            "debtor_days": None,
+            "inventory_days": None
+        }
+    }
+    _apply_financial_cross_check(res_a, mock_analytics_a)
+    assert not res_a.risks_and_cash.reported_numbers_comparison, f"Expected empty comparison, got {res_a.risks_and_cash.reported_numbers_comparison}"
+    assert not res_a.capital_allocation.capex_efficiency, f"Expected empty capex_efficiency, got {res_a.capital_allocation.capex_efficiency}"
+    assert not res_a.capital_allocation.shareholder_returns, f"Expected empty shareholder_returns, got {res_a.capital_allocation.shareholder_returns}"
+    assert not res_a.governance_watch.working_capital_anomalies, f"Expected empty working_capital_anomalies, got {res_a.governance_watch.working_capital_anomalies}"
+
+    # Sub-case B: Real zero debt_to_equity (0.0) -> Preserved as valid real 0.0x / 0x
+    res_b = BusinessAnalysisResult(symbol="ZEROCO", company_name="Zero Co")
+    mock_analytics_b = {
+        "cash_flow_quality": {
+            "cumulative_5y_pat_cr": None,
+            "cumulative_5y_cfo_cr": None,
+            "cumulative_5y_fcf_cr": None,
+            "cfo_to_pat_5yr_pct": 95.0,
+            "cash_conversion_quality": "Adequate"
+        },
+        "balance_sheet_efficiency": {
+            "latest_debt_to_equity": 0.0,
+            "latest_cwip_to_net_block_pct": None
+        },
+        "growth_rates": {
+            "sales_cagr_3yr": None,
+            "pat_cagr_3yr": None
+        }
+    }
+    _apply_financial_cross_check(res_b, mock_analytics_b)
+    assert ("0.0x" in res_b.risks_and_cash.reported_numbers_comparison or "0x" in res_b.risks_and_cash.reported_numbers_comparison)
+    assert ("0.0x" in res_b.capital_allocation.shareholder_returns or "0x" in res_b.capital_allocation.shareholder_returns)
+    assert not res_b.capital_allocation.capex_efficiency
+
+    # Sub-case C: Partial data (CFO/PAT available, CWIP unavailable) -> Uses available facts only
+    res_c = BusinessAnalysisResult(symbol="PARTCO", company_name="Partial Co")
+    mock_analytics_c = {
+        "cash_flow_quality": {
+            "cumulative_5y_pat_cr": 500.0,
+            "cumulative_5y_cfo_cr": 600.0,
+            "cumulative_5y_fcf_cr": None,
+            "cfo_to_pat_5yr_pct": 120.0,
+            "cash_conversion_quality": "Superior"
+        },
+        "balance_sheet_efficiency": {
+            "latest_debt_to_equity": None,
+            "latest_cwip_to_net_block_pct": None
+        },
+        "growth_rates": {
+            "sales_cagr_3yr": 15.0,
+            "pat_cagr_3yr": 20.0
+        }
+    }
+    _apply_financial_cross_check(res_c, mock_analytics_c)
+    assert "5-Year Cumulative CFO of ₹600 Cr vs PAT of ₹500 Cr (120.0% cash conversion ratio)" in res_c.risks_and_cash.reported_numbers_comparison
+    assert "Reported 3-Year Sales CAGR is 15.0%" in res_c.risks_and_cash.reported_numbers_comparison
+    assert "0x" not in res_c.risks_and_cash.reported_numbers_comparison
+    assert "CWIP" not in (res_c.capital_allocation.capex_efficiency or "")
+    print("  ✓ Scenario S passed: Financial cross-check safely handles None and preserves legitimate numerical 0.0.")
+
     print("\n==================================================================")
-    print("🎉 ALL PHASE 2B TRUTH-DRIVEN ANALYTICS TESTS (A - R) PASSED 100%!")
+    print("🎉 ALL PHASE 2B TRUTH-DRIVEN ANALYTICS TESTS (A - S) PASSED 100%!")
     print("==================================================================")
 
 if __name__ == "__main__":
