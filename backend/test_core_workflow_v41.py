@@ -39,7 +39,7 @@ from main import (
 )
 from models import (
     KeyRatios, FinancialStatement, FinancialRow, AddCompanyRequest,
-    ResearchLifecycleStatus, StockDetail, DocumentLinks
+    ResearchLifecycleStatus, StockDetail, DocumentLinks, DocumentItem
 )
 from scraper import (
     parse_screener_ratios, parse_screener_documents,
@@ -307,10 +307,40 @@ def run_all_tests():
         print("✓ Test 5 passed: Financial ingestion decoupled from external waterfall and does not fake discovery state.")
 
     # -------------------------------------------------------------------------
-    # TEST 6: /discover-filings Canonical Safety & Trusted Sync State
+    # TEST 6: Explicit /discover-filings Restores Screener Stage 1 & Sync State
     # -------------------------------------------------------------------------
     with IsolatedTestDatabase():
-        print("\n--- Test 6: /discover-filings Canonical Safety & Sync State ---")
+        print("\n--- Test 6: Explicit /discover-filings Restores Screener Stage 1 & Sync State ---")
+        mock_screener_docs = DocumentLinks(
+            annual_reports=[
+                DocumentItem(
+                    title="Colgate Annual Report FY25",
+                    url="https://www.screener.in/ar2025.pdf",
+                    doc_type="annual_report",
+                    period_or_date="FY25",
+                    discovery_source="Screener.in",
+                    actual_source_host="screener.in",
+                    actual_source_url="https://www.screener.in/ar2025.pdf"
+                )
+            ],
+            concalls=[
+                DocumentItem(
+                    title="Colgate Q3 FY25 Earnings Call",
+                    url="https://www.screener.in/cc_q3_2025.pdf",
+                    doc_type="concall_transcript",
+                    period_or_date="Q3 FY25",
+                    discovery_source="Screener.in",
+                    actual_source_host="screener.in",
+                    actual_source_url="https://www.screener.in/cc_q3_2025.pdf"
+                )
+            ]
+        )
+
+        mock_stock = sample_complete_stock_data("COLPAL")
+        mock_stock["documents"] = mock_screener_docs
+
+        # 1. Ingestion: scrapes financials and caches Screener document links
+        database.save_stock_cache("COLPAL", "Colgate-Palmolive (India) Limited", "FMCG", "Personal Care", serialize_stock_data(mock_stock))
         database.upsert_company_registry_item({
             "symbol": "COLPAL",
             "company_name": "Colgate-Palmolive (India) Limited",
@@ -319,27 +349,32 @@ def run_all_tests():
             "is_active": True
         })
 
-        # Save mock filings via trusted waterfall execution
-        def mock_waterfall_exec(symbol, company_name=None, *args, **kwargs):
-            from models import DocumentItem
-            sym = symbol or kwargs.get("symbol")
-            database.save_source_documents(sym, [
-                DocumentItem(
-                    title="Colgate Annual Report 2025",
-                    url="https://bseindia.com/ar2025.pdf",
-                    doc_type="annual_report",
-                    period_or_date="FY25",
-                    discovery_source="bse_announcements",
-                    actual_source_host="bseindia.com"
-                )
-            ])
+        # Confirm source_documents is strictly empty immediately after financial ingestion
+        assert database.get_source_documents("COLPAL") == [], "Ingestion must NOT populate source_documents table"
+        assert database.get_document_sources_checked_at("COLPAL") is None
+        pre_status = get_research_lifecycle_status("COLPAL")
+        assert pre_status.source_filings == "not_searched"
+        print("  ✓ Step 1 verified: source_documents is empty and source_filings='not_searched' post-ingestion.")
 
-        with patch("document_sourcing.execute_document_sourcing_waterfall", side_effect=mock_waterfall_exec):
+        # 2. Explicit /discover-filings invocation
+        with patch("document_sourcing.verify_document_network_and_content", return_value=(True, 102400, "application/pdf")), \
+             patch("document_sourcing.discover_documents_bse_fallback", return_value=[]), \
+             patch("document_sourcing.discover_documents_nse_fallback", return_value=[]), \
+             patch("document_sourcing.discover_documents_company_ir_fallback", return_value=[]):
+            
             disc_res = discover_stock_filings("COLPAL")
             assert disc_res.symbol == "COLPAL"
-            assert disc_res.filing_count == 1
+            assert disc_res.filing_count >= 2, f"Expected >= 2 Screener documents promoted, got {disc_res.filing_count}"
             assert disc_res.documents_checked_at is not None
             assert disc_res.research_status.source_filings == "ready"
+
+        # Confirm Screener candidates are now persisted in SQLite source_documents
+        persisted_docs = database.get_source_documents("COLPAL")
+        assert len(persisted_docs) >= 2
+        urls = [d["url"] for d in persisted_docs]
+        assert "https://www.screener.in/ar2025.pdf" in urls
+        assert "https://www.screener.in/cc_q3_2025.pdf" in urls
+        print("  ✓ Step 2 verified: Explicit discover-filings promoted and persisted Screener Stage 1 candidates.")
 
         # Unregistered symbol must fail with 404
         try:
@@ -347,6 +382,8 @@ def run_all_tests():
             assert False, "Unregistered symbol must raise HTTPException 404 in /discover-filings"
         except HTTPException as he:
             assert he.status_code == 404
+
+        print("✓ Test 6 passed: Screener Stage 1 restored during explicit discovery only and persisted safely.")
 
     # -------------------------------------------------------------------------
     # TEST 7: Nullable Ratios Safe End-to-End (Fallback Path Fully Exercised)
@@ -427,7 +464,8 @@ def run_all_tests():
         assert st1.business_analysis == "not_run"
         assert st1.projection == "unavailable", f"Expected unavailable for financial-only baseline, got {st1.projection}"
         assert st1.investment_score == "provisional"
-        print("  ✓ State 1 verified: Financial-only -> projection=unavailable, investment_score=provisional")
+        assert st1.projection_updated_at is None, f"projection_updated_at must be None before projection computation, got {st1.projection_updated_at}"
+        print("  ✓ State 1 verified: Financial-only -> projection=unavailable, projection_updated_at=None, investment_score=provisional")
 
         # Phase 2: Newly Generated Business Analysis (before StockDetail recomputation)
         ai_v1 = "2026-08-31T10:00:00Z"
@@ -481,7 +519,8 @@ def run_all_tests():
         assert st3.business_analysis == "ready"
         assert st3.projection == "evidence_enriched", f"Expected evidence_enriched projection, got {st3.projection}"
         assert st3.investment_score == "evidence_enriched", f"Expected evidence_enriched investment_score, got {st3.investment_score}"
-        print("  ✓ State 3 verified: Post-recomputation with matching versions -> projection=evidence_enriched, investment_score=evidence_enriched")
+        assert st3.projection_updated_at is not None, "projection_updated_at must be populated after projection computation"
+        print("  ✓ State 3 verified: Post-recomputation with matching versions -> projection=evidence_enriched, projection_updated_at populated")
 
         # Phase 4: Financial Refresh (Version C) occurring AFTER Business Analysis
         fin_v2 = "2026-08-31T11:00:00Z"
@@ -506,26 +545,44 @@ def run_all_tests():
         print("  ✓ State 4 & 5 verified: Financial refresh invalidates prior AI evidence and prevents false evidence_enriched promotion.")
 
     # -------------------------------------------------------------------------
-    # TEST 9: Financial Freshness States (ready vs stale >90d vs error)
+    # TEST 9: Financial Freshness & Usable Statement Readiness
     # -------------------------------------------------------------------------
     with IsolatedTestDatabase():
-        print("\n--- Test 9: Financial Freshness States ---")
-        # Fresh (<90 days)
+        print("\n--- Test 9: Financial Freshness & Usable Statement Readiness ---")
+        # Case A: Usable Fresh statements (<90 days)
         mock_fresh = sample_complete_stock_data("FRESHCO", fetched_at=datetime.now(timezone.utc).isoformat())
         database.save_stock_cache("FRESHCO", "Fresh Co", "FMCG", "Food", serialize_stock_data(mock_fresh))
         database.upsert_company_registry_item({"symbol": "FRESHCO", "company_name": "Fresh Co", "in_universe": True, "is_active": True})
         st_fresh = get_research_lifecycle_status("FRESHCO")
         assert st_fresh.financial_data == "ready"
+        assert st_fresh.deterministic_analysis == "ready"
 
-        # Stale (>90 days old)
+        # Case B: Stale (>90 days old)
         old_time = (datetime.now(timezone.utc) - timedelta(days=120)).isoformat()
         mock_old = sample_complete_stock_data("OLDCO", fetched_at=old_time)
         database.save_stock_cache("OLDCO", "Old Co", "FMCG", "Food", serialize_stock_data(mock_old))
         database.upsert_company_registry_item({"symbol": "OLDCO", "company_name": "Old Co", "in_universe": True, "is_active": True})
         st_old = get_research_lifecycle_status("OLDCO")
         assert st_old.financial_data == "stale", f"Expected stale for 120d old financials, got {st_old.financial_data}"
+        assert st_old.deterministic_analysis == "ready"
 
-        # Malformed / Partial
+        # Case C: Structurally present but EMPTY statements (periods: [], rows: [])
+        empty_struct_data = {
+            "symbol": "EMPTYCO",
+            "name": "Empty Struct Co",
+            "profit_loss": {"periods": [], "rows": []},
+            "balance_sheet": {"periods": [], "rows": []},
+            "cash_flow": {"periods": [], "rows": []},
+            "quarters": {"periods": [], "rows": []},
+            "fetched_at": datetime.now(timezone.utc).isoformat()
+        }
+        database.save_stock_cache("EMPTYCO", "Empty Struct Co", "FMCG", "Food", empty_struct_data)
+        database.upsert_company_registry_item({"symbol": "EMPTYCO", "company_name": "Empty Struct Co", "in_universe": True, "is_active": True})
+        st_empty = get_research_lifecycle_status("EMPTYCO")
+        assert st_empty.financial_data == "error", f"Expected error for empty statement structures, got {st_empty.financial_data}"
+        assert st_empty.deterministic_analysis == "not_ready", f"Expected not_ready for empty statement structures, got {st_empty.deterministic_analysis}"
+
+        # Case D: Malformed / Partial
         partial_data = {
             "symbol": "PARTIALCO",
             "name": "Partial Co",
@@ -538,9 +595,10 @@ def run_all_tests():
         database.save_stock_cache("PARTIALCO", "Partial Co", "FMCG", "Food", partial_data)
         database.upsert_company_registry_item({"symbol": "PARTIALCO", "company_name": "Partial Co", "in_universe": True, "is_active": True})
         st_part = get_research_lifecycle_status("PARTIALCO")
-        assert st_part.financial_data == "missing" or st_part.financial_data == "error"
+        assert st_part.financial_data in ("missing", "error")
+        assert st_part.deterministic_analysis == "not_ready"
 
-        print("✓ Test 9 passed: Financial freshness correctly tracks ready vs stale (>90d) vs error.")
+        print("✓ Test 9 passed: Statement readiness requires usable periods and rows; empty structures reject to error/not_ready.")
 
     # -------------------------------------------------------------------------
     # TEST 10: Empty Universe Semantics

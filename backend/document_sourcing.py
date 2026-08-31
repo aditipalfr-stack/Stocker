@@ -703,9 +703,37 @@ def execute_document_sourcing_waterfall(
             pass
 
     # 1. Primary Discovery: Screener.in
+    screener_candidates: List[DocumentItem] = []
     if screener_soup:
-        screener_docs = discover_documents_screener(screener_soup, clean_sym, company_name, from_date_dt=from_date_dt)
-        all_raw_docs.extend(screener_docs)
+        screener_candidates = discover_documents_screener(screener_soup, clean_sym, company_name, from_date_dt=from_date_dt)
+    else:
+        # Check SQLite stock cache for cached lightweight screener document links
+        cached_stock = database.get_stock_cache(clean_sym)
+        if cached_stock and isinstance(cached_stock, dict):
+            raw_docs_dict = cached_stock.get("documents", {})
+            if isinstance(raw_docs_dict, dict):
+                for k in ["annual_reports", "concalls", "presentations", "material_announcements"]:
+                    for item in raw_docs_dict.get(k, []):
+                        if isinstance(item, dict):
+                            screener_candidates.append(DocumentItem(**item))
+                        elif isinstance(item, DocumentItem):
+                            screener_candidates.append(item)
+        
+        # If not cached, attempt lightweight HTML fetch from Screener
+        if not screener_candidates:
+            try:
+                from scraper import fetch_screener_html
+                html_res = fetch_screener_html(clean_sym)
+                if html_res:
+                    html_content, _, _ = html_res
+                    sp = BeautifulSoup(html_content, "html.parser")
+                    screener_candidates = discover_documents_screener(sp, clean_sym, company_name, from_date_dt=from_date_dt)
+            except Exception:
+                pass
+
+    if screener_candidates:
+        fallback_sources_used.append("Screener.in")
+        all_raw_docs.extend(screener_candidates)
 
     # Check category counts
     ar_count = sum(1 for d in all_raw_docs if d.doc_type == "annual_report")

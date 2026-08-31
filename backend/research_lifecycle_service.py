@@ -13,6 +13,19 @@ import database
 from models import ResearchLifecycleStatus
 
 
+def _is_usable_financial_statement(stmt: Any) -> bool:
+    """Checks if a statement object or dict has usable non-empty periods and rows."""
+    if not stmt:
+        return False
+    if isinstance(stmt, dict):
+        periods = stmt.get("periods") or []
+        rows = stmt.get("rows") or []
+        return len(periods) > 0 and len(rows) > 0
+    periods = getattr(stmt, "periods", None) or []
+    rows = getattr(stmt, "rows", None) or []
+    return len(periods) > 0 and len(rows) > 0
+
+
 def get_research_lifecycle_status(symbol: str) -> ResearchLifecycleStatus:
     """
     Computes the canonical research lifecycle status for a given symbol.
@@ -48,10 +61,15 @@ def get_research_lifecycle_status(symbol: str) -> ResearchLifecycleStatus:
     has_statements = False
 
     if cached and isinstance(cached, dict):
-        has_pl = bool(cached.get("profit_loss") or cached.get("profit_and_loss"))
-        has_bs = bool(cached.get("balance_sheet"))
-        has_cf = bool(cached.get("cash_flow"))
-        has_q = bool(cached.get("quarters"))
+        pl_obj = cached.get("profit_loss") or cached.get("profit_and_loss")
+        bs_obj = cached.get("balance_sheet")
+        cf_obj = cached.get("cash_flow")
+        q_obj = cached.get("quarters")
+        
+        has_pl = _is_usable_financial_statement(pl_obj)
+        has_bs = _is_usable_financial_statement(bs_obj)
+        has_cf = _is_usable_financial_statement(cf_obj)
+        has_q = _is_usable_financial_statement(q_obj)
         fin_updated_at = cached.get("fetched_at")
 
         if has_pl and has_bs and has_cf and has_q:
@@ -72,7 +90,7 @@ def get_research_lifecycle_status(symbol: str) -> ResearchLifecycleStatus:
             else:
                 financial_data_state = "ready"
                 notes.append("Standardized reported financial statements ingested.")
-        elif has_pl or has_bs or has_cf or has_q:
+        elif pl_obj is not None or bs_obj is not None or cf_obj is not None or q_obj is not None:
             financial_data_state = "error"
             notes.append("Malformed or incomplete financial statements present.")
     else:
@@ -161,7 +179,7 @@ def get_research_lifecycle_status(symbol: str) -> ResearchLifecycleStatus:
     # - stale: Business Analysis was updated/stale and projections have not incorporated matching versions
     # - unavailable: pre-AI baseline / insufficient financial data
     proj_rec = database.get_projection_computation_state(clean_sym)
-    projection_updated_at: Optional[str] = proj_rec.get("computed_at") if proj_rec else fin_updated_at
+    projection_updated_at: Optional[str] = proj_rec.get("computed_at") if proj_rec else None
 
     if has_statements:
         if business_analysis_state == "ready":
