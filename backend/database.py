@@ -511,7 +511,6 @@ def save_ai_analysis(
     intelligence_data["ai_provider_used"] = ai_provider
     intelligence_data["model_version"] = model_version
     gen_time = intelligence_data.get("extraction_timestamp") or now_iso
-    
     conn = get_db_connection()
     try:
         with conn:

@@ -178,13 +178,25 @@ def parse_screener_documents(soup: BeautifulSoup, symbol: str, source_url: str =
             doc_links.material_announcements.append(d)
     return doc_links
 
+def _is_usable_screener_html(html_text: str) -> bool:
+    """Verifies that fetched Screener HTML contains usable quarters and profit-loss tables."""
+    if not html_text or len(html_text) < 3000:
+        return False
+    try:
+        sp = BeautifulSoup(html_text, "html.parser")
+        q = parse_screener_table(sp, "quarters")
+        pl = parse_screener_table(sp, "profit-loss")
+        return bool(q and pl and q.periods and pl.periods and q.rows and pl.rows)
+    except Exception:
+        return False
+
 def fetch_screener_html(symbol: str) -> Optional[Tuple[str, str, str]]:
     """
     Fetches the live HTML from Screener.in.
     Returns (html_content, source_url, statement_type) or None.
     Preference:
-    1. https://www.screener.in/company/{symbol}/consolidated/
-    2. https://www.screener.in/company/{symbol}/
+    1. https://www.screener.in/company/{symbol}/consolidated/ (if quarters & P&L populated)
+    2. https://www.screener.in/company/{symbol}/ (standalone fallback)
     3. Screener Search API fallback for renamed tickers / aliases
     """
     headers = {
@@ -202,7 +214,7 @@ def fetch_screener_html(symbol: str) -> Optional[Tuple[str, str, str]]:
         cons_url = f"https://www.screener.in/company/{sym}/consolidated/"
         try:
             resp = requests.get(cons_url, headers=headers, timeout=12)
-            if resp.status_code == 200 and len(resp.text) > 3000 and "quarters" in resp.text:
+            if resp.status_code == 200 and _is_usable_screener_html(resp.text):
                 return resp.text, cons_url, "consolidated"
         except Exception as e:
             print(f"Error fetching {cons_url}: {e}")
@@ -211,7 +223,7 @@ def fetch_screener_html(symbol: str) -> Optional[Tuple[str, str, str]]:
         std_url = f"https://www.screener.in/company/{sym}/"
         try:
             resp = requests.get(std_url, headers=headers, timeout=12)
-            if resp.status_code == 200 and len(resp.text) > 3000 and "quarters" in resp.text:
+            if resp.status_code == 200 and _is_usable_screener_html(resp.text):
                 return resp.text, std_url, "standalone"
         except Exception as e:
             print(f"Error fetching {std_url}: {e}")
@@ -227,7 +239,7 @@ def fetch_screener_html(symbol: str) -> Optional[Tuple[str, str, str]]:
                 if rel_url:
                     full_url = f"https://www.screener.in{rel_url}" if not rel_url.startswith("http") else rel_url
                     resp = requests.get(full_url, headers=headers, timeout=12)
-                    if resp.status_code == 200 and len(resp.text) > 3000:
+                    if resp.status_code == 200 and _is_usable_screener_html(resp.text):
                         stype = "consolidated" if "consolidated" in full_url else "standalone"
                         return resp.text, full_url, stype
     except Exception as e:
