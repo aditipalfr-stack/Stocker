@@ -39,7 +39,7 @@ export const InvestmentView: React.FC<InvestmentViewProps> = ({ docIntel, compan
                 <span>Executive Fundamental Thesis & Outlook</span>
                 <DataOriginBadge origin="ai_interpretation" />
               </h4>
-              <p className="text-xs text-slate-400">Institutional synthesis across official filings & audited statements</p>
+              <p className="text-xs text-slate-400">Institutional synthesis across source filings and standardized statements</p>
             </div>
           </div>
           <div className="flex items-center gap-2 self-start sm:self-center">
@@ -52,7 +52,7 @@ export const InvestmentView: React.FC<InvestmentViewProps> = ({ docIntel, compan
         </div>
 
         <p className="text-sm text-slate-200 leading-relaxed font-normal bg-slate-950/60 p-4 rounded-2xl border border-slate-800/80">
-          {stockerView?.investor_summary || `Management execution is actively tracking across key milestones based on verified official filings and audited financials for ${companyName}.`}
+          {stockerView?.investor_summary || `Management execution has not yet been fully synthesized from available source filings and standardized financials for ${companyName}.`}
         </p>
 
         {/* 3 Pillars Grid: Positives, Risks, What to Watch Next */}

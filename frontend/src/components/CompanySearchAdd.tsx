@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Check, PlusCircle, RefreshCw, Search } from 'lucide-react';
-import { searchCompanies } from '../api';
+import { CompanyAmbiguityError, searchCompanies } from '../api';
 import type { CompanySearchResult } from '../types';
 
 interface CompanySearchAddProps {
@@ -31,7 +31,13 @@ export const CompanySearchAdd: React.FC<CompanySearchAddProps> = ({ disabled, on
       }
       setQuery('');
     } catch (err: any) {
-      setError(err.message || `Could not add ${company.company_name}`);
+      if (err instanceof CompanyAmbiguityError) {
+        setResults(err.candidates);
+        setActiveIndex(0);
+        setError(err.message);
+      } else {
+        setError(err.message || `Could not add ${company.company_name}`);
+      }
     } finally {
       setPhase('idle');
     }
@@ -54,7 +60,15 @@ export const CompanySearchAdd: React.FC<CompanySearchAddProps> = ({ disabled, on
         normalized(result.symbol) === normalized(rawQuery) ||
         normalized(result.company_name) === normalized(rawQuery)
       );
-      const clearMatch = exact || (response.results.length === 1 ? response.results[0] : null);
+      const topResult = response.results[0];
+      const runnerUp = response.results[1];
+      const topScore = topResult?.match_score;
+      const runnerUpScore = runnerUp?.match_score;
+      const strongMatch = typeof topScore === 'number' && topScore >= 90 &&
+        (typeof runnerUpScore !== 'number' || topScore - runnerUpScore >= 15)
+        ? topResult
+        : null;
+      const clearMatch = exact || strongMatch;
       if (clearMatch) {
         setPhase('idle');
         await chooseCompany(clearMatch);
@@ -128,6 +142,7 @@ export const CompanySearchAdd: React.FC<CompanySearchAddProps> = ({ disabled, on
         {results.length > 0 && (
           <div id="company-search-results" role="listbox" className="absolute top-full mt-2 left-0 right-0 z-[60] rounded-2xl border border-slate-700 bg-slate-950 shadow-2xl overflow-hidden p-1.5">
             <p className="px-3 py-2 text-[10px] uppercase tracking-wider text-slate-500 font-bold">Choose the matching company</p>
+            {error && <p role="alert" className="mx-2 mb-1 rounded-lg bg-amber-950/40 px-2.5 py-2 text-[11px] text-amber-200">{error}</p>}
             {results.map((result, index) => (
               <button
                 id={`company-result-${index}`}
@@ -153,7 +168,7 @@ export const CompanySearchAdd: React.FC<CompanySearchAddProps> = ({ disabled, on
           </div>
         )}
 
-        {error && (
+        {error && results.length === 0 && (
           <div role="alert" className="absolute top-full mt-2 left-0 right-0 z-[60] rounded-xl border border-rose-800 bg-rose-950 px-3 py-2 text-[11px] text-rose-200 shadow-xl">
             {error}
           </div>

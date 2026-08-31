@@ -1,6 +1,7 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { StockDetail, BusinessAnalysisIntelligence, SourceFilingsResponse } from '../../types';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { StockDetail, BusinessAnalysisIntelligence, ResearchLifecycleStatus, SourceFilingsResponse } from '../../types';
 import { AiStatusResult, fetchSourceFilings } from '../../api';
+import type { BackgroundResearchState } from '../ResearchStatusPanel';
 import { 
   Sparkles, TrendingUp, CheckCircle2, FileText, 
   Compass, Clock, AlertTriangle, KeyRound, Zap, HelpCircle, RefreshCw
@@ -19,6 +20,9 @@ interface BusinessAnalysisViewProps {
   docIntelError: string | null;
   generatingDocIntel: boolean;
   aiStatus: AiStatusResult | null;
+  researchStatus: ResearchLifecycleStatus | null;
+  filingDiscoveryState: BackgroundResearchState;
+  filingDiscoveryRevision: number;
   onGenerateIntel: () => void;
   onOpenKeyModal: () => void;
 }
@@ -30,31 +34,43 @@ export const BusinessAnalysisView: React.FC<BusinessAnalysisViewProps> = ({
   docIntelError,
   generatingDocIntel,
   aiStatus,
+  researchStatus,
+  filingDiscoveryState,
+  filingDiscoveryRevision,
   onGenerateIntel,
   onOpenKeyModal
 }) => {
   const [activeSubTab, setActiveSubTab] = useState<'investment' | 'growth' | 'management' | 'filings'>('investment');
 
   // Source Filings cache lifted to parent container to persist across tab switches
-  const [filingsCache, setFilingsCache] = useState<Record<string, SourceFilingsResponse>>({});
+  const [filingsCache, setFilingsCache] = useState<Record<string, { data: SourceFilingsResponse; revision: number }>>({});
   const [filingsLoading, setFilingsLoading] = useState<boolean>(false);
   const [filingsError, setFilingsError] = useState<string | null>(null);
+  const filingRevisionRef = useRef(filingDiscoveryRevision);
+  const filingRequestIdRef = useRef(0);
+  filingRevisionRef.current = filingDiscoveryRevision;
 
   const loadSourceFilings = useCallback(async (targetSymbol: string, force: boolean = false) => {
-    if (!force && filingsCache[targetSymbol]) {
-      return; // Already cached for this symbol!
+    const cached = filingsCache[targetSymbol];
+    if (!force && cached?.revision === filingDiscoveryRevision) {
+      return;
     }
+    const requestRevision = filingDiscoveryRevision;
+    const requestId = ++filingRequestIdRef.current;
     setFilingsLoading(true);
     setFilingsError(null);
     try {
       const data = await fetchSourceFilings(targetSymbol);
-      setFilingsCache(prev => ({ ...prev, [targetSymbol]: data }));
+      if (filingRevisionRef.current !== requestRevision) return;
+      setFilingsCache(prev => ({ ...prev, [targetSymbol]: { data, revision: requestRevision } }));
     } catch (err: any) {
-      setFilingsError(err.message || `Failed to load source filings for ${targetSymbol}`);
+      if (filingRevisionRef.current === requestRevision) {
+        setFilingsError(err.message || `Failed to load source filings for ${targetSymbol}`);
+      }
     } finally {
-      setFilingsLoading(false);
+      if (filingRequestIdRef.current === requestId) setFilingsLoading(false);
     }
-  }, [filingsCache]);
+  }, [filingDiscoveryRevision, filingsCache]);
 
   // When user opens the 'filings' subtab, fetch on demand if not cached
   useEffect(() => {
@@ -80,15 +96,22 @@ export const BusinessAnalysisView: React.FC<BusinessAnalysisViewProps> = ({
     hour12: true
   }) : null;
 
-  // Lightweight filing count calculation: prioritize diagnostics counts if available, otherwise array counts
-  const totalFilingsCount = stock.documents?.diagnostics?.ai_ready_documents_count !== undefined
-    ? stock.documents.diagnostics.ai_ready_documents_count
-    : (
+  // Prefer the lifecycle count, then the current source response, then legacy stock links.
+  const currentFilingsEntry = filingsCache[stock.symbol];
+  const currentFilingsData = currentFilingsEntry?.revision === filingDiscoveryRevision ? currentFilingsEntry.data : null;
+  const countDocuments = (response: SourceFilingsResponse) =>
+    (response.documents?.annual_reports?.length || 0) +
+    (response.documents?.concalls?.length || 0) +
+    (response.documents?.presentations?.length || 0) +
+    (response.documents?.material_announcements?.length || 0);
+  const loadedFilingsCount = currentFilingsData ? countDocuments(currentFilingsData) : null;
+  const fallbackStockLinksCount =
       (stock.documents?.annual_reports?.length || 0) +
       (stock.documents?.concalls?.length || 0) +
       (stock.documents?.presentations?.length || 0) +
-      (stock.documents?.material_announcements?.length || 0)
-    );
+      (stock.documents?.material_announcements?.length || 0);
+  const totalFilingsCount = researchStatus?.filing_count ?? loadedFilingsCount ?? fallbackStockLinksCount;
+  const hasTrustedFilingCount = researchStatus !== null || loadedFilingsCount !== null;
 
   return (
     <div className="space-y-8">
@@ -126,7 +149,7 @@ export const BusinessAnalysisView: React.FC<BusinessAnalysisViewProps> = ({
                 )}
               </div>
               <p className="text-xs text-slate-400 mt-0.5">
-                Fundamental investor thesis, business monetization model, management execution track record, and verified source filings
+                Fundamental investor thesis, business monetization model, management execution track record, and source-linked filings
               </p>
             </div>
           </div>
@@ -172,7 +195,7 @@ export const BusinessAnalysisView: React.FC<BusinessAnalysisViewProps> = ({
             <div className="space-y-2 max-w-lg mx-auto">
               <h4 className="text-lg font-bold text-white">Deep AI Fundamental Analysis Not Run Yet</h4>
               <p className="text-xs text-slate-400 leading-relaxed">
-                Stocker can autonomously scan and triangulate <strong className="text-emerald-300">{totalFilingsCount || 'all'} official filings</strong> (Annual Reports, Concall Transcripts, Investor PPTs) against <strong className="text-cyan-300">10-year audited financial statements</strong> to audit management guidance, capex roadmaps, and balance sheet cash flows.
+                Stocker can scan and triangulate <strong className="text-emerald-300">{totalFilingsCount || 'available'} {hasTrustedFilingCount ? 'source filings' : 'available source links'}</strong> (Annual Reports, Concall Transcripts, Investor PPTs) against <strong className="text-cyan-300">historical standardized financial statements</strong> to assess management guidance, capex roadmaps, and balance sheet cash flows.
               </p>
             </div>
             
@@ -190,7 +213,7 @@ export const BusinessAnalysisView: React.FC<BusinessAnalysisViewProps> = ({
                 className="bg-slate-900 hover:bg-slate-800 text-slate-300 font-bold text-xs px-4 py-3 rounded-2xl border border-slate-800 flex items-center gap-1.5"
               >
                 <FileText className="w-4 h-4 text-emerald-400" />
-                <span>Explore {totalFilingsCount} Sourced Filings</span>
+                <span>Explore {totalFilingsCount} {hasTrustedFilingCount ? 'Source Filings' : 'Available Links'}</span>
               </button>
             </div>
           </div>
@@ -248,7 +271,7 @@ export const BusinessAnalysisView: React.FC<BusinessAnalysisViewProps> = ({
           <span className={`text-[10px] font-mono px-1.5 py-0.2 rounded-full ${
             activeSubTab === 'filings' ? 'bg-slate-950/20 text-slate-950' : 'bg-slate-900 text-slate-400'
           }`}>
-            {totalFilingsCount}
+            {filingDiscoveryState === 'running' ? '…' : totalFilingsCount}
           </span>
         </button>
       </div>
@@ -296,7 +319,7 @@ export const BusinessAnalysisView: React.FC<BusinessAnalysisViewProps> = ({
         <SourceFilingsView
           symbol={stock.symbol}
           companyName={stock.name}
-          filingsData={filingsCache[stock.symbol] || null}
+          filingsData={currentFilingsData}
           loading={filingsLoading}
           error={filingsError}
           onRetry={() => loadSourceFilings(stock.symbol, true)}

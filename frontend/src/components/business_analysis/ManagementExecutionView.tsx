@@ -32,7 +32,7 @@ export const ManagementExecutionView: React.FC<ManagementExecutionViewProps> = (
               <h4 className="text-base font-bold text-white flex items-center gap-2">
                 <span>Management Promise vs Delivery Track Record</span>
                 <span className="bg-slate-900 text-emerald-400 text-[10px] font-mono font-bold px-2 py-0.5 rounded-full border border-slate-800">
-                  {promiseVsDelivery.length} audited commitments
+                  {promiseVsDelivery.length} documented commitments
                 </span>
               </h4>
               <p className="text-xs text-slate-400">Comparing past guidance statements directly against subsequently reported outcomes</p>
@@ -127,7 +127,7 @@ export const ManagementExecutionView: React.FC<ManagementExecutionViewProps> = (
           </div>
         ) : (
           <div className="bg-slate-950/60 p-6 rounded-2xl border border-slate-800 text-center text-xs text-slate-400">
-            No audited promise vs delivery items compiled yet.
+            No documented promise vs delivery items compiled yet.
           </div>
         )}
       </div>
@@ -232,7 +232,7 @@ export const ManagementExecutionView: React.FC<ManagementExecutionViewProps> = (
               </div>
             )}
             {!capitalAlloc?.capex_efficiency && !capitalAlloc?.shareholder_returns && (
-              <p className="text-slate-400 italic">Capital allocation metrics synthesized from audited financial cash flows.</p>
+              <p className="text-slate-400 italic">Capital allocation metrics have not yet been synthesized from available financial cash flows.</p>
             )}
           </div>
         </div>

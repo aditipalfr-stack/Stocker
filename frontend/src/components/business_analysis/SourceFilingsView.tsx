@@ -30,7 +30,7 @@ export const SourceFilingsView: React.FC<SourceFilingsViewProps> = ({
   const documents = filingsData?.documents;
   const summariesMap = filingsData?.summaries || {};
 
-  // Compile all verified filings using strictly typed fields
+  // Compile all available source documents using strictly typed fields.
   const allDocs: DocumentItem[] = [];
   if (documents?.annual_reports) allDocs.push(...documents.annual_reports);
   if (documents?.concalls) allDocs.push(...documents.concalls);
@@ -79,24 +79,34 @@ export const SourceFilingsView: React.FC<SourceFilingsViewProps> = ({
                 <span>Unified Sourced Filings & AI Findings</span>
                 {!loading && (
                   <span className="bg-slate-900 text-cyan-400 text-[10px] font-mono font-bold px-2 py-0.5 rounded-full border border-slate-800">
-                    {allDocs.length} verified documents
+                    {allDocs.length} source documents
                   </span>
                 )}
               </h4>
-              <p className="text-xs text-slate-400">Official Annual Reports, Concall Transcripts, Investor PPTs & Announcements with AI insights</p>
+              <p className="text-xs text-slate-400">Annual reports, concall transcripts, investor presentations and announcements with optional AI insights</p>
             </div>
           </div>
 
-          {/* Search Input */}
-          <div className="relative min-w-[220px]">
-            <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search filings by title or period..."
-              className="w-full bg-slate-950 text-xs text-slate-200 pl-8 pr-3 py-2 rounded-xl border border-slate-800 focus:outline-none focus:border-cyan-500/50"
-            />
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={onRetry}
+              disabled={loading}
+              className="bg-slate-900 hover:bg-slate-800 disabled:opacity-50 text-slate-300 text-xs px-3 py-2 rounded-xl flex items-center gap-1.5 border border-slate-700 transition-all shrink-0"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
+              <span>Refresh list</span>
+            </button>
+            <div className="relative min-w-[220px]">
+              <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Search filings by title or period..."
+                className="w-full bg-slate-950 text-xs text-slate-200 pl-8 pr-3 py-2 rounded-xl border border-slate-800 focus:outline-none focus:border-cyan-500/50"
+              />
+            </div>
           </div>
         </div>
 
@@ -131,7 +141,7 @@ export const SourceFilingsView: React.FC<SourceFilingsViewProps> = ({
       {loading && (
         <div className="glass-panel rounded-3xl p-12 border border-slate-800 text-center space-y-3">
           <div className="w-8 h-8 border-2 border-cyan-500/30 border-t-cyan-400 rounded-full animate-spin mx-auto" />
-          <p className="text-xs text-slate-300 font-medium">Loading verified filings and document summaries for {companyName}...</p>
+          <p className="text-xs text-slate-300 font-medium">Loading source filings and document summaries for {companyName}...</p>
         </div>
       )}
 
@@ -184,7 +194,7 @@ export const SourceFilingsView: React.FC<SourceFilingsViewProps> = ({
                           )}
                         </h5>
                         <p className="text-xs text-slate-400 font-mono mt-0.5">
-                          {doc.period_or_date || 'Official Filing'} • {doc.discovery_source || 'Exchange Sourced'}
+                          {doc.period_or_date || 'Source document'} • {doc.discovery_source || 'Discovered source'}
                         </p>
                       </div>
                     </div>

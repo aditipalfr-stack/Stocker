@@ -41,6 +41,7 @@ interface StockDetailViewProps {
   researchStatusLoading?: boolean;
   researchStatusError?: string | null;
   filingDiscoveryState?: BackgroundResearchState;
+  filingDiscoveryRevision: number;
   verificationState?: BackgroundResearchState;
   onRetryFilings?: () => void;
   onRetryVerification?: () => void;
@@ -66,7 +67,9 @@ const latestRowPair = (statement: FinancialStatement, aliases: string[]) => {
 
 const isFiniteNumber = (value: unknown): value is number => typeof value === 'number' && Number.isFinite(value);
 const formatCrores = (value: number | null | undefined) => isFiniteNumber(value) ? `₹${value.toLocaleString('en-IN')} Cr` : '—';
+const formatRupees = (value: number | null | undefined) => isFiniteNumber(value) ? `₹${value.toLocaleString('en-IN')}` : '—';
 const formatPercent = (value: number | null | undefined) => isFiniteNumber(value) ? `${value.toLocaleString('en-IN')}%` : '—';
+const formatMultiple = (value: number | null | undefined) => isFiniteNumber(value) ? `${value.toLocaleString('en-IN')}x` : '—';
 const formatCompactCrores = (value: number) => isFiniteNumber(value) ? `₹${Intl.NumberFormat('en-IN', { notation: 'compact', maximumFractionDigits: 1 }).format(value)}` : '—';
 const formatIndianNumber = (value: number | null | undefined) => isFiniteNumber(value) ? value.toLocaleString('en-IN') : '—';
 const guidanceRunRateUsesPercent = (metricName: string) => {
@@ -93,7 +96,7 @@ const cashConversionTone = (quality: string | null | undefined): TrendTone => {
 export const StockDetailView: React.FC<StockDetailViewProps> = ({
   stock, onBack, onScrapeRefresh, isFinancialRefreshing, researchStatus,
   researchStatusLoading, researchStatusError, filingDiscoveryState,
-  verificationState, onRetryFilings, onRetryVerification,
+  filingDiscoveryRevision, verificationState, onRetryFilings, onRetryVerification,
   onRefreshResearchStatus, onStockUpdated
 }) => {
   const [activeTab, setActiveTab] = useState<'financials' | 'charts' | 'projection' | 'outlook' | 'scorecard'>('projection');
@@ -179,11 +182,11 @@ export const StockDetailView: React.FC<StockDetailViewProps> = ({
       setDocIntel(res);
       try {
         const updatedStock = await fetchStockDetail(stock.symbol);
-        if (onRefreshResearchStatus) await onRefreshResearchStatus();
         onStockUpdated(updatedStock);
       } catch (refreshError: any) {
         setDocIntelError(`Business analysis completed, but dependent projection and score data could not be refreshed: ${refreshError.message || 'refresh failed'}`);
       }
+      if (onRefreshResearchStatus) void onRefreshResearchStatus().catch(() => {});
     } catch (err: any) {
       setDocIntelError(err.message || 'Failed to run AI document extraction. Please check your Gemini API key in .env.');
     } finally {
@@ -255,9 +258,10 @@ export const StockDetailView: React.FC<StockDetailViewProps> = ({
   };
 
   const applyPreset = (type: 'bull' | 'base' | 'bear') => {
-    const baseGrowth = stock.projection.historical_revenue_cagr_3yr || 12.0;
-    const baseOpm = stock.projection.historical_opm_median || 20.0;
-    const pe = stock.ratios.stock_pe || 25.0;
+    const baseGrowth = stock.projection.historical_revenue_cagr_3yr;
+    const baseOpm = stock.projection.historical_opm_median;
+    const pe = stock.ratios.stock_pe;
+    if (!isFiniteNumber(baseGrowth) || !isFiniteNumber(baseOpm) || !isFiniteNumber(pe)) return;
 
     if (type === 'bull') {
       const g = Math.round((baseGrowth * 1.3) * 10) / 10;
@@ -444,6 +448,11 @@ export const StockDetailView: React.FC<StockDetailViewProps> = ({
   const selectedFormula = selectedFormulaKey
     ? stock.analytics?.formula_transparency?.[selectedFormulaKey] ?? null
     : null;
+  const projectionUnavailable = researchStatus?.projection === 'unavailable';
+  const investmentScoreUnavailable = researchStatus?.investment_score === 'unavailable';
+  const lifecycleStatusPending = researchStatus === null;
+  const canApplyProjectionPresets = isFiniteNumber(stock.projection.historical_revenue_cagr_3yr) &&
+    isFiniteNumber(stock.projection.historical_opm_median) && isFiniteNumber(stock.ratios.stock_pe);
 
   const formatConfidence = (confidence?: number) => {
     if (!isFiniteNumber(confidence)) return null;
@@ -495,7 +504,7 @@ export const StockDetailView: React.FC<StockDetailViewProps> = ({
             <div className="flex items-center gap-3">
               <h1 className="text-3xl font-extrabold text-white tracking-tight">{stock.name}</h1>
               <span className="text-xs font-mono font-bold px-2.5 py-1 rounded-lg bg-emerald-500/10 text-emerald-400 border border-emerald-500/30">
-                NSE: {stock.symbol}
+                Ticker: {stock.symbol}
               </span>
             </div>
             <div className="flex flex-wrap items-center gap-3 text-xs text-slate-400 font-medium">
@@ -506,7 +515,7 @@ export const StockDetailView: React.FC<StockDetailViewProps> = ({
               <span>•</span>
               <span>{stock.industry}</span>
               <span>•</span>
-              <span>High/Low: {stock.ratios.high_low || 'N/A'}</span>
+              <span>High/Low: {stock.ratios.high_low?.trim() || '—'}</span>
             </div>
             <div className="flex flex-wrap items-center gap-2.5 text-[11px] text-slate-400 font-mono">
               <span className="font-semibold flex items-center gap-1.5">
@@ -546,14 +555,14 @@ export const StockDetailView: React.FC<StockDetailViewProps> = ({
             <div>
               <span className="text-[10px] text-slate-500 uppercase font-mono block">Current Price</span>
               <span className="text-2xl font-extrabold font-mono text-white">
-                ₹{stock.ratios.current_price.toLocaleString('en-IN')}
+                {formatRupees(stock.ratios.current_price)}
               </span>
             </div>
             <div className="h-10 w-[1px] bg-slate-800 hidden sm:block" />
             <div>
               <span className="text-[10px] text-slate-500 uppercase font-mono block"><ConceptHelp term="market_cap" label="Market Cap" /></span>
               <span className="text-sm font-bold font-mono text-slate-200">
-                ₹{stock.ratios.market_cap_cr.toLocaleString('en-IN')} Cr
+                {formatCrores(stock.ratios.market_cap_cr)}
               </span>
             </div>
             <div className="h-10 w-[1px] bg-slate-800 hidden sm:block" />
@@ -561,12 +570,13 @@ export const StockDetailView: React.FC<StockDetailViewProps> = ({
               <span className="text-[10px] text-slate-500 uppercase font-mono block">Investability Score</span>
               <div className="flex items-center gap-2 mt-0.5">
                 <span className="text-xl font-extrabold font-mono text-emerald-400">
-                  {stock.score.total_composite_score}/100
+                  {investmentScoreUnavailable ? '—' : `${stock.score.total_composite_score}/100`}
                 </span>
-                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">
-                  {stock.score.verdict}
-                </span>
+                {researchStatus && !investmentScoreUnavailable && (
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">{stock.score.verdict}</span>
+                )}
               </div>
+              {lifecycleStatusPending && <span className="text-[10px] text-slate-500">Research classification pending</span>}
             </div>
           </div>
 
@@ -576,15 +586,15 @@ export const StockDetailView: React.FC<StockDetailViewProps> = ({
         <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-3 font-mono">
           <div className="bg-slate-950/60 p-3 rounded-xl border border-slate-800/80 text-center">
             <span className="text-[10px] text-slate-500 uppercase font-sans block"><ConceptHelp term="pe" label="Stock P/E" /></span>
-            <span className="text-sm font-bold text-slate-100">{stock.ratios.stock_pe}x</span>
+            <span className="text-sm font-bold text-slate-100">{formatMultiple(stock.ratios.stock_pe)}</span>
           </div>
           <div className="bg-slate-950/60 p-3 rounded-xl border border-slate-800/80 text-center">
             <span className="text-[10px] text-slate-500 uppercase font-sans block"><ConceptHelp term="roce" label="ROCE" /></span>
-            <span className="text-sm font-bold text-emerald-400">{stock.ratios.roce_pct}%</span>
+            <span className="text-sm font-bold text-emerald-400">{formatPercent(stock.ratios.roce_pct)}</span>
           </div>
           <div className="bg-slate-950/60 p-3 rounded-xl border border-slate-800/80 text-center">
             <span className="text-[10px] text-slate-500 uppercase font-sans block"><ConceptHelp term="roe" label="ROE" /></span>
-            <span className="text-sm font-bold text-cyan-400">{stock.ratios.roe_pct}%</span>
+            <span className="text-sm font-bold text-cyan-400">{formatPercent(stock.ratios.roe_pct)}</span>
           </div>
           <div className="bg-slate-950/60 p-3 rounded-xl border border-slate-800/80 text-center relative group">
             <div className="flex items-center justify-center gap-1">
@@ -624,7 +634,7 @@ export const StockDetailView: React.FC<StockDetailViewProps> = ({
           </div>
           <div className="bg-slate-950/60 p-3 rounded-xl border border-slate-800/80 text-center">
             <span className="text-[10px] text-slate-500 uppercase font-sans block">Div Yield</span>
-            <span className="text-sm font-bold text-slate-100">{stock.ratios.dividend_yield_pct}%</span>
+            <span className="text-sm font-bold text-slate-100">{formatPercent(stock.ratios.dividend_yield_pct)}</span>
           </div>
         </div>
 
@@ -661,8 +671,9 @@ export const StockDetailView: React.FC<StockDetailViewProps> = ({
                 {researchStatus.investment_score === 'provisional' ? 'Provisional — financial analysis only' : researchStatus.investment_score === 'evidence_enriched' ? 'Evidence-enriched' : researchStatus.investment_score === 'incomplete' ? 'Incomplete research' : 'Score not available'}
               </span>
             )}
-            {researchStatus?.investment_score !== 'unavailable' && <>
-              <span className="text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">{stock.score.verdict}</span>
+            {lifecycleStatusPending && <span className="text-[10px] text-slate-400 border border-slate-700 rounded-full px-2.5 py-0.5">Research classification pending</span>}
+            {!investmentScoreUnavailable && <>
+              {researchStatus && <span className="text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">{stock.score.verdict}</span>}
               <span className="text-[11px] font-mono text-slate-400 bg-slate-900 px-2.5 py-0.5 rounded-lg border border-slate-800">Score: {stock.score.total_composite_score}/100</span>
             </>}
           </div>
@@ -837,6 +848,15 @@ export const StockDetailView: React.FC<StockDetailViewProps> = ({
       {/* TAB 1: INTERACTIVE PROJECTIONS & DCF VALUATION */}
       {activeTab === 'projection' && (
         <div className="space-y-6">
+          {lifecycleStatusPending && (
+            <div className="rounded-2xl border border-slate-800 bg-slate-950/70 p-4 flex items-start gap-3">
+              <Info className="w-4 h-4 text-slate-400 shrink-0 mt-0.5" />
+              <div>
+                <p className="text-xs font-bold text-slate-200">Projection classification pending</p>
+                <p className="text-[11px] text-slate-400 mt-1">Showing the latest stored projection while Stocker loads its research lifecycle classification.</p>
+              </div>
+            </div>
+          )}
           {researchStatus && (
             <div className={`rounded-2xl border p-4 flex items-start gap-3 ${researchStatus.projection === 'evidence_enriched' ? 'bg-emerald-950/30 border-emerald-800/50' : researchStatus.projection === 'stale' ? 'bg-amber-950/30 border-amber-800/50' : 'bg-slate-950/70 border-slate-800'}`}>
               {researchStatus.projection === 'stale' ? <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" /> : <Info className="w-4 h-4 text-cyan-400 shrink-0 mt-0.5" />}
@@ -850,7 +870,7 @@ export const StockDetailView: React.FC<StockDetailViewProps> = ({
               </div>
             </div>
           )}
-          {researchStatus?.projection !== 'unavailable' && <>
+          {!projectionUnavailable && <>
           
           {/* Projections Control Panel */}
           <div className="glass-panel rounded-3xl p-6 border border-slate-800 space-y-6">
@@ -878,19 +898,25 @@ export const StockDetailView: React.FC<StockDetailViewProps> = ({
               <div className="flex items-center gap-2">
                 <button
                   onClick={() => applyPreset('bear')}
-                  className="px-3 py-1 rounded-lg text-xs font-semibold bg-rose-950/50 text-rose-300 border border-rose-800 hover:bg-rose-900/50"
+                  disabled={!canApplyProjectionPresets}
+                  title={canApplyProjectionPresets ? 'Apply bear scenario' : 'Historical growth, margin, and P/E are required for presets'}
+                  className="px-3 py-1 rounded-lg text-xs font-semibold bg-rose-950/50 text-rose-300 border border-rose-800 hover:bg-rose-900/50 disabled:opacity-40 disabled:cursor-not-allowed"
                 >
                   Bear Case
                 </button>
                 <button
                   onClick={() => applyPreset('base')}
-                  className="px-3 py-1 rounded-lg text-xs font-semibold bg-slate-800 text-slate-200 border border-slate-700 hover:bg-slate-700"
+                  disabled={!canApplyProjectionPresets}
+                  title={canApplyProjectionPresets ? 'Apply historical base scenario' : 'Historical growth, margin, and P/E are required for presets'}
+                  className="px-3 py-1 rounded-lg text-xs font-semibold bg-slate-800 text-slate-200 border border-slate-700 hover:bg-slate-700 disabled:opacity-40 disabled:cursor-not-allowed"
                 >
                   Base Case
                 </button>
                 <button
                   onClick={() => applyPreset('bull')}
-                  className="px-3 py-1 rounded-lg text-xs font-semibold bg-emerald-950/50 text-emerald-300 border border-emerald-800 hover:bg-emerald-900/50"
+                  disabled={!canApplyProjectionPresets}
+                  title={canApplyProjectionPresets ? 'Apply bull scenario' : 'Historical growth, margin, and P/E are required for presets'}
+                  className="px-3 py-1 rounded-lg text-xs font-semibold bg-emerald-950/50 text-emerald-300 border border-emerald-800 hover:bg-emerald-900/50 disabled:opacity-40 disabled:cursor-not-allowed"
                 >
                   Bull Case
                 </button>
@@ -998,7 +1024,7 @@ export const StockDetailView: React.FC<StockDetailViewProps> = ({
                 />
                 <div className="flex justify-between text-[10px] text-slate-500 font-mono">
                   <span>10x</span>
-                  <span>Current: {stock.ratios.stock_pe}x</span>
+                  <span>Current: {formatMultiple(stock.ratios.stock_pe)}</span>
                   <span>65x</span>
                 </div>
               </div>
@@ -1058,7 +1084,7 @@ export const StockDetailView: React.FC<StockDetailViewProps> = ({
                   {projectionResult.projected_3yr_irr_cagr_pct}% / yr
                 </div>
                 <p className="text-[11px] text-slate-400">
-                  Expected annual compounding rate from current price ₹{stock.ratios.current_price}.
+                  Expected annual compounding rate from current price {formatRupees(stock.ratios.current_price)}.
                 </p>
               </div>
 
@@ -1181,6 +1207,9 @@ export const StockDetailView: React.FC<StockDetailViewProps> = ({
           docIntelError={docIntelError}
           generatingDocIntel={generatingDocIntel}
           aiStatus={aiStatus}
+          researchStatus={researchStatus}
+          filingDiscoveryState={filingDiscoveryState || 'idle'}
+          filingDiscoveryRevision={filingDiscoveryRevision}
           onGenerateIntel={handleGenerateIntel}
           onOpenKeyModal={() => { setIsKeyModalOpen(true); setKeySaveMessage(null); }}
         />
@@ -1444,6 +1473,12 @@ export const StockDetailView: React.FC<StockDetailViewProps> = ({
       {/* TAB 5: 5-PILLAR SCORECARD & RISKS */}
       {activeTab === 'scorecard' && (
         <div className="glass-panel rounded-3xl p-6 md:p-8 border border-slate-800 space-y-8">
+          {lifecycleStatusPending && (
+            <div className="rounded-2xl border border-slate-800 bg-slate-950/70 p-4">
+              <p className="text-xs font-bold text-slate-200">Research classification pending</p>
+              <p className="text-[11px] text-slate-400 mt-1">Showing the latest stored quantitative score without implying a completed research-confidence classification.</p>
+            </div>
+          )}
           {researchStatus && (
             <div className={`rounded-2xl border p-4 ${researchStatus.investment_score === 'evidence_enriched' ? 'bg-cyan-950/30 border-cyan-800/50' : 'bg-amber-950/20 border-amber-800/40'}`}>
               <p className="text-xs font-bold text-slate-100">
@@ -1452,7 +1487,7 @@ export const StockDetailView: React.FC<StockDetailViewProps> = ({
               <p className="text-[11px] text-slate-400 mt-1">Investment attractiveness is separate from research confidence. Complete filing and business analysis for a fully researched view.</p>
             </div>
           )}
-          {researchStatus?.investment_score !== 'unavailable' && <>
+          {!investmentScoreUnavailable && <>
           
           <div className="flex items-center justify-between border-b border-slate-800 pb-4">
             <div>
@@ -1461,7 +1496,7 @@ export const StockDetailView: React.FC<StockDetailViewProps> = ({
             </div>
             <div className="text-right">
               <span className="text-xs text-slate-400 font-mono">Composite Verdict</span>
-              <div className="text-lg font-extrabold text-emerald-400">{stock.score.verdict}</div>
+              <div className="text-lg font-extrabold text-emerald-400">{researchStatus ? stock.score.verdict : 'Classification pending'}</div>
             </div>
           </div>
 
@@ -1585,7 +1620,7 @@ export const StockDetailView: React.FC<StockDetailViewProps> = ({
               </div>
               <div>
                 <h3 className="text-base font-bold text-white">Running Live AI Analysis</h3>
-                <p className="text-xs text-slate-400">Scanning official filings for {stock.name} ({stock.symbol})</p>
+                <p className="text-xs text-slate-400">Scanning source documents for {stock.name} ({stock.symbol})</p>
               </div>
             </div>
 
@@ -1614,7 +1649,7 @@ export const StockDetailView: React.FC<StockDetailViewProps> = ({
                 </div>
                 <div className="flex-1">
                   <p className={`font-semibold ${generationStep >= 2 ? 'text-slate-200' : 'text-slate-500'}`}>
-                    Ingesting & Verifying Official PDFs
+                    Reading Source PDFs
                   </p>
                   <p className="text-[11px] text-slate-500">Extracting page-by-page text & table markers</p>
                 </div>

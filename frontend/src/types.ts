@@ -1,19 +1,19 @@
 export interface KeyRatios {
-  market_cap_cr: number;
-  current_price: number;
-  high_low: string;
-  stock_pe: number;
-  book_value: number;
-  dividend_yield_pct: number;
-  roce_pct: number;
-  roe_pct: number;
-  face_value: number;
-  industry_pe?: number | null;
-  debt_to_equity?: number | null;
-  interest_coverage?: number | null;
-  fcf_yield_pct?: number | null;
-  sales_growth_3yr_cagr?: number | null;
-  profit_growth_3yr_cagr?: number | null;
+  market_cap_cr: number | null;
+  current_price: number | null;
+  high_low: string | null;
+  stock_pe: number | null;
+  book_value: number | null;
+  dividend_yield_pct: number | null;
+  roce_pct: number | null;
+  roe_pct: number | null;
+  face_value: number | null;
+  industry_pe: number | null;
+  debt_to_equity: number | null;
+  interest_coverage: number | null;
+  fcf_yield_pct: number | null;
+  sales_growth_3yr_cagr: number | null;
+  profit_growth_3yr_cagr: number | null;
 }
 
 export interface FinancialRow {
@@ -158,11 +158,11 @@ export interface StockSummary {
   name: string;
   sector: string;
   industry: string;
-  current_price: number;
-  market_cap_cr: number;
-  pe_ratio: number;
-  roce_pct: number;
-  roe_pct: number;
+  current_price: number | null;
+  market_cap_cr: number | null;
+  pe_ratio: number | null;
+  roce_pct: number | null;
+  roe_pct: number | null;
   fcf_yield_pct: number | null;
   sales_growth_3yr_pct: number | null;
   cfo_to_pat_5yr_pct: number | null;
@@ -295,8 +295,8 @@ export interface ComparisonItem {
   symbol: string;
   name: string;
   sector: string;
-  current_price: number;
-  market_cap_cr: number;
+  current_price: number | null;
+  market_cap_cr: number | null;
   pe_ratio?: number | null;
   roce_pct?: number | null;
   roe_pct?: number | null;

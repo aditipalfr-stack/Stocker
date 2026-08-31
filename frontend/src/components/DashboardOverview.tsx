@@ -16,6 +16,7 @@ interface DashboardOverviewProps {
 }
 
 const isFiniteNumber = (value: unknown): value is number => typeof value === 'number' && Number.isFinite(value);
+const formatRupees = (value: number | null | undefined) => isFiniteNumber(value) ? `₹${value.toLocaleString('en-IN')}` : '—';
 const formatPercent = (value: number | null | undefined) => isFiniteNumber(value) ? `${value}%` : '—';
 const formatMultiple = (value: number | null | undefined) => isFiniteNumber(value) ? `${value}x` : '—';
 const highestStockBy = (stocks: StockSummary[], selector: (stock: StockSummary) => number | null | undefined) =>
@@ -435,7 +436,7 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
                     <span className="rank-pill">#{stock.rank}</span>
                   </td>
                   <td className="py-3.5 px-4 text-slate-100 font-semibold">
-                    ₹{stock.current_price.toLocaleString('en-IN')}
+                    {formatRupees(stock.current_price)}
                   </td>
                   <td className="py-3.5 px-4 text-slate-300">
                     {formatMultiple(stock.pe_ratio)}

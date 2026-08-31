@@ -21,6 +21,8 @@ interface StockComparisonProps {
 }
 
 const isFiniteNumber = (value: unknown): value is number => typeof value === 'number' && Number.isFinite(value);
+const formatRupees = (value: number | null | undefined) => isFiniteNumber(value) ? `₹${value.toLocaleString('en-IN')}` : '—';
+const formatCrores = (value: number | null | undefined) => isFiniteNumber(value) ? `₹${value.toLocaleString('en-IN')}` : '—';
 const formatPercent = (value: number | null | undefined) => isFiniteNumber(value) ? `${value}%` : '—';
 const formatMultiple = (value: number | null | undefined) => isFiniteNumber(value) ? `${value}x` : '—';
 
@@ -165,7 +167,7 @@ export const StockComparison: React.FC<StockComparisonProps> = ({
               <td className="py-3 px-4 sticky left-0 bg-slate-950 font-sans text-slate-400">Current Price (₹)</td>
               {comparisonData.map(item => (
                 <td key={item.symbol} className="py-3 px-6 text-center text-slate-100 font-bold">
-                  ₹{item.current_price.toLocaleString('en-IN')}
+                  {formatRupees(item.current_price)}
                 </td>
               ))}
             </tr>
@@ -175,7 +177,7 @@ export const StockComparison: React.FC<StockComparisonProps> = ({
               <td className="py-3 px-4 sticky left-0 bg-slate-950 font-sans text-slate-400"><ConceptHelp term="market_cap" label="Market Cap (₹ Cr)" /></td>
               {comparisonData.map(item => (
                 <td key={item.symbol} className="py-3 px-6 text-center text-slate-300">
-                  ₹{item.market_cap_cr.toLocaleString('en-IN')}
+                  {formatCrores(item.market_cap_cr)}
                 </td>
               ))}
             </tr>

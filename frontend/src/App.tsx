@@ -32,6 +32,7 @@ export function App() {
   const [researchStatusLoading, setResearchStatusLoading] = useState(false);
   const [researchStatusError, setResearchStatusError] = useState<string | null>(null);
   const [filingDiscoveryState, setFilingDiscoveryState] = useState<'idle' | 'running' | 'success' | 'error'>('idle');
+  const [filingDiscoveryRevision, setFilingDiscoveryRevision] = useState(0);
   const [verificationState, setVerificationState] = useState<'idle' | 'running' | 'success' | 'error'>('idle');
   const selectedSymbolRef = useRef(selectedStockSymbol);
   const statusRequestsRef = useRef<Record<string, Promise<ResearchLifecycleStatus>>>({});
@@ -94,6 +95,7 @@ export function App() {
       setResearchStatus(null);
       setResearchStatusError(null);
       setFilingDiscoveryState('idle');
+      setFilingDiscoveryRevision(revision => revision + 1);
       setVerificationState('idle');
       setActiveTab('detail');
       void refreshResearchStatus(canonicalSymbol);
@@ -130,6 +132,7 @@ export function App() {
       const result = await discoverFilings(symbol);
       if (selectedSymbolRef.current === symbol) {
         setFilingDiscoveryState('success');
+        setFilingDiscoveryRevision(revision => revision + 1);
         setResearchStatus(result.research_status);
       }
     } catch (e: any) {
@@ -166,6 +169,7 @@ export function App() {
     setResearchStatus(response.research_status);
     setResearchStatusError(null);
     setFilingDiscoveryState('idle');
+    setFilingDiscoveryRevision(revision => revision + 1);
     setVerificationState('idle');
     setActiveTab('detail');
     showToast(response.already_existed ? `${response.company_name} is already in Stocker.` : response.message, 'success');
@@ -303,6 +307,7 @@ export function App() {
             researchStatusLoading={researchStatusLoading}
             researchStatusError={researchStatusError}
             filingDiscoveryState={filingDiscoveryState}
+            filingDiscoveryRevision={filingDiscoveryRevision}
             verificationState={verificationState}
             onRetryFilings={() => runFilingDiscovery(selectedStockDetail.symbol)}
             onRetryVerification={() => runOfficialVerification(selectedStockDetail.symbol)}

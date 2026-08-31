@@ -1,11 +1,50 @@
 import {
   AddCompanyResponse, BusinessAnalysisIntelligence, BusinessOutlookIntelligence,
-  CompanyRegistryItem, CompanySearchResponse, ComparisonItem, DiscoverFilingsResponse,
+  CompanyRegistryItem, CompanySearchResponse, CompanySearchResult, ComparisonItem, DiscoverFilingsResponse,
   FinancialVerificationResponse, ProjectionAssumption, ProjectionResult,
   ResearchLifecycleStatus, SourceFilingsResponse, StockDetail, StockSummary
 } from './types';
 
 const API_BASE = import.meta.env.VITE_API_BASE || '/api';
+
+interface ParsedApiError {
+  message: string;
+  code?: string;
+  candidates: CompanySearchResult[];
+}
+
+async function parseApiError(res: Response, fallback: string): Promise<ParsedApiError> {
+  const payload = await res.json().catch(() => null) as any;
+  const detail = payload?.detail;
+  const detailObject = detail && typeof detail === 'object' ? detail : null;
+  const message = typeof detail === 'string'
+    ? detail
+    : typeof detailObject?.message === 'string'
+      ? detailObject.message
+      : typeof payload?.message === 'string'
+        ? payload.message
+        : fallback;
+  const candidates = Array.isArray(detailObject?.candidates)
+    ? detailObject.candidates
+      .filter((candidate: any) => candidate && typeof candidate.symbol === 'string' && typeof candidate.company_name === 'string')
+      .map((candidate: any) => ({ ...candidate, already_added: Boolean(candidate.already_added) }))
+    : [];
+  return {
+    message,
+    code: typeof detailObject?.code === 'string' ? detailObject.code : undefined,
+    candidates
+  };
+}
+
+export class CompanyAmbiguityError extends Error {
+  readonly candidates: CompanySearchResult[];
+
+  constructor(message: string, candidates: CompanySearchResult[]) {
+    super(message);
+    this.name = 'CompanyAmbiguityError';
+    this.candidates = candidates;
+  }
+}
 
 export async function fetchStocks(sector?: string, minScore?: number): Promise<StockSummary[]> {
   const params = new URLSearchParams();
@@ -117,8 +156,8 @@ export async function searchCompanies(query: string, limit: number = 10): Promis
   const params = new URLSearchParams({ q: query, limit: limit.toString() });
   const res = await fetch(`${API_BASE}/companies/search?${params.toString()}`);
   if (!res.ok) {
-    const err = await res.json().catch(() => ({ detail: 'Failed to search companies' }));
-    throw new Error(err.detail || 'Failed to search companies');
+    const error = await parseApiError(res, 'Failed to search companies');
+    throw new Error(error.message);
   }
   return res.json();
 }
@@ -130,8 +169,11 @@ export async function addCompany(query: string): Promise<AddCompanyResponse> {
     body: JSON.stringify({ query })
   });
   if (!res.ok) {
-    const err = await res.json().catch(() => ({ detail: 'Failed to add company to universe' }));
-    throw new Error(err.detail || 'Failed to add company to universe');
+    const error = await parseApiError(res, 'Failed to add company to universe');
+    if (res.status === 409 && error.code === 'AMBIGUOUS_COMPANY' && error.candidates.length > 0) {
+      throw new CompanyAmbiguityError(error.message, error.candidates);
+    }
+    throw new Error(error.message);
   }
   return res.json();
 }
@@ -145,8 +187,8 @@ export async function fetchResearchStatus(symbol: string): Promise<ResearchLifec
 export async function discoverFilings(symbol: string): Promise<DiscoverFilingsResponse> {
   const res = await fetch(`${API_BASE}/stocks/${encodeURIComponent(symbol)}/discover-filings`, { method: 'POST' });
   if (!res.ok) {
-    const err = await res.json().catch(() => ({ detail: 'Failed to discover source filings' }));
-    throw new Error(err.detail || `Failed to discover source filings for ${symbol}`);
+    const error = await parseApiError(res, `Failed to discover source filings for ${symbol}`);
+    throw new Error(error.message);
   }
   return res.json();
 }
