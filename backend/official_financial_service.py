@@ -1288,10 +1288,23 @@ def run_official_financial_verification(
         screener_source_url = screener_stock_data.get("source_url", "")
         scr_statement_scope = screener_stock_data.get("statement_type", "consolidated").capitalize()
         
+        # Helper to extract rows and fields from either dict or Pydantic model
+        def _get_statement_rows(stmt_obj: Any) -> List[Any]:
+            if not stmt_obj:
+                return []
+            if isinstance(stmt_obj, dict):
+                return stmt_obj.get("rows", [])
+            return getattr(stmt_obj, "rows", []) or []
+
+        def _get_row_data(row_obj: Any) -> Tuple[str, Dict[str, Any]]:
+            if isinstance(row_obj, dict):
+                return row_obj.get("metric", ""), row_obj.get("values", {})
+            return getattr(row_obj, "metric", "") or "", getattr(row_obj, "values", {}) or {}
+
         # Quarterly statements
-        quarters = screener_stock_data.get("quarters", {})
-        for row in quarters.get("rows", []):
-            m_name = row.get("metric", "")
+        quarters = screener_stock_data.get("quarters")
+        for row in _get_statement_rows(quarters):
+            m_name, values = _get_row_data(row)
             clean_m_lower = m_name.lower().strip()
             if clean_m_lower == "eps in rs":
                 canon_m = "BASIC_EPS"
@@ -1299,7 +1312,6 @@ def run_official_financial_verification(
                 canon_m = normalize_metric_name(m_name)
             if not canon_m:
                 continue
-            values = row.get("values", {})
             for p_str, val in values.items():
                 if val is not None:
                     disp_p, canon_p = normalize_period(p_str)
@@ -1316,9 +1328,9 @@ def run_official_financial_verification(
                             pass
                             
         # Annual Profit & Loss statements
-        pl = screener_stock_data.get("profit_loss", {})
-        for row in pl.get("rows", []):
-            m_name = row.get("metric", "")
+        pl = screener_stock_data.get("profit_loss") or screener_stock_data.get("profit_and_loss")
+        for row in _get_statement_rows(pl):
+            m_name, values = _get_row_data(row)
             clean_m_lower = m_name.lower().strip()
             if clean_m_lower == "eps in rs":
                 canon_m = "BASIC_EPS"
@@ -1326,7 +1338,6 @@ def run_official_financial_verification(
                 canon_m = normalize_metric_name(m_name)
             if not canon_m:
                 continue
-            values = row.get("values", {})
             for p_str, val in values.items():
                 if val is not None:
                     disp_p, canon_p = normalize_period("FY" + p_str.split()[-1][-2:] if len(p_str.split()) > 1 else p_str)
