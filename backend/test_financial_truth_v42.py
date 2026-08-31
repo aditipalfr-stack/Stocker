@@ -587,8 +587,84 @@ def run_all_tests():
         assert has_disc_op is True, "Operating profit should have a discrepancy"
         print("  ✓ Test N passed: Downstream helpers operate accurately.")
 
+    # -------------------------------------------------------------------------
+    # TEST O: Downstream Helper Financial Invalidation (get_canonical_fact)
+    # -------------------------------------------------------------------------
+    with IsolatedTestDatabase():
+        print("\n--- Test O: Downstream Helper Financial Invalidation ---")
+        f1_time = "2026-08-31T09:00:00Z"
+        stock_f1 = make_sample_stock_data("AUTOFACT", fetched_at=f1_time)
+        database.save_stock_cache("AUTOFACT", "Auto Fact Ltd", "IT", "Software", serialize_stock_data(stock_f1))
+        
+        # 1. Build initial truth at F1 (Revenue = 5000.0)
+        c1 = get_or_recompute_financial_truth("AUTOFACT")
+        f1 = get_canonical_fact("AUTOFACT", "REVENUE", "FY26")
+        assert f1 is not None
+        assert f1.value == 5000.0
+        
+        # 2. Update stock cache to F2 with modified sales = 6000.0
+        f2_time = "2026-08-31T11:00:00Z"
+        stock_f2 = make_sample_stock_data("AUTOFACT", fetched_at=f2_time)
+        # Modify FY26 sales row to 6000.0
+        for row in stock_f2["profit_loss"].rows:
+            if row.metric == "Sales":
+                row.values["Mar 2026"] = 6000.0
+        database.save_stock_cache("AUTOFACT", "Auto Fact Ltd", "IT", "Software", serialize_stock_data(stock_f2))
+        
+        # 3. Call get_canonical_fact() WITHOUT manually rebuilding truth
+        f2 = get_canonical_fact("AUTOFACT", "REVENUE", "FY26")
+        assert f2 is not None
+        assert f2.value == 6000.0, f"Expected canonical fact value 6000.0 from F2, got {f2.value}"
+        print("  ✓ Test O passed: get_canonical_fact() automatically recomputed and returned fresh F2 value.")
+
+    # -------------------------------------------------------------------------
+    # TEST P: Downstream Helper Verification Invalidation (has_material_verification_discrepancy)
+    # -------------------------------------------------------------------------
+    with IsolatedTestDatabase():
+        print("\n--- Test P: Downstream Helper Verification Invalidation ---")
+        stock = make_sample_stock_data("DISCREPCO")
+        database.save_stock_cache("DISCREPCO", "Discrepancy Co", "IT", "Software", serialize_stock_data(stock))
+        
+        # 1. Build initial discrepancy state at V1 (Screener=5000, Official=5500, DISCREPANCY)
+        v1_time = "2026-08-31T10:00:00Z"
+        v1_record = {
+            "symbol": "DISCREPCO",
+            "metric_name": "Revenue",
+            "canonical_metric": "REVENUE",
+            "period": "FY26",
+            "canonical_period": "2026-FY",
+            "scope": "Consolidated",
+            "screener_value": 5000.0,
+            "official_value": 5500.0,
+            "status": "DISCREPANCY",
+            "verified_at": v1_time
+        }
+        database.save_financial_verification_records([v1_record])
+        assert has_material_verification_discrepancy("DISCREPCO") is True, "Expected discrepancy to be True at V1"
+        
+        # 2. Update verification to V2 where discrepancy is resolved (Screener=5000, Official=5000, VERIFIED)
+        v2_time = "2026-08-31T12:00:00Z"
+        v2_record = {
+            "symbol": "DISCREPCO",
+            "metric_name": "Revenue",
+            "canonical_metric": "REVENUE",
+            "period": "FY26",
+            "canonical_period": "2026-FY",
+            "scope": "Consolidated",
+            "screener_value": 5000.0,
+            "official_value": 5000.0,
+            "status": "VERIFIED",
+            "verified_at": v2_time
+        }
+        database.save_financial_verification_records([v2_record])
+        
+        # 3. Call has_material_verification_discrepancy() WITHOUT manually rebuilding truth
+        has_disc_v2 = has_material_verification_discrepancy("DISCREPCO")
+        assert has_disc_v2 is False, "Expected has_material_verification_discrepancy to return False at V2"
+        print("  ✓ Test P passed: has_material_verification_discrepancy() automatically recomputed and returned fresh V2 state.")
+
     print("\n==================================================================")
-    print("🎉 ALL PHASE 2A FINANCIAL TRUTH TESTS (A - N) PASSED 100% CLEANLY!")
+    print("🎉 ALL PHASE 2A FINANCIAL TRUTH TESTS (A - P) PASSED 100% CLEANLY!")
     print("==================================================================")
 
 if __name__ == "__main__":

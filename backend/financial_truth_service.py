@@ -624,9 +624,12 @@ def get_canonical_fact(
 ) -> Optional[CanonicalFinancialFact]:
     """
     Retrieves a single CanonicalFinancialFact for a given symbol, metric, period, and scope.
-    Checks SQLite persistence first.
+    Ensures canonical truth is fresh first using get_or_recompute_financial_truth.
     """
     clean_sym = symbol.upper().strip()
+    container = get_or_recompute_financial_truth(clean_sym)
+    if not container:
+        return None
     canon_m = normalize_metric_name(metric) or metric.upper().strip()
     raw = database.get_canonical_fact_by_key(clean_sym, canon_m, period, scope)
     if raw:
@@ -640,8 +643,12 @@ def get_canonical_series(
 ) -> List[CanonicalFinancialFact]:
     """
     Retrieves a chronological time series of CanonicalFinancialFacts for a given symbol, metric, and scope.
+    Ensures canonical truth is fresh first using get_or_recompute_financial_truth.
     """
     clean_sym = symbol.upper().strip()
+    container = get_or_recompute_financial_truth(clean_sym)
+    if not container:
+        return []
     canon_m = normalize_metric_name(metric) or metric.upper().strip()
     rows = database.get_canonical_facts_series(clean_sym, canon_m, scope)
     return [CanonicalFinancialFact(**r) for r in rows]
@@ -653,17 +660,17 @@ def has_material_verification_discrepancy(
 ) -> bool:
     """
     Checks if there is any active DISCREPANCY recorded for the company, optionally filtered by metric or period.
+    Ensures canonical truth is fresh first using get_or_recompute_financial_truth.
     """
     clean_sym = symbol.upper().strip()
-    container_dict = database.get_canonical_financial_facts(clean_sym)
-    if not container_dict:
+    container = get_or_recompute_financial_truth(clean_sym)
+    if not container:
         return False
-    facts = container_dict.get("facts", [])
-    for f in facts:
-        if f.get("verification_status") == "DISCREPANCY":
-            if metric and (f.get("canonical_metric") != metric.upper().strip() and f.get("display_metric") != metric):
+    for f in container.facts:
+        if f.verification_status == "DISCREPANCY":
+            if metric and (f.canonical_metric != metric.upper().strip() and f.display_metric != metric):
                 continue
-            if period and f.get("period") != period and f.get("canonical_period") != period:
+            if period and f.period != period and f.canonical_period != period:
                 continue
             return True
     return False
