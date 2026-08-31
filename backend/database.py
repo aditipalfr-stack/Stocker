@@ -506,9 +506,11 @@ def save_ai_analysis(
     """Saves full institutional AI analysis into SQLite."""
     clean_sym = symbol.upper().strip()
     now_iso = datetime.now(timezone.utc).isoformat()
-    intelligence_data["extraction_timestamp"] = now_iso
+    if not intelligence_data.get("extraction_timestamp"):
+        intelligence_data["extraction_timestamp"] = now_iso
     intelligence_data["ai_provider_used"] = ai_provider
     intelligence_data["model_version"] = model_version
+    gen_time = intelligence_data.get("extraction_timestamp") or now_iso
     
     conn = get_db_connection()
     try:
@@ -534,7 +536,7 @@ def save_ai_analysis(
                 model_version, 
                 prompt_tokens, 
                 source_docs_count, 
-                now_iso
+                gen_time
             ))
     finally:
         conn.close()
