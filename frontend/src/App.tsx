@@ -43,9 +43,11 @@ export function App() {
   };
 
   const refreshResearchStatus = useCallback(async (symbol: string) => {
-    const canonicalSymbol = symbol.toUpperCase();
-    setResearchStatusLoading(true);
-    setResearchStatusError(null);
+    const canonicalSymbol = symbol.trim().toUpperCase();
+    if (selectedSymbolRef.current === canonicalSymbol) {
+      setResearchStatusLoading(true);
+      setResearchStatusError(null);
+    }
     let request = statusRequestsRef.current[canonicalSymbol];
     if (!request) {
       request = fetchResearchStatus(canonicalSymbol);
@@ -133,7 +135,7 @@ export function App() {
       if (selectedSymbolRef.current === symbol) {
         setFilingDiscoveryState('success');
         setFilingDiscoveryRevision(revision => revision + 1);
-        setResearchStatus(result.research_status);
+        if (result.research_status) setResearchStatus(result.research_status);
       }
     } catch (e: any) {
       if (selectedSymbolRef.current === symbol) {
@@ -162,11 +164,14 @@ export function App() {
 
   const handleAddCompany = async (query: string) => {
     const response = await addCompany(query);
+    if (!response.stock) {
+      throw new Error(`Stocker did not return usable financial detail for ${response.company_name}. Please retry the add.`);
+    }
     const canonicalSymbol = response.symbol.toUpperCase();
     selectedSymbolRef.current = canonicalSymbol;
     setSelectedStockSymbol(canonicalSymbol);
     setSelectedStockDetail(response.stock);
-    setResearchStatus(response.research_status);
+    setResearchStatus(response.research_status ?? null);
     setResearchStatusError(null);
     setFilingDiscoveryState('idle');
     setFilingDiscoveryRevision(revision => revision + 1);

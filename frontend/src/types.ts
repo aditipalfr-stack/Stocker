@@ -684,15 +684,16 @@ export interface AddCompanyResponse {
   symbol: string;
   company_name: string;
   already_existed: boolean;
-  stock: StockDetail;
-  research_status: ResearchLifecycleStatus;
+  stock: StockDetail | null;
+  research_status: ResearchLifecycleStatus | null;
 }
 
 export interface DiscoverFilingsResponse {
   symbol: string;
+  company_name: string;
   filing_count: number;
-  documents_checked_at: string | null;
-  research_status: ResearchLifecycleStatus;
+  documents_checked_at: string;
+  research_status: ResearchLifecycleStatus | null;
 }
 
 export interface CompanyRegistryItem {
@@ -703,8 +704,8 @@ export interface CompanyRegistryItem {
   bse_code?: string | null;
   isin?: string | null;
   exchange?: string | null;
-  sector?: string;
-  industry?: string;
+  sector?: string | null;
+  industry?: string | null;
   aliases?: string[];
   is_active?: boolean;
   in_universe?: boolean;

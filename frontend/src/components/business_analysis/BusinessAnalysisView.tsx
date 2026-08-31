@@ -111,7 +111,19 @@ export const BusinessAnalysisView: React.FC<BusinessAnalysisViewProps> = ({
       (stock.documents?.presentations?.length || 0) +
       (stock.documents?.material_announcements?.length || 0);
   const totalFilingsCount = researchStatus?.filing_count ?? loadedFilingsCount ?? fallbackStockLinksCount;
-  const hasTrustedFilingCount = researchStatus !== null || loadedFilingsCount !== null;
+  const hasTrustedFilingCount = Boolean(researchStatus && researchStatus.source_filings !== 'not_searched');
+  const filingCollectionLabel = researchStatus?.source_filings === 'not_searched'
+    ? 'source discovery has not run yet'
+    : hasTrustedFilingCount
+      ? `${totalFilingsCount} indexed source filings`
+      : loadedFilingsCount !== null
+        ? `${loadedFilingsCount} loaded source documents`
+        : fallbackStockLinksCount > 0
+          ? `${fallbackStockLinksCount} available source links`
+          : 'available source links';
+  const exploreFilingsLabel = researchStatus?.source_filings === 'not_searched'
+    ? 'Explore Available Links'
+    : `Explore ${totalFilingsCount} ${hasTrustedFilingCount ? 'Source Filings' : loadedFilingsCount !== null ? 'Source Documents' : 'Available Links'}`;
 
   return (
     <div className="space-y-8">
@@ -195,7 +207,7 @@ export const BusinessAnalysisView: React.FC<BusinessAnalysisViewProps> = ({
             <div className="space-y-2 max-w-lg mx-auto">
               <h4 className="text-lg font-bold text-white">Deep AI Fundamental Analysis Not Run Yet</h4>
               <p className="text-xs text-slate-400 leading-relaxed">
-                Stocker can scan and triangulate <strong className="text-emerald-300">{totalFilingsCount || 'available'} {hasTrustedFilingCount ? 'source filings' : 'available source links'}</strong> (Annual Reports, Concall Transcripts, Investor PPTs) against <strong className="text-cyan-300">historical standardized financial statements</strong> to assess management guidance, capex roadmaps, and balance sheet cash flows.
+                Stocker can scan and triangulate <strong className="text-emerald-300">{filingCollectionLabel}</strong> (Annual Reports, Concall Transcripts, Investor PPTs) against <strong className="text-cyan-300">historical standardized financial statements</strong> to assess management guidance, capex roadmaps, and balance sheet cash flows.
               </p>
             </div>
             
@@ -213,7 +225,7 @@ export const BusinessAnalysisView: React.FC<BusinessAnalysisViewProps> = ({
                 className="bg-slate-900 hover:bg-slate-800 text-slate-300 font-bold text-xs px-4 py-3 rounded-2xl border border-slate-800 flex items-center gap-1.5"
               >
                 <FileText className="w-4 h-4 text-emerald-400" />
-                <span>Explore {totalFilingsCount} {hasTrustedFilingCount ? 'Source Filings' : 'Available Links'}</span>
+                <span>{exploreFilingsLabel}</span>
               </button>
             </div>
           </div>
@@ -271,7 +283,11 @@ export const BusinessAnalysisView: React.FC<BusinessAnalysisViewProps> = ({
           <span className={`text-[10px] font-mono px-1.5 py-0.2 rounded-full ${
             activeSubTab === 'filings' ? 'bg-slate-950/20 text-slate-950' : 'bg-slate-900 text-slate-400'
           }`}>
-            {filingDiscoveryState === 'running' ? '…' : totalFilingsCount}
+            {filingDiscoveryState === 'running'
+              ? '…'
+              : researchStatus?.source_filings === 'not_searched'
+                ? 'Not searched'
+                : totalFilingsCount}
           </span>
         </button>
       </div>

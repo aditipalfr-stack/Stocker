@@ -453,6 +453,21 @@ export const StockDetailView: React.FC<StockDetailViewProps> = ({
   const lifecycleStatusPending = researchStatus === null;
   const canApplyProjectionPresets = isFiniteNumber(stock.projection.historical_revenue_cagr_3yr) &&
     isFiniteNumber(stock.projection.historical_opm_median) && isFiniteNumber(stock.ratios.stock_pe);
+  const legacyDocumentCount = isFiniteNumber(stock.documents?.diagnostics?.ai_ready_documents_count)
+    ? stock.documents.diagnostics.ai_ready_documents_count
+    : (stock.documents?.annual_reports?.length || 0) +
+      (stock.documents?.concalls?.length || 0) +
+      (stock.documents?.presentations?.length || 0) +
+      (stock.documents?.material_announcements?.length || 0);
+  const businessAnalysisFilingBadge = filingDiscoveryState === 'running'
+    ? 'Searching…'
+    : researchStatus
+      ? researchStatus.source_filings === 'not_searched'
+        ? 'Not searched'
+        : `${researchStatus.filing_count} Filings`
+      : legacyDocumentCount > 0
+        ? `${legacyDocumentCount} Links`
+        : 'No links';
 
   const formatConfidence = (confidence?: number) => {
     if (!isFiniteNumber(confidence)) return null;
@@ -756,7 +771,9 @@ export const StockDetailView: React.FC<StockDetailViewProps> = ({
               <TrendingUp className="w-3.5 h-3.5 text-purple-400" />
               Valuation Bridge (3Y)
             </span>
-            {researchStatus?.projection === 'unavailable' ? (
+            {lifecycleStatusPending ? (
+              <p className="text-[11px] text-slate-400 leading-snug">Research classification pending. Latest stored values remain available in the projection model.</p>
+            ) : projectionUnavailable ? (
               <p className="text-[11px] text-slate-400 leading-snug">Projection unavailable with current evidence.</p>
             ) : <div className="space-y-1">
               <div className="flex items-center justify-between text-[11px] font-mono">
@@ -797,15 +814,13 @@ export const StockDetailView: React.FC<StockDetailViewProps> = ({
         >
           <Compass className="w-3.5 h-3.5" />
           <span>Business Analysis</span>
-          {stock.documents?.diagnostics && (
-            <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-mono border ${
-              activeTab === 'outlook'
-                ? 'bg-slate-950 text-emerald-300 border-emerald-500/30'
-                : 'bg-slate-900 text-slate-400 border-slate-700'
-            }`}>
-              {stock.documents.diagnostics.ai_ready_documents_count} Files
-            </span>
-          )}
+          <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-mono border ${
+            activeTab === 'outlook'
+              ? 'bg-slate-950 text-emerald-300 border-emerald-500/30'
+              : 'bg-slate-900 text-slate-400 border-slate-700'
+          }`}>
+            {businessAnalysisFilingBadge}
+          </span>
         </button>
 
         <button
