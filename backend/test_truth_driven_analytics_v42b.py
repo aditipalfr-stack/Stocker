@@ -606,8 +606,278 @@ def run_all_tests():
         assert detail2.financial_truth.verification_version == v_time
         print("  ✓ Scenario L passed: Verification refresh automatically upgraded analytics from standardized to verified.")
 
+    # -------------------------------------------------------------------------
+    # SCENARIO M: Exact Quarter Chronology Case A (Skipped quarter)
+    # -------------------------------------------------------------------------
+    with IsolatedTestDatabase():
+        print("\n--- Scenario M: Exact Quarter Chronology Case A ---")
+        # Quarters has Jun 2025 and Dec 2025 (Sep 2025 is missing)
+        stock_m = {
+            "symbol": "CHRONO1",
+            "name": "Chrono Co",
+            "quarters": FinancialStatement(
+                periods=["Jun 2025", "Dec 2025"],
+                rows=[
+                    FinancialRow(metric="Sales", values={"Jun 2025": 100.0, "Dec 2025": 150.0}),
+                    FinancialRow(metric="Operating Profit", values={"Jun 2025": 20.0, "Dec 2025": 30.0}),
+                    FinancialRow(metric="Net Profit", values={"Jun 2025": 10.0, "Dec 2025": 15.0})
+                ]
+            ),
+            "profit_loss": FinancialStatement(periods=[], rows=[]),
+            "balance_sheet": FinancialStatement(periods=[], rows=[]),
+            "cash_flow": FinancialStatement(periods=[], rows=[])
+        }
+        database.save_stock_cache("CHRONO1", "Chrono Co", "IT", "Software", serialize_stock_data(stock_m))
+        analytics_m = compute_financial_analytics(
+            quarters=stock_m["quarters"],
+            pl=stock_m["profit_loss"],
+            bs=stock_m["balance_sheet"],
+            cf=stock_m["cash_flow"],
+            symbol="CHRONO1"
+        )
+        
+        dec_trend = next((t for t in analytics_m["quarterly_analysis"]["trends"] if t["period"] == "Dec 2025"), None)
+        assert dec_trend is not None
+        # Dec 2025 prior quarter is Sep 2025 (2025-Q2), which is missing. Jun 2025 MUST NOT be used!
+        assert dec_trend["sales_growth_qoq_pct"] is None, f"Expected Dec 2025 QoQ = None, got {dec_trend['sales_growth_qoq_pct']}"
+        assert dec_trend["provenance"]["sales_growth_qoq"]["quality"] == "insufficient"
+        print("  ✓ Scenario M passed: Dec 2025 QoQ is unavailable when Sep 2025 is missing (Jun 2025 not substituted).")
+
+    # -------------------------------------------------------------------------
+    # SCENARIO N: Exact Quarter Chronology Case B & C (YoY Matching)
+    # -------------------------------------------------------------------------
+    with IsolatedTestDatabase():
+        print("\n--- Scenario N: Exact Quarter Chronology Case B & C ---")
+        # Case B: quarters has Jun 2025, X1, X2, X3, Sep 2026 (4 positions apart, but not same quarter)
+        # Case C: quarters has Jun 2025, X1, X2, X3, X4, Jun 2026 (exact 1-year match)
+        stock_n = {
+            "symbol": "CHRONO2",
+            "name": "Chrono 2 Co",
+            "quarters": FinancialStatement(
+                periods=["Jun 2025", "Sep 2025", "Dec 2025", "Mar 2026", "Sep 2026", "Jun 2026"],
+                rows=[
+                    FinancialRow(metric="Sales", values={"Jun 2025": 100.0, "Sep 2025": 110.0, "Dec 2025": 120.0, "Mar 2026": 130.0, "Sep 2026": 200.0, "Jun 2026": 150.0}),
+                    FinancialRow(metric="Operating Profit", values={"Jun 2025": 20.0, "Sep 2025": 22.0, "Dec 2025": 24.0, "Mar 2026": 26.0, "Sep 2026": 40.0, "Jun 2026": 30.0}),
+                    FinancialRow(metric="Net Profit", values={"Jun 2025": 10.0, "Sep 2025": 11.0, "Dec 2025": 12.0, "Mar 2026": 13.0, "Sep 2026": 20.0, "Jun 2026": 15.0})
+                ]
+            ),
+            "profit_loss": FinancialStatement(periods=[], rows=[]),
+            "balance_sheet": FinancialStatement(periods=[], rows=[]),
+            "cash_flow": FinancialStatement(periods=[], rows=[])
+        }
+        database.save_stock_cache("CHRONO2", "Chrono 2 Co", "IT", "Software", serialize_stock_data(stock_n))
+        analytics_n = compute_financial_analytics(
+            quarters=stock_n["quarters"],
+            pl=stock_n["profit_loss"],
+            bs=stock_n["balance_sheet"],
+            cf=stock_n["cash_flow"],
+            symbol="CHRONO2"
+        )
+        
+        # Case B: Sep 2026 (index 4) - YoY requires Sep 2025 (2025-Q2). Sep 2025 is present (110.0), so YoY = ((200-110)/110)*100 = 81.82%, NOT matched against Jun 2025 (100.0)!
+        sep26_trend = next((t for t in analytics_n["quarterly_analysis"]["trends"] if t["period"] == "Sep 2026"), None)
+        assert sep26_trend is not None
+        assert sep26_trend["sales_growth_yoy_pct"] == 81.82, f"Expected Sep 2026 YoY = 81.82%, got {sep26_trend['sales_growth_yoy_pct']}"
+        
+        # Case C: Jun 2026 (index 5) - YoY requires Jun 2025 (2025-Q1). Jun 2025 is 100.0, Jun 2026 is 150.0 -> YoY = ((150-100)/100)*100 = 50.0%
+        jun26_trend = next((t for t in analytics_n["quarterly_analysis"]["trends"] if t["period"] == "Jun 2026"), None)
+        assert jun26_trend is not None
+        assert jun26_trend["sales_growth_yoy_pct"] == 50.0, f"Expected Jun 2026 YoY = 50.0%, got {jun26_trend['sales_growth_yoy_pct']}"
+        print("  ✓ Scenario N passed: Exact chronological YoY matching verified (Cases B & C).")
+
+    # -------------------------------------------------------------------------
+    # SCENARIO O: Operating Profit QoQ / YoY (Verified, Discrepant, Missing)
+    # -------------------------------------------------------------------------
+    with IsolatedTestDatabase():
+        print("\n--- Scenario O: Operating Profit QoQ / YoY ---")
+        stock_o = make_sample_stock_data("OPCO")
+        
+        # Jun 2025 OP = 200 (Verified), Sep 2025 OP = 240 (Verified), Jun 2026 OP = 300 (Discrepant Screener=300, Official=350)
+        v_records = [
+            {
+                "symbol": "OPCO",
+                "metric_name": "Operating Profit",
+                "canonical_metric": "OPERATING_PROFIT",
+                "period": "Jun 2025",
+                "canonical_period": "2025-Q1",
+                "scope": "Consolidated",
+                "screener_value": 200.0,
+                "official_value": 200.0,
+                "status": "VERIFIED",
+                "verified_at": "2026-05-01T10:00:00Z"
+            },
+            {
+                "symbol": "OPCO",
+                "metric_name": "Operating Profit",
+                "canonical_metric": "OPERATING_PROFIT",
+                "period": "Sep 2025",
+                "canonical_period": "2025-Q2",
+                "scope": "Consolidated",
+                "screener_value": 240.0,
+                "official_value": 240.0,
+                "status": "VERIFIED",
+                "verified_at": "2026-05-01T10:00:00Z"
+            },
+            {
+                "symbol": "OPCO",
+                "metric_name": "Operating Profit",
+                "canonical_metric": "OPERATING_PROFIT",
+                "period": "Jun 2026",
+                "canonical_period": "2026-Q1",
+                "scope": "Consolidated",
+                "screener_value": 300.0,
+                "official_value": 350.0,
+                "variance_abs": 50.0,
+                "variance_pct": 16.67,
+                "status": "DISCREPANCY",
+                "verified_at": "2026-05-01T10:00:00Z"
+            }
+        ]
+        database.save_financial_verification_records(v_records)
+        database.save_stock_cache("OPCO", "OP Co", "IT", "Software", serialize_stock_data(stock_o))
+        
+        truth_o = get_or_recompute_financial_truth("OPCO")
+        analytics_o = compute_financial_analytics(
+            quarters=stock_o["quarters"],
+            pl=stock_o["profit_loss"],
+            bs=stock_o["balance_sheet"],
+            cf=stock_o["cash_flow"],
+            symbol="OPCO",
+            financial_truth=truth_o
+        )
+        
+        # 1. Sep 2025 OP QoQ ((240-200)/200)*100 = 20.0%, quality = "verified"
+        sep_trend = next((t for t in analytics_o["quarterly_analysis"]["trends"] if t["period"] == "Sep 2025"), None)
+        assert sep_trend["operating_profit_growth_qoq_pct"] == 20.0
+        assert sep_trend["provenance"]["operating_profit_growth_qoq"]["quality"] == "verified"
+        
+        # 2. Jun 2026 OP YoY ((300-200)/200)*100 = 50.0%, quality = "discrepant", has_discrepancy = True
+        jun_trend = next((t for t in analytics_o["quarterly_analysis"]["trends"] if t["period"] == "Jun 2026"), None)
+        assert jun_trend["operating_profit_growth_yoy_pct"] == 50.0
+        assert jun_trend["provenance"]["operating_profit_growth_yoy"]["quality"] == "discrepant"
+        assert jun_trend["provenance"]["operating_profit_growth_yoy"]["has_discrepancy"] is True
+        print("  ✓ Scenario O passed: Operating profit QoQ & YoY verified with discrepancy propagation.")
+
+    # -------------------------------------------------------------------------
+    # SCENARIO P: Missing != Zero Handling (CWIP & Debt)
+    # -------------------------------------------------------------------------
+    with IsolatedTestDatabase():
+        print("\n--- Scenario P: Missing != Zero Handling ---")
+        # Stock with missing CWIP and missing debt
+        stock_p = {
+            "symbol": "NULLCO",
+            "name": "Null Co",
+            "quarters": FinancialStatement(periods=[], rows=[]),
+            "profit_loss": FinancialStatement(periods=[], rows=[]),
+            "balance_sheet": FinancialStatement(
+                periods=["Mar 2026"],
+                rows=[
+                    FinancialRow(metric="Fixed Assets", values={"Mar 2026": 1000.0}),
+                    FinancialRow(metric="Total Assets", values={"Mar 2026": 1200.0})
+                    # Borrowings and CWIP omitted
+                ]
+            ),
+            "cash_flow": FinancialStatement(periods=[], rows=[])
+        }
+        database.save_stock_cache("NULLCO", "Null Co", "IT", "Software", serialize_stock_data(stock_p))
+        analytics_p = compute_financial_analytics(
+            quarters=stock_p["quarters"],
+            pl=stock_p["profit_loss"],
+            bs=stock_p["balance_sheet"],
+            cf=stock_p["cash_flow"],
+            symbol="NULLCO"
+        )
+        
+        bs_eff = analytics_p["balance_sheet_efficiency"]
+        assert bs_eff["latest_cwip_to_net_block_pct"] is None, f"Expected CWIP % = None, got {bs_eff['latest_cwip_to_net_block_pct']}"
+        assert bs_eff["latest_debt_to_equity"] is None, f"Expected Debt/Equity = None, got {bs_eff['latest_debt_to_equity']}"
+        assert bs_eff["has_significant_capex_trigger"] is False
+        
+        latest_bs = bs_eff["bs_trends"][0]
+        assert latest_bs["cwip_cr"] is None, f"Expected cwip_cr = None, got {latest_bs['cwip_cr']}"
+        assert latest_bs["borrowings_cr"] is None, f"Expected borrowings_cr = None, got {latest_bs['borrowings_cr']}"
+        print("  ✓ Scenario P passed: Missing CWIP and debt remain None without falling back to 0.0.")
+
+    # -------------------------------------------------------------------------
+    # SCENARIO Q: Formula Transparency Canonical Input Alignment
+    # -------------------------------------------------------------------------
+    with IsolatedTestDatabase():
+        print("\n--- Scenario Q: Formula Transparency Canonical Input Alignment ---")
+        stock_q = make_sample_stock_data("TRANSPCO")
+        
+        # Screener has FY26 Sales = 1331, Official has FY26 Sales = 1500 (Verified)
+        v_records = [
+            {
+                "symbol": "TRANSPCO",
+                "metric_name": "Revenue",
+                "canonical_metric": "REVENUE",
+                "period": "FY23",
+                "canonical_period": "2023-FY",
+                "scope": "Consolidated",
+                "screener_value": 1000.0,
+                "official_value": 1000.0,
+                "status": "VERIFIED",
+                "official_source_name": "NSE Annual Report Filing",
+                "verified_at": "2026-05-01T10:00:00Z"
+            },
+            {
+                "symbol": "TRANSPCO",
+                "metric_name": "Revenue",
+                "canonical_metric": "REVENUE",
+                "period": "FY26",
+                "canonical_period": "2026-FY",
+                "scope": "Consolidated",
+                "screener_value": 1331.0,
+                "official_value": 1500.0,
+                "status": "VERIFIED",
+                "official_source_name": "NSE Annual Report Filing",
+                "verified_at": "2026-05-01T10:00:00Z"
+            }
+        ]
+        database.save_financial_verification_records(v_records)
+        database.save_stock_cache("TRANSPCO", "Transp Co", "IT", "Software", serialize_stock_data(stock_q))
+        
+        truth_q = get_or_recompute_financial_truth("TRANSPCO")
+        analytics_q = compute_financial_analytics(
+            quarters=stock_q["quarters"],
+            pl=stock_q["profit_loss"],
+            bs=stock_q["balance_sheet"],
+            cf=stock_q["cash_flow"],
+            symbol="TRANSPCO",
+            financial_truth=truth_q
+        )
+        
+        form_trans = analytics_q["formula_transparency"]["sales_cagr_3yr"]
+        # Must display canonical value 1500.0, NOT raw Screener 1331.0
+        assert form_trans["inputs"]["Latest Sales (₹ Cr)"] == 1500.0, f"Expected Latest Sales = 1500.0, got {form_trans['inputs']['Latest Sales (₹ Cr)']}"
+        assert "VERIFIED" in form_trans["source"], f"Expected 'VERIFIED' in source, got {form_trans['source']}"
+        assert "Official Statutory Filing" in form_trans["source"]
+        print("  ✓ Scenario Q passed: Formula transparency displays actual canonical inputs and verified source.")
+
+    # -------------------------------------------------------------------------
+    # SCENARIO R: Unit & Currency Provenance Model
+    # -------------------------------------------------------------------------
+    with IsolatedTestDatabase():
+        print("\n--- Scenario R: Unit & Currency Provenance Model ---")
+        stock_r = make_sample_stock_data("UNITCO")
+        database.save_stock_cache("UNITCO", "Unit Co", "IT", "Software", serialize_stock_data(stock_r))
+        
+        truth_r = get_or_recompute_financial_truth("UNITCO")
+        resolver_r = TruthAwareFinancialResolver(symbol="UNITCO", financial_truth=truth_r, quarters=stock_r["quarters"], pl=stock_r["profit_loss"])
+        
+        opm_fact = resolver_r.resolve_quarterly_fact("OPM_PCT", "Jun 2025")
+        assert opm_fact.unit == "%", f"Expected unit = '%', got {opm_fact.unit}"
+        assert opm_fact.currency == "INR"
+        
+        eps_fact = resolver_r.resolve_annual_fact("BASIC_EPS", "FY26")
+        assert eps_fact.unit == "₹ / Share", f"Expected unit = '₹ / Share', got {eps_fact.unit}"
+        
+        sales_fact = resolver_r.resolve_annual_fact("REVENUE", "FY26")
+        assert sales_fact.unit == "₹ Cr", f"Expected unit = '₹ Cr', got {sales_fact.unit}"
+        print("  ✓ Scenario R passed: Explicit unit and currency accurately resolved across metrics.")
+
     print("\n==================================================================")
-    print("🎉 ALL PHASE 2B TRUTH-DRIVEN ANALYTICS TESTS (A - L) PASSED 100%!")
+    print("🎉 ALL PHASE 2B TRUTH-DRIVEN ANALYTICS TESTS (A - R) PASSED 100%!")
     print("==================================================================")
 
 if __name__ == "__main__":

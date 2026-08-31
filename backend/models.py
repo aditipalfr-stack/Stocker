@@ -398,6 +398,8 @@ class AnalyticInputProvenance(BaseModel):
     canonical_period: str
     scope: str = "Consolidated"
     value: Optional[float] = None
+    unit: str = "₹ Cr"  # e.g. "₹ Cr", "%", "₹ / Share", "Unknown"
+    currency: str = "INR"  # e.g. "INR", "USD", "Unknown"
     source_type: str = "screener"  # "official" | "screener" | "unavailable"
     verification_status: str = "UNVERIFIED"  # "VERIFIED" | "DISCREPANCY" | "NOT_COMPARABLE" | "INSUFFICIENT_EVIDENCE" | "OFFICIAL_SOURCE_MISSING" | "SCREENER_VALUE_MISSING" | "UNVERIFIED"
     selected_source_name: Optional[str] = None

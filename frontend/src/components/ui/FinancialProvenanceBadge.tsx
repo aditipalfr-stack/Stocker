@@ -8,6 +8,19 @@ interface FinancialProvenanceBadgeProps {
   className?: string;
 }
 
+const formatInputMetricValue = (value: number | null | undefined, unit?: string, currency?: string): string => {
+  if (value === null || value === undefined) return '—';
+  if (unit === '%') return `${value.toFixed(1)}%`;
+  if (unit === '₹ / Share' || unit === '₹/Share') return `₹${value.toFixed(2)} / Share`;
+  if (unit === '₹ Cr' || unit === 'Cr') return `₹${value.toLocaleString()} Cr`;
+  if (unit === 'Unknown') return `${value.toLocaleString()}`;
+  if (currency && currency !== 'INR' && currency !== 'Unknown') {
+    return `${currency} ${value.toLocaleString()} (${unit || 'amount'})`;
+  }
+  if (unit) return `${value.toLocaleString()} ${unit}`;
+  return `₹${value.toLocaleString()} Cr`;
+};
+
 export const FinancialProvenanceBadge: React.FC<FinancialProvenanceBadgeProps> = ({
   provenance,
   compact = false,
@@ -130,7 +143,7 @@ export const FinancialProvenanceBadge: React.FC<FinancialProvenanceBadgeProps> =
                     <div key={idx} className="p-2.5 bg-slate-50 dark:bg-slate-800/60 rounded border border-slate-200 dark:border-slate-700/60 space-y-1">
                       <div className="flex items-center justify-between font-semibold">
                         <span>{inp.period} ({inp.canonical_metric})</span>
-                        <span>{inp.value !== null && inp.value !== undefined ? `₹${inp.value.toLocaleString()} Cr` : '—'}</span>
+                        <span>{formatInputMetricValue(inp.value, inp.unit, inp.currency)}</span>
                       </div>
                       <div className="flex items-center justify-between text-[10px] text-slate-500 dark:text-slate-400">
                         <span>Source:</span>

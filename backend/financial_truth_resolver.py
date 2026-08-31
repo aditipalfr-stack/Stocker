@@ -18,10 +18,12 @@ Resolves financial values with provenance tracking:
   - mix of VERIFIED and standardized -> "mixed"
   - all standardized -> "standardized"
   - missing input -> "insufficient"
+- Provides exact calendar/fiscal quarter chronology matching (QoQ and YoY).
 """
 
 from typing import Dict, List, Optional, Any, Tuple
 import math
+import re
 from models import (
     CanonicalFinancialFact,
     FinancialTruthContainer,
@@ -47,6 +49,59 @@ def calculate_growth_pct(curr_val: Optional[float], prev_val: Optional[float]) -
         return round(((curr_val - prev_val) / abs(prev_val)) * 100.0, 2)
     except Exception:
         return None
+
+def get_prior_quarter_canonical_key(canonical_period: str) -> Optional[str]:
+    """
+    Returns the exact preceding chronological quarter canonical key.
+    Examples:
+    - '2026-Q1' (Jun 2026) -> '2026-Q4' (Mar 2026)
+    - '2026-Q2' (Sep 2026) -> '2026-Q1' (Jun 2026)
+    - '2026-Q3' (Dec 2026) -> '2026-Q2' (Sep 2026)
+    - '2026-Q4' (Mar 2026) -> '2025-Q3' (Dec 2025)
+    """
+    if not canonical_period or not re.match(r"^\d{4}-Q[1-4]$", canonical_period):
+        return None
+    year = int(canonical_period[:4])
+    q_num = int(canonical_period[-1])
+    if q_num == 1:
+        return f"{year}-Q4"
+    elif q_num == 2:
+        return f"{year}-Q1"
+    elif q_num == 3:
+        return f"{year}-Q2"
+    elif q_num == 4:
+        return f"{year-1}-Q3"
+    return None
+
+def get_prior_year_quarter_canonical_key(canonical_period: str) -> Optional[str]:
+    """
+    Returns the exact same quarter from the prior year.
+    Examples:
+    - '2026-Q1' -> '2025-Q1'
+    - '2026-Q2' -> '2025-Q2'
+    - '2026-Q3' -> '2025-Q3'
+    - '2026-Q4' -> '2025-Q4'
+    """
+    if not canonical_period or not re.match(r"^\d{4}-Q[1-4]$", canonical_period):
+        return None
+    year = int(canonical_period[:4])
+    q_num = int(canonical_period[-1])
+    return f"{year-1}-Q{q_num}"
+
+def get_canonical_quarter_display_name(canonical_period: str) -> str:
+    """
+    Maps canonical period key back to default display quarter name.
+    - '2026-Q1' -> 'Jun 2026'
+    - '2026-Q2' -> 'Sep 2026'
+    - '2026-Q3' -> 'Dec 2026'
+    - '2026-Q4' -> 'Mar 2026'
+    """
+    if not canonical_period or not re.match(r"^\d{4}-Q[1-4]$", canonical_period):
+        return canonical_period
+    year = canonical_period[:4]
+    q_num = canonical_period[-1]
+    q_map = {"1": "Jun", "2": "Sep", "3": "Dec", "4": "Mar"}
+    return f"{q_map.get(q_num, 'Q' + q_num)} {year}"
 
 class TruthAwareFinancialResolver:
     """
@@ -83,17 +138,24 @@ class TruthAwareFinancialResolver:
         Resolves a quarterly financial fact with provenance.
         period_str: e.g. "Jun 2026" or "2026-Q1"
         """
-        disp_p, canon_p = normalize_period(period_str)
-        if not canon_p or canon_p == "Unknown":
+        if re.match(r"^\d{4}-Q[1-4]$", period_str):
             canon_p = period_str
-            disp_p = period_str
+            disp_p = get_canonical_quarter_display_name(period_str)
+        else:
+            disp_p, canon_p = normalize_period(period_str)
+            if not canon_p or canon_p == "Unknown":
+                canon_p = period_str
+                disp_p = period_str
             
         c_metric = normalize_metric_name(canonical_metric) or canonical_metric.upper().strip()
+        
+        # Default unit & currency
+        default_unit = "%" if c_metric == "OPM_PCT" else ("₹ / Share" if c_metric in ("BASIC_EPS", "DILUTED_EPS") else "₹ Cr")
+        default_curr = "INR"
         
         # 1. Check in-memory canonical truth facts
         fact = self.facts_map.get((c_metric, canon_p, self.scope))
         if fact:
-            # Enforce truth policy
             has_disc = (fact.verification_status == "DISCREPANCY")
             return AnalyticInputProvenance(
                 canonical_metric=c_metric,
@@ -101,6 +163,8 @@ class TruthAwareFinancialResolver:
                 canonical_period=fact.canonical_period or canon_p,
                 scope=fact.scope or self.scope,
                 value=fact.value,
+                unit=fact.unit or default_unit,
+                currency=fact.currency or default_curr,
                 source_type=fact.selected_source_type,
                 verification_status=fact.verification_status,
                 selected_source_name=fact.selected_source_name,
@@ -110,13 +174,15 @@ class TruthAwareFinancialResolver:
             )
             
         # 2. Standardized raw statement fallback
-        raw_val = self._extract_raw_statement_value(self.quarters, c_metric, period_str)
+        raw_val = self._extract_raw_statement_value(self.quarters, c_metric, disp_p, canon_p, raw_period=period_str)
         return AnalyticInputProvenance(
             canonical_metric=c_metric,
             period=disp_p,
             canonical_period=canon_p,
             scope=self.scope,
             value=raw_val,
+            unit=default_unit,
+            currency=default_curr,
             source_type="screener" if raw_val is not None else "unavailable",
             verification_status="UNVERIFIED",
             selected_source_name="Screener.in Standardized",
@@ -130,13 +196,19 @@ class TruthAwareFinancialResolver:
         Resolves an annual financial fact with provenance.
         period_str: e.g. "Mar 2026", "FY26", "2026-FY"
         """
-        annual_p_arg = "FY" + period_str.split()[-1][-2:] if len(period_str.split()) > 1 else period_str
-        disp_p, canon_p = normalize_period(annual_p_arg)
-        if not canon_p or canon_p == "Unknown":
+        if re.match(r"^\d{4}-FY$", period_str):
             canon_p = period_str
-            disp_p = period_str
+            disp_p = "FY" + period_str[:4][-2:]
+        else:
+            annual_p_arg = "FY" + period_str.split()[-1][-2:] if len(period_str.split()) > 1 else period_str
+            disp_p, canon_p = normalize_period(annual_p_arg)
+            if not canon_p or canon_p == "Unknown":
+                canon_p = period_str
+                disp_p = period_str
             
         c_metric = normalize_metric_name(canonical_metric) or canonical_metric.upper().strip()
+        default_unit = "%" if c_metric == "OPM_PCT" else ("₹ / Share" if c_metric in ("BASIC_EPS", "DILUTED_EPS") else "₹ Cr")
+        default_curr = "INR"
         
         # 1. Check in-memory canonical truth facts
         fact = self.facts_map.get((c_metric, canon_p, self.scope))
@@ -148,6 +220,8 @@ class TruthAwareFinancialResolver:
                 canonical_period=fact.canonical_period or canon_p,
                 scope=fact.scope or self.scope,
                 value=fact.value,
+                unit=fact.unit or default_unit,
+                currency=fact.currency or default_curr,
                 source_type=fact.selected_source_type,
                 verification_status=fact.verification_status,
                 selected_source_name=fact.selected_source_name,
@@ -165,13 +239,15 @@ class TruthAwareFinancialResolver:
         elif c_metric in ("BORROWINGS", "FIXED_ASSETS", "CWIP"):
             stmt = self.bs
             
-        raw_val = self._extract_raw_statement_value(stmt, c_metric, period_str)
+        raw_val = self._extract_raw_statement_value(stmt, c_metric, disp_p, canon_p, raw_period=period_str)
         return AnalyticInputProvenance(
             canonical_metric=c_metric,
             period=disp_p,
             canonical_period=canon_p,
             scope=self.scope,
             value=raw_val,
+            unit=default_unit,
+            currency=default_curr,
             source_type="screener" if raw_val is not None else "unavailable",
             verification_status="UNVERIFIED",
             selected_source_name="Screener.in Standardized",
@@ -180,7 +256,14 @@ class TruthAwareFinancialResolver:
             has_discrepancy=False
         )
 
-    def _extract_raw_statement_value(self, stmt: Optional[FinancialStatement], canonical_metric: str, period_str: str) -> Optional[float]:
+    def _extract_raw_statement_value(
+        self,
+        stmt: Optional[FinancialStatement],
+        canonical_metric: str,
+        disp_p: str,
+        canon_p: Optional[str] = None,
+        raw_period: Optional[str] = None
+    ) -> Optional[float]:
         if not stmt or not stmt.rows:
             return None
             
@@ -209,11 +292,27 @@ class TruthAwareFinancialResolver:
                 is_match = True
                 
             if is_match:
-                if period_str in row.values:
-                    return row.values[period_str]
+                # 1. Exact raw_period lookup
+                if raw_period and raw_period in row.values:
+                    return row.values[raw_period]
+                # 2. Exact disp_p lookup
+                if disp_p in row.values:
+                    return row.values[disp_p]
+                # 3. Case-insensitive or normalized period search in row.values
                 for p_k, p_v in row.values.items():
-                    if p_k.strip().lower() == period_str.strip().lower():
+                    if raw_period and p_k.strip().lower() == raw_period.strip().lower():
                         return p_v
+                    if p_k.strip().lower() == disp_p.strip().lower():
+                        return p_v
+                    if canon_p:
+                        _, row_canon_p = normalize_period(p_k)
+                        if row_canon_p == canon_p:
+                            return p_v
+                        # For annual statements, if canon_p is e.g. "2026-FY", match annual columns containing the year
+                        if canon_p.endswith("-FY"):
+                            y_str = canon_p[:4]
+                            if y_str in p_k:
+                                return p_v
         return None
 
     def calculate_growth_with_provenance(
@@ -273,4 +372,3 @@ class TruthAwareFinancialResolver:
             has_discrepancy=has_disc,
             inputs=inputs
         )
-

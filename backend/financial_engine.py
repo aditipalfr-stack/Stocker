@@ -34,7 +34,13 @@ def compute_financial_analytics(
     symbol: Optional[str] = None,
     financial_truth: Optional[Any] = None
 ) -> Dict[str, Any]:
-    from financial_truth_resolver import TruthAwareFinancialResolver, calculate_cagr, calculate_growth_pct
+    from financial_truth_resolver import (
+        TruthAwareFinancialResolver,
+        calculate_cagr,
+        calculate_growth_pct,
+        get_prior_quarter_canonical_key,
+        get_prior_year_quarter_canonical_key
+    )
     from models import AnalyticProvenanceSummary
     
     resolver = TruthAwareFinancialResolver(
@@ -62,7 +68,7 @@ def compute_financial_analytics(
     }
     
     # -------------------------------------------------------------------------
-    # 1. Quarterly QoQ & YoY Trends (Truth-Driven in Phase 2B)
+    # 1. Quarterly QoQ & YoY Trends (Exact Chronology & Truth-Driven in Phase 2B)
     # -------------------------------------------------------------------------
     if quarters and quarters.periods:
         q_periods = quarters.periods
@@ -78,37 +84,59 @@ def compute_financial_analytics(
             curr_opm = opm_fact.value
             curr_pat = pat_fact.value
             
-            # QoQ Growth with Provenance
+            canon_p = sales_fact.canonical_period
+            prior_q_canon = get_prior_quarter_canonical_key(canon_p)
+            prior_y_canon = get_prior_year_quarter_canonical_key(canon_p)
+            
+            # Exact Chronological QoQ Growth
             qoq_sales_growth = None
             qoq_sales_prov = None
+            qoq_op_growth = None
+            qoq_op_prov = None
             qoq_pat_growth = None
             qoq_pat_prov = None
-            if i > 0:
-                prev_sales_fact = resolver.resolve_quarterly_fact("REVENUE", q_periods[i-1])
+            
+            if prior_q_canon:
+                prev_sales_fact = resolver.resolve_quarterly_fact("REVENUE", prior_q_canon)
                 qoq_sales_res = resolver.calculate_growth_with_provenance(sales_fact, prev_sales_fact, formula_type="growth")
                 qoq_sales_growth = qoq_sales_res.value
                 qoq_sales_prov = qoq_sales_res.model_dump()
                 all_inputs_collected.extend(qoq_sales_res.inputs)
                 
-                prev_pat_fact = resolver.resolve_quarterly_fact("NET_PROFIT", q_periods[i-1])
+                prev_op_fact = resolver.resolve_quarterly_fact("OPERATING_PROFIT", prior_q_canon)
+                qoq_op_res = resolver.calculate_growth_with_provenance(op_fact, prev_op_fact, formula_type="growth")
+                qoq_op_growth = qoq_op_res.value
+                qoq_op_prov = qoq_op_res.model_dump()
+                all_inputs_collected.extend(qoq_op_res.inputs)
+
+                prev_pat_fact = resolver.resolve_quarterly_fact("NET_PROFIT", prior_q_canon)
                 qoq_pat_res = resolver.calculate_growth_with_provenance(pat_fact, prev_pat_fact, formula_type="growth")
                 qoq_pat_growth = qoq_pat_res.value
                 qoq_pat_prov = qoq_pat_res.model_dump()
                 all_inputs_collected.extend(qoq_pat_res.inputs)
                     
-            # YoY Growth (4 quarters back) with Provenance
+            # Exact Chronological YoY Growth
             yoy_sales_growth = None
             yoy_sales_prov = None
+            yoy_op_growth = None
+            yoy_op_prov = None
             yoy_pat_growth = None
             yoy_pat_prov = None
-            if i >= 4:
-                prev_y_sales_fact = resolver.resolve_quarterly_fact("REVENUE", q_periods[i-4])
+            
+            if prior_y_canon:
+                prev_y_sales_fact = resolver.resolve_quarterly_fact("REVENUE", prior_y_canon)
                 yoy_sales_res = resolver.calculate_growth_with_provenance(sales_fact, prev_y_sales_fact, formula_type="growth")
                 yoy_sales_growth = yoy_sales_res.value
                 yoy_sales_prov = yoy_sales_res.model_dump()
                 all_inputs_collected.extend(yoy_sales_res.inputs)
                 
-                prev_y_pat_fact = resolver.resolve_quarterly_fact("NET_PROFIT", q_periods[i-4])
+                prev_y_op_fact = resolver.resolve_quarterly_fact("OPERATING_PROFIT", prior_y_canon)
+                yoy_op_res = resolver.calculate_growth_with_provenance(op_fact, prev_y_op_fact, formula_type="growth")
+                yoy_op_growth = yoy_op_res.value
+                yoy_op_prov = yoy_op_res.model_dump()
+                all_inputs_collected.extend(yoy_op_res.inputs)
+
+                prev_y_pat_fact = resolver.resolve_quarterly_fact("NET_PROFIT", prior_y_canon)
                 yoy_pat_res = resolver.calculate_growth_with_provenance(pat_fact, prev_y_pat_fact, formula_type="growth")
                 yoy_pat_growth = yoy_pat_res.value
                 yoy_pat_prov = yoy_pat_res.model_dump()
@@ -122,6 +150,8 @@ def compute_financial_analytics(
                 "net_profit": curr_pat,
                 "sales_growth_qoq_pct": qoq_sales_growth,
                 "sales_growth_yoy_pct": yoy_sales_growth,
+                "operating_profit_growth_qoq_pct": qoq_op_growth,
+                "operating_profit_growth_yoy_pct": yoy_op_growth,
                 "pat_growth_qoq_pct": qoq_pat_growth,
                 "pat_growth_yoy_pct": yoy_pat_growth,
                 "provenance": {
@@ -131,6 +161,8 @@ def compute_financial_analytics(
                     "net_profit": pat_fact.model_dump(),
                     "sales_growth_qoq": qoq_sales_prov,
                     "sales_growth_yoy": yoy_sales_prov,
+                    "operating_profit_growth_qoq": qoq_op_prov,
+                    "operating_profit_growth_yoy": yoy_op_prov,
                     "pat_growth_qoq": qoq_pat_prov,
                     "pat_growth_yoy": yoy_pat_prov
                 }
@@ -435,23 +467,23 @@ def compute_financial_analytics(
     # -------------------------------------------------------------------------
     bs_trends = []
     for p in bs_periods:
-        eq = ((equity_cap.get(p) or 0.0) + (reserves.get(p) or 0.0))
+        eq = ((equity_cap.get(p) or 0.0) + (reserves.get(p) or 0.0)) if (equity_cap.get(p) is not None or reserves.get(p) is not None) else None
         debt_fact = resolver.resolve_annual_fact("BORROWINGS", p)
         fa_fact = resolver.resolve_annual_fact("FIXED_ASSETS", p)
         cwip_fact = resolver.resolve_annual_fact("CWIP", p)
         
         debt = debt_fact.value
         fa = fa_fact.value
-        c_work = cwip_fact.value or 0.0
+        c_work = cwip_fact.value
         tot_a = total_assets.get(p)
         all_inputs_collected.extend([debt_fact, fa_fact, cwip_fact])
         
-        debt_to_equity = round(debt / eq, 2) if (debt is not None and eq > 0) else None
-        cwip_to_fa_pct = round((c_work / fa) * 100.0, 1) if (fa and fa > 0) else None
+        debt_to_equity = round(debt / eq, 2) if (debt is not None and eq is not None and eq > 0) else None
+        cwip_to_fa_pct = round((c_work / fa) * 100.0, 1) if (c_work is not None and fa is not None and fa > 0) else None
         
         bs_trends.append({
             "period": p,
-            "total_equity_cr": eq if eq > 0 else None,
+            "total_equity_cr": eq if (eq is not None and eq > 0) else None,
             "borrowings_cr": debt,
             "fixed_assets_cr": fa,
             "cwip_cr": c_work,
@@ -466,13 +498,13 @@ def compute_financial_analytics(
         })
         
     latest_bs = bs_trends[-1] if bs_trends else {}
-    cwip_pct = latest_bs.get("cwip_to_fixed_assets_pct") or 0.0
-    debt_eq = latest_bs.get("debt_to_equity") or 0.0
+    cwip_pct = latest_bs.get("cwip_to_fixed_assets_pct")
+    debt_eq = latest_bs.get("debt_to_equity")
 
     analytics["balance_sheet_efficiency"] = {
         "latest_debt_to_equity": debt_eq,
         "latest_cwip_to_net_block_pct": cwip_pct,
-        "has_significant_capex_trigger": cwip_pct >= 12.0,
+        "has_significant_capex_trigger": bool(cwip_pct is not None and cwip_pct >= 12.0),
         "bs_trends": bs_trends
     }
 
@@ -529,16 +561,53 @@ def compute_financial_analytics(
         }
 
     # -------------------------------------------------------------------------
-    # 7. Comprehensive Formula & Calculation Transparency (Plain English & Inputs)
+    # 7. Comprehensive Formula & Calculation Transparency (Truth-Aligned Inputs)
     # -------------------------------------------------------------------------
     last_p = y_periods[-1] if y_periods else ""
     p_3y = y_periods[-4] if len(y_periods) >= 4 else ""
     
-    last_sales = y_sales.get(last_p) if last_p else None
-    base_sales_3y = y_sales.get(p_3y) if p_3y else None
-    last_pat = y_pat.get(last_p) if last_p else None
-    base_pat_3y = y_pat.get(p_3y) if p_3y else None
+    # 1. Sales 3Y CAGR Provenance Alignment
+    sales_cagr_prov = provenance_map.get("sales_cagr_3yr", {})
+    sales_inputs = sales_cagr_prov.get("inputs", [])
+    end_s_prov = sales_inputs[0] if len(sales_inputs) > 0 else {}
+    base_s_prov = sales_inputs[1] if len(sales_inputs) > 1 else {}
     
+    last_sales = end_s_prov.get("value") if end_s_prov else y_sales.get(last_p)
+    last_sales_p = end_s_prov.get("period") or last_p
+    base_sales_3y = base_s_prov.get("value") if base_s_prov else y_sales.get(p_3y)
+    base_sales_3y_p = base_s_prov.get("period") or p_3y
+    
+    sales_q_quality = sales_cagr_prov.get("quality", "standardized")
+    if sales_q_quality == "verified":
+        sales_source = f"Official Statutory Filing ({end_s_prov.get('selected_source_name') or 'Exchange Filing'}) — VERIFIED"
+    elif sales_q_quality == "discrepant":
+        sales_source = "Screener.in Standardized (Active Statutory Discrepancy Flagged)"
+    elif sales_q_quality == "mixed":
+        sales_source = "Mixed (Official Statutory Filing & Standardized Screener.in)"
+    else:
+        sales_source = "Audited Profit & Loss Statement (Screener.in)"
+
+    # 2. PAT 3Y CAGR Provenance Alignment
+    pat_cagr_prov = provenance_map.get("pat_cagr_3yr", {})
+    pat_inputs = pat_cagr_prov.get("inputs", [])
+    end_p_prov = pat_inputs[0] if len(pat_inputs) > 0 else {}
+    base_p_prov = pat_inputs[1] if len(pat_inputs) > 1 else {}
+    
+    last_pat = end_p_prov.get("value") if end_p_prov else y_pat.get(last_p)
+    last_pat_p = end_p_prov.get("period") or last_p
+    base_pat_3y = base_p_prov.get("value") if base_p_prov else y_pat.get(p_3y)
+    base_pat_3y_p = base_p_prov.get("period") or p_3y
+    
+    pat_q_quality = pat_cagr_prov.get("quality", "standardized")
+    if pat_q_quality == "verified":
+        pat_source = f"Official Statutory Filing ({end_p_prov.get('selected_source_name') or 'Exchange Filing'}) — VERIFIED"
+    elif pat_q_quality == "discrepant":
+        pat_source = "Screener.in Standardized (Active Statutory Discrepancy Flagged)"
+    elif pat_q_quality == "mixed":
+        pat_source = "Mixed (Official Statutory Filing & Standardized Screener.in)"
+    else:
+        pat_source = "Audited Profit & Loss Statement (Screener.in)"
+
     latest_fcf_item = fcf_trends[-1] if fcf_trends else {}
     latest_cfo = latest_fcf_item.get("reported_cfo_cr")
     latest_capex = latest_fcf_item.get("capex_cr")
@@ -547,8 +616,23 @@ def compute_financial_analytics(
     latest_fcf_conf = latest_fcf_item.get("fcf_confidence", "Unavailable")
     latest_anomaly = latest_fcf_item.get("possible_anomaly_warning")
     
+    # 3. Latest Quarter YoY Sales Growth Provenance Alignment
     latest_q_trend = analytics["quarterly_analysis"]["trends"][-1] if analytics["quarterly_analysis"]["trends"] else {}
+    yoy_sales_prov = latest_q_trend.get("provenance", {}).get("sales_growth_yoy", {})
+    yoy_inputs = yoy_sales_prov.get("inputs", [])
+    curr_q_sales_inp = yoy_inputs[0] if len(yoy_inputs) > 0 else {}
+    prior_q_sales_inp = yoy_inputs[1] if len(yoy_inputs) > 1 else {}
     
+    yoy_quality = yoy_sales_prov.get("quality", "standardized")
+    if yoy_quality == "verified":
+        yoy_source = f"Official Quarterly Filing ({curr_q_sales_inp.get('selected_source_name') or 'Exchange Filing'}) — VERIFIED"
+    elif yoy_quality == "discrepant":
+        yoy_source = "Quarterly Results (Active Statutory Discrepancy Flagged)"
+    elif yoy_quality == "mixed":
+        yoy_source = "Quarterly Results (Mixed Official & Standardized Sources)"
+    else:
+        yoy_source = "Quarterly Financial Results (Screener.in)"
+
     analytics["formula_transparency"] = {
         "sales_cagr_3yr": {
             "metric_name": "Sales 3-Year CAGR",
@@ -557,11 +641,11 @@ def compute_financial_analytics(
             "inputs": {
                 "Latest Sales (₹ Cr)": last_sales,
                 "Sales 3 Years Ago (₹ Cr)": base_sales_3y,
-                "Latest Period": last_p,
-                "Base Period": p_3y
+                "Latest Period": last_sales_p,
+                "Base Period": base_sales_3y_p
             },
-            "source": "Audited Profit & Loss Statement (Screener.in)",
-            "explanation": f"Revenue grew at a compounded annual growth rate of {analytics['growth_rates'].get('sales_cagr_3yr')}% from ₹{base_sales_3y:,.0f} Cr ({p_3y}) to ₹{last_sales:,.0f} Cr ({last_p})." if (last_sales and base_sales_3y) else "Historical 3-year P&L data insufficient."
+            "source": sales_source,
+            "explanation": f"Revenue grew at a compounded annual growth rate of {analytics['growth_rates'].get('sales_cagr_3yr')}% from ₹{base_sales_3y:,.0f} Cr ({base_sales_3y_p}) to ₹{last_sales:,.0f} Cr ({last_sales_p})." if (last_sales and base_sales_3y and last_sales > 0 and base_sales_3y > 0) else "Historical 3-year P&L data insufficient."
         },
         "pat_cagr_3yr": {
             "metric_name": "Profit (PAT) 3-Year CAGR",
@@ -570,23 +654,23 @@ def compute_financial_analytics(
             "inputs": {
                 "Latest PAT (₹ Cr)": last_pat,
                 "PAT 3 Years Ago (₹ Cr)": base_pat_3y,
-                "Latest Period": last_p,
-                "Base Period": p_3y
+                "Latest Period": last_pat_p,
+                "Base Period": base_pat_3y_p
             },
-            "source": "Audited Profit & Loss Statement (Screener.in)",
-            "explanation": f"Net profit compounded at {analytics['growth_rates'].get('pat_cagr_3yr')}% per annum from ₹{base_pat_3y:,.0f} Cr ({p_3y}) to ₹{last_pat:,.0f} Cr ({last_p})." if (last_pat and base_pat_3y and last_pat > 0 and base_pat_3y > 0) else "PAT CAGR calculation requires positive base and terminal net profit."
+            "source": pat_source,
+            "explanation": f"Net profit compounded at {analytics['growth_rates'].get('pat_cagr_3yr')}% per annum from ₹{base_pat_3y:,.0f} Cr ({base_pat_3y_p}) to ₹{last_pat:,.0f} Cr ({last_pat_p})." if (last_pat and base_pat_3y and last_pat > 0 and base_pat_3y > 0) else "PAT CAGR calculation requires positive base and terminal net profit."
         },
         "cfo_to_pat_5yr": {
             "metric_name": "5-Year CFO to PAT Conversion %",
             "value": cfo_to_pat_5yr,
             "formula": "(Cumulative 5-Year CFO / Cumulative 5-Year PAT) × 100",
             "inputs": {
-                "Cumulative 5Y CFO (₹ Cr)": round(cum_5y_cfo, 1),
-                "Cumulative 5Y PAT (₹ Cr)": round(cum_5y_pat, 1),
+                "Cumulative 5Y CFO (₹ Cr)": round(cum_5y_cfo, 1) if cum_5y_cfo != 0 else None,
+                "Cumulative 5Y PAT (₹ Cr)": round(cum_5y_pat, 1) if cum_5y_pat > 0 else None,
                 "Period Range": f"{y_periods[-5]} to {y_periods[-1]}" if len(y_periods) >= 5 else "Last 5 Years"
             },
             "source": "Audited Cash Flow & Profit/Loss Statements",
-            "explanation": f"The company converted {cfo_to_pat_5yr}% of its accounting net profit into actual operational cash flow over the last 5 financial years ({conv_quality})." if cfo_to_pat_5yr else "Cash flow conversion data incomplete."
+            "explanation": f"The company converted {cfo_to_pat_5yr}% of its accounting net profit into actual operational cash flow over the last 5 financial years ({conv_quality})." if cfo_to_pat_5yr is not None else "Cash flow conversion data incomplete."
         },
         "free_cash_flow": {
             "metric_name": "Free Cash Flow (FCF)",
@@ -612,7 +696,7 @@ def compute_financial_analytics(
                 "Period": latest_bs.get("period")
             },
             "source": "Audited Balance Sheet (Screener.in)",
-            "explanation": f"The company has ₹{debt_eq} of debt for every ₹1.00 of shareholder equity."
+            "explanation": f"The company has ₹{debt_eq} of debt for every ₹1.00 of shareholder equity." if debt_eq is not None else "Debt to equity unavailable due to missing balance sheet figures."
         },
         "latest_yoy_sales_growth": {
             "metric_name": "Latest Quarter YoY Sales Growth",
@@ -622,10 +706,12 @@ def compute_financial_analytics(
                 "Latest Quarter Sales (₹ Cr)": latest_q_trend.get("sales"),
                 "Quarter": latest_q_trend.get("period")
             },
-            "source": "Quarterly Financial Results",
+            "source": yoy_source,
             "explanation": f"Quarterly sales grew {latest_q_trend.get('sales_growth_yoy_pct')}% year-over-year in {latest_q_trend.get('period')}." if latest_q_trend.get("sales_growth_yoy_pct") is not None else "YoY quarter comparison pending."
         }
     }
+    
+    return analytics
     
     return analytics
 

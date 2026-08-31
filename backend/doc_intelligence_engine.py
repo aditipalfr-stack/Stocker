@@ -64,13 +64,13 @@ def _apply_financial_cross_check(doc_intel: CompanyDocumentIntelligence, financi
         return
     cf_quality = financial_analytics.get("cash_flow_quality", {})
     cfo_pat = cf_quality.get("cfo_to_pat_5yr_pct")
-    cum_cfo = cf_quality.get("cumulative_5y_cfo_cr", 0)
-    cum_pat = cf_quality.get("cumulative_5y_pat_cr", 0)
-    cum_fcf = cf_quality.get("cumulative_5y_fcf_cr", 0)
+    cum_cfo = cf_quality.get("cumulative_5y_cfo_cr") or 0.0
+    cum_pat = cf_quality.get("cumulative_5y_pat_cr") or 0.0
+    cum_fcf = cf_quality.get("cumulative_5y_fcf_cr") or 0.0
     
     bs_eff = financial_analytics.get("balance_sheet_efficiency", {})
-    cwip_pct = bs_eff.get("latest_cwip_to_net_block_pct", 0)
-    debt_eq = bs_eff.get("latest_debt_to_equity", 0)
+    cwip_pct = bs_eff.get("latest_cwip_to_net_block_pct") or 0.0
+    debt_eq = bs_eff.get("latest_debt_to_equity") or 0.0
     
     growth = financial_analytics.get("growth_rates", {})
     sales_3y = growth.get("sales_cagr_3yr")

@@ -221,6 +221,8 @@ export interface StockDetail {
         net_profit: number | null;
         sales_growth_qoq_pct?: number | null;
         sales_growth_yoy_pct?: number | null;
+        operating_profit_growth_qoq_pct?: number | null;
+        operating_profit_growth_yoy_pct?: number | null;
         pat_growth_qoq_pct?: number | null;
         pat_growth_yoy_pct?: number | null;
         provenance?: {
@@ -230,6 +232,8 @@ export interface StockDetail {
           net_profit?: AnalyticInputProvenance;
           sales_growth_qoq?: AnalyticValueWithProvenance;
           sales_growth_yoy?: AnalyticValueWithProvenance;
+          operating_profit_growth_qoq?: AnalyticValueWithProvenance;
+          operating_profit_growth_yoy?: AnalyticValueWithProvenance;
           pat_growth_qoq?: AnalyticValueWithProvenance;
           pat_growth_yoy?: AnalyticValueWithProvenance;
         };
@@ -843,6 +847,8 @@ export interface AnalyticInputProvenance {
   canonical_period: string;
   scope: string;
   value: number | null;
+  unit?: string;
+  currency?: string;
   source_type: "official" | "screener" | "unavailable";
   verification_status: "VERIFIED" | "DISCREPANCY" | "NOT_COMPARABLE" | "INSUFFICIENT_EVIDENCE" | "OFFICIAL_SOURCE_MISSING" | "SCREENER_VALUE_MISSING" | "UNVERIFIED";
   selected_source_name?: string | null;
