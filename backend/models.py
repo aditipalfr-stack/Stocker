@@ -388,8 +388,39 @@ class FinancialTruthContainer(BaseModel):
     input_financial_version: Optional[str] = None
     verification_version: Optional[str] = None
 
+# =============================================================================
+# ANALYTIC PROVENANCE MODELS (PHASE 2B)
+# =============================================================================
+
+class AnalyticInputProvenance(BaseModel):
+    canonical_metric: str
+    period: str
+    canonical_period: str
+    scope: str = "Consolidated"
+    value: Optional[float] = None
+    source_type: str = "screener"  # "official" | "screener" | "unavailable"
+    verification_status: str = "UNVERIFIED"  # "VERIFIED" | "DISCREPANCY" | "NOT_COMPARABLE" | "INSUFFICIENT_EVIDENCE" | "OFFICIAL_SOURCE_MISSING" | "SCREENER_VALUE_MISSING" | "UNVERIFIED"
+    selected_source_name: Optional[str] = None
+    selected_source_url: Optional[str] = None
+    confidence: str = "Unverified"  # "High" | "Moderate" | "Low" | "Unverified"
+    has_discrepancy: bool = False
+
+class AnalyticValueWithProvenance(BaseModel):
+    value: Optional[float] = None
+    quality: str = "standardized"  # "verified" | "mixed" | "standardized" | "discrepant" | "insufficient"
+    has_discrepancy: bool = False
+    inputs: List[AnalyticInputProvenance] = []
+
+class AnalyticProvenanceSummary(BaseModel):
+    verified_inputs: int = 0
+    standardized_inputs: int = 0
+    discrepancy_inputs: int = 0
+    unavailable_inputs: int = 0
+    overall_quality: str = "standardized"  # "verified" | "mixed" | "standardized" | "discrepant" | "insufficient"
+
 # Rebuild models for forward references
 FinancialTruthContainer.model_rebuild()
 StockDetail.model_rebuild()
 FinancialVerificationResponse.model_rebuild()
+AnalyticValueWithProvenance.model_rebuild()
 

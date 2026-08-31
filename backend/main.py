@@ -81,31 +81,10 @@ def build_full_stock_detail(stock_data: Dict[str, Any], custom_assumptions: Opti
     ar_insights = stock_data.get("annual_report_insights", [])
     documents = stock_data.get("documents")
     
-    # 1. Financial Analytics
-    analytics = compute_financial_analytics(quarters, pl, bs, cf)
-    
-    # 2. Document Intelligence (if available)
-    doc_intel = get_company_doc_intelligence(symbol, financial_analytics=analytics)
-    
-    # 3. Projections & DCF Valuation (grounded in historical parameters + AI forward signals)
-    projection = run_projections(
-        ratios=ratios,
-        pl=pl,
-        bs=bs,
-        cf=cf,
-        analytics=analytics,
-        doc_intel=doc_intel,
-        assumptions=custom_assumptions
-    )
-    
-    # 4. Multi-Factor Scoring & Thesis (with execution track record and confidence tracking)
-    score = compute_stock_score(symbol, name, ratios, analytics, projection, sector=sector, doc_intel=doc_intel)
-    
-    # 5. Authoritative Financial Verification Summary
+    # 1. Authoritative Financial Verification & Canonical Truth Layer (Phase 2A & 2B)
     verif_summary_dict = database.get_financial_verification_summary(symbol)
     verif_summary = FinancialVerificationSummary(**verif_summary_dict) if verif_summary_dict else None
 
-    # 6. Canonical Financial Truth Layer (Phase 2A)
     financial_truth = None
     try:
         from financial_truth_service import build_financial_truth_for_stock
@@ -116,6 +95,33 @@ def build_full_stock_detail(stock_data: Dict[str, Any], custom_assumptions: Opti
         )
     except Exception as e_truth:
         print(f"Notice: Canonical financial truth build note for {symbol}: {e_truth}")
+
+    # 2. Financial Analytics (Truth-Driven in Phase 2B)
+    analytics = compute_financial_analytics(
+        quarters=quarters,
+        pl=pl,
+        bs=bs,
+        cf=cf,
+        symbol=symbol,
+        financial_truth=financial_truth
+    )
+    
+    # 3. Document Intelligence (if available)
+    doc_intel = get_company_doc_intelligence(symbol, financial_analytics=analytics)
+    
+    # 4. Projections & DCF Valuation (grounded in historical parameters + AI forward signals)
+    projection = run_projections(
+        ratios=ratios,
+        pl=pl,
+        bs=bs,
+        cf=cf,
+        analytics=analytics,
+        doc_intel=doc_intel,
+        assumptions=custom_assumptions
+    )
+    
+    # 5. Multi-Factor Scoring & Thesis (with execution track record and confidence tracking)
+    score = compute_stock_score(symbol, name, ratios, analytics, projection, sector=sector, doc_intel=doc_intel)
 
     # Record projection computation state (tracks doc_intel version used)
     doc_intel_version = getattr(doc_intel, "extraction_timestamp", None) if doc_intel else None
@@ -548,7 +554,7 @@ def _get_minimal_financial_analytics(symbol: str) -> Optional[Dict[str, Any]]:
                 cf = FinancialStatement(**cf_raw) if cf_raw else None
                 quarters = FinancialStatement(**quarters_raw) if quarters_raw else None
                 
-                return compute_financial_analytics(quarters, pl, bs, cf)
+                return compute_financial_analytics(quarters, pl, bs, cf, symbol=clean_sym)
         except Exception as e:
             print(f"Notice: Minimal analytics computation note: {e}")
             

@@ -200,6 +200,7 @@ export interface StockDetail {
   fetched_at?: string;
   documents_checked_at?: string | null;
   verification_summary?: FinancialVerificationSummary | null;
+  financial_truth?: FinancialTruthContainer | null;
   ratios: KeyRatios;
   quarters: FinancialStatement;
   profit_loss: FinancialStatement;
@@ -222,6 +223,16 @@ export interface StockDetail {
         sales_growth_yoy_pct?: number | null;
         pat_growth_qoq_pct?: number | null;
         pat_growth_yoy_pct?: number | null;
+        provenance?: {
+          sales?: AnalyticInputProvenance;
+          operating_profit?: AnalyticInputProvenance;
+          opm_pct?: AnalyticInputProvenance;
+          net_profit?: AnalyticInputProvenance;
+          sales_growth_qoq?: AnalyticValueWithProvenance;
+          sales_growth_yoy?: AnalyticValueWithProvenance;
+          pat_growth_qoq?: AnalyticValueWithProvenance;
+          pat_growth_yoy?: AnalyticValueWithProvenance;
+        };
       }>;
     };
     growth_rates: {
@@ -232,6 +243,8 @@ export interface StockDetail {
       sales_cagr_10yr?: number | null;
       pat_cagr_10yr?: number | null;
     };
+    provenance?: Record<string, AnalyticValueWithProvenance>;
+    provenance_summary?: AnalyticProvenanceSummary;
     cash_flow_quality: {
       cumulative_5y_pat_cr?: number | null;
       cumulative_5y_cfo_cr?: number | null;
@@ -253,6 +266,10 @@ export interface StockDetail {
         possible_anomaly_warning?: string | null;
         stocker_derived_fcf_cr: number | null;
         cfo_to_pat_pct: number | null;
+        provenance?: {
+          cfo?: AnalyticInputProvenance;
+          pat?: AnalyticInputProvenance;
+        };
       }>;
       fcf_reconciliation?: Array<{
         period: string;
@@ -265,6 +282,10 @@ export interface StockDetail {
         possible_anomaly_warning?: string | null;
         stocker_derived_fcf_cr: number | null;
         cfo_to_pat_pct: number | null;
+        provenance?: {
+          cfo?: AnalyticInputProvenance;
+          pat?: AnalyticInputProvenance;
+        };
       }>;
     };
     balance_sheet_efficiency: {
@@ -280,6 +301,11 @@ export interface StockDetail {
         total_assets_cr?: number | null;
         cwip_to_fixed_assets_pct?: number | null;
         debt_to_equity?: number | null;
+        provenance?: {
+          borrowings?: AnalyticInputProvenance;
+          fixed_assets?: AnalyticInputProvenance;
+          cwip?: AnalyticInputProvenance;
+        };
       }>;
       borrowings_cr?: number | null;
       fixed_assets_cr?: number | null;
@@ -770,3 +796,73 @@ export interface FinancialVerificationResponse {
   summary: FinancialVerificationSummary;
   records: FinancialVerificationItem[];
 }
+
+export interface CanonicalFinancialFact {
+  symbol: string;
+  canonical_metric: string;
+  display_metric: string;
+  period: string;
+  canonical_period: string;
+  scope: string;
+  value: number | null;
+  unit: string;
+  currency: string;
+  verification_status: "VERIFIED" | "DISCREPANCY" | "NOT_COMPARABLE" | "INSUFFICIENT_EVIDENCE" | "OFFICIAL_SOURCE_MISSING" | "SCREENER_VALUE_MISSING" | "UNVERIFIED";
+  selected_source_type: "official" | "screener" | "unverified";
+  selected_source_name?: string | null;
+  selected_source_url?: string | null;
+  screener_value?: number | null;
+  official_value?: number | null;
+  difference_absolute?: number | null;
+  difference_pct?: number | null;
+  confidence: "High" | "Moderate" | "Low" | "Unverified";
+  computed_at: string;
+}
+
+export interface FinancialTruthContainer {
+  symbol: string;
+  facts: CanonicalFinancialFact[];
+  coverage: {
+    total_tracked_facts: number;
+    verified_facts: number;
+    discrepant_facts: number;
+    unverified_facts: number;
+    coverage_ratio: number;
+  };
+  discrepancies_count: number;
+  verified_count: number;
+  unverified_count: number;
+  last_computed_at: string;
+  input_financial_version?: string | null;
+  verification_version?: string | null;
+}
+
+export interface AnalyticInputProvenance {
+  canonical_metric: string;
+  period: string;
+  canonical_period: string;
+  scope: string;
+  value: number | null;
+  source_type: "official" | "screener" | "unavailable";
+  verification_status: "VERIFIED" | "DISCREPANCY" | "NOT_COMPARABLE" | "INSUFFICIENT_EVIDENCE" | "OFFICIAL_SOURCE_MISSING" | "SCREENER_VALUE_MISSING" | "UNVERIFIED";
+  selected_source_name?: string | null;
+  selected_source_url?: string | null;
+  confidence: "High" | "Moderate" | "Low" | "Unverified";
+  has_discrepancy: boolean;
+}
+
+export interface AnalyticValueWithProvenance {
+  value: number | null;
+  quality: "verified" | "mixed" | "standardized" | "discrepant" | "insufficient";
+  has_discrepancy: boolean;
+  inputs: AnalyticInputProvenance[];
+}
+
+export interface AnalyticProvenanceSummary {
+  verified_inputs: number;
+  standardized_inputs: number;
+  discrepancy_inputs: number;
+  unavailable_inputs: number;
+  overall_quality: "verified" | "mixed" | "standardized" | "discrepant" | "insufficient";
+}
+

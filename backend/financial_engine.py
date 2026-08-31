@@ -30,8 +30,25 @@ def compute_financial_analytics(
     quarters: Optional[FinancialStatement],
     pl: Optional[FinancialStatement],
     bs: Optional[FinancialStatement],
-    cf: Optional[FinancialStatement]
+    cf: Optional[FinancialStatement],
+    symbol: Optional[str] = None,
+    financial_truth: Optional[Any] = None
 ) -> Dict[str, Any]:
+    from financial_truth_resolver import TruthAwareFinancialResolver, calculate_cagr, calculate_growth_pct
+    from models import AnalyticProvenanceSummary
+    
+    resolver = TruthAwareFinancialResolver(
+        symbol=symbol,
+        financial_truth=financial_truth,
+        quarters=quarters,
+        pl=pl,
+        bs=bs,
+        cf=cf
+    )
+    
+    all_inputs_collected: List[Any] = []
+    provenance_map: Dict[str, Any] = {}
+
     analytics: Dict[str, Any] = {
         "quarterly_analysis": {"trends": []},
         "annual_analysis": {},
@@ -45,47 +62,57 @@ def compute_financial_analytics(
     }
     
     # -------------------------------------------------------------------------
-    # 1. Quarterly QoQ & YoY Trends
+    # 1. Quarterly QoQ & YoY Trends (Truth-Driven in Phase 2B)
     # -------------------------------------------------------------------------
     if quarters and quarters.periods:
         q_periods = quarters.periods
-        q_sales = get_row_values(quarters, "Sales") or get_row_values(quarters, "Revenue")
-        q_op = get_row_values(quarters, "Operating Profit") or get_row_values(quarters, "EBITDA")
-        q_opm = get_row_values(quarters, "OPM %") or get_row_values(quarters, "OPM")
-        q_pat = get_row_values(quarters, "Net Profit") or get_row_values(quarters, "PAT")
-        
         quarterly_trends = []
         for i, p in enumerate(q_periods):
-            curr_sales = q_sales.get(p)
-            curr_op = q_op.get(p)
-            curr_opm = q_opm.get(p)
-            curr_pat = q_pat.get(p)
+            sales_fact = resolver.resolve_quarterly_fact("REVENUE", p)
+            op_fact = resolver.resolve_quarterly_fact("OPERATING_PROFIT", p)
+            opm_fact = resolver.resolve_quarterly_fact("OPM_PCT", p)
+            pat_fact = resolver.resolve_quarterly_fact("NET_PROFIT", p)
             
-            # QoQ
+            curr_sales = sales_fact.value
+            curr_op = op_fact.value
+            curr_opm = opm_fact.value
+            curr_pat = pat_fact.value
+            
+            # QoQ Growth with Provenance
             qoq_sales_growth = None
+            qoq_sales_prov = None
             qoq_pat_growth = None
-            if i > 0 and curr_sales is not None and q_periods[i-1] in q_sales:
-                prev_s = q_sales[q_periods[i-1]]
-                if prev_s and prev_s > 0:
-                    qoq_sales_growth = round(((curr_sales - prev_s) / prev_s) * 100.0, 2)
+            qoq_pat_prov = None
+            if i > 0:
+                prev_sales_fact = resolver.resolve_quarterly_fact("REVENUE", q_periods[i-1])
+                qoq_sales_res = resolver.calculate_growth_with_provenance(sales_fact, prev_sales_fact, formula_type="growth")
+                qoq_sales_growth = qoq_sales_res.value
+                qoq_sales_prov = qoq_sales_res.model_dump()
+                all_inputs_collected.extend(qoq_sales_res.inputs)
+                
+                prev_pat_fact = resolver.resolve_quarterly_fact("NET_PROFIT", q_periods[i-1])
+                qoq_pat_res = resolver.calculate_growth_with_provenance(pat_fact, prev_pat_fact, formula_type="growth")
+                qoq_pat_growth = qoq_pat_res.value
+                qoq_pat_prov = qoq_pat_res.model_dump()
+                all_inputs_collected.extend(qoq_pat_res.inputs)
                     
-            if i > 0 and curr_pat is not None and q_periods[i-1] in q_pat:
-                prev_p = q_pat[q_periods[i-1]]
-                if prev_p and prev_p != 0:
-                    qoq_pat_growth = round(((curr_pat - prev_p) / abs(prev_p)) * 100.0, 2)
-                    
-            # YoY (4 quarters back)
+            # YoY Growth (4 quarters back) with Provenance
             yoy_sales_growth = None
+            yoy_sales_prov = None
             yoy_pat_growth = None
-            if i >= 4 and curr_sales is not None and q_periods[i-4] in q_sales:
-                prev_y_s = q_sales[q_periods[i-4]]
-                if prev_y_s and prev_y_s > 0:
-                    yoy_sales_growth = round(((curr_sales - prev_y_s) / prev_y_s) * 100.0, 2)
-                    
-            if i >= 4 and curr_pat is not None and q_periods[i-4] in q_pat:
-                prev_y_p = q_pat[q_periods[i-4]]
-                if prev_y_p and prev_y_p != 0:
-                    yoy_pat_growth = round(((curr_pat - prev_y_p) / abs(prev_y_p)) * 100.0, 2)
+            yoy_pat_prov = None
+            if i >= 4:
+                prev_y_sales_fact = resolver.resolve_quarterly_fact("REVENUE", q_periods[i-4])
+                yoy_sales_res = resolver.calculate_growth_with_provenance(sales_fact, prev_y_sales_fact, formula_type="growth")
+                yoy_sales_growth = yoy_sales_res.value
+                yoy_sales_prov = yoy_sales_res.model_dump()
+                all_inputs_collected.extend(yoy_sales_res.inputs)
+                
+                prev_y_pat_fact = resolver.resolve_quarterly_fact("NET_PROFIT", q_periods[i-4])
+                yoy_pat_res = resolver.calculate_growth_with_provenance(pat_fact, prev_y_pat_fact, formula_type="growth")
+                yoy_pat_growth = yoy_pat_res.value
+                yoy_pat_prov = yoy_pat_res.model_dump()
+                all_inputs_collected.extend(yoy_pat_res.inputs)
                     
             quarterly_trends.append({
                 "period": p,
@@ -96,12 +123,22 @@ def compute_financial_analytics(
                 "sales_growth_qoq_pct": qoq_sales_growth,
                 "sales_growth_yoy_pct": yoy_sales_growth,
                 "pat_growth_qoq_pct": qoq_pat_growth,
-                "pat_growth_yoy_pct": yoy_pat_growth
+                "pat_growth_yoy_pct": yoy_pat_growth,
+                "provenance": {
+                    "sales": sales_fact.model_dump(),
+                    "operating_profit": op_fact.model_dump(),
+                    "opm_pct": opm_fact.model_dump(),
+                    "net_profit": pat_fact.model_dump(),
+                    "sales_growth_qoq": qoq_sales_prov,
+                    "sales_growth_yoy": yoy_sales_prov,
+                    "pat_growth_qoq": qoq_pat_prov,
+                    "pat_growth_yoy": yoy_pat_prov
+                }
             })
         analytics["quarterly_analysis"]["trends"] = quarterly_trends
 
     # -------------------------------------------------------------------------
-    # 2. Annual P&L Growth & Margins
+    # 2. Annual P&L Growth & Margins (Truth-Driven in Phase 2B)
     # -------------------------------------------------------------------------
     y_periods = pl.periods if pl else []
     y_sales = get_row_values(pl, "Sales") or get_row_values(pl, "Revenue")
@@ -113,24 +150,61 @@ def compute_financial_analytics(
     y_pbt = get_row_values(pl, "Profit before tax") or get_row_values(pl, "PBT")
     y_tax = get_row_values(pl, "Tax %") or get_row_values(pl, "Tax")
     
-    # CAGRs
-    if len(y_periods) >= 4:
-        last_p = y_periods[-1]
-        p_3y = y_periods[-4]
-        analytics["growth_rates"]["sales_cagr_3yr"] = calculate_cagr(y_sales.get(p_3y), y_sales.get(last_p), 3)
-        analytics["growth_rates"]["pat_cagr_3yr"] = calculate_cagr(y_pat.get(p_3y), y_pat.get(last_p), 3)
+    # CAGRs with Truth Provenance (calculated across completed fiscal annual periods)
+    annual_periods = [p for p in y_periods if p.upper().strip() != "TTM"]
+    if not annual_periods:
+        annual_periods = y_periods
+        
+    if len(annual_periods) >= 4:
+        last_p = annual_periods[-1]
+        p_3y = annual_periods[-4]
+        end_s = resolver.resolve_annual_fact("REVENUE", last_p)
+        base_s = resolver.resolve_annual_fact("REVENUE", p_3y)
+        res_s_3y = resolver.calculate_growth_with_provenance(end_s, base_s, formula_type="cagr", years=3)
+        analytics["growth_rates"]["sales_cagr_3yr"] = res_s_3y.value
+        provenance_map["sales_cagr_3yr"] = res_s_3y.model_dump()
+        all_inputs_collected.extend(res_s_3y.inputs)
+        
+        end_p = resolver.resolve_annual_fact("NET_PROFIT", last_p)
+        base_p = resolver.resolve_annual_fact("NET_PROFIT", p_3y)
+        res_p_3y = resolver.calculate_growth_with_provenance(end_p, base_p, formula_type="cagr", years=3)
+        analytics["growth_rates"]["pat_cagr_3yr"] = res_p_3y.value
+        provenance_map["pat_cagr_3yr"] = res_p_3y.model_dump()
+        all_inputs_collected.extend(res_p_3y.inputs)
             
-    if len(y_periods) >= 6:
-        last_p = y_periods[-1]
-        p_5y = y_periods[-6]
-        analytics["growth_rates"]["sales_cagr_5yr"] = calculate_cagr(y_sales.get(p_5y), y_sales.get(last_p), 5)
-        analytics["growth_rates"]["pat_cagr_5yr"] = calculate_cagr(y_pat.get(p_5y), y_pat.get(last_p), 5)
+    if len(annual_periods) >= 6:
+        last_p = annual_periods[-1]
+        p_5y = annual_periods[-6]
+        end_s = resolver.resolve_annual_fact("REVENUE", last_p)
+        base_s = resolver.resolve_annual_fact("REVENUE", p_5y)
+        res_s_5y = resolver.calculate_growth_with_provenance(end_s, base_s, formula_type="cagr", years=5)
+        analytics["growth_rates"]["sales_cagr_5yr"] = res_s_5y.value
+        provenance_map["sales_cagr_5yr"] = res_s_5y.model_dump()
+        all_inputs_collected.extend(res_s_5y.inputs)
+        
+        end_p = resolver.resolve_annual_fact("NET_PROFIT", last_p)
+        base_p = resolver.resolve_annual_fact("NET_PROFIT", p_5y)
+        res_p_5y = resolver.calculate_growth_with_provenance(end_p, base_p, formula_type="cagr", years=5)
+        analytics["growth_rates"]["pat_cagr_5yr"] = res_p_5y.value
+        provenance_map["pat_cagr_5yr"] = res_p_5y.model_dump()
+        all_inputs_collected.extend(res_p_5y.inputs)
 
-    if len(y_periods) >= 11:
-        last_p = y_periods[-1]
-        p_10y = y_periods[-11]
-        analytics["growth_rates"]["sales_cagr_10yr"] = calculate_cagr(y_sales.get(p_10y), y_sales.get(last_p), 10)
-        analytics["growth_rates"]["pat_cagr_10yr"] = calculate_cagr(y_pat.get(p_10y), y_pat.get(last_p), 10)
+    if len(annual_periods) >= 11:
+        last_p = annual_periods[-1]
+        p_10y = annual_periods[-11]
+        end_s = resolver.resolve_annual_fact("REVENUE", last_p)
+        base_s = resolver.resolve_annual_fact("REVENUE", p_10y)
+        res_s_10y = resolver.calculate_growth_with_provenance(end_s, base_s, formula_type="cagr", years=10)
+        analytics["growth_rates"]["sales_cagr_10yr"] = res_s_10y.value
+        provenance_map["sales_cagr_10yr"] = res_s_10y.model_dump()
+        all_inputs_collected.extend(res_s_10y.inputs)
+        
+        end_p = resolver.resolve_annual_fact("NET_PROFIT", last_p)
+        base_p = resolver.resolve_annual_fact("NET_PROFIT", p_10y)
+        res_p_10y = resolver.calculate_growth_with_provenance(end_p, base_p, formula_type="cagr", years=10)
+        analytics["growth_rates"]["pat_cagr_10yr"] = res_p_10y.value
+        provenance_map["pat_cagr_10yr"] = res_p_10y.model_dump()
+        all_inputs_collected.extend(res_p_10y.inputs)
 
     # Historical Effective Tax Rate calculation from P&L
     valid_tax_rates = []
@@ -196,9 +270,14 @@ def compute_financial_analytics(
     prior_valid_capex = []
 
     for idx, p in enumerate(y_periods):
-        cfo = cfo_vals.get(p)
-        pat = y_pat.get(p)
-        sales = y_sales.get(p)
+        cfo_fact = resolver.resolve_annual_fact("CFO", p)
+        pat_fact = resolver.resolve_annual_fact("NET_PROFIT", p)
+        sales_fact = resolver.resolve_annual_fact("REVENUE", p)
+        
+        cfo = cfo_fact.value
+        pat = pat_fact.value
+        sales = sales_fact.value
+        all_inputs_collected.extend([cfo_fact, pat_fact])
         
         capex = None
         capex_method = "Unavailable"
@@ -299,7 +378,11 @@ def compute_financial_analytics(
             "confidence_reason": confidence_reason,
             "possible_anomaly_warning": possible_anomaly_warning,
             "stocker_derived_fcf_cr": fcf,
-            "cfo_to_pat_pct": cfo_to_pat
+            "cfo_to_pat_pct": cfo_to_pat,
+            "provenance": {
+                "cfo": cfo_fact.model_dump(),
+                "pat": pat_fact.model_dump()
+            }
         })
         
     cfo_to_pat_5yr = round((cum_5y_cfo / cum_5y_pat) * 100.0, 1) if cum_5y_pat > 0 and cum_5y_cfo != 0 else None
@@ -348,15 +431,20 @@ def compute_financial_analytics(
     }
     
     # -------------------------------------------------------------------------
-    # 4. Balance Sheet & Capital Allocation (CWIP & Debt)
+    # 4. Balance Sheet & Capital Allocation (CWIP & Debt with Truth Provenance)
     # -------------------------------------------------------------------------
     bs_trends = []
     for p in bs_periods:
         eq = ((equity_cap.get(p) or 0.0) + (reserves.get(p) or 0.0))
-        debt = borrowings.get(p)
-        fa = fixed_assets.get(p)
-        c_work = cwip.get(p) or 0.0
+        debt_fact = resolver.resolve_annual_fact("BORROWINGS", p)
+        fa_fact = resolver.resolve_annual_fact("FIXED_ASSETS", p)
+        cwip_fact = resolver.resolve_annual_fact("CWIP", p)
+        
+        debt = debt_fact.value
+        fa = fa_fact.value
+        c_work = cwip_fact.value or 0.0
         tot_a = total_assets.get(p)
+        all_inputs_collected.extend([debt_fact, fa_fact, cwip_fact])
         
         debt_to_equity = round(debt / eq, 2) if (debt is not None and eq > 0) else None
         cwip_to_fa_pct = round((c_work / fa) * 100.0, 1) if (fa and fa > 0) else None
@@ -369,7 +457,12 @@ def compute_financial_analytics(
             "cwip_cr": c_work,
             "total_assets_cr": tot_a,
             "cwip_to_fixed_assets_pct": cwip_to_fa_pct,
-            "debt_to_equity": debt_to_equity
+            "debt_to_equity": debt_to_equity,
+            "provenance": {
+                "borrowings": debt_fact.model_dump(),
+                "fixed_assets": fa_fact.model_dump(),
+                "cwip": cwip_fact.model_dump()
+            }
         })
         
     latest_bs = bs_trends[-1] if bs_trends else {}
@@ -382,6 +475,34 @@ def compute_financial_analytics(
         "has_significant_capex_trigger": cwip_pct >= 12.0,
         "bs_trends": bs_trends
     }
+
+    # -------------------------------------------------------------------------
+    # Overall Analytic Provenance Summary
+    # -------------------------------------------------------------------------
+    verified_cnt = sum(1 for inp in all_inputs_collected if inp.verification_status == "VERIFIED")
+    discrepancy_cnt = sum(1 for inp in all_inputs_collected if inp.has_discrepancy or inp.verification_status == "DISCREPANCY")
+    standardized_cnt = sum(1 for inp in all_inputs_collected if inp.verification_status not in ("VERIFIED", "DISCREPANCY") and inp.value is not None)
+    unavailable_cnt = sum(1 for inp in all_inputs_collected if inp.value is None)
+    
+    if discrepancy_cnt > 0:
+        overall_quality = "discrepant"
+    elif verified_cnt == len(all_inputs_collected) and len(all_inputs_collected) > 0:
+        overall_quality = "verified"
+    elif verified_cnt > 0:
+        overall_quality = "mixed"
+    elif standardized_cnt > 0:
+        overall_quality = "standardized"
+    else:
+        overall_quality = "insufficient"
+        
+    analytics["provenance"] = provenance_map
+    analytics["provenance_summary"] = AnalyticProvenanceSummary(
+        verified_inputs=verified_cnt,
+        standardized_inputs=standardized_cnt,
+        discrepancy_inputs=discrepancy_cnt,
+        unavailable_inputs=unavailable_cnt,
+        overall_quality=overall_quality
+    ).model_dump()
 
     # -------------------------------------------------------------------------
     # 5. DuPont Analysis (Latest Full Year)

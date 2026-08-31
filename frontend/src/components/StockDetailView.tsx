@@ -316,7 +316,8 @@ export const StockDetailView: React.FC<StockDetailViewProps> = ({
       detail: latestQuarterTrend?.sales_growth_yoy_pct !== undefined
         ? <ExplicitChangeIndicator value={latestQuarterTrend.sales_growth_yoy_pct} label="YoY" />
         : <ChangeIndicator metric={quarterSales.metric} current={quarterSales.current} previous={quarterSales.previous} />,
-      tone: toneFromSignedValue(latestQuarterTrend?.sales_growth_yoy_pct)
+      tone: toneFromSignedValue(latestQuarterTrend?.sales_growth_yoy_pct),
+      provenance: latestQuarterTrend?.provenance?.sales_growth_yoy || latestQuarterTrend?.provenance?.sales
     },
     {
       label: 'PAT',
@@ -324,21 +325,24 @@ export const StockDetailView: React.FC<StockDetailViewProps> = ({
       detail: latestQuarterTrend?.pat_growth_yoy_pct !== undefined
         ? <ExplicitChangeIndicator value={latestQuarterTrend.pat_growth_yoy_pct} label="YoY" />
         : <ChangeIndicator metric={quarterPat.metric} current={quarterPat.current} previous={quarterPat.previous} />,
-      tone: toneFromSignedValue(latestQuarterTrend?.pat_growth_yoy_pct)
+      tone: toneFromSignedValue(latestQuarterTrend?.pat_growth_yoy_pct),
+      provenance: latestQuarterTrend?.provenance?.pat_growth_yoy || latestQuarterTrend?.provenance?.net_profit
     },
     {
       label: 'OPM',
       concept: 'opm',
       value: formatPercent(quarterOpm.current),
       detail: <ChangeIndicator metric={quarterOpm.metric} current={quarterOpm.current} previous={quarterOpm.previous} />,
-      tone: toneFromSignedValue((quarterOpm.current ?? 0) - (quarterOpm.previous ?? 0))
+      tone: toneFromSignedValue((quarterOpm.current ?? 0) - (quarterOpm.previous ?? 0)),
+      provenance: latestQuarterTrend?.provenance?.opm_pct
     },
     {
       label: 'QoQ momentum',
       concept: 'qoq',
       value: isFiniteNumber(latestQuarterTrend?.sales_growth_qoq_pct) ? `${latestQuarterTrend.sales_growth_qoq_pct > 0 ? '+' : ''}${latestQuarterTrend.sales_growth_qoq_pct.toFixed(1)}%` : '—',
       detail: <ExplicitChangeIndicator value={latestQuarterTrend?.sales_growth_qoq_pct} label="Sales" />,
-      tone: toneFromSignedValue(latestQuarterTrend?.sales_growth_qoq_pct)
+      tone: toneFromSignedValue(latestQuarterTrend?.sales_growth_qoq_pct),
+      provenance: latestQuarterTrend?.provenance?.sales_growth_qoq
     }
   ];
 
@@ -349,7 +353,8 @@ export const StockDetailView: React.FC<StockDetailViewProps> = ({
       value: formatPercent(stock.analytics?.growth_rates?.sales_cagr_3yr),
       detail: 'Backend-calculated annual growth',
       tone: toneFromSignedValue(stock.analytics?.growth_rates?.sales_cagr_3yr),
-      onDetails: () => setSelectedFormulaKey('sales_cagr_3yr')
+      onDetails: () => setSelectedFormulaKey('sales_cagr_3yr'),
+      provenance: stock.analytics?.provenance?.sales_cagr_3yr
     },
     {
       label: '3Y PAT CAGR',
@@ -357,7 +362,8 @@ export const StockDetailView: React.FC<StockDetailViewProps> = ({
       value: formatPercent(stock.analytics?.growth_rates?.pat_cagr_3yr),
       detail: 'Backend-calculated annual growth',
       tone: toneFromSignedValue(stock.analytics?.growth_rates?.pat_cagr_3yr),
-      onDetails: () => setSelectedFormulaKey('pat_cagr_3yr')
+      onDetails: () => setSelectedFormulaKey('pat_cagr_3yr'),
+      provenance: stock.analytics?.provenance?.pat_cagr_3yr
     },
     {
       label: 'Latest OPM',
@@ -370,7 +376,8 @@ export const StockDetailView: React.FC<StockDetailViewProps> = ({
       label: 'Latest PAT',
       value: formatCrores(annualPat.current),
       detail: <ChangeIndicator metric={annualPat.metric} current={annualPat.current} previous={annualPat.previous} />,
-      tone: annualPat.current !== null && annualPat.current < 0 ? 'negative' : toneFromSignedValue((annualPat.current ?? 0) - (annualPat.previous ?? 0))
+      tone: annualPat.current !== null && annualPat.current < 0 ? 'negative' : toneFromSignedValue((annualPat.current ?? 0) - (annualPat.previous ?? 0)),
+      provenance: latestFcfTrend?.provenance?.pat
     }
   ];
 
@@ -380,7 +387,8 @@ export const StockDetailView: React.FC<StockDetailViewProps> = ({
       concept: 'cfo',
       value: formatCrores(latestFcfTrend?.reported_cfo_cr),
       detail: <ChangeIndicator metric="Cash from Operating Activity" current={latestFcfTrend?.reported_cfo_cr} previous={previousFcfTrend?.reported_cfo_cr} />,
-      tone: toneForPositiveMetric(latestFcfTrend?.reported_cfo_cr, previousFcfTrend?.reported_cfo_cr)
+      tone: toneForPositiveMetric(latestFcfTrend?.reported_cfo_cr, previousFcfTrend?.reported_cfo_cr),
+      provenance: latestFcfTrend?.provenance?.cfo
     },
     {
       label: 'CFO/PAT',
@@ -388,7 +396,8 @@ export const StockDetailView: React.FC<StockDetailViewProps> = ({
       value: formatPercent(stock.analytics?.cash_flow_quality?.cfo_to_pat_5yr_pct),
       detail: stock.analytics?.cash_flow_quality?.cash_conversion_quality || '5-year cash conversion',
       tone: cashConversionTone(stock.analytics?.cash_flow_quality?.cash_conversion_quality),
-      onDetails: () => setSelectedFormulaKey('cfo_to_pat_5yr')
+      onDetails: () => setSelectedFormulaKey('cfo_to_pat_5yr'),
+      provenance: stock.analytics?.provenance?.cfo_to_pat_5yr
     },
     {
       label: 'Capex',
@@ -412,7 +421,8 @@ export const StockDetailView: React.FC<StockDetailViewProps> = ({
       label: 'Borrowings',
       value: formatCrores(latestBsTrend?.borrowings_cr ?? stock.analytics?.balance_sheet_efficiency?.borrowings_cr),
       detail: <ChangeIndicator metric="Borrowings" current={latestBsTrend?.borrowings_cr} previous={previousBsTrend?.borrowings_cr} />,
-      tone: 'neutral'
+      tone: 'neutral',
+      provenance: latestBsTrend?.provenance?.borrowings
     },
     {
       label: 'Debt/Equity',
@@ -427,7 +437,8 @@ export const StockDetailView: React.FC<StockDetailViewProps> = ({
       concept: 'cwip',
       value: formatCrores(latestBsTrend?.cwip_cr ?? stock.analytics?.balance_sheet_efficiency?.cwip_cr),
       detail: <ChangeIndicator metric="CWIP" current={latestBsTrend?.cwip_cr} previous={previousBsTrend?.cwip_cr} />,
-      tone: 'neutral'
+      tone: 'neutral',
+      provenance: latestBsTrend?.provenance?.cwip
     },
     {
       label: 'CWIP / Net Block',
@@ -559,6 +570,20 @@ export const StockDetailView: React.FC<StockDetailViewProps> = ({
                   <span className="text-amber-300 flex items-center gap-1">
                     <Sparkles className="w-3 h-3 text-amber-400" />
                     AI Analysis Last Run: {new Date(docIntel.extraction_timestamp).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })} {new Date(docIntel.extraction_timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                  </span>
+                </>
+              )}
+              {stock.financial_truth && (
+                <>
+                  <span className="text-slate-600">•</span>
+                  <span className="text-emerald-300 flex items-center gap-1">
+                    <CheckCircle2 className="w-3 h-3 text-emerald-400" />
+                    Financial Truth: {stock.financial_truth.verified_count}/{stock.financial_truth.coverage?.total_tracked_facts ?? 0} Facts Verified
+                    {(stock.financial_truth.discrepancies_count ?? 0) > 0 && (
+                      <span className="text-amber-400 font-semibold ml-1">
+                        ({stock.financial_truth.discrepancies_count} Discrepancies)
+                      </span>
+                    )}
                   </span>
                 </>
               )}
