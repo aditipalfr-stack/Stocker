@@ -2,11 +2,11 @@ import { BusinessAnalysisView } from './business_analysis/BusinessAnalysisView';
 import React, { useState, useEffect } from 'react';
 import { 
   StockDetail, ProjectionAssumption, ProjectionResult, 
-  FinancialStatement, BusinessAnalysisIntelligence 
+  FinancialStatement, BusinessAnalysisIntelligence, ResearchLifecycleStatus
 } from '../types';
 import { 
   projectStock, fetchBusinessAnalysis, generateDocIntelligence,
-  fetchAiStatus, configureAiKey, AiStatusResult
+  fetchAiStatus, configureAiKey, AiStatusResult, fetchStockDetail
 } from '../api';
 import { 
   TrendingUp, BarChart3, Sliders, FileText, ShieldAlert, 
@@ -30,11 +30,22 @@ import { StatementSummaryStrip } from './ui/StatementSummaryStrip';
 import type { StatementSummaryItem } from './ui/StatementSummaryStrip';
 import { ChangeIndicator, ExplicitChangeIndicator } from './ui/TrendValue';
 import type { TrendTone } from '../utils/financialMetrics';
+import { BackgroundResearchState, ResearchStatusPanel } from './ResearchStatusPanel';
 
 interface StockDetailViewProps {
   stock: StockDetail;
   onBack: () => void;
-  onScrapeRefresh?: () => void;
+  onScrapeRefresh?: () => void | Promise<void>;
+  isFinancialRefreshing?: boolean;
+  researchStatus: ResearchLifecycleStatus | null;
+  researchStatusLoading?: boolean;
+  researchStatusError?: string | null;
+  filingDiscoveryState?: BackgroundResearchState;
+  verificationState?: BackgroundResearchState;
+  onRetryFilings?: () => void;
+  onRetryVerification?: () => void;
+  onRefreshResearchStatus?: () => Promise<void>;
+  onStockUpdated: (stock: StockDetail) => void;
 }
 
 const findStatementRow = (statement: FinancialStatement, aliases: string[]) => statement.rows.find(row => {
@@ -79,7 +90,12 @@ const cashConversionTone = (quality: string | null | undefined): TrendTone => {
   return 'neutral';
 };
 
-export const StockDetailView: React.FC<StockDetailViewProps> = ({ stock, onBack, onScrapeRefresh }) => {
+export const StockDetailView: React.FC<StockDetailViewProps> = ({
+  stock, onBack, onScrapeRefresh, isFinancialRefreshing, researchStatus,
+  researchStatusLoading, researchStatusError, filingDiscoveryState,
+  verificationState, onRetryFilings, onRetryVerification,
+  onRefreshResearchStatus, onStockUpdated
+}) => {
   const [activeTab, setActiveTab] = useState<'financials' | 'charts' | 'projection' | 'outlook' | 'scorecard'>('projection');
   const [financialSubTab, setFinancialSubTab] = useState<'quarters' | 'pl' | 'balance_sheet' | 'cash_flow'>('quarters');
   
@@ -160,14 +176,19 @@ export const StockDetailView: React.FC<StockDetailViewProps> = ({ stock, onBack,
     try {
       const res = await generateDocIntelligence(stock.symbol);
       setGenerationStep(4);
-      setTimeout(() => {
-        setDocIntel(res);
-        setGeneratingDocIntel(false);
-      }, 900);
+      setDocIntel(res);
+      try {
+        const updatedStock = await fetchStockDetail(stock.symbol);
+        if (onRefreshResearchStatus) await onRefreshResearchStatus();
+        onStockUpdated(updatedStock);
+      } catch (refreshError: any) {
+        setDocIntelError(`Business analysis completed, but dependent projection and score data could not be refreshed: ${refreshError.message || 'refresh failed'}`);
+      }
     } catch (err: any) {
+      setDocIntelError(err.message || 'Failed to run AI document extraction. Please check your Gemini API key in .env.');
+    } finally {
       clearTimeout(stepTimer1);
       clearTimeout(stepTimer2);
-      setDocIntelError(err.message || 'Failed to run AI document extraction. Please check your Gemini API key in .env.');
       setGeneratingDocIntel(false);
     }
   };
@@ -445,11 +466,12 @@ export const StockDetailView: React.FC<StockDetailViewProps> = ({ stock, onBack,
           {onScrapeRefresh && (
             <button
               onClick={onScrapeRefresh}
+              disabled={isFinancialRefreshing}
               className="text-xs font-semibold text-slate-300 hover:text-emerald-400 flex items-center gap-1.5 bg-slate-900 px-3 py-1.5 rounded-xl border border-slate-800 transition-colors"
-              title="Force fetch fresh data from Screener.in"
+              title="Refresh financial data for this resolved stock"
             >
-              <RefreshCw className="w-3 h-3 text-emerald-400" />
-              <span>Force Refresh</span>
+              <RefreshCw className={`w-3 h-3 text-emerald-400 ${isFinancialRefreshing ? 'animate-spin' : ''}`} />
+              <span>{isFinancialRefreshing ? 'Refreshing Financials…' : 'Refresh Financial Data'}</span>
             </button>
           )}
           <a
@@ -612,6 +634,19 @@ export const StockDetailView: React.FC<StockDetailViewProps> = ({ stock, onBack,
         </p>
       </div>
 
+      <ResearchStatusPanel
+        status={researchStatus}
+        loading={researchStatusLoading}
+        error={researchStatusError}
+        filingDiscoveryState={filingDiscoveryState}
+        verificationState={verificationState}
+        businessAnalysisRunning={generatingDocIntel}
+        onRetryStatus={onRefreshResearchStatus}
+        onRetryFilings={onRetryFilings}
+        onRetryVerification={onRetryVerification}
+        onRunAnalysis={handleGenerateIntel}
+      />
+
       {/* LEVEL 2: 60-SECOND INVESTMENT THESIS & CONVICTION CARD */}
       <div className="glass-panel rounded-3xl p-6 md:p-7 border border-slate-800 bg-gradient-to-br from-slate-950 via-slate-900/90 to-slate-950 space-y-5">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800/80 pb-4">
@@ -621,12 +656,15 @@ export const StockDetailView: React.FC<StockDetailViewProps> = ({ stock, onBack,
             <DataOriginBadge origin="stocker_calculation" />
           </div>
           <div className="flex items-center gap-2">
-            <span className="text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">
-              {stock.score.verdict}
-            </span>
-            <span className="text-[11px] font-mono text-slate-400 bg-slate-900 px-2.5 py-0.5 rounded-lg border border-slate-800">
-              Score: {stock.score.total_composite_score}/100
-            </span>
+            {researchStatus && (
+              <span className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full border ${researchStatus.investment_score === 'evidence_enriched' ? 'bg-cyan-500/10 text-cyan-300 border-cyan-500/30' : 'bg-amber-500/10 text-amber-300 border-amber-500/30'}`}>
+                {researchStatus.investment_score === 'provisional' ? 'Provisional — financial analysis only' : researchStatus.investment_score === 'evidence_enriched' ? 'Evidence-enriched' : researchStatus.investment_score === 'incomplete' ? 'Incomplete research' : 'Score not available'}
+              </span>
+            )}
+            {researchStatus?.investment_score !== 'unavailable' && <>
+              <span className="text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">{stock.score.verdict}</span>
+              <span className="text-[11px] font-mono text-slate-400 bg-slate-900 px-2.5 py-0.5 rounded-lg border border-slate-800">Score: {stock.score.total_composite_score}/100</span>
+            </>}
           </div>
         </div>
 
@@ -707,7 +745,9 @@ export const StockDetailView: React.FC<StockDetailViewProps> = ({ stock, onBack,
               <TrendingUp className="w-3.5 h-3.5 text-purple-400" />
               Valuation Bridge (3Y)
             </span>
-            <div className="space-y-1">
+            {researchStatus?.projection === 'unavailable' ? (
+              <p className="text-[11px] text-slate-400 leading-snug">Projection unavailable with current evidence.</p>
+            ) : <div className="space-y-1">
               <div className="flex items-center justify-between text-[11px] font-mono">
                 <span className="text-slate-500">Base DCF:</span>
                 <span className="text-emerald-400 font-bold">₹{stock.projection.dcf_fair_value_per_share} ({stock.projection.dcf_upside_pct > 0 ? `+${stock.projection.dcf_upside_pct}%` : `${stock.projection.dcf_upside_pct}%`})</span>
@@ -716,7 +756,7 @@ export const StockDetailView: React.FC<StockDetailViewProps> = ({ stock, onBack,
                 <span className="text-slate-500">Target (Exit P/E):</span>
                 <span className="text-purple-300 font-bold">₹{stock.projection.target_price_exit_pe} ({stock.projection.target_price_upside_pct > 0 ? `+${stock.projection.target_price_upside_pct}%` : `${stock.projection.target_price_upside_pct}%`})</span>
               </div>
-            </div>
+            </div>}
           </div>
 
         </div>
@@ -797,6 +837,20 @@ export const StockDetailView: React.FC<StockDetailViewProps> = ({ stock, onBack,
       {/* TAB 1: INTERACTIVE PROJECTIONS & DCF VALUATION */}
       {activeTab === 'projection' && (
         <div className="space-y-6">
+          {researchStatus && (
+            <div className={`rounded-2xl border p-4 flex items-start gap-3 ${researchStatus.projection === 'evidence_enriched' ? 'bg-emerald-950/30 border-emerald-800/50' : researchStatus.projection === 'stale' ? 'bg-amber-950/30 border-amber-800/50' : 'bg-slate-950/70 border-slate-800'}`}>
+              {researchStatus.projection === 'stale' ? <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" /> : <Info className="w-4 h-4 text-cyan-400 shrink-0 mt-0.5" />}
+              <div>
+                <p className="text-xs font-bold text-slate-100">
+                  {researchStatus.projection === 'historical_only' ? 'Preliminary / Historical-only' : researchStatus.projection === 'evidence_enriched' ? 'Evidence-enriched' : researchStatus.projection === 'stale' ? 'Business evidence changed. Projection needs refresh.' : 'Projection unavailable with current evidence.'}
+                </p>
+                <p className="text-[11px] text-slate-400 mt-1 leading-relaxed">
+                  {researchStatus.projection === 'historical_only' ? 'Based on available historical financial evidence. Run Business Analysis to incorporate management guidance, capacity plans, demand drivers and execution history.' : researchStatus.projection === 'evidence_enriched' ? 'Company filing and business evidence has been incorporated into this projection.' : researchStatus.projection === 'stale' ? 'Refresh the projection before relying on valuation outputs.' : 'Stocker does not have enough supported evidence to present a valid projection or DCF.'}
+                </p>
+              </div>
+            </div>
+          )}
+          {researchStatus?.projection !== 'unavailable' && <>
           
           {/* Projections Control Panel */}
           <div className="glass-panel rounded-3xl p-6 border border-slate-800 space-y-6">
@@ -811,7 +865,14 @@ export const StockDetailView: React.FC<StockDetailViewProps> = ({ stock, onBack,
                   Simulate future revenue growth, margin expansion, and exit multiple to calculate DCF Fair Value and Expected IRR
                 </p>
               </div>
-              <DataOriginBadge origin="stocker_projection" />
+              <div className="flex items-center gap-2">
+                {isProjecting && (
+                  <span className="text-[11px] text-cyan-300 flex items-center gap-1.5" role="status">
+                    <RefreshCw className="w-3.5 h-3.5 animate-spin" /> Refreshing projection…
+                  </span>
+                )}
+                <DataOriginBadge origin="stocker_projection" />
+              </div>
 
               {/* Scenario Presets */}
               <div className="flex items-center gap-2">
@@ -1107,7 +1168,7 @@ export const StockDetailView: React.FC<StockDetailViewProps> = ({ stock, onBack,
               </table>
             </div>
           </div>
-
+          </>}
         </div>
       )}
 
@@ -1383,6 +1444,15 @@ export const StockDetailView: React.FC<StockDetailViewProps> = ({ stock, onBack,
       {/* TAB 5: 5-PILLAR SCORECARD & RISKS */}
       {activeTab === 'scorecard' && (
         <div className="glass-panel rounded-3xl p-6 md:p-8 border border-slate-800 space-y-8">
+          {researchStatus && (
+            <div className={`rounded-2xl border p-4 ${researchStatus.investment_score === 'evidence_enriched' ? 'bg-cyan-950/30 border-cyan-800/50' : 'bg-amber-950/20 border-amber-800/40'}`}>
+              <p className="text-xs font-bold text-slate-100">
+                {researchStatus.investment_score === 'provisional' ? 'Provisional — financial analysis only' : researchStatus.investment_score === 'evidence_enriched' ? 'Evidence-enriched' : researchStatus.investment_score === 'incomplete' ? 'Incomplete research' : 'Not available'}
+              </p>
+              <p className="text-[11px] text-slate-400 mt-1">Investment attractiveness is separate from research confidence. Complete filing and business analysis for a fully researched view.</p>
+            </div>
+          )}
+          {researchStatus?.investment_score !== 'unavailable' && <>
           
           <div className="flex items-center justify-between border-b border-slate-800 pb-4">
             <div>
@@ -1499,7 +1569,7 @@ export const StockDetailView: React.FC<StockDetailViewProps> = ({ stock, onBack,
             </div>
 
           </div>
-
+          </>}
         </div>
       )}
 

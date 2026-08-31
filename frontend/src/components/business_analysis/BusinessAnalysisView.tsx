@@ -3,7 +3,7 @@ import { StockDetail, BusinessAnalysisIntelligence, SourceFilingsResponse } from
 import { AiStatusResult, fetchSourceFilings } from '../../api';
 import { 
   Sparkles, TrendingUp, CheckCircle2, FileText, 
-  Compass, Clock, AlertTriangle, KeyRound, Zap, HelpCircle
+  Compass, Clock, AlertTriangle, KeyRound, Zap, HelpCircle, RefreshCw
 } from 'lucide-react';
 import { ConceptHelp } from '../ui/ConceptHelp';
 import { DataOriginBadge } from '../ui/DataOriginBadge';
@@ -254,7 +254,28 @@ export const BusinessAnalysisView: React.FC<BusinessAnalysisViewProps> = ({
       </div>
 
       {/* 3. Render Active Subtab */}
-      {docIntel && (
+      {activeSubTab !== 'filings' && loadingDocIntel && (
+        <div className="glass-panel rounded-3xl p-10 border border-slate-800 text-center space-y-3">
+          <RefreshCw className="w-5 h-5 text-cyan-400 animate-spin mx-auto" />
+          <p className="text-xs text-slate-400">Checking for existing Business Analysis…</p>
+        </div>
+      )}
+
+      {activeSubTab !== 'filings' && !loadingDocIntel && !isAnalyzed && (
+        <div className="glass-panel rounded-3xl p-8 border border-slate-800 text-center space-y-4">
+          <Sparkles className="w-7 h-7 text-slate-500 mx-auto" />
+          <div className="space-y-2 max-w-xl mx-auto">
+            <h4 className="text-base font-bold text-white">Business analysis has not been run yet.</h4>
+            <p className="text-xs text-slate-400 leading-relaxed">Run Analysis to extract management guidance, growth drivers, competitive position, risks and execution history from company filings.</p>
+          </div>
+          <button onClick={onGenerateIntel} disabled={generatingDocIntel} className="bg-emerald-500 hover:bg-emerald-400 disabled:bg-slate-800 disabled:text-slate-500 text-slate-950 font-bold text-xs px-5 py-2.5 rounded-xl inline-flex items-center gap-2">
+            <Zap className={`w-4 h-4 ${generatingDocIntel ? 'animate-spin' : ''}`} />
+            <span>{generatingDocIntel ? 'Running Analysis…' : 'Run Analysis'}</span>
+          </button>
+        </div>
+      )}
+
+      {isAnalyzed && docIntel && (
         <>
           {activeSubTab === 'investment' && (
             <InvestmentView docIntel={docIntel} companyName={stock.name} />
@@ -268,17 +289,18 @@ export const BusinessAnalysisView: React.FC<BusinessAnalysisViewProps> = ({
             <ManagementExecutionView docIntel={docIntel} companyName={stock.name} />
           )}
 
-          {activeSubTab === 'filings' && (
-            <SourceFilingsView
-              symbol={stock.symbol}
-              companyName={stock.name}
-              filingsData={filingsCache[stock.symbol] || null}
-              loading={filingsLoading}
-              error={filingsError}
-              onRetry={() => loadSourceFilings(stock.symbol, true)}
-            />
-          )}
         </>
+      )}
+
+      {activeSubTab === 'filings' && (
+        <SourceFilingsView
+          symbol={stock.symbol}
+          companyName={stock.name}
+          filingsData={filingsCache[stock.symbol] || null}
+          loading={filingsLoading}
+          error={filingsError}
+          onRetry={() => loadSourceFilings(stock.symbol, true)}
+        />
       )}
 
     </div>

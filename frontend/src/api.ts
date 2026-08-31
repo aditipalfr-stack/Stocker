@@ -1,4 +1,9 @@
-import { StockSummary, StockDetail, ProjectionAssumption, ProjectionResult, ComparisonItem } from './types';
+import {
+  AddCompanyResponse, BusinessAnalysisIntelligence, BusinessOutlookIntelligence,
+  CompanyRegistryItem, CompanySearchResponse, ComparisonItem, DiscoverFilingsResponse,
+  FinancialVerificationResponse, ProjectionAssumption, ProjectionResult,
+  ResearchLifecycleStatus, SourceFilingsResponse, StockDetail, StockSummary
+} from './types';
 
 const API_BASE = import.meta.env.VITE_API_BASE || '/api';
 
@@ -49,8 +54,6 @@ export async function compareStocks(symbols: string[]): Promise<ComparisonItem[]
   const data = await res.json();
   return data.comparison;
 }
-
-import { BusinessOutlookIntelligence, BusinessAnalysisIntelligence, SourceFilingsResponse } from './types';
 
 export async function fetchDocIntelligence(symbol: string): Promise<BusinessOutlookIntelligence | null> {
   const res = await fetch(`${API_BASE}/stocks/${encodeURIComponent(symbol)}/doc-intelligence`);
@@ -110,7 +113,6 @@ export async function configureAiKey(apiKey: string, provider: string = 'gemini'
   return res.json();
 }
 
-import { CompanySearchResponse, AddCompanyResponse, CompanyRegistryItem, FinancialVerificationResponse } from './types';
 export async function searchCompanies(query: string, limit: number = 10): Promise<CompanySearchResponse> {
   const params = new URLSearchParams({ q: query, limit: limit.toString() });
   const res = await fetch(`${API_BASE}/companies/search?${params.toString()}`);
@@ -121,13 +123,30 @@ export async function searchCompanies(query: string, limit: number = 10): Promis
   return res.json();
 }
 
-export async function addCompanyToUniverse(symbol: string): Promise<AddCompanyResponse> {
-  const res = await fetch(`${API_BASE}/companies/${encodeURIComponent(symbol)}/add`, {
-    method: 'POST'
+export async function addCompany(query: string): Promise<AddCompanyResponse> {
+  const res = await fetch(`${API_BASE}/companies/add`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ query })
   });
   if (!res.ok) {
     const err = await res.json().catch(() => ({ detail: 'Failed to add company to universe' }));
     throw new Error(err.detail || 'Failed to add company to universe');
+  }
+  return res.json();
+}
+
+export async function fetchResearchStatus(symbol: string): Promise<ResearchLifecycleStatus> {
+  const res = await fetch(`${API_BASE}/stocks/${encodeURIComponent(symbol)}/research-status`);
+  if (!res.ok) throw new Error(`Failed to fetch research status for ${symbol}`);
+  return res.json();
+}
+
+export async function discoverFilings(symbol: string): Promise<DiscoverFilingsResponse> {
+  const res = await fetch(`${API_BASE}/stocks/${encodeURIComponent(symbol)}/discover-filings`, { method: 'POST' });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: 'Failed to discover source filings' }));
+    throw new Error(err.detail || `Failed to discover source filings for ${symbol}`);
   }
   return res.json();
 }

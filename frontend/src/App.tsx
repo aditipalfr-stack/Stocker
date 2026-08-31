@@ -1,9 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { 
-  StockSummary, StockDetail, ComparisonItem 
+  StockSummary, StockDetail, ComparisonItem, ResearchLifecycleStatus
 } from './types';
 import { 
-  fetchStocks, fetchStockDetail, scrapeNewStock, compareStocks 
+  addCompany, compareStocks, discoverFilings, fetchResearchStatus,
+  fetchStocks, fetchStockDetail, scrapeNewStock, triggerFinancialVerification
 } from './api';
 import { Navbar } from './components/Navbar';
 import { DashboardOverview } from './components/DashboardOverview';
@@ -23,14 +24,42 @@ export function App() {
   
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [isDetailLoading, setIsDetailLoading] = useState<boolean>(false);
+  const [isFinancialRefreshing, setIsFinancialRefreshing] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
   const [toastMessage, setToastMessage] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
   const [isGlossaryOpen, setIsGlossaryOpen] = useState(false);
+  const [researchStatus, setResearchStatus] = useState<ResearchLifecycleStatus | null>(null);
+  const [researchStatusLoading, setResearchStatusLoading] = useState(false);
+  const [researchStatusError, setResearchStatusError] = useState<string | null>(null);
+  const [filingDiscoveryState, setFilingDiscoveryState] = useState<'idle' | 'running' | 'success' | 'error'>('idle');
+  const [verificationState, setVerificationState] = useState<'idle' | 'running' | 'success' | 'error'>('idle');
+  const selectedSymbolRef = useRef(selectedStockSymbol);
+  const statusRequestsRef = useRef<Record<string, Promise<ResearchLifecycleStatus>>>({});
 
   const showToast = (text: string, type: 'success' | 'error' = 'success') => {
     setToastMessage({ text, type });
     setTimeout(() => setToastMessage(null), 4000);
   };
+
+  const refreshResearchStatus = useCallback(async (symbol: string) => {
+    const canonicalSymbol = symbol.toUpperCase();
+    setResearchStatusLoading(true);
+    setResearchStatusError(null);
+    let request = statusRequestsRef.current[canonicalSymbol];
+    if (!request) {
+      request = fetchResearchStatus(canonicalSymbol);
+      statusRequestsRef.current[canonicalSymbol] = request;
+    }
+    try {
+      const nextStatus = await request;
+      if (selectedSymbolRef.current === canonicalSymbol) setResearchStatus(nextStatus);
+    } catch (err: any) {
+      if (selectedSymbolRef.current === canonicalSymbol) setResearchStatusError(err.message || 'Failed to load research progress');
+    } finally {
+      if (statusRequestsRef.current[canonicalSymbol] === request) delete statusRequestsRef.current[canonicalSymbol];
+      if (selectedSymbolRef.current === canonicalSymbol) setResearchStatusLoading(false);
+    }
+  }, []);
 
   // Load initial stock list
   const loadStocks = async () => {
@@ -58,9 +87,16 @@ export function App() {
     setIsDetailLoading(true);
     try {
       const detail = await fetchStockDetail(symbol);
-      setSelectedStockSymbol(symbol);
+      const canonicalSymbol = detail.symbol.toUpperCase();
+      selectedSymbolRef.current = canonicalSymbol;
+      setSelectedStockSymbol(canonicalSymbol);
       setSelectedStockDetail(detail);
+      setResearchStatus(null);
+      setResearchStatusError(null);
+      setFilingDiscoveryState('idle');
+      setVerificationState('idle');
       setActiveTab('detail');
+      void refreshResearchStatus(canonicalSymbol);
     } catch (e: any) {
       showToast(`Failed to load details for ${symbol}: ${e.message}`, 'error');
     } finally {
@@ -88,17 +124,75 @@ export function App() {
     }
   }, [selectedCompareSymbols]);
 
-  // Handle Search / Scrape on demand
-  const handleSearchOrScrape = async (symbol: string) => {
+  const runFilingDiscovery = async (symbol: string) => {
+    if (selectedSymbolRef.current === symbol) setFilingDiscoveryState('running');
     try {
-      showToast(`Fetching ${symbol} from Screener.in...`, 'success');
-      const res = await scrapeNewStock(symbol);
-      showToast(res.message, 'success');
-      await loadStocks();
-      await loadStockDetail(symbol);
+      const result = await discoverFilings(symbol);
+      if (selectedSymbolRef.current === symbol) {
+        setFilingDiscoveryState('success');
+        setResearchStatus(result.research_status);
+      }
     } catch (e: any) {
-      showToast(e.message || `Failed to fetch ${symbol}`, 'error');
+      if (selectedSymbolRef.current === symbol) {
+        setFilingDiscoveryState('error');
+        showToast(e.message || `Filing discovery failed for ${symbol}. Financial analysis remains available.`, 'error');
+      }
+    } finally {
+      await refreshResearchStatus(symbol);
     }
+  };
+
+  const runOfficialVerification = async (symbol: string) => {
+    if (selectedSymbolRef.current === symbol) setVerificationState('running');
+    try {
+      await triggerFinancialVerification(symbol);
+      if (selectedSymbolRef.current === symbol) setVerificationState('success');
+    } catch (e: any) {
+      if (selectedSymbolRef.current === symbol) {
+        setVerificationState('error');
+        showToast(e.message || `Official verification failed for ${symbol}. Financial analysis remains available.`, 'error');
+      }
+    } finally {
+      await refreshResearchStatus(symbol);
+    }
+  };
+
+  const handleAddCompany = async (query: string) => {
+    const response = await addCompany(query);
+    const canonicalSymbol = response.symbol.toUpperCase();
+    selectedSymbolRef.current = canonicalSymbol;
+    setSelectedStockSymbol(canonicalSymbol);
+    setSelectedStockDetail(response.stock);
+    setResearchStatus(response.research_status);
+    setResearchStatusError(null);
+    setFilingDiscoveryState('idle');
+    setVerificationState('idle');
+    setActiveTab('detail');
+    showToast(response.already_existed ? `${response.company_name} is already in Stocker.` : response.message, 'success');
+    void fetchStocks().then(setStocks).catch(() => {});
+    void runFilingDiscovery(canonicalSymbol);
+    void runOfficialVerification(canonicalSymbol);
+  };
+
+  const handleCanonicalRefresh = async (symbol: string) => {
+    setIsFinancialRefreshing(true);
+    try {
+      const response = await scrapeNewStock(symbol);
+      const updatedStock = response.stock || await fetchStockDetail(symbol);
+      setSelectedStockDetail(updatedStock);
+      showToast(response.message, 'success');
+      void fetchStocks().then(setStocks).catch(() => {});
+      await refreshResearchStatus(updatedStock.symbol);
+    } catch (e: any) {
+      showToast(e.message || `Failed to refresh financial data for ${symbol}`, 'error');
+    } finally {
+      setIsFinancialRefreshing(false);
+    }
+  };
+
+  const handleStockUpdated = (updatedStock: StockDetail) => {
+    if (selectedSymbolRef.current === updatedStock.symbol.toUpperCase()) setSelectedStockDetail(updatedStock);
+    void fetchStocks().then(setStocks).catch(() => {});
   };
 
   // Toggle compare symbol
@@ -151,7 +245,8 @@ export function App() {
       <Navbar
         activeTab={activeTab}
         setActiveTab={setActiveTab}
-        onSearchOrScrape={handleSearchOrScrape}
+        onAddCompany={handleAddCompany}
+        onOpenExisting={loadStockDetail}
         isLoading={isLoading}
         selectedStockSymbol={selectedStockSymbol}
         compareCount={selectedCompareSymbols.length}
@@ -202,7 +297,17 @@ export function App() {
           <StockDetailView
             stock={selectedStockDetail}
             onBack={() => setActiveTab('overview')}
-            onScrapeRefresh={() => handleSearchOrScrape(selectedStockDetail.symbol)}
+            onScrapeRefresh={() => handleCanonicalRefresh(selectedStockDetail.symbol)}
+            isFinancialRefreshing={isFinancialRefreshing}
+            researchStatus={researchStatus}
+            researchStatusLoading={researchStatusLoading}
+            researchStatusError={researchStatusError}
+            filingDiscoveryState={filingDiscoveryState}
+            verificationState={verificationState}
+            onRetryFilings={() => runFilingDiscovery(selectedStockDetail.symbol)}
+            onRetryVerification={() => runOfficialVerification(selectedStockDetail.symbol)}
+            onRefreshResearchStatus={() => refreshResearchStatus(selectedStockDetail.symbol)}
+            onStockUpdated={handleStockUpdated}
           />
         )}
 

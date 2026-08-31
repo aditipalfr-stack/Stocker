@@ -214,6 +214,13 @@ export const SourceFilingsView: React.FC<SourceFilingsViewProps> = ({
                     </div>
                   </div>
 
+                  {!hasAiAnalysis && (
+                    <p className="text-[11px] text-slate-400 border-t border-slate-900 pt-3 flex items-center gap-1.5">
+                      <Sparkles className="w-3 h-3 text-slate-500" />
+                      Run Analysis to see AI findings for this filing.
+                    </p>
+                  )}
+
                   {/* Expanded AI Findings Section */}
                   {isExpanded && summary && (
                     <div className="mt-4 pt-4 border-t border-slate-900 space-y-4 bg-slate-950 p-4 rounded-xl border border-slate-800/80">

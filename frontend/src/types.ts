@@ -660,13 +660,39 @@ export interface CompanySearchResponse {
   results: CompanySearchResult[];
 }
 
+export interface ResearchLifecycleStatus {
+  symbol: string;
+  identity: 'unresolved' | 'resolved' | 'officially_verified';
+  financial_data: 'missing' | 'ready' | 'stale' | 'error';
+  deterministic_analysis: 'not_ready' | 'ready';
+  official_verification: 'not_run' | 'partial' | 'verified' | 'discrepancy';
+  source_filings: 'not_searched' | 'partial' | 'ready' | 'error';
+  business_analysis: 'not_run' | 'running' | 'ready' | 'stale' | 'error';
+  projection: 'unavailable' | 'historical_only' | 'evidence_enriched' | 'stale';
+  investment_score: 'unavailable' | 'provisional' | 'evidence_enriched' | 'incomplete';
+  filing_count: number;
+  financial_data_updated_at?: string | null;
+  filings_checked_at?: string | null;
+  business_analysis_updated_at?: string | null;
+  projection_updated_at?: string | null;
+  notes?: string[];
+}
+
 export interface AddCompanyResponse {
   success: boolean;
   message: string;
   symbol: string;
   company_name: string;
-  already_existed?: boolean;
-  stock?: StockDetail;
+  already_existed: boolean;
+  stock: StockDetail;
+  research_status: ResearchLifecycleStatus;
+}
+
+export interface DiscoverFilingsResponse {
+  symbol: string;
+  filing_count: number;
+  documents_checked_at: string | null;
+  research_status: ResearchLifecycleStatus;
 }
 
 export interface CompanyRegistryItem {
@@ -743,4 +769,3 @@ export interface FinancialVerificationResponse {
   summary: FinancialVerificationSummary;
   records: FinancialVerificationItem[];
 }
-
