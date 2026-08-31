@@ -538,7 +538,19 @@ def run_multi_document_ai_pipeline(
         for d in candidate_docs
     ]
 
-    # 5. LLM Inference / Company-Level Synthesis
+    # 5. Determine Sector Taxonomy & Business Model Routing
+    from company_taxonomy_service import resolve_local_company_taxonomy
+    from financial_engine import classify_financial_business_model
+    
+    tax_info = resolve_local_company_taxonomy(clean_sym, stock_data=stock_data)
+    biz_model = classify_financial_business_model(
+        sector_name=tax_info.get("sector"),
+        industry_name=tax_info.get("industry"),
+        sub_industry_name=tax_info.get("sub_industry")
+    )
+    docs_hash = database.compute_source_documents_hash(candidate_docs)
+
+    # 6. LLM Inference / Company-Level Synthesis
     if not is_llm_available():
         msg = "AI Analysis Unavailable: Configure GEMINI_API_KEY in .env file."
         status_res = {
@@ -558,11 +570,17 @@ def run_multi_document_ai_pipeline(
             "document_summaries": doc_summaries_list,
             "verified_facts": [],
             "operational_kpi_evolution": [],
-            "guidance_vs_projections": []
+            "guidance_vs_projections": [],
+            "evidence_items": [],
+            "management_guidance_items": [],
+            "source_documents_hash": docs_hash,
+            "analysis_version": "2.0",
+            "staleness_status": "not_analyzed",
+            "financial_business_model": biz_model
         }
         return status_res
 
-    print(f"  • Invoking Gemini for Company-Level Institutional Synthesis...")
+    print(f"  • Invoking Gemini for Company-Level Institutional Synthesis (Business Model: {biz_model})...")
     success, result, message = extract_document_intelligence_with_llm(
         symbol=clean_sym,
         company_name=company_name,
@@ -579,16 +597,31 @@ def run_multi_document_ai_pipeline(
         pl_stmt=pl_stmt,
         quarters_stmt=quarters_stmt,
         bs_stmt=bs_stmt,
-        cf_stmt=cf_stmt
+        cf_stmt=cf_stmt,
+        financial_business_model=biz_model
     )
     if not success or not result:
         raise RuntimeError(f"Multi-document AI extraction failed: {message}")
         
     result.extraction_timestamp = datetime.now(timezone.utc).isoformat()
+    result.source_documents_hash = docs_hash
+    result.analysis_version = "2.0"
+    result.staleness_status = "fresh"
+    result.financial_business_model = biz_model
+    
     output_dict = result.model_dump()
     
     # Save to SQLite Database
     if save_output:
+        # 1. Save structured evidence items
+        if output_dict.get("evidence_items"):
+            database.save_document_evidence_items(clean_sym, output_dict["evidence_items"])
+            
+        # 2. Save structured management guidance items
+        if output_dict.get("management_guidance_items"):
+            database.save_management_guidance_items(clean_sym, output_dict["management_guidance_items"])
+            
+        # 3. Save full institutional analysis
         database.save_ai_analysis(
             symbol=clean_sym,
             company_name=company_name,

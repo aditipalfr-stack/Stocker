@@ -1,6 +1,84 @@
 from typing import List, Optional, Dict, Any, Literal
 from pydantic import BaseModel, Field, model_validator
 
+# -------------------------------------------------------------------------
+# DOCUMENT EVIDENCE MODEL (V2 Structured Document Intelligence)
+# -------------------------------------------------------------------------
+DocumentEvidenceType = Literal[
+    "MANAGEMENT_GUIDANCE",
+    "DEMAND_DRIVER",
+    "SUPPLY_DRIVER",
+    "CAPEX_PLAN",
+    "CAPACITY_EXPANSION",
+    "MARGIN_DRIVER",
+    "COST_PRESSURE",
+    "ORDER_BOOK",
+    "CUSTOMER_CONCENTRATION",
+    "GEOGRAPHIC_EXPOSURE",
+    "NEW_PRODUCT",
+    "REGULATORY_RISK",
+    "COMPETITIVE_RISK",
+    "CAPITAL_ALLOCATION",
+    "WORKING_CAPITAL_COMMENTARY",
+    "MANAGEMENT_COMMITMENT",
+    "KPI",
+    "OTHER_MATERIAL_EVIDENCE"
+]
+
+class DocumentEvidenceItem(BaseModel):
+    id: str = Field(description="Unique deterministic evidence ID e.g. evi_INFY_3f4a1b")
+    symbol: str
+    evidence_type: str = Field(description="Evidence category e.g. MANAGEMENT_GUIDANCE, CAPEX_PLAN, DEMAND_DRIVER, etc.")
+    title: str = Field(description="Short, impactful headline for this evidence item")
+    normalized_topic: str = Field(description="Normalized topic e.g. Capex, Order Book, Revenue Growth, Margins, Loan Growth")
+    statement: str = Field(description="Concise factual statement extracted directly from filing")
+    source_document_type: str = Field(description="annual_report, concall_transcript, presentation, announcement")
+    source_document_title: str
+    source_url: str
+    source_period: Optional[str] = None
+    source_date: Optional[str] = None
+    page: Optional[int] = None
+    section: Optional[str] = None
+    evidence_quote: Optional[str] = Field(default=None, description="Concise verbatim or near-verbatim quote from filing")
+    extraction_method: str = Field(default="llm_structured_extraction")
+    confidence: str = Field(default="HIGH", description="HIGH, MEDIUM, LOW")
+    status: str = Field(default="SUPPORTED", description="SUPPORTED, UNSUPPORTED, VERIFIED")
+    created_at: Optional[str] = None
+
+    @model_validator(mode="before")
+    @classmethod
+    def adapt_evidence_item(cls, values: Any) -> Any:
+        if isinstance(values, dict):
+            if "source_page" in values and not values.get("page"):
+                values["page"] = values["source_page"]
+            if "source_doc" in values and not values.get("source_document_title"):
+                values["source_document_title"] = values["source_doc"]
+            if "source_doc_title" in values and not values.get("source_document_title"):
+                values["source_document_title"] = values["source_doc_title"]
+            if "doc_type" in values and not values.get("source_document_type"):
+                values["source_document_type"] = values["doc_type"]
+        return values
+
+class ManagementGuidanceItem(BaseModel):
+    id: Optional[str] = None
+    metric_or_topic: str = Field(description="Target metric or topic e.g. Revenue Growth, EBITDA Margin, Capex, Deposit Growth, Loan Growth")
+    guidance_text: str = Field(description="Exact management guidance statement as described in document")
+    quantified_value: Optional[float] = Field(default=None, description="Single numerical target if stated e.g. 15.0 for 15%")
+    quantified_range_min: Optional[float] = Field(default=None, description="Lower bound of numerical guidance range if stated")
+    quantified_range_max: Optional[float] = Field(default=None, description="Upper bound of numerical guidance range if stated")
+    unit: Optional[str] = Field(default=None, description="%, ₹ Cr, bps, GW, subscribers, etc.")
+    target_period: str = Field(description="Target period e.g. FY26, FY27, Q4 FY26")
+    direction: Optional[str] = Field(default=None, description="GROWTH, MARGIN_EXPANSION, CAPEX, MAINTAIN, REDUCTION")
+    source_document_title: str
+    source_document_url: Optional[str] = None
+    source_date_or_period: Optional[str] = None
+    confidence: str = Field(default="HIGH")
+    status: Literal["MET", "PARTIALLY_MET", "MISSED", "NOT_YET_DUE", "NOT_COMPARABLE", "INSUFFICIENT_EVIDENCE"] = Field(default="INSUFFICIENT_EVIDENCE")
+    actual_reported_value: Optional[float] = None
+    actual_reported_period: Optional[str] = None
+    actual_reported_source: Optional[str] = None
+    comparison_detail: Optional[str] = None
+
 # 1. WHAT CHANGED RECENTLY
 class RecentChange(BaseModel):
     headline: str = Field(description="Short, impactful headline of what changed")
@@ -334,6 +412,14 @@ class BusinessOutlookResult(BaseModel):
     operational_kpi_evolution: List[InterDocumentKPITrend] = Field(default_factory=list)
     guidance_vs_projections: List[GuidanceVsProjection] = Field(default_factory=list)
 
+    # V2 Structured Evidence & Guidance Layer
+    evidence_items: List[DocumentEvidenceItem] = Field(default_factory=list)
+    management_guidance_items: List[ManagementGuidanceItem] = Field(default_factory=list)
+    source_documents_hash: Optional[str] = None
+    analysis_version: str = "2.0"
+    staleness_status: str = "fresh"
+    financial_business_model: str = "GENERAL_CORPORATE"
+
     # Backward-compatible properties / validators
     @model_validator(mode="before")
     @classmethod
@@ -445,6 +531,69 @@ class BusinessOutlookResult(BaseModel):
                     "what_to_watch_next": ["Upcoming quarterly operational metrics", "Capacity commissioning milestones"],
                     "investor_summary": f"Management execution is tracking as {verdict.lower()} based on verified filings and actual financial metrics."
                 }
+
+            # Bi-directional adapter: Evidence items -> legacy views and vice-versa
+            sym = values.get("symbol", "")
+            if not values.get("evidence_items"):
+                ev_list = []
+                idx = 0
+                for g in values.get("growth_drivers", []):
+                    idx += 1
+                    ev_list.append({
+                        "id": f"evi_{sym}_{idx}_{abs(hash(g.get('driver_title', '')))}",
+                        "symbol": sym,
+                        "evidence_type": "CAPACITY_EXPANSION" if "capacity" in g.get("driver_type", "").lower() else "GROWTH_DRIVER" if "growth" in g.get("driver_type", "").lower() else "CAPEX_PLAN",
+                        "title": g.get("driver_title", "Growth Driver"),
+                        "normalized_topic": g.get("driver_type", "Expansion"),
+                        "statement": g.get("description", ""),
+                        "source_document_type": "annual_report",
+                        "source_document_title": values.get("latest_document_period", "Filing"),
+                        "source_url": g.get("source_url") or "",
+                        "page": g.get("source_page"),
+                        "evidence_quote": g.get("source_quote"),
+                        "confidence": "HIGH" if g.get("confidence", 1.0) >= 0.8 else "MEDIUM",
+                        "status": "SUPPORTED"
+                    })
+                for p in values.get("promise_vs_delivery", []):
+                    idx += 1
+                    ev_list.append({
+                        "id": f"evi_{sym}_{idx}_{abs(hash(p.get('management_promise', '')))}",
+                        "symbol": sym,
+                        "evidence_type": "MANAGEMENT_GUIDANCE",
+                        "title": f"Guidance: {p.get('area', 'Metric')}",
+                        "normalized_topic": p.get("area", "Guidance"),
+                        "statement": p.get("management_promise", ""),
+                        "source_document_type": "annual_report",
+                        "source_document_title": p.get("promised_in_period", "Baseline Doc"),
+                        "source_url": p.get("source_url_promise") or "",
+                        "page": p.get("promise_source_page"),
+                        "evidence_quote": p.get("promise_quote"),
+                        "confidence": "HIGH" if p.get("confidence", 1.0) >= 0.8 else "MEDIUM",
+                        "status": "SUPPORTED"
+                    })
+                values["evidence_items"] = ev_list
+
+            if not values.get("management_guidance_items"):
+                guid_list = []
+                for p in values.get("promise_vs_delivery", []):
+                    st = p.get("status", "INSUFFICIENT_EVIDENCE")
+                    norm_st = (
+                        "MET" if st == "Delivered" else
+                        "MISSED" if st == "Missed" else
+                        "PARTIALLY_MET" if st == "Delayed" else
+                        "NOT_YET_DUE" if st == "In Progress" else
+                        "INSUFFICIENT_EVIDENCE"
+                    )
+                    guid_list.append({
+                        "metric_or_topic": p.get("area", "General"),
+                        "guidance_text": p.get("management_promise", ""),
+                        "target_period": p.get("promised_in_period", "Target Period"),
+                        "source_document_title": p.get("promised_in_period", "Filing"),
+                        "source_document_url": p.get("source_url_promise"),
+                        "status": norm_st,
+                        "comparison_detail": p.get("stocker_analysis") or p.get("financial_numbers_check")
+                    })
+                values["management_guidance_items"] = guid_list
         return values
 
 # Backward-compatible model aliases for engine and consumers

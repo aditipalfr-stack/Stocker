@@ -13,6 +13,7 @@ interface ManagementExecutionViewProps {
 
 export const ManagementExecutionView: React.FC<ManagementExecutionViewProps> = ({ docIntel, companyName }) => {
   const promiseVsDelivery = docIntel.promise_vs_delivery || [];
+  const managementGuidance = docIntel.management_guidance_items || [];
   const guidanceVsProj = docIntel.guidance_vs_projections || [];
   const verifiedFacts = docIntel.verified_facts || [];
   const capitalAlloc = docIntel.capital_allocation;
@@ -131,6 +132,84 @@ export const ManagementExecutionView: React.FC<ManagementExecutionViewProps> = (
           </div>
         )}
       </div>
+
+      {/* 1B. Structured Management Guidance & Verified Actuals */}
+      {managementGuidance.length > 0 && (
+        <div className="glass-panel rounded-3xl p-6 md:p-8 border border-slate-800 space-y-6">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-800 pb-4">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-2xl bg-cyan-500/20 text-cyan-400 flex items-center justify-center border border-cyan-500/30 shrink-0">
+                <Target className="w-5 h-5" />
+              </div>
+              <div>
+                <h4 className="text-base font-bold text-white flex items-center gap-2">
+                  <span>Structured Management Guidance & Verification</span>
+                  <span className="bg-slate-900 text-cyan-400 text-[10px] font-mono font-bold px-2 py-0.5 rounded-full border border-slate-800">
+                    {managementGuidance.length} tracked items
+                  </span>
+                </h4>
+                <p className="text-xs text-slate-400">Deterministic code comparison against audited financial statements and verified milestones</p>
+              </div>
+            </div>
+          </div>
+
+          <div className="space-y-4">
+            {managementGuidance.map((g, idx) => {
+              const statusBg =
+                g.status === 'MET' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30' :
+                g.status === 'PARTIALLY_MET' ? 'bg-amber-500/10 text-amber-400 border-amber-500/30' :
+                g.status === 'MISSED' ? 'bg-rose-500/10 text-rose-400 border-rose-500/30' :
+                g.status === 'NOT_YET_DUE' ? 'bg-cyan-500/10 text-cyan-400 border-cyan-500/30' :
+                'bg-slate-800 text-slate-400 border-slate-700';
+
+              return (
+                <div key={idx} className="bg-slate-950 p-5 rounded-2xl border border-slate-800 space-y-3 hover:border-slate-700 transition-all">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-900 pb-3">
+                    <div className="flex items-center gap-2.5">
+                      <span className="text-sm font-bold text-white">{g.metric_or_topic}</span>
+                      <span className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full border ${statusBg}`}>
+                        {g.status}
+                      </span>
+                    </div>
+                    <span className="text-xs text-slate-400 font-mono">Target: {g.target_period}</span>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="bg-slate-900/60 p-3.5 rounded-xl border border-slate-800/40 space-y-1.5">
+                      <div className="text-[11px] text-slate-400 font-semibold">Management Guidance:</div>
+                      <p className="text-xs text-slate-200 font-medium">"{g.guidance_text}"</p>
+                      {g.source_document_title && (
+                        <div className="text-[10px] text-slate-500 flex items-center gap-1 pt-1">
+                          <span>Source: {g.source_document_title}</span>
+                          {g.source_document_url && (
+                            <a href={g.source_document_url} target="_blank" rel="noopener noreferrer" className="text-cyan-400 hover:underline inline-flex items-center gap-0.5">
+                              <ExternalLink className="w-2.5 h-2.5" />
+                            </a>
+                          )}
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="bg-slate-900/60 p-3.5 rounded-xl border border-slate-800/40 space-y-1.5">
+                      <div className="text-[11px] text-slate-400 font-semibold">Reported Actual / Evaluation:</div>
+                      {g.actual_reported_value !== null && g.actual_reported_value !== undefined ? (
+                        <div className="text-sm font-mono font-bold text-emerald-400">
+                          {g.actual_reported_value} {g.unit || ''} ({g.actual_reported_period || g.target_period})
+                        </div>
+                      ) : (
+                        <div className="text-xs font-mono text-slate-400 italic">No exact quantitative line-item reported</div>
+                      )}
+                      {g.comparison_detail && (
+                        <p className="text-xs text-slate-300 pt-1">{g.comparison_detail}</p>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {/* 2. Management Guidance vs Stocker DCF Projections */}
       <div className="glass-panel rounded-3xl p-6 md:p-8 border border-slate-800 space-y-6">

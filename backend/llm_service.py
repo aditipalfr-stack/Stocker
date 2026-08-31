@@ -326,7 +326,39 @@ Output MUST be a valid JSON object matching this schema:
     "main_risks": ["Critical fundamental risks to monitor"],
     "what_to_watch_next": ["Specific milestones to watch in next 2-4 quarters"],
     "investor_summary": "Concise, plain-English summary for fundamental investors."
-  }
+  },
+  "evidence_items": [
+    {
+      "id": "evi_1",
+      "evidence_type": "MANAGEMENT_GUIDANCE" | "DEMAND_DRIVER" | "SUPPLY_DRIVER" | "CAPEX_PLAN" | "CAPACITY_EXPANSION" | "MARGIN_DRIVER" | "COST_PRESSURE" | "ORDER_BOOK" | "CUSTOMER_CONCENTRATION" | "GEOGRAPHIC_EXPOSURE" | "NEW_PRODUCT" | "REGULATORY_RISK" | "COMPETITIVE_RISK" | "CAPITAL_ALLOCATION" | "WORKING_CAPITAL_COMMENTARY" | "MANAGEMENT_COMMITMENT" | "KPI" | "OTHER_MATERIAL_EVIDENCE",
+      "title": "Short, clear title of this evidence item",
+      "normalized_topic": "Topic e.g. Loan Growth / Capex / Revenue / Margins / Asset Quality",
+      "statement": "Fact or claim directly extracted from filing",
+      "source_document_type": "annual_report" | "concall_transcript" | "presentation" | "announcement",
+      "source_document_title": "Document Title from chunk header",
+      "source_url": "Exact document URL",
+      "source_period": "FY26 / Q3 FY26",
+      "source_page": 12,
+      "evidence_quote": "Verbatim quote snippet proving claim",
+      "confidence": "HIGH" | "MEDIUM" | "LOW"
+    }
+  ],
+  "management_guidance_items": [
+    {
+      "metric_or_topic": "Revenue Growth / EBITDA Margin / Capex / Deposit Growth / Loan Growth",
+      "guidance_text": "Exact guidance text stated by management",
+      "quantified_value": 15.0,
+      "quantified_range_min": null,
+      "quantified_range_max": null,
+      "unit": "% / ₹ Cr / bps / GW",
+      "target_period": "FY26 / FY27 / Q4 FY26",
+      "direction": "GROWTH" | "MARGIN_EXPANSION" | "CAPEX" | "MAINTAIN" | "REDUCTION",
+      "source_document_title": "Document title where stated",
+      "source_document_url": "Exact document URL",
+      "source_date_or_period": "Q3 FY26 / FY25",
+      "confidence": "HIGH"
+    }
+  ]
 }
 """
 
@@ -653,7 +685,8 @@ def extract_document_intelligence_with_llm(
     pl_stmt: Optional[Any] = None,
     quarters_stmt: Optional[Any] = None,
     bs_stmt: Optional[Any] = None,
-    cf_stmt: Optional[Any] = None
+    cf_stmt: Optional[Any] = None,
+    financial_business_model: str = "GENERAL_CORPORATE"
 ) -> Tuple[bool, Optional[GenericDocumentIntelligenceResult], str]:
     """
     Synthesizes company-level fundamental research using:
@@ -719,6 +752,23 @@ def extract_document_intelligence_with_llm(
         older_text = format_pages_for_prompt(older_pages) if older_pages else "No older baseline document provided."
         excerpts_text = f"=== HISTORICAL BASELINE: {older_doc_title} (URL: {older_doc_url}) ===\n{older_text}\n\n=== LATEST CORPUS: {latest_doc_title} (URL: {latest_doc_url}) ===\n{latest_text}"
         
+    if financial_business_model == "BANK":
+        sector_instructions = """
+======================================================================
+BANK SECTOR-SPECIFIC INSTRUCTIONS:
+======================================================================
+This company is classified as a BANK / LENDING INSTITUTION.
+- Focus evidence extraction strictly on: Loan/Advances Growth, Deposit Growth, CASA Ratio, Asset Quality (Gross NPA, Net NPA, Slippages, PCR), Credit Cost / Provisions, Net Interest Margin (NIM), Cost-to-Income Ratio, Capital Adequacy (CRAR / Tier-1 Ratio), ROA, ROE, Branch network & Digital expansion.
+- DO NOT extract or interpret Industrial Free Cash Flow (FCF), Working Capital (Debtor Days / Inventory Days), or Capital Work in Progress (CWIP) for Banks.
+"""
+    else:
+        sector_instructions = """
+======================================================================
+CORPORATE SECTOR INSTRUCTIONS:
+======================================================================
+- Focus evidence extraction on: Revenue Drivers, Volume Growth, Pricing / Realization, Operating Margins (OPM / EBITDA), Capex & Capacity Additions, CWIP Commissioning, Working Capital & Debtor Days, Order Book / Pipeline, Customer Concentration, Geographic Mix, Capital Allocation.
+"""
+
     prompt = f"""Synthesize comprehensive, institutional fundamental equity research for company '{company_name}' ({symbol}).
 
 ======================================================================
@@ -735,7 +785,7 @@ def extract_document_intelligence_with_llm(
 3. VERIFIABLE PRIMARY TEXT EXCERPTS & QUOTES (From Official Filings)
 ======================================================================
 {excerpts_text}
-
+{sector_instructions}
 ======================================================================
 SYNTHESIS INSTRUCTIONS:
 ======================================================================
@@ -1021,6 +1071,50 @@ SYNTHESIS INSTRUCTIONS:
             result.guidance_vs_projections = [GuidanceVsProjection(**gp) for gp in knowledge_res.get("guidance_vs_projections", [])]
         except Exception as e_k:
             print(f"Notice: Knowledge verification engine error: {e_k}")
+
+        # 7. Document Evidence Items: Validate source URLs, titles, and verify pages
+        from doc_intelligence_models import DocumentEvidenceItem
+        sanitized_evidence: List[DocumentEvidenceItem] = []
+        for idx, ev in enumerate(result.evidence_items):
+            ev.symbol = symbol
+            s_url, matched_doc = _sanitize_citation(ev.source_url, ev.source_document_title)
+            if s_url:
+                ev.source_url = s_url
+                if matched_doc:
+                    ev.source_document_title = matched_doc
+                page_match = _verify_page(ev.source_url, ev.evidence_quote, f"{ev.title} {ev.statement}")
+                if page_match:
+                    ev.page = page_match
+                ev.status = "SUPPORTED"
+            else:
+                ev.source_url = ""
+                ev.status = "UNSUPPORTED"
+                ev.confidence = "LOW"
+            if not ev.id:
+                ev.id = f"evi_{symbol}_{idx+1}_{abs(hash(ev.title + ev.statement))}"
+            sanitized_evidence.append(ev)
+        result.evidence_items = sanitized_evidence
+
+        # 8. Management Guidance Items: Sanitize citations and evaluate deterministically
+        try:
+            from doc_intelligence_engine import evaluate_management_guidance_vs_actual
+            for g in result.management_guidance_items:
+                g_url, g_doc = _sanitize_citation(g.source_document_url, g.source_document_title)
+                if g_url:
+                    g.source_document_url = g_url
+                    if g_doc:
+                        g.source_document_title = g_doc
+            eval_guidance = evaluate_management_guidance_vs_actual(
+                guidance_items=result.management_guidance_items,
+                financial_statements={"profit_loss": pl_stmt, "quarters": quarters_stmt, "balance_sheet": bs_stmt, "cash_flow": cf_stmt},
+                knowledge_facts=all_facts if 'all_facts' in locals() else [],
+                business_model=financial_business_model
+            )
+            result.management_guidance_items = eval_guidance
+        except Exception as e_g:
+            print(f"Notice: Guidance evaluation engine error: {e_g}")
+
+        result.financial_business_model = financial_business_model
 
         return True, result, "Extraction succeeded"
     except AIServiceError:

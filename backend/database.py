@@ -321,6 +321,62 @@ def init_db() -> None:
                     computed_at TEXT NOT NULL
                 );
             """)
+
+            # 14. Document Evidence Items Repository (Phase 4 Business Analysis 2.0)
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS document_evidence_items (
+                    id TEXT PRIMARY KEY,
+                    symbol TEXT NOT NULL,
+                    evidence_type TEXT NOT NULL,
+                    title TEXT NOT NULL,
+                    normalized_topic TEXT NOT NULL,
+                    statement TEXT NOT NULL,
+                    source_document_type TEXT NOT NULL,
+                    source_document_title TEXT NOT NULL,
+                    source_url TEXT NOT NULL,
+                    source_period TEXT,
+                    source_date TEXT,
+                    page INTEGER,
+                    section TEXT,
+                    evidence_quote TEXT,
+                    extraction_method TEXT DEFAULT 'llm_structured_extraction',
+                    confidence TEXT DEFAULT 'HIGH',
+                    status TEXT DEFAULT 'SUPPORTED',
+                    created_at TEXT NOT NULL,
+                    evidence_json TEXT NOT NULL
+                );
+            """)
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_evidence_symbol ON document_evidence_items(symbol);")
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_evidence_type ON document_evidence_items(symbol, evidence_type);")
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_evidence_url ON document_evidence_items(source_url);")
+
+            # 15. Management Guidance Items Repository (Phase 4 Business Analysis 2.0)
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS management_guidance_items (
+                    id TEXT PRIMARY KEY,
+                    symbol TEXT NOT NULL,
+                    metric_or_topic TEXT NOT NULL,
+                    guidance_text TEXT NOT NULL,
+                    quantified_value REAL,
+                    quantified_range_min REAL,
+                    quantified_range_max REAL,
+                    unit TEXT,
+                    target_period TEXT NOT NULL,
+                    direction TEXT,
+                    source_document_title TEXT NOT NULL,
+                    source_document_url TEXT,
+                    source_date_or_period TEXT,
+                    confidence TEXT DEFAULT 'HIGH',
+                    status TEXT DEFAULT 'INSUFFICIENT_EVIDENCE',
+                    actual_reported_value REAL,
+                    actual_reported_period TEXT,
+                    actual_reported_source TEXT,
+                    comparison_detail TEXT,
+                    updated_at TEXT NOT NULL,
+                    guidance_json TEXT NOT NULL
+                );
+            """)
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_guidance_symbol ON management_guidance_items(symbol);")
     finally:
         conn.close()
 
@@ -834,6 +890,227 @@ def clear_company_knowledge_facts(symbol: str) -> None:
             conn.execute("DELETE FROM company_knowledge_facts WHERE symbol = ?", (clean_sym,))
     finally:
         conn.close()
+
+# ---------------------------------------------------------
+# DOCUMENT EVIDENCE & MANAGEMENT GUIDANCE HELPERS (PHASE 4)
+# ---------------------------------------------------------
+
+def save_document_evidence_items(symbol: str, items: List[Dict[str, Any]], clear_doc_urls: Optional[List[str]] = None) -> int:
+    """Persists structured document evidence items for a company."""
+    clean_sym = symbol.upper().strip()
+    if not items:
+        return 0
+    now_iso = datetime.now(timezone.utc).isoformat()
+    conn = get_db_connection()
+    inserted_count = 0
+    try:
+        with conn:
+            if clear_doc_urls:
+                for u in clear_doc_urls:
+                    conn.execute("DELETE FROM document_evidence_items WHERE symbol = ? AND source_url = ?", (clean_sym, u))
+            for item in items:
+                item_dict = dict(item) if not isinstance(item, dict) else item.copy()
+                evi_id = str(item_dict.get("id") or f"evi_{clean_sym}_{abs(hash(str(item_dict.get('title', '')) + str(item_dict.get('statement', ''))))}")
+                item_dict["id"] = evi_id
+                item_dict["symbol"] = clean_sym
+                if not item_dict.get("created_at"):
+                    item_dict["created_at"] = now_iso
+                
+                conn.execute("""
+                    INSERT INTO document_evidence_items (
+                        id, symbol, evidence_type, title, normalized_topic, statement,
+                        source_document_type, source_document_title, source_url, source_period,
+                        source_date, page, section, evidence_quote, extraction_method,
+                        confidence, status, created_at, evidence_json
+                    )
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    ON CONFLICT(id) DO UPDATE SET
+                        evidence_type = excluded.evidence_type,
+                        title = excluded.title,
+                        normalized_topic = excluded.normalized_topic,
+                        statement = excluded.statement,
+                        source_document_type = excluded.source_document_type,
+                        source_document_title = excluded.source_document_title,
+                        source_url = excluded.source_url,
+                        source_period = excluded.source_period,
+                        source_date = excluded.source_date,
+                        page = excluded.page,
+                        section = excluded.section,
+                        evidence_quote = excluded.evidence_quote,
+                        extraction_method = excluded.extraction_method,
+                        confidence = excluded.confidence,
+                        status = excluded.status,
+                        created_at = excluded.created_at,
+                        evidence_json = excluded.evidence_json
+                """, (
+                    evi_id,
+                    clean_sym,
+                    item_dict.get("evidence_type", "OTHER_MATERIAL_EVIDENCE"),
+                    item_dict.get("title", ""),
+                    item_dict.get("normalized_topic", "General"),
+                    item_dict.get("statement", ""),
+                    item_dict.get("source_document_type", "annual_report"),
+                    item_dict.get("source_document_title", ""),
+                    item_dict.get("source_url", ""),
+                    item_dict.get("source_period"),
+                    item_dict.get("source_date"),
+                    item_dict.get("page"),
+                    item_dict.get("section"),
+                    item_dict.get("evidence_quote"),
+                    item_dict.get("extraction_method", "llm_structured_extraction"),
+                    item_dict.get("confidence", "HIGH"),
+                    item_dict.get("status", "SUPPORTED"),
+                    item_dict.get("created_at", now_iso),
+                    json.dumps(item_dict, default=_db_json_serializer)
+                ))
+                inserted_count += 1
+        return inserted_count
+    finally:
+        conn.close()
+
+def get_document_evidence_items(symbol: str, evidence_type: Optional[str] = None) -> List[Dict[str, Any]]:
+    """Retrieves persistent document evidence items for a symbol."""
+    clean_sym = symbol.upper().strip()
+    conn = get_db_connection()
+    try:
+        cur = conn.cursor()
+        query = "SELECT * FROM document_evidence_items WHERE symbol = ?"
+        params = [clean_sym]
+        if evidence_type:
+            query += " AND evidence_type = ?"
+            params.append(evidence_type)
+        query += " ORDER BY id ASC"
+        cur.execute(query, tuple(params))
+        rows = cur.fetchall()
+        results = []
+        for r in rows:
+            try:
+                item = json.loads(r["evidence_json"])
+            except Exception:
+                item = dict(r)
+            results.append(item)
+        return results
+    finally:
+        conn.close()
+
+def save_management_guidance_items(symbol: str, items: List[Dict[str, Any]]) -> int:
+    """Persists structured management guidance items for a company."""
+    clean_sym = symbol.upper().strip()
+    if not items:
+        return 0
+    now_iso = datetime.now(timezone.utc).isoformat()
+    conn = get_db_connection()
+    inserted_count = 0
+    try:
+        with conn:
+            # Overwrite guidance items for this symbol to reflect latest evaluation state
+            conn.execute("DELETE FROM management_guidance_items WHERE symbol = ?", (clean_sym,))
+            for idx, item in enumerate(items):
+                item_dict = dict(item) if not isinstance(item, dict) else item.copy()
+                g_id = str(item_dict.get("id") or f"guid_{clean_sym}_{idx}_{abs(hash(str(item_dict.get('metric_or_topic', '')) + str(item_dict.get('target_period', ''))))}")
+                item_dict["id"] = g_id
+                item_dict["symbol"] = clean_sym
+                item_dict["updated_at"] = now_iso
+                
+                conn.execute("""
+                    INSERT INTO management_guidance_items (
+                        id, symbol, metric_or_topic, guidance_text, quantified_value,
+                        quantified_range_min, quantified_range_max, unit, target_period,
+                        direction, source_document_title, source_document_url, source_date_or_period,
+                        confidence, status, actual_reported_value, actual_reported_period,
+                        actual_reported_source, comparison_detail, updated_at, guidance_json
+                    )
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """, (
+                    g_id,
+                    clean_sym,
+                    item_dict.get("metric_or_topic", ""),
+                    item_dict.get("guidance_text", ""),
+                    item_dict.get("quantified_value"),
+                    item_dict.get("quantified_range_min"),
+                    item_dict.get("quantified_range_max"),
+                    item_dict.get("unit"),
+                    item_dict.get("target_period", ""),
+                    item_dict.get("direction"),
+                    item_dict.get("source_document_title", ""),
+                    item_dict.get("source_document_url"),
+                    item_dict.get("source_date_or_period"),
+                    item_dict.get("confidence", "HIGH"),
+                    item_dict.get("status", "INSUFFICIENT_EVIDENCE"),
+                    item_dict.get("actual_reported_value"),
+                    item_dict.get("actual_reported_period"),
+                    item_dict.get("actual_reported_source"),
+                    item_dict.get("comparison_detail"),
+                    now_iso,
+                    json.dumps(item_dict, default=_db_json_serializer)
+                ))
+                inserted_count += 1
+        return inserted_count
+    finally:
+        conn.close()
+
+def get_management_guidance_items(symbol: str) -> List[Dict[str, Any]]:
+    """Retrieves persistent management guidance items for a symbol."""
+    clean_sym = symbol.upper().strip()
+    conn = get_db_connection()
+    try:
+        cur = conn.cursor()
+        cur.execute("SELECT * FROM management_guidance_items WHERE symbol = ? ORDER BY id ASC", (clean_sym,))
+        rows = cur.fetchall()
+        results = []
+        for r in rows:
+            try:
+                item = json.loads(r["guidance_json"])
+            except Exception:
+                item = dict(r)
+            results.append(item)
+        return results
+    finally:
+        conn.close()
+
+def compute_source_documents_hash(docs: List[Any]) -> str:
+    """Computes a deterministic SHA256 hash of a list of documents or document dicts."""
+    if not docs:
+        return "empty"
+    urls = []
+    for d in docs:
+        if isinstance(d, dict):
+            u = d.get("url") or d.get("link") or ""
+            t = d.get("title") or ""
+            p = d.get("period") or d.get("period_or_date") or ""
+        else:
+            u = getattr(d, "url", "")
+            t = getattr(d, "title", "")
+            p = getattr(d, "period_or_date", "") or getattr(d, "period", "")
+        if u:
+            urls.append(f"{u}|{t}|{p}")
+    urls.sort()
+    combined = "\n".join(urls)
+    import hashlib
+    return hashlib.sha256(combined.encode("utf-8")).hexdigest()[:16]
+
+def check_business_analysis_staleness(symbol: str, current_docs: Optional[List[Any]] = None) -> Tuple[bool, str]:
+    """
+    Checks whether the cached Business Analysis for symbol is stale.
+    Returns (is_stale, reason).
+    """
+    clean_sym = symbol.upper().strip()
+    cached = get_cached_ai_analysis(clean_sym)
+    if not cached:
+        return True, "not_analyzed"
+    
+    saved_hash = cached.get("source_documents_hash")
+    if current_docs is not None:
+        curr_hash = compute_source_documents_hash(current_docs)
+        if saved_hash and saved_hash != curr_hash:
+            return True, f"source_documents_changed (saved={saved_hash}, current={curr_hash})"
+    
+    # Check if analysis version changed
+    analysis_ver = cached.get("analysis_version", "1.0")
+    if analysis_ver != "2.0":
+        return True, f"schema_version_upgrade (saved={analysis_ver}, current=2.0)"
+        
+    return False, "fresh"
 
 # ---------------------------------------------------------
 # COMPANY REGISTRY & UNIVERSE HELPERS

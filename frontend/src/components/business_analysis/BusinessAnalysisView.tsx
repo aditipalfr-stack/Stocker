@@ -146,6 +146,12 @@ export const BusinessAnalysisView: React.FC<BusinessAnalysisViewProps> = ({
                     <span className="bg-slate-900 text-slate-300 border border-slate-800 text-[11px] font-mono font-medium px-2.5 py-0.5 rounded-full">
                       Model: {docIntel?.model_version || docIntel?.ai_provider_used || 'GEMINI'}
                     </span>
+                    {docIntel?.staleness_status === 'stale' && (
+                      <span className="bg-amber-500/10 text-amber-400 border border-amber-500/20 text-[11px] font-semibold px-2.5 py-0.5 rounded-full flex items-center gap-1">
+                        <AlertTriangle className="w-3 h-3 text-amber-400" />
+                        Filings Updated (Analysis Stale)
+                      </span>
+                    )}
                     {formattedTime && (
                       <span className="bg-slate-900 text-slate-300 border border-slate-800 text-[11px] font-mono font-medium px-2.5 py-0.5 rounded-full flex items-center gap-1.5">
                         <Clock className="w-3 h-3 text-cyan-400" />
