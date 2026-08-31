@@ -71,9 +71,9 @@ def compute_stock_score(
     # -------------------------------------------------------------------------
     if is_banking:
         # For banks, evaluate ROE quality & ROA stability
-        if roe >= 16.0: cash_score = 85.0
-        elif roe >= 12.0: cash_score = 70.0
-        elif roe >= 8.0: cash_score = 55.0
+        if roe is not None and roe >= 16.0: cash_score = 85.0
+        elif roe is not None and roe >= 12.0: cash_score = 70.0
+        elif roe is not None and roe >= 8.0: cash_score = 55.0
         else: cash_score = 40.0
     else:
         cash_score = 0.0

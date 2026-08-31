@@ -11,6 +11,7 @@ Zero-cost, persistent, embedded SQL database caching:
 import sqlite3
 import json
 import os
+import re
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Dict, Any, List, Optional, Tuple
@@ -904,6 +905,71 @@ def get_company_by_symbol(symbol: str) -> Optional[Dict[str, Any]]:
     finally:
         conn.close()
 
+def get_company_by_name(company_name: str) -> Optional[Dict[str, Any]]:
+    """Retrieves a single company identity by exact company name (case-insensitive)."""
+    clean_name = company_name.strip()
+    if not clean_name:
+        return None
+    conn = get_db_connection()
+    try:
+        cur = conn.cursor()
+        cur.execute("""
+            SELECT * FROM company_registry 
+            WHERE company_name = ? COLLATE NOCASE
+            LIMIT 1
+        """, (clean_name,))
+        row = cur.fetchone()
+        if row:
+            res = dict(row)
+            try:
+                res["aliases"] = json.loads(res.get("aliases") or "[]")
+            except Exception:
+                res["aliases"] = []
+            res["is_active"] = bool(res.get("is_active"))
+            res["in_universe"] = bool(res.get("in_universe"))
+            return res
+        return None
+    finally:
+        conn.close()
+
+def get_company_by_bse_code(bse_code: str) -> Optional[Dict[str, Any]]:
+    """Retrieves a single company identity by BSE security code."""
+    clean_bse = str(bse_code or "").strip()
+    if not clean_bse:
+        return None
+    conn = get_db_connection()
+    try:
+        cur = conn.cursor()
+        cur.execute("""
+            SELECT * FROM company_registry 
+            WHERE bse_code = ?
+            LIMIT 1
+        """, (clean_bse,))
+        row = cur.fetchone()
+        if row:
+            res = dict(row)
+            try:
+                res["aliases"] = json.loads(res.get("aliases") or "[]")
+            except Exception:
+                res["aliases"] = []
+            res["is_active"] = bool(res.get("is_active"))
+            res["in_universe"] = bool(res.get("in_universe"))
+            return res
+        return None
+    finally:
+        conn.close()
+
+def get_company_registry_total_count() -> int:
+    """Returns the total count of all registered companies regardless of active/universe state."""
+    conn = get_db_connection()
+    try:
+        cur = conn.cursor()
+        cur.execute("SELECT COUNT(*) FROM company_registry")
+        row = cur.fetchone()
+        return row[0] if row else 0
+    finally:
+        conn.close()
+
 def get_universe_companies(active_only: bool = True) -> List[Dict[str, Any]]:
     """Retrieves all companies currently enrolled in the Stocker universe."""
     conn = get_db_connection()
@@ -959,6 +1025,7 @@ def set_company_universe_status(symbol: str, in_universe: bool = True, is_active
 def search_local_registry(query: str, limit: int = 20) -> List[Dict[str, Any]]:
     """
     Searches the local SQLite company registry across symbol, company_name, and aliases.
+    Supports exact, prefix, substring, and multi-word token queries.
     """
     clean_q = query.strip()
     if not clean_q:
@@ -968,9 +1035,28 @@ def search_local_registry(query: str, limit: int = 20) -> List[Dict[str, Any]]:
     try:
         cur = conn.cursor()
         pattern = f"%{clean_q}%"
-        cur.execute("""
+        
+        # Extract alphanumeric search tokens (omitting common noise words)
+        tokens = [
+            t for t in re.split(r"[\s\(\),.-]+", clean_q) 
+            if len(t) >= 3 and t.lower() not in {"ltd", "limited", "pvt", "private", "corp", "corporation", "inc", "co", "the", "and", "india"}
+        ]
+        
+        token_clauses = []
+        token_params = [pattern, pattern, pattern, pattern, pattern]
+        for t in tokens:
+            token_clauses.append("(company_name LIKE ? OR aliases LIKE ? OR symbol LIKE ?)")
+            token_params.extend([f"%{t}%", f"%{t}%", f"%{t}%"])
+            
+        where_sql = "symbol LIKE ? OR company_name LIKE ? OR nse_symbol LIKE ? OR aliases LIKE ? OR bse_code LIKE ?"
+        if token_clauses:
+            where_sql += " OR " + " OR ".join(token_clauses)
+            
+        order_params = [clean_q, clean_q, clean_q, f"{clean_q}%", f"{clean_q}%", limit]
+        
+        cur.execute(f"""
             SELECT * FROM company_registry
-            WHERE symbol LIKE ? OR company_name LIKE ? OR nse_symbol LIKE ? OR aliases LIKE ? OR bse_code LIKE ?
+            WHERE {where_sql}
             ORDER BY 
                 CASE 
                     WHEN symbol = ? COLLATE NOCASE THEN 1
@@ -982,12 +1068,7 @@ def search_local_registry(query: str, limit: int = 20) -> List[Dict[str, Any]]:
                 END,
                 symbol ASC
             LIMIT ?
-        """, (
-            pattern, pattern, pattern, pattern, pattern,
-            clean_q, clean_q, clean_q,
-            f"{clean_q}%", f"{clean_q}%",
-            limit
-        ))
+        """, tuple(token_params + order_params))
         rows = cur.fetchall()
         results = []
         for r in rows:

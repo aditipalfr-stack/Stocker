@@ -70,15 +70,28 @@ def extract_symbol_from_url_slug(url_slug: str) -> Optional[str]:
         return normalize_symbol(raw_sym)
     return None
 
+def normalize_company_title(name: str) -> str:
+    """Normalizes company title by stripping corporate legal entity noise and punctuation."""
+    if not name:
+        return ""
+    clean = name.lower()
+    # remove legal suffixes & geographical qualifiers
+    clean = re.sub(r"\b(limited|ltd|pvt|private|corporation|corp|inc|incorporated|holdings|holding|india|co)\b", "", clean)
+    clean = re.sub(r"[^a-z0-9\s]", " ", clean)
+    clean = re.sub(r"\s+", " ", clean).strip()
+    return clean
+
 def calculate_match_score(query: str, candidate: Dict[str, Any]) -> int:
     """
     Calculates match quality score (0 - 100) based on ranking preference:
     1. Exact NSE symbol / symbol match (100)
     2. Exact company name match (90)
-    3. Symbol prefix match (80)
-    4. Exact alias match (75)
-    5. Company name prefix match (70)
-    6. Substring / partial match on name or aliases (50 - 65)
+    3. Normalized company title match (95)
+    4. Exact alias match or Popular Search Query Alias match (85)
+    5. Symbol Prefix match (80)
+    6. Company Name Prefix match (70)
+    7. Word-boundary / token overlap match (65 - 88)
+    8. Substring in Symbol or Name (50 - 60)
     """
     q = query.strip().lower()
     if not q:
@@ -108,32 +121,47 @@ def calculate_match_score(query: str, candidate: Dict[str, Any]) -> int:
     if q == name:
         return 90
         
-    # 3. Exact Alias match or Popular Search Query Alias match (Direct user intention e.g. 'RIL' -> RELIANCE)
+    # 3. Normalized Title Match (e.g. "Colgate-Palmolive (India) Ltd" vs "Colgate-Palmolive (India) Limited")
+    norm_q = normalize_company_title(query)
+    norm_name = normalize_company_title(name)
+    if norm_q and norm_name:
+        if norm_q == norm_name:
+            return 95
+        q_tokens = set(norm_q.split())
+        name_tokens = set(norm_name.split())
+        if q_tokens and name_tokens:
+            overlap = q_tokens.intersection(name_tokens)
+            if len(overlap) == len(q_tokens) or len(overlap) == len(name_tokens):
+                return 88
+            elif len(overlap) >= 1 and (len(overlap) / max(len(q_tokens), len(name_tokens))) >= 0.5:
+                return 75
+
+    # 4. Exact Alias match or Popular Search Query Alias match (Direct user intention e.g. 'RIL' -> RELIANCE)
     if q in aliases_lower or (expanded_target and (sym == expanded_target or nse == expanded_target)):
         return 85
 
-    # 4. Symbol Prefix match
+    # 5. Symbol Prefix match
     if sym.startswith(q) or (nse and nse.startswith(q)):
         return 80
         
-    # 5. Company Name Prefix match
+    # 6. Company Name Prefix match
     if name.startswith(q):
         return 70
         
-    # 6. Word-boundary / prefix in company name words (e.g. 'Airtel' in 'Bharti Airtel Limited')
+    # 7. Word-boundary / prefix in company name words (e.g. 'Airtel' in 'Bharti Airtel Limited')
     words = name.split()
     if any(w.startswith(q) for w in words):
         return 65
         
-    # 7. Substring in Symbol
+    # 8. Substring in Symbol
     if q in sym or (nse and q in nse):
         return 60
         
-    # 8. Substring in Company Name
+    # 9. Substring in Company Name
     if q in name:
         return 55
         
-    # 9. Substring in any alias
+    # 10. Substring in any alias
     if any(q in a for a in aliases_lower):
         return 50
         
@@ -171,7 +199,6 @@ def search_screener_company_discovery(query: str) -> List[Dict[str, Any]]:
                     if not sym:
                         continue
                         
-                    # Screener internal 'id' is NOT an exchange BSE code. Keep bse_code, isin, nse_symbol, exchange None.
                     candidates.append({
                         "symbol": sym,
                         "company_name": name or sym,
@@ -233,10 +260,15 @@ def resolve_and_search_companies(query: str, limit: int = 10) -> List[Dict[str, 
         external_results = search_screener_company_discovery(clean_q)
         for ext in external_results:
             sym = ext.get("symbol", "").upper().strip()
+            name = ext.get("company_name", "")
             if sym and sym not in seen_symbols:
                 seen_symbols.add(sym)
-                # Check if it exists in local DB under another query form
-                db_item = database.get_company_by_symbol(sym)
+                # Check if it exists in local DB under canonical symbol, BSE code, or name
+                db_item = (
+                    database.get_company_by_symbol(sym) or 
+                    (database.get_company_by_bse_code(sym) if sym.isdigit() else None) or
+                    database.get_company_by_name(name)
+                )
                 if db_item:
                     db_item["already_added"] = bool(db_item.get("in_universe") and db_item.get("is_active"))
                     db_item["source"] = db_item.get("source") or "local"

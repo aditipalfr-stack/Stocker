@@ -28,7 +28,8 @@ from models import (
     ProjectionResult, ScoreBreakdown, DocumentLinks,
     CompanyRegistryItem, CompanySearchResult, CompanySearchResponse,
     AddCompanyRequest, AddCompanyResponse,
-    FinancialVerificationItem, FinancialVerificationSummary, FinancialVerificationResponse
+    FinancialVerificationItem, FinancialVerificationSummary, FinancialVerificationResponse,
+    ResearchLifecycleStatus, DiscoverFilingsResponse
 )
 import database
 from data_seed import DEFAULT_UNIVERSE_SYMBOLS
@@ -38,6 +39,7 @@ from projection_engine import run_projections
 from ranking_engine import compute_stock_score
 from company_resolver import resolve_and_search_companies, resolve_canonical_company, normalize_symbol
 from official_financial_service import run_official_financial_verification
+from research_lifecycle_service import get_research_lifecycle_status
 
 app = FastAPI(
     title="Stocker - Fundamental Stock Analysis & Decision Engine",
@@ -138,15 +140,17 @@ def get_all_stocks(sector: Optional[str] = None, min_score: Optional[float] = No
     # 1. Retrieve persistent universe symbols strictly from database registry (in_universe=1 AND is_active=1)
     universe_symbols = database.get_universe_symbols(active_only=True)
     
-    # Bootstrap fallback ONLY if registry is completely empty
+    # Bootstrap fallback ONLY if registry has NEVER been initialized (0 total registered companies)
     if not universe_symbols:
-        try:
-            database.seed_company_registry()
-            universe_symbols = database.get_universe_symbols(active_only=True)
-        except Exception:
-            pass
-        if not universe_symbols:
-            universe_symbols = list(DEFAULT_UNIVERSE_SYMBOLS)
+        total_registry_count = database.get_company_registry_total_count()
+        if total_registry_count == 0:
+            try:
+                database.seed_company_registry()
+                universe_symbols = database.get_universe_symbols(active_only=True)
+            except Exception:
+                pass
+            if not universe_symbols:
+                universe_symbols = list(DEFAULT_UNIVERSE_SYMBOLS)
             
     details = []
     for sym in universe_symbols:
@@ -201,7 +205,7 @@ def get_all_stocks(sector: Optional[str] = None, min_score: Optional[float] = No
     return results
 
 # =============================================================================
-# COMPANY REGISTRY & SEARCH / ADD APIS (PHASE A)
+# COMPANY REGISTRY & SEARCH / ADD APIS (PHASE A & V4.1)
 # =============================================================================
 
 @app.get("/api/companies/search", response_model=CompanySearchResponse)
@@ -254,6 +258,9 @@ def execute_add_company_to_universe(symbol_or_query: str) -> AddCompanyResponse:
     industry = stock_data.get("industry") or canonical_info.get("industry") or "Indian Equities"
     real_name = stock_data.get("name") or company_name
     
+    from scraper import serialize_stock_data
+    database.save_stock_cache(canonical_sym, real_name, sector, industry, serialize_stock_data(stock_data))
+    
     database.upsert_company_registry_item({
         "symbol": canonical_sym,
         "company_name": real_name,
@@ -270,6 +277,7 @@ def execute_add_company_to_universe(symbol_or_query: str) -> AddCompanyResponse:
     })
     
     detail = build_full_stock_detail(stock_data)
+    research_status = get_research_lifecycle_status(canonical_sym)
     
     msg = (
         f"Successfully refreshed financial data for {real_name} ({canonical_sym})"
@@ -283,7 +291,8 @@ def execute_add_company_to_universe(symbol_or_query: str) -> AddCompanyResponse:
         symbol=canonical_sym,
         company_name=real_name,
         already_existed=already_existed,
-        stock=detail
+        stock=detail,
+        research_status=research_status
     )
 
 @app.post("/api/companies/{symbol}/add", response_model=AddCompanyResponse)
@@ -297,9 +306,56 @@ def add_company_to_universe_by_path(symbol: str):
 @app.post("/api/companies/add", response_model=AddCompanyResponse)
 def add_company_to_universe_by_body(req: AddCompanyRequest):
     """
-    Enrolls a company in the active Stocker universe by symbol in request body.
+    Enrolls a company in the active Stocker universe by query or symbol in request body.
     """
-    return execute_add_company_to_universe(req.symbol)
+    target = req.query or req.symbol
+    if not target:
+        raise HTTPException(status_code=400, detail="Either 'query' or 'symbol' must be provided in request body.")
+    return execute_add_company_to_universe(target)
+
+@app.get("/api/stocks/{symbol}/research-status", response_model=ResearchLifecycleStatus)
+def get_stock_research_status(symbol: str):
+    """
+    Returns the canonical research lifecycle status for a company across all 8 dimensions
+    defined in docs/STOCKER_ENGINEERING_CONTRACT.md.
+    """
+    clean_sym = symbol.upper().strip()
+    return get_research_lifecycle_status(clean_sym)
+
+@app.post("/api/stocks/{symbol}/discover-filings", response_model=DiscoverFilingsResponse)
+def discover_stock_filings(symbol: str):
+    """
+    Executes explicit document discovery waterfall (BSE, NSE, Company IR, network validation),
+    indexes metadata into source_documents table, and updates sync state without running AI.
+    """
+    from datetime import datetime, timezone
+    clean_sym = symbol.upper().strip()
+    company_name = clean_sym
+    reg = database.get_company_by_symbol(clean_sym)
+    if reg:
+        company_name = reg.get("company_name", clean_sym)
+    else:
+        cached = database.get_stock_cache(clean_sym)
+        if cached:
+            company_name = cached.get("company_name", clean_sym)
+            
+    from document_sourcing import execute_document_sourcing_waterfall
+    execute_document_sourcing_waterfall(clean_sym, company_name)
+    
+    db_docs = database.get_source_documents(clean_sym)
+    filing_count = len(db_docs) if db_docs else 0
+    now_iso = datetime.now(timezone.utc).isoformat()
+    
+    database.update_document_sync_state(clean_sym, category="all", checked_at=now_iso)
+    lifecycle_status = get_research_lifecycle_status(clean_sym)
+    
+    return DiscoverFilingsResponse(
+        symbol=clean_sym,
+        company_name=company_name,
+        filing_count=filing_count,
+        documents_checked_at=now_iso,
+        research_status=lifecycle_status
+    )
 
 @app.get("/api/companies", response_model=List[CompanyRegistryItem])
 def get_registered_companies(active_only: bool = False):

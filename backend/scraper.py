@@ -103,20 +103,21 @@ def parse_screener_table(soup: BeautifulSoup, section_id: str) -> Optional[Finan
 
 def parse_screener_ratios(soup: BeautifulSoup) -> KeyRatios:
     ratios_dict = {
-        "market_cap_cr": 0.0,
-        "current_price": 0.0,
+        "market_cap_cr": None,
+        "current_price": None,
         "high_low": "",
-        "stock_pe": 0.0,
-        "book_value": 0.0,
-        "dividend_yield_pct": 0.0,
-        "roce_pct": 0.0,
-        "roe_pct": 0.0,
-        "face_value": 1.0,
-        "debt_to_equity": 0.0,
-        "interest_coverage": 0.0,
-        "fcf_yield_pct": 0.0,
-        "sales_growth_3yr_cagr": 0.0,
-        "profit_growth_3yr_cagr": 0.0
+        "stock_pe": None,
+        "book_value": None,
+        "dividend_yield_pct": None,
+        "roce_pct": None,
+        "roe_pct": None,
+        "face_value": None,
+        "industry_pe": None,
+        "debt_to_equity": None,
+        "interest_coverage": None,
+        "fcf_yield_pct": None,
+        "sales_growth_3yr_cagr": None,
+        "profit_growth_3yr_cagr": None
     }
     
     top_ratios = soup.find("ul", {"id": "top-ratios"})
@@ -128,32 +129,54 @@ def parse_screener_ratios(soup: BeautifulSoup) -> KeyRatios:
                 name = name_el.text.strip().lower()
                 val_text = val_el.text.strip()
                 if "market cap" in name:
-                    ratios_dict["market_cap_cr"] = parse_num(val_text) or 0.0
+                    ratios_dict["market_cap_cr"] = parse_num(val_text)
                 elif "current price" in name:
-                    ratios_dict["current_price"] = parse_num(val_text) or 0.0
+                    ratios_dict["current_price"] = parse_num(val_text)
                 elif "high / low" in name:
                     ratios_dict["high_low"] = val_text
                 elif "stock p/e" in name:
-                    ratios_dict["stock_pe"] = parse_num(val_text) or 0.0
+                    ratios_dict["stock_pe"] = parse_num(val_text)
                 elif "book value" in name:
-                    ratios_dict["book_value"] = parse_num(val_text) or 0.0
+                    ratios_dict["book_value"] = parse_num(val_text)
                 elif "dividend yield" in name:
-                    ratios_dict["dividend_yield_pct"] = parse_num(val_text) or 0.0
+                    ratios_dict["dividend_yield_pct"] = parse_num(val_text)
                 elif "roce" in name:
-                    ratios_dict["roce_pct"] = parse_num(val_text) or 0.0
+                    ratios_dict["roce_pct"] = parse_num(val_text)
                 elif "roe" in name:
-                    ratios_dict["roe_pct"] = parse_num(val_text) or 0.0
+                    ratios_dict["roe_pct"] = parse_num(val_text)
                 elif "face value" in name:
-                    ratios_dict["face_value"] = parse_num(val_text) or 1.0
+                    ratios_dict["face_value"] = parse_num(val_text)
                 elif "debt to equity" in name:
-                    ratios_dict["debt_to_equity"] = parse_num(val_text) or 0.0
+                    ratios_dict["debt_to_equity"] = parse_num(val_text)
                     
     return KeyRatios(**ratios_dict)
 
-from document_sourcing import execute_document_sourcing_waterfall
-
-def parse_screener_documents(soup: BeautifulSoup, symbol: str, source_url: str, company_name: str = "") -> DocumentLinks:
-    return execute_document_sourcing_waterfall(symbol, company_name or symbol, screener_soup=soup)
+def parse_screener_documents(soup: BeautifulSoup, symbol: str, source_url: str = "", company_name: str = "") -> DocumentLinks:
+    """
+    Extracts lightweight document links directly from Screener HTML WITHOUT invoking
+    the expensive external discovery waterfall (BSE, NSE, Company IR, network validation).
+    Full external discovery is performed explicitly via /api/stocks/{symbol}/discover-filings.
+    """
+    clean_sym = symbol.upper().strip()
+    from document_sourcing import discover_documents_screener
+    try:
+        screener_docs = discover_documents_screener(soup, clean_sym, company_name or clean_sym)
+    except Exception as e:
+        print(f"Notice: Screener document extraction note for {clean_sym}: {e}")
+        screener_docs = []
+        
+    doc_links = DocumentLinks()
+    for d in screener_docs:
+        dt = (d.doc_type or "").lower()
+        if "annual" in dt:
+            doc_links.annual_reports.append(d)
+        elif "concall" in dt:
+            doc_links.concalls.append(d)
+        elif "presentation" in dt:
+            doc_links.presentations.append(d)
+        elif "announcement" in dt:
+            doc_links.material_announcements.append(d)
+    return doc_links
 
 def fetch_screener_html(symbol: str) -> Optional[Tuple[str, str, str]]:
     """
@@ -299,25 +322,32 @@ def hydrate_stock_data(cached_dict: Dict[str, Any]) -> Dict[str, Any]:
 
 def serialize_stock_data(stock_data: Dict[str, Any]) -> Dict[str, Any]:
     """Serializes stock data dictionary to clean JSON-serializable structure."""
+    docs = stock_data.get("documents")
+    ratios = stock_data.get("ratios")
+    quarters = stock_data.get("quarters")
+    profit_loss = stock_data.get("profit_loss") or stock_data.get("profit_and_loss")
+    balance_sheet = stock_data.get("balance_sheet")
+    cash_flow = stock_data.get("cash_flow")
+    
     return {
-        "symbol": stock_data["symbol"],
-        "name": stock_data["name"],
-        "sector": stock_data["sector"],
-        "industry": stock_data["industry"],
-        "about": stock_data["about"],
+        "symbol": stock_data.get("symbol", ""),
+        "name": stock_data.get("name", ""),
+        "sector": stock_data.get("sector", "Broad Market"),
+        "industry": stock_data.get("industry", "Indian Equities"),
+        "about": stock_data.get("about", ""),
         "source_name": stock_data.get("source_name", "Screener.in"),
         "source_url": stock_data.get("source_url", ""),
         "statement_type": stock_data.get("statement_type", "consolidated"),
         "fetched_at": stock_data.get("fetched_at", ""),
-        "documents_checked_at": stock_data.get("documents_checked_at") or database.get_document_sources_checked_at(stock_data["symbol"]),
-        "ratios": stock_data["ratios"].model_dump() if hasattr(stock_data["ratios"], "model_dump") else stock_data["ratios"],
-        "quarters": stock_data["quarters"].model_dump() if hasattr(stock_data["quarters"], "model_dump") else stock_data["quarters"],
-        "profit_loss": stock_data["profit_loss"].model_dump() if hasattr(stock_data["profit_loss"], "model_dump") else stock_data["profit_loss"],
-        "balance_sheet": stock_data["balance_sheet"].model_dump() if hasattr(stock_data["balance_sheet"], "model_dump") else stock_data["balance_sheet"],
-        "cash_flow": stock_data["cash_flow"].model_dump() if hasattr(stock_data["cash_flow"], "model_dump") else stock_data["cash_flow"],
+        "documents_checked_at": stock_data.get("documents_checked_at") or database.get_document_sources_checked_at(stock_data.get("symbol", "")),
+        "ratios": ratios.model_dump() if hasattr(ratios, "model_dump") else ratios,
+        "quarters": quarters.model_dump() if hasattr(quarters, "model_dump") else quarters,
+        "profit_loss": profit_loss.model_dump() if hasattr(profit_loss, "model_dump") else profit_loss,
+        "balance_sheet": balance_sheet.model_dump() if hasattr(balance_sheet, "model_dump") else balance_sheet,
+        "cash_flow": cash_flow.model_dump() if hasattr(cash_flow, "model_dump") else cash_flow,
         "concall_insights": [c.model_dump() if hasattr(c, "model_dump") else c for c in stock_data.get("concall_insights", [])],
         "annual_report_insights": [a.model_dump() if hasattr(a, "model_dump") else a for a in stock_data.get("annual_report_insights", [])],
-        "documents": stock_data["documents"].model_dump() if hasattr(stock_data["documents"], "model_dump") else stock_data["documents"]
+        "documents": docs.model_dump() if hasattr(docs, "model_dump") else (docs or {})
     }
 
 def fetch_stock_from_screener(symbol: str, force_refresh: bool = False) -> Optional[Dict[str, Any]]:

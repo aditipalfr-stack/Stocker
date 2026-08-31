@@ -2,21 +2,21 @@ from typing import List, Dict, Optional, Any
 from pydantic import BaseModel, Field
 
 class KeyRatios(BaseModel):
-    market_cap_cr: float
-    current_price: float
-    high_low: str = ""
-    stock_pe: float
-    book_value: float
-    dividend_yield_pct: float
-    roce_pct: float
-    roe_pct: float
-    face_value: float
+    market_cap_cr: Optional[float] = None
+    current_price: Optional[float] = None
+    high_low: Optional[str] = ""
+    stock_pe: Optional[float] = None
+    book_value: Optional[float] = None
+    dividend_yield_pct: Optional[float] = None
+    roce_pct: Optional[float] = None
+    roe_pct: Optional[float] = None
+    face_value: Optional[float] = None
     industry_pe: Optional[float] = None
-    debt_to_equity: Optional[float] = 0.0
-    interest_coverage: Optional[float] = 0.0
-    fcf_yield_pct: Optional[float] = 0.0
-    sales_growth_3yr_cagr: Optional[float] = 0.0
-    profit_growth_3yr_cagr: Optional[float] = 0.0
+    debt_to_equity: Optional[float] = None
+    interest_coverage: Optional[float] = None
+    fcf_yield_pct: Optional[float] = None
+    sales_growth_3yr_cagr: Optional[float] = None
+    profit_growth_3yr_cagr: Optional[float] = None
 
 class FinancialRow(BaseModel):
     metric: str
@@ -157,11 +157,11 @@ class StockSummary(BaseModel):
     name: str
     sector: str
     industry: str
-    current_price: float
-    market_cap_cr: float
-    pe_ratio: float
-    roce_pct: float
-    roe_pct: float
+    current_price: Optional[float] = None
+    market_cap_cr: Optional[float] = None
+    pe_ratio: Optional[float] = None
+    roce_pct: Optional[float] = None
+    roe_pct: Optional[float] = None
     fcf_yield_pct: Optional[float] = None
     sales_growth_3yr_pct: Optional[float] = None
     cfo_to_pat_5yr_pct: Optional[float] = None
@@ -245,8 +245,27 @@ class CompanySearchResponse(BaseModel):
     count: int
     results: List[CompanySearchResult]
 
-class AddCompanyRequest(BaseModel):
+class ResearchLifecycleStatus(BaseModel):
     symbol: str
+    identity: str # "unresolved", "resolved", "officially_verified"
+    financial_data: str # "missing", "ready", "stale", "error"
+    deterministic_analysis: str # "not_ready", "ready"
+    official_verification: str # "not_run", "partial", "verified", "discrepancy"
+    source_filings: str # "not_searched", "partial", "ready", "error"
+    business_analysis: str # "not_run", "running", "ready", "stale", "error"
+    projection: str # "unavailable", "historical_only", "evidence_enriched", "stale"
+    investment_score: str # "unavailable", "provisional", "evidence_enriched", "incomplete"
+    
+    filing_count: int = 0
+    financial_data_updated_at: Optional[str] = None
+    filings_checked_at: Optional[str] = None
+    business_analysis_updated_at: Optional[str] = None
+    projection_updated_at: Optional[str] = None
+    notes: List[str] = []
+
+class AddCompanyRequest(BaseModel):
+    query: Optional[str] = None
+    symbol: Optional[str] = None
 
 class AddCompanyResponse(BaseModel):
     success: bool
@@ -255,6 +274,14 @@ class AddCompanyResponse(BaseModel):
     company_name: str
     already_existed: bool = False
     stock: Optional[StockDetail] = None
+    research_status: Optional[ResearchLifecycleStatus] = None
+
+class DiscoverFilingsResponse(BaseModel):
+    symbol: str
+    company_name: str
+    filing_count: int
+    documents_checked_at: str
+    research_status: Optional[ResearchLifecycleStatus] = None
 
 # =============================================================================
 # FINANCIAL VERIFICATION MODELS (PHASE B)
