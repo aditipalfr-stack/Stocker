@@ -7,6 +7,7 @@ interface ConceptHelpProps {
   term: GlossaryTerm;
   label?: string;
   className?: string;
+  businessModel?: string;
   onCalculationDetails?: () => void;
 }
 
@@ -14,6 +15,7 @@ export const ConceptHelp: React.FC<ConceptHelpProps> = ({
   term,
   label,
   className = '',
+  businessModel,
   onCalculationDetails
 }) => {
   const item = glossary[term];
@@ -21,6 +23,7 @@ export const ConceptHelp: React.FC<ConceptHelpProps> = ({
   const closeTimer = useRef<number | null>(null);
   const [isOpen, setIsOpen] = useState(false);
   const [position, setPosition] = useState({ top: 0, left: 0 });
+  const isFinancialBusiness = ['BANK', 'NBFC_LENDER', 'INSURANCE', 'OTHER_FINANCIAL'].includes(businessModel || '');
 
   const cancelClose = () => {
     if (closeTimer.current !== null) window.clearTimeout(closeTimer.current);
@@ -110,6 +113,18 @@ export const ConceptHelp: React.FC<ConceptHelpProps> = ({
             <span className="help-eyebrow">Why it matters</span>
             <p className="text-xs leading-relaxed text-secondary">{item.whyItMatters}</p>
           </div>
+          {item.howStockerUses && (
+            <div>
+              <span className="help-eyebrow">How Stocker uses it</span>
+              <p className="text-xs leading-relaxed text-secondary">{item.howStockerUses}</p>
+            </div>
+          )}
+          {isFinancialBusiness && item.financialBusinessNote && (
+            <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-2">
+              <span className="help-eyebrow">For this financial business</span>
+              <p className="text-xs leading-relaxed text-secondary">{item.financialBusinessNote}</p>
+            </div>
+          )}
           {item.formula && (
             <div>
               <span className="help-eyebrow">General formula</span>

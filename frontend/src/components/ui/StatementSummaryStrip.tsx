@@ -18,9 +18,10 @@ export interface StatementSummaryItem {
 interface StatementSummaryStripProps {
   title?: string;
   items: StatementSummaryItem[];
+  businessModel?: string;
 }
 
-export const StatementSummaryStrip: React.FC<StatementSummaryStripProps> = ({ title = 'What changed?', items }) => {
+export const StatementSummaryStrip: React.FC<StatementSummaryStripProps> = ({ title = 'What changed?', items, businessModel }) => {
   const visibleItems = items.filter(item => item.value !== null && item.value !== undefined && item.value !== '—');
   if (!visibleItems.length) return null;
 
@@ -32,7 +33,7 @@ export const StatementSummaryStrip: React.FC<StatementSummaryStripProps> = ({ ti
           <div key={item.label} className={`statement-summary-item summary-${item.tone || 'neutral'}`}>
             <div className="flex items-center justify-between gap-1">
               <span className="statement-summary-label">
-                {item.concept ? <ConceptHelp term={item.concept} label={item.label} onCalculationDetails={item.onDetails} /> : item.label}
+                {item.concept ? <ConceptHelp term={item.concept} label={item.label} businessModel={businessModel} onCalculationDetails={item.onDetails} /> : item.label}
               </span>
               {item.provenance && <FinancialProvenanceBadge provenance={item.provenance} compact />}
             </div>
@@ -44,4 +45,3 @@ export const StatementSummaryStrip: React.FC<StatementSummaryStripProps> = ({ ti
     </section>
   );
 };
-

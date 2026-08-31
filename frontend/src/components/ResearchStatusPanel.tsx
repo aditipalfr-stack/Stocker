@@ -1,6 +1,8 @@
 import React from 'react';
 import { AlertTriangle, CheckCircle2, Circle, RefreshCw, Search, Sparkles } from 'lucide-react';
 import type { ResearchLifecycleStatus } from '../types';
+import type { GlossaryTerm } from '../data/glossary';
+import { ConceptHelp } from './ui/ConceptHelp';
 
 export type BackgroundResearchState = 'idle' | 'running' | 'success' | 'error';
 
@@ -23,6 +25,7 @@ interface StageDisplay {
   detail?: string;
   tone: 'ready' | 'pending' | 'warning' | 'running';
   action?: React.ReactNode;
+  concept?: GlossaryTerm;
 }
 
 const StatusIcon = ({ tone }: { tone: StageDisplay['tone'] }) => {
@@ -77,30 +80,35 @@ export const ResearchStatusPanel: React.FC<ResearchStatusPanelProps> = ({
       title: 'Official Verification',
       label: verificationState === 'running' ? 'Checking official figures…' : verificationState === 'error' ? 'Verification could not complete' : status.official_verification === 'verified' ? 'Verified' : status.official_verification === 'discrepancy' ? 'Discrepancy found' : status.official_verification === 'partial' ? 'Partially checked' : 'Not checked',
       tone: verificationState === 'running' ? 'running' : verificationState === 'error' || status.official_verification === 'discrepancy' ? 'warning' : status.official_verification === 'verified' ? 'ready' : 'pending',
-      action: verificationState === 'error' && onRetryVerification ? <button onClick={onRetryVerification} className="text-[11px] text-cyan-300 hover:text-cyan-200">Retry</button> : undefined
+      action: verificationState === 'error' && onRetryVerification ? <button onClick={onRetryVerification} className="text-[11px] text-cyan-300 hover:text-cyan-200">Retry</button> : undefined,
+      concept: status.official_verification === 'verified' ? 'verified' : status.official_verification === 'discrepancy' ? 'discrepancy' : status.official_verification === 'not_run' ? 'not_run' : 'standardized'
     },
     {
       title: 'Source Filings',
       label: filingDiscoveryState === 'running' ? 'Searching…' : filingDiscoveryState === 'error' ? 'Discovery could not complete' : status.source_filings === 'ready' ? `${status.filing_count} filing${status.filing_count === 1 ? '' : 's'} found` : status.source_filings === 'partial' ? `${status.filing_count} filing${status.filing_count === 1 ? '' : 's'} found — search incomplete` : status.source_filings === 'error' ? 'Discovery error' : 'Not searched',
       tone: filingDiscoveryState === 'running' ? 'running' : filingDiscoveryState === 'error' || status.source_filings === 'error' ? 'warning' : status.source_filings === 'ready' ? 'ready' : 'pending',
-      action: (filingDiscoveryState === 'error' || status.source_filings === 'error') && onRetryFilings ? <button onClick={onRetryFilings} className="text-[11px] text-cyan-300 hover:text-cyan-200">Retry</button> : undefined
+      action: (filingDiscoveryState === 'error' || status.source_filings === 'error') && onRetryFilings ? <button onClick={onRetryFilings} className="text-[11px] text-cyan-300 hover:text-cyan-200">Retry</button> : undefined,
+      concept: status.source_filings === 'not_searched' ? 'not_run' : undefined
     },
     {
       title: 'Business Analysis',
       label: businessAnalysisRunning || status.business_analysis === 'running' ? 'Analyzing filings…' : status.business_analysis === 'ready' ? 'Ready' : status.business_analysis === 'stale' ? 'Needs refresh' : status.business_analysis === 'error' ? 'Analysis error' : 'Not run',
       tone: businessAnalysisRunning || status.business_analysis === 'running' ? 'running' : status.business_analysis === 'ready' ? 'ready' : status.business_analysis === 'stale' || status.business_analysis === 'error' ? 'warning' : 'pending',
-      action: status.business_analysis !== 'ready' && !businessAnalysisRunning && onRunAnalysis ? <button onClick={onRunAnalysis} className="text-[11px] text-emerald-300 hover:text-emerald-200 flex items-center gap-1"><Sparkles className="w-3 h-3" /> Run Analysis</button> : undefined
+      action: status.business_analysis !== 'ready' && !businessAnalysisRunning && onRunAnalysis ? <button onClick={onRunAnalysis} className="text-[11px] text-emerald-300 hover:text-emerald-200 flex items-center gap-1"><Sparkles className="w-3 h-3" /> Run Analysis</button> : undefined,
+      concept: status.business_analysis === 'not_run' ? 'not_run' : status.business_analysis === 'stale' ? 'stale' : undefined
     },
     {
       title: 'Projection',
       label: status.projection === 'historical_only' ? 'Preliminary — historical data only' : status.projection === 'evidence_enriched' ? 'Evidence-enriched' : status.projection === 'stale' ? 'Needs refresh' : 'Not available',
       detail: status.projection === 'stale' ? 'Business evidence changed.' : undefined,
-      tone: status.projection === 'evidence_enriched' ? 'ready' : status.projection === 'stale' ? 'warning' : 'pending'
+      tone: status.projection === 'evidence_enriched' ? 'ready' : status.projection === 'stale' ? 'warning' : 'pending',
+      concept: status.projection === 'evidence_enriched' ? 'evidence_enriched' : status.projection === 'stale' ? 'stale' : status.projection === 'unavailable' ? 'unavailable' : 'provisional'
     },
     {
       title: 'Investment Score',
       label: status.investment_score === 'provisional' ? 'Provisional — financial analysis only' : status.investment_score === 'evidence_enriched' ? 'Evidence-enriched' : status.investment_score === 'incomplete' ? 'Incomplete research' : 'Not available',
-      tone: status.investment_score === 'evidence_enriched' ? 'ready' : status.investment_score === 'incomplete' ? 'warning' : 'pending'
+      tone: status.investment_score === 'evidence_enriched' ? 'ready' : status.investment_score === 'incomplete' ? 'warning' : 'pending',
+      concept: status.investment_score === 'evidence_enriched' ? 'evidence_enriched' : status.investment_score === 'unavailable' ? 'unavailable' : 'provisional'
     }
   ];
 
@@ -121,7 +129,7 @@ export const ResearchStatusPanel: React.FC<ResearchStatusPanelProps> = ({
             <StatusIcon tone={stage.tone} />
             <div className="min-w-0">
               <p className="text-[10px] uppercase tracking-wider text-slate-500 font-bold">{stage.title}</p>
-              <p className="text-xs text-slate-200 mt-1 leading-snug">{stage.label}</p>
+              <p className="text-xs text-slate-200 mt-1 leading-snug">{stage.concept ? <ConceptHelp term={stage.concept} label={stage.label} /> : stage.label}</p>
               {stage.detail && <p className="text-[10px] text-amber-300 mt-1">{stage.detail}</p>}
               {stage.action && <div className="mt-1.5">{stage.action}</div>}
             </div>

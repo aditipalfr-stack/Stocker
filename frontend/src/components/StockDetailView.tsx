@@ -344,6 +344,7 @@ export const StockDetailView: React.FC<StockDetailViewProps> = ({
   const quarterlySummary: StatementSummaryItem[] = [
     {
       label: 'Revenue',
+      concept: 'revenue',
       value: formatCrores(quarterSales.current),
       detail: latestQuarterTrend?.sales_growth_yoy_pct !== undefined
         ? <ExplicitChangeIndicator value={latestQuarterTrend.sales_growth_yoy_pct} label="YoY" />
@@ -353,6 +354,7 @@ export const StockDetailView: React.FC<StockDetailViewProps> = ({
     },
     {
       label: 'PAT',
+      concept: 'pat',
       value: formatCrores(quarterPat.current),
       detail: latestQuarterTrend?.pat_growth_yoy_pct !== undefined
         ? <ExplicitChangeIndicator value={latestQuarterTrend.pat_growth_yoy_pct} label="YoY" />
@@ -408,6 +410,7 @@ export const StockDetailView: React.FC<StockDetailViewProps> = ({
     },
     {
       label: isPlTTM ? 'TTM PAT' : 'Latest PAT',
+      concept: 'pat',
       value: formatCrores(annualPat.current),
       detail: isPlTTM
         ? `vs ${priorPlPeriod}`
@@ -420,6 +423,7 @@ export const StockDetailView: React.FC<StockDetailViewProps> = ({
   const cashFlowSummary: StatementSummaryItem[] = isFinancialBusiness ? [
     {
       label: 'Cash Flow Analysis',
+      concept: 'cash_conversion',
       value: 'Not applicable for banking & financial institutions',
       detail: 'Operating cash flows are dominated by customer deposit and lending movements',
       tone: 'neutral'
@@ -453,7 +457,7 @@ export const StockDetailView: React.FC<StockDetailViewProps> = ({
       label: 'FCF',
       concept: 'fcf',
       value: formatCrores(latestFcfTrend?.stocker_derived_fcf_cr),
-      detail: latestFcfTrend?.fcf_confidence ? `FCF (${latestFcfTrend.fcf_confidence})` : <ChangeIndicator metric="Free Cash Flow" current={latestFcfTrend?.stocker_derived_fcf_cr} previous={previousFcfTrend?.stocker_derived_fcf_cr} />,
+      detail: latestFcfTrend?.fcf_confidence ? <ConceptHelp term="fcf_confidence" label={`FCF (${latestFcfTrend.fcf_confidence})`} businessModel={businessModel} /> : <ChangeIndicator metric="Free Cash Flow" current={latestFcfTrend?.stocker_derived_fcf_cr} previous={previousFcfTrend?.stocker_derived_fcf_cr} />,
       tone: toneForPositiveMetric(latestFcfTrend?.stocker_derived_fcf_cr, previousFcfTrend?.stocker_derived_fcf_cr),
       onDetails: () => setSelectedFormulaKey('free_cash_flow')
     }
@@ -467,12 +471,14 @@ export const StockDetailView: React.FC<StockDetailViewProps> = ({
   const balanceSheetSummary: StatementSummaryItem[] = isBank ? [
     {
       label: 'Deposits',
+      concept: 'deposits',
       value: formatCrores(bankDeposits),
       detail: 'Total customer deposits',
       tone: 'neutral'
     },
     {
       label: 'Borrowings',
+      concept: 'borrowings',
       value: formatCrores(latestBsTrend?.borrowings_cr ?? stock.analytics?.balance_sheet_efficiency?.borrowings_cr),
       detail: <ChangeIndicator metric="Borrowings" current={latestBsTrend?.borrowings_cr} previous={previousBsTrend?.borrowings_cr} />,
       tone: 'neutral',
@@ -480,12 +486,14 @@ export const StockDetailView: React.FC<StockDetailViewProps> = ({
     },
     {
       label: 'Advances / Loans',
+      concept: 'advances',
       value: formatCrores(bankAdvances),
       detail: 'Loan book size',
       tone: 'neutral'
     },
     {
       label: 'Gross NPA %',
+      concept: 'gnpa',
       value: formatPercent(bankGnpa),
       detail: isFiniteNumber(bankNnpa) ? `Net NPA: ${bankNnpa}%` : (bankGnpa === null || bankGnpa === undefined ? 'Bank-specific metric unavailable in current source' : 'Asset Quality'),
       tone: 'neutral'
@@ -493,6 +501,7 @@ export const StockDetailView: React.FC<StockDetailViewProps> = ({
   ] : [
     {
       label: 'Borrowings',
+      concept: 'borrowings',
       value: formatCrores(latestBsTrend?.borrowings_cr ?? stock.analytics?.balance_sheet_efficiency?.borrowings_cr),
       detail: <ChangeIndicator metric="Borrowings" current={latestBsTrend?.borrowings_cr} previous={previousBsTrend?.borrowings_cr} />,
       tone: 'neutral',
@@ -614,6 +623,15 @@ export const StockDetailView: React.FC<StockDetailViewProps> = ({
               </span>
               <span>•</span>
               <span>{stock.industry}</span>
+              {stock.sub_industry && <><span>•</span><span>{stock.sub_industry}</span></>}
+              {stock.taxonomy && (
+                <span
+                  className="rounded border border-slate-700 px-1.5 py-0.5 text-[10px] text-slate-500"
+                  title={`Canonical taxonomy · ${stock.taxonomy.classification_state.toLowerCase()} · ${stock.taxonomy.confidence.toLowerCase()} confidence · source: ${stock.taxonomy.source.replace(/_/g, ' ')}`}
+                >
+                  {stock.taxonomy.classification_state === 'UNCLASSIFIED' ? 'Classification evidence unavailable' : 'Canonical taxonomy'}
+                </span>
+              )}
               <span>•</span>
               <span>High/Low: {stock.ratios.high_low?.trim() || '—'}</span>
             </div>
@@ -713,7 +731,7 @@ export const StockDetailView: React.FC<StockDetailViewProps> = ({
           <div className="bg-slate-950/60 p-3 rounded-xl border border-slate-800/80 text-center relative group">
             <div className="flex items-center justify-center gap-1">
               <span className="text-[10px] text-slate-500 uppercase font-sans block">
-                <ConceptHelp term="fcf" label="FCF Yield" onCalculationDetails={() => setSelectedFormulaKey('free_cash_flow')} />
+                <ConceptHelp term="fcf" label="FCF Yield" businessModel={businessModel} onCalculationDetails={() => setSelectedFormulaKey('free_cash_flow')} />
               </span>
             </div>
             <span className="text-sm font-bold text-teal-400">{formatPercent(stock.ratios.fcf_yield_pct)}</span>
@@ -731,7 +749,7 @@ export const StockDetailView: React.FC<StockDetailViewProps> = ({
           <div className="bg-slate-950/60 p-3 rounded-xl border border-slate-800/80 text-center relative group">
             <div className="flex items-center justify-center gap-1">
               <span className="text-[10px] text-slate-500 uppercase font-sans block">
-                <ConceptHelp term="cfo_pat" label="CFO / PAT (5Y)" onCalculationDetails={() => setSelectedFormulaKey('cfo_to_pat_5yr')} />
+                <ConceptHelp term="cfo_pat" label="CFO / PAT (5Y)" businessModel={businessModel} onCalculationDetails={() => setSelectedFormulaKey('cfo_to_pat_5yr')} />
               </span>
             </div>
             <span className="text-sm font-bold text-emerald-400">
@@ -858,10 +876,10 @@ export const StockDetailView: React.FC<StockDetailViewProps> = ({
                 </span>
                 <div>
                   <div className="flex items-center gap-2 font-mono text-xs my-1">
-                    <span className="text-cyan-300 font-bold">Deposits: {formatCrores(bankDeposits)}</span>
+                    <span className="text-cyan-300 font-bold"><ConceptHelp term="deposits" label={`Deposits: ${formatCrores(bankDeposits)}`} businessModel={businessModel} /></span>
                   </div>
                   <p className="text-[11px] text-slate-400 leading-tight">
-                    GNPA: <strong className="text-slate-200">{formatPercent(bankGnpa)}</strong> | NNPA: <strong className="text-slate-200">{formatPercent(bankNnpa)}</strong> | Advances: <strong className="text-slate-200">{formatCrores(bankAdvances)}</strong>
+                    <ConceptHelp term="gnpa" label={`GNPA: ${formatPercent(bankGnpa)}`} businessModel={businessModel} /> | <ConceptHelp term="nnpa" label={`NNPA: ${formatPercent(bankNnpa)}`} businessModel={businessModel} /> | <ConceptHelp term="advances" label={`Advances: ${formatCrores(bankAdvances)}`} businessModel={businessModel} />
                   </p>
                 </div>
               </>
@@ -885,7 +903,7 @@ export const StockDetailView: React.FC<StockDetailViewProps> = ({
                 </span>
                 <div>
                   <div className="flex items-center gap-2 font-mono text-xs my-1">
-                    <span className="text-emerald-400 font-bold">5Y CFO/PAT: {formatPercent(stock.analytics?.cash_flow_quality?.cfo_to_pat_5yr_pct)}</span>
+                    <span className="text-emerald-400 font-bold"><ConceptHelp term="cfo_pat" label={`5Y CFO/PAT: ${formatPercent(stock.analytics?.cash_flow_quality?.cfo_to_pat_5yr_pct)}`} businessModel={businessModel} /></span>
                   </div>
                   <p className="text-[11px] text-slate-400 leading-tight">
                     Debt/Equity: <strong className="text-slate-200">{isFiniteNumber(stock.ratios.debt_to_equity) ? `${stock.ratios.debt_to_equity}x` : '—'}</strong> | CWIP: <strong className="text-slate-200">{formatPercent(stock.analytics?.balance_sheet_efficiency?.latest_cwip_to_net_block_pct)}</strong>
@@ -916,7 +934,7 @@ export const StockDetailView: React.FC<StockDetailViewProps> = ({
                   <span className="text-emerald-400 font-bold">₹{stock.projection.dcf_fair_value_per_share} ({stock.projection.dcf_upside_pct > 0 ? `+${stock.projection.dcf_upside_pct}%` : `${stock.projection.dcf_upside_pct}%`})</span>
                 </div>
                 <div className="flex items-center justify-between text-[11px] font-mono">
-                  <span className="text-slate-500">Target (Exit P/E):</span>
+                  <span className="text-slate-500"><ConceptHelp term="exit_pe" label="Target (Exit P/E)" />:</span>
                   <span className="text-purple-300 font-bold">₹{stock.projection.target_price_exit_pe} ({stock.projection.target_price_upside_pct > 0 ? `+${stock.projection.target_price_upside_pct}%` : `${stock.projection.target_price_upside_pct}%`})</span>
                 </div>
               </div>
@@ -1171,7 +1189,7 @@ export const StockDetailView: React.FC<StockDetailViewProps> = ({
               {/* Exit Multiple Slider */}
               <div className="space-y-2 bg-slate-950/60 p-4 rounded-2xl border border-slate-800">
                 <div className="flex justify-between text-xs">
-                  <span className="text-slate-400 font-medium"><ConceptHelp term="pe" label="Target Exit P/E" /></span>
+                  <span className="text-slate-400 font-medium"><ConceptHelp term="exit_pe" label="Target Exit P/E" /></span>
                   <span className="font-mono font-bold text-amber-400">{exitPe}x</span>
                 </div>
                 <input
@@ -1206,7 +1224,7 @@ export const StockDetailView: React.FC<StockDetailViewProps> = ({
                   <span className={`text-xs font-mono font-bold px-2 py-0.5 rounded-full ${
                     projectionResult.dcf_upside_pct >= 0 ? 'bg-emerald-500/20 text-emerald-300' : 'bg-rose-500/20 text-rose-300'
                   }`}>
-                    {projectionResult.dcf_upside_pct >= 0 ? `+${projectionResult.dcf_upside_pct}% Upside` : `${projectionResult.dcf_upside_pct}% Margin`}
+                    <ConceptHelp term="upside_downside" label={projectionResult.dcf_upside_pct >= 0 ? `+${projectionResult.dcf_upside_pct}% Upside` : `${projectionResult.dcf_upside_pct}% Downside`} />
                   </span>
                 </div>
                 <div className="text-3xl font-extrabold font-mono text-white">
@@ -1220,7 +1238,7 @@ export const StockDetailView: React.FC<StockDetailViewProps> = ({
               {/* Exit Multiple Target Price */}
               <div className="bg-gradient-to-br from-cyan-950/40 to-slate-950 p-5 rounded-2xl border border-cyan-500/30 space-y-2">
                 <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold text-cyan-400 uppercase tracking-wider"><ConceptHelp term="pe" label="FY28 Exit P/E Target Price" /></span>
+                  <span className="text-xs font-bold text-cyan-400 uppercase tracking-wider"><ConceptHelp term="exit_pe" label="FY28 Exit P/E Target Price" /></span>
                   <span className={`text-xs font-mono font-bold px-2 py-0.5 rounded-full ${
                     projectionResult.target_price_upside_pct >= 0 ? 'bg-cyan-500/20 text-cyan-300' : 'bg-rose-500/20 text-rose-300'
                   }`}>
@@ -1331,7 +1349,7 @@ export const StockDetailView: React.FC<StockDetailViewProps> = ({
 
                   <tr className="hover:bg-slate-900/50 text-slate-300">
                     <td className="py-2.5 px-4 sticky left-0 bg-slate-950 font-sans">
-                      <ConceptHelp term="cfo" label="Cash from Operations (CFO)" />
+                      <ConceptHelp term="cfo" label="Cash from Operations (CFO)" businessModel={businessModel} />
                     </td>
                     {projectionResult.projections.map(p => (
                       <td key={p.year} className="py-2.5 px-4 text-right">{isFiniteNumber(p.cfo_cr) ? `₹${formatIndianNumber(p.cfo_cr)}` : '—'}</td>
@@ -1340,7 +1358,7 @@ export const StockDetailView: React.FC<StockDetailViewProps> = ({
 
                   <tr className="hover:bg-slate-900/50 text-slate-300">
                     <td className="py-2.5 px-4 sticky left-0 bg-slate-950 font-sans">
-                      <ConceptHelp term="capex" label="Estimated Capex" />
+                      <ConceptHelp term="capex" label="Estimated Capex" businessModel={businessModel} />
                     </td>
                     {projectionResult.projections.map(p => (
                       <td key={p.year} className="py-2.5 px-4 text-right">{isFiniteNumber(p.capex_cr) ? `₹${formatIndianNumber(p.capex_cr)}` : '—'}</td>
@@ -1349,7 +1367,7 @@ export const StockDetailView: React.FC<StockDetailViewProps> = ({
 
                   <tr className="hover:bg-slate-900/50 bg-emerald-950/30 text-emerald-300 font-bold">
                     <td className="py-2.5 px-4 sticky left-0 bg-emerald-950/80 font-sans">
-                      <ConceptHelp term="fcf" label="Free Cash Flow (FCF)" />
+                      <ConceptHelp term="fcf" label="Free Cash Flow (FCF)" businessModel={businessModel} />
                     </td>
                     {projectionResult.projections.map(p => (
                       <td key={p.year} className="py-2.5 px-4 text-right text-emerald-300">{isFiniteNumber(p.fcf_cr) ? `₹${formatIndianNumber(p.fcf_cr)}` : '—'}</td>
@@ -1432,12 +1450,12 @@ export const StockDetailView: React.FC<StockDetailViewProps> = ({
             </div>
           </div>
 
-          <StatementSummaryStrip items={statementSummary} />
+          <StatementSummaryStrip items={statementSummary} businessModel={businessModel} />
 
           {/* Render selected statement */}
-          {financialSubTab === 'quarters' && <FinancialStatementTable statement={stock.quarters} comparisonLabel="QoQ" />}
-          {financialSubTab === 'pl' && <FinancialStatementTable statement={stock.profit_loss} />}
-          {financialSubTab === 'balance_sheet' && <FinancialStatementTable statement={stock.balance_sheet} />}
+          {financialSubTab === 'quarters' && <FinancialStatementTable statement={stock.quarters} comparisonLabel="QoQ" businessModel={businessModel} />}
+          {financialSubTab === 'pl' && <FinancialStatementTable statement={stock.profit_loss} businessModel={businessModel} />}
+          {financialSubTab === 'balance_sheet' && <FinancialStatementTable statement={stock.balance_sheet} businessModel={businessModel} />}
           {financialSubTab === 'cash_flow' && (
             <div className="space-y-6">
               {isFinancialBusiness && (
@@ -1452,7 +1470,7 @@ export const StockDetailView: React.FC<StockDetailViewProps> = ({
                 </div>
               )}
 
-              <FinancialStatementTable statement={stock.cash_flow} />
+              <FinancialStatementTable statement={stock.cash_flow} businessModel={businessModel} />
 
               {/* Free Cash Flow Reconciliation & Capex Methodology Breakdown (General Corporate only) */}
               {!isFinancialBusiness && stock.analytics?.cash_flow_quality?.fcf_trends && stock.analytics.cash_flow_quality.fcf_trends.length > 0 && (
@@ -1461,7 +1479,7 @@ export const StockDetailView: React.FC<StockDetailViewProps> = ({
                     <div>
                       <h4 className="text-sm font-bold text-white flex items-center gap-2">
                         <TrendingUp className="w-4 h-4 text-emerald-400" />
-                        <ConceptHelp term="fcf" label="Deterministic Free Cash Flow Breakdown" onCalculationDetails={() => setSelectedFormulaKey('free_cash_flow')} />
+                        <ConceptHelp term="fcf" label="Deterministic Free Cash Flow Breakdown" businessModel={businessModel} onCalculationDetails={() => setSelectedFormulaKey('free_cash_flow')} />
                         <DataOriginBadge origin="stocker_calculation" />
                       </h4>
                       <p className="text-xs text-slate-400">
@@ -1754,7 +1772,7 @@ export const StockDetailView: React.FC<StockDetailViewProps> = ({
               {/* Chart 3: Balance Sheet & CWIP Growth Trigger */}
               <div className="glass-panel rounded-3xl p-6 border border-slate-800 space-y-4">
                 <div>
-                  <h4 className="font-bold text-white text-sm"><ConceptHelp term="cwip" label="Balance Sheet Capital Allocation & CWIP Trigger" /></h4>
+                  <h4 className="font-bold text-white text-sm"><ConceptHelp term="cwip" label="Balance Sheet Capital Allocation & CWIP Trigger" businessModel={businessModel} /></h4>
                   <p className="text-xs text-slate-400">Capital Work in Progress (CWIP) as % of Net Block signals upcoming revenue capacity</p>
                 </div>
                 <div className="h-72 w-full">

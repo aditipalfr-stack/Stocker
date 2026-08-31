@@ -315,7 +315,7 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
 
             {/* Sector Selector */}
             <div className="flex items-center gap-1 overflow-x-auto max-w-full pb-1">
-              {sectors.slice(0, 6).map((sec) => (
+              {sectors.map((sec) => (
                 <button
                   key={sec}
                   onClick={() => setSelectedSector(sec)}

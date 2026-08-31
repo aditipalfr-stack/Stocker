@@ -153,11 +153,25 @@ export interface ScoreBreakdown {
   key_risks: string[];
 }
 
+export interface CompanyTaxonomy {
+  sector: string;
+  industry: string;
+  sub_industry?: string | null;
+  source: string;
+  classification_method: string;
+  confidence: string;
+  classification_state: 'COMPLETE' | 'PARTIAL' | 'UNCLASSIFIED' | string;
+  classified_at?: string | null;
+  updated_at?: string | null;
+}
+
 export interface StockSummary {
   symbol: string;
   name: string;
   sector: string;
   industry: string;
+  sub_industry?: string | null;
+  taxonomy?: CompanyTaxonomy | null;
   current_price: number | null;
   market_cap_cr: number | null;
   pe_ratio: number | null;
@@ -194,6 +208,8 @@ export interface StockDetail {
   name: string;
   sector: string;
   industry: string;
+  sub_industry?: string | null;
+  taxonomy?: CompanyTaxonomy | null;
   about: string;
   source_name?: string;
   source_url?: string;
@@ -882,4 +898,3 @@ export interface AnalyticProvenanceSummary {
   unavailable_inputs: number;
   overall_quality: "verified" | "mixed" | "standardized" | "discrepant" | "insufficient";
 }
-
