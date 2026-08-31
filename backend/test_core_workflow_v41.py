@@ -523,7 +523,7 @@ def run_all_tests():
         print("  ✓ State 3 verified: Post-recomputation with matching versions -> projection=evidence_enriched, projection_updated_at populated")
 
         # Phase 4: Financial Refresh (Version C) occurring AFTER Business Analysis
-        fin_v2 = "2026-08-31T11:00:00Z"
+        fin_v2 = (datetime.now(timezone.utc) + timedelta(minutes=5)).isoformat()
         mock_stock_refreshed = sample_complete_stock_data("INFY", "Infosys Limited", fetched_at=fin_v2)
         database.save_stock_cache("INFY", "Infosys Limited", "IT", "Software", serialize_stock_data(mock_stock_refreshed))
 
@@ -724,8 +724,80 @@ def run_all_tests():
 
         print("✓ Test 12 passed: BSE filing discovery successfully uses persisted registry bse_code for unmapped companies.")
 
+    # -------------------------------------------------------------------------
+    # TEST 13: AI Analysis Timestamp Ownership (Model/Fake Timestamps Overwritten)
+    # -------------------------------------------------------------------------
+    with IsolatedTestDatabase(seed=False):
+        print("\n--- Test 13: AI Analysis Timestamp Ownership ---")
+        fake_old_time = "1999-01-01T00:00:00Z"
+        fake_ai_data = {
+            "company_name": "Test Company Ltd",
+            "symbol": "TESTCO",
+            "extraction_timestamp": fake_old_time,
+            "latest_document_period": "FY25",
+            "promise_vs_delivery": [
+                {
+                    "area": "Revenue Growth",
+                    "management_promise": "Reach 15% revenue growth",
+                    "promised_in_period": "FY24",
+                    "actual_outcome": "Delivered 16% revenue growth",
+                    "actual_in_period": "FY25",
+                    "status": "Delivered",
+                    "stocker_analysis": "Target met."
+                }
+            ],
+            "growth_drivers": [
+                {
+                    "driver_title": "Expansion",
+                    "description": "Plant expansion",
+                    "execution_status": "Completed"
+                }
+            ]
+        }
+
+        # 1. Save AI analysis with incoming fake timestamp
+        persisted_timestamp = database.save_ai_analysis("TESTCO", "Test Company Ltd", fake_ai_data, "Gemini", "gemini-3.1-flash-lite")
+        assert persisted_timestamp != fake_old_time, "Persisted timestamp must not use fake/model-supplied timestamp"
+        assert fake_ai_data["extraction_timestamp"] == persisted_timestamp, "In-memory intelligence_data must be updated to canonical system timestamp"
+
+        # 2. Check direct SQLite row to ensure generated_at is the system timestamp
+        conn = database.get_db_connection()
+        cur = conn.cursor()
+        cur.execute("SELECT generated_at, intelligence_json FROM ai_analysis_cache WHERE symbol = 'TESTCO'")
+        row = cur.fetchone()
+        conn.close()
+
+        assert row is not None
+        assert row["generated_at"] == persisted_timestamp
+        assert row["generated_at"] != fake_old_time
+        persisted_json = json.loads(row["intelligence_json"])
+        assert persisted_json["extraction_timestamp"] == persisted_timestamp
+
+        # 3. get_cached_ai_analysis must return the exact persisted generated_at
+        retrieved = database.get_cached_ai_analysis("TESTCO")
+        assert retrieved is not None
+        assert retrieved["extraction_timestamp"] == persisted_timestamp
+        assert retrieved["extraction_timestamp"] != fake_old_time
+
+        # 4. Projection dependency version matching
+        fin_time = (datetime.now(timezone.utc) - timedelta(minutes=5)).isoformat()
+        mock_stock = sample_complete_stock_data("TESTCO", "Test Company Ltd", fetched_at=fin_time)
+        database.save_stock_cache("TESTCO", "Test Company Ltd", "FMCG", "Food", serialize_stock_data(mock_stock))
+        database.upsert_company_registry_item({"symbol": "TESTCO", "company_name": "Test Company Ltd", "in_universe": True, "is_active": True})
+
+        with patch("scraper.fetch_stock_from_screener", return_value=mock_stock):
+            detail = build_full_stock_detail(mock_stock)
+            assert detail.symbol == "TESTCO"
+
+        # Verify lifecycle projection state is evidence_enriched with the persisted timestamp
+        st = get_research_lifecycle_status("TESTCO")
+        assert st.business_analysis == "ready"
+        assert st.projection == "evidence_enriched"
+        assert st.business_analysis_updated_at == persisted_timestamp
+        print("✓ Test 13 passed: Application strictly owns AI analysis timestamp; fake model timestamps overwritten and projection versions match.")
+
     print("\n==================================================================")
-    print("🎉 ALL PHASE V4.1 STEP 1A TESTS (1-12) PASSED 100% CLEANLY!")
+    print("🎉 ALL PHASE V4.1 STEP 1A TESTS (1-13) PASSED 100% CLEANLY!")
     print("==================================================================")
 
 if __name__ == "__main__":

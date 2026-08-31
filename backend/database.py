@@ -502,15 +502,20 @@ def save_ai_analysis(
     model_version: str = "gemini-3.6-flash",
     prompt_tokens: int = 0,
     source_docs_count: int = 0
-) -> None:
-    """Saves full institutional AI analysis into SQLite."""
+) -> str:
+    """
+    Saves full institutional AI analysis into SQLite.
+    Application code strictly owns the authoritative UTC system timestamp:
+    - Overwrites intelligence_data["extraction_timestamp"] with canonical system UTC timestamp
+    - Persists generated_at in SQLite with the exact same system timestamp
+    - Returns the authoritative system timestamp string
+    """
     clean_sym = symbol.upper().strip()
     now_iso = datetime.now(timezone.utc).isoformat()
-    if not intelligence_data.get("extraction_timestamp"):
-        intelligence_data["extraction_timestamp"] = now_iso
+    intelligence_data["extraction_timestamp"] = now_iso
     intelligence_data["ai_provider_used"] = ai_provider
     intelligence_data["model_version"] = model_version
-    gen_time = intelligence_data.get("extraction_timestamp") or now_iso
+    
     conn = get_db_connection()
     try:
         with conn:
@@ -535,10 +540,12 @@ def save_ai_analysis(
                 model_version, 
                 prompt_tokens, 
                 source_docs_count, 
-                gen_time
+                now_iso
             ))
     finally:
         conn.close()
+        
+    return now_iso
 
 # ---------------------------------------------------------
 # DOCUMENT SOURCES SYNC STATE HELPERS
