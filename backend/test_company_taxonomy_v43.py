@@ -146,6 +146,78 @@ def test_e_stronger_evidence_reclassifies_one_company_mapping():
         assert weaker["sector"] == "Health Care"
 
 
+def test_equal_priority_complete_is_not_replaced_by_partial():
+    with IsolatedTaxonomyDatabase():
+        _insert_company("RICHSTATE")
+        original = classify_and_persist_company(
+            "RICHSTATE", "Information Technology", "IT - Software",
+            sub_industry="Cloud Platforms", source="screener_metadata",
+        )
+        refreshed = classify_and_persist_company(
+            "RICHSTATE", "Information Technology", None, source="screener_metadata",
+        )
+        assert refreshed == original
+        assert refreshed["classification_state"] == "COMPLETE"
+
+
+def test_equal_priority_refresh_does_not_erase_sub_industry():
+    with IsolatedTaxonomyDatabase():
+        _insert_company("RICHSUB")
+        original = classify_and_persist_company(
+            "RICHSUB", "Information Technology", "IT - Software",
+            sub_industry="Computers - Software & Consulting", source="screener_metadata",
+        )
+        refreshed = classify_and_persist_company(
+            "RICHSUB", "Information Technology", "IT - Software",
+            sub_industry=None, source="screener_metadata",
+        )
+        assert refreshed == original
+        assert refreshed["sub_industry"] == "Computers - Software and Consulting"
+
+
+def test_equal_priority_partial_upgrades_to_complete():
+    with IsolatedTaxonomyDatabase():
+        _insert_company("PARTIALUP")
+        partial = classify_and_persist_company(
+            "PARTIALUP", "Information Technology", None, source="screener_metadata",
+        )
+        assert partial["classification_state"] == "PARTIAL"
+        complete = classify_and_persist_company(
+            "PARTIALUP", "Information Technology", "IT - Software", source="screener_metadata",
+        )
+        assert complete["classification_state"] == "COMPLETE"
+        assert complete["industry"] == "Software & Services"
+
+
+def test_equal_priority_unclassified_upgrades_to_meaningful_classification():
+    with IsolatedTaxonomyDatabase():
+        _insert_company("UNKNOWNUP")
+        unknown = classify_and_persist_company("UNKNOWNUP", source="screener_metadata")
+        assert unknown["classification_state"] == "UNCLASSIFIED"
+        complete = classify_and_persist_company(
+            "UNKNOWNUP", "Consumer Goods", "FMCG", source="screener_metadata",
+        )
+        assert complete["classification_state"] == "COMPLETE"
+        assert complete["sector"] == "Consumer Staples"
+
+
+def test_stronger_source_can_reclassify_complete_taxonomy():
+    with IsolatedTaxonomyDatabase():
+        _insert_company("STRONGER")
+        classify_and_persist_company(
+            "STRONGER", "Information Technology", "IT - Software",
+            sub_industry="Cloud Platforms", source="screener_metadata",
+        )
+        authoritative = classify_and_persist_company(
+            "STRONGER", "Health Care", "Diagnostic Services",
+            source="official_exchange", classification_method="exchange_master",
+        )
+        assert authoritative["sector"] == "Health Care"
+        assert authoritative["industry"] == "Diagnostic Services"
+        assert authoritative["sub_industry"] is None
+        assert authoritative["source"] == "official_exchange"
+
+
 def test_f_stock_summary_pipeline_uses_canonical_sector():
     with IsolatedTaxonomyDatabase():
         _insert_company("SUMMARYCO", "Automobile", "Auto Ancillaries", "screener_metadata")

@@ -101,6 +101,12 @@ SOURCE_PRIORITY = {
     "unknown": 0,
 }
 
+CLASSIFICATION_STATE_RANK = {
+    "UNCLASSIFIED": 0,
+    "PARTIAL": 1,
+    "COMPLETE": 2,
+}
+
 
 def normalize_taxonomy_key(value: Optional[str]) -> str:
     """Create a stable key insensitive to case, punctuation, '&' and spacing."""
@@ -152,6 +158,13 @@ def _source_kind(source: Optional[str]) -> str:
     if key in {"registry_metadata", "local", "manual"}:
         return "registry_metadata"
     return "unknown"
+
+
+def _classification_richness(classification: Dict[str, Any]) -> Tuple[int, int]:
+    """Order assignments without inventing values: state first, explicit sub-industry second."""
+    state_rank = CLASSIFICATION_STATE_RANK.get(str(classification.get("classification_state") or ""), 0)
+    has_sub_industry = 1 if classification.get("sub_industry") else 0
+    return state_rank, has_sub_industry
 
 
 def _industry_match(value: Optional[str]) -> Optional[Tuple[str, str]]:
@@ -272,7 +285,7 @@ def classify_and_persist_company(
     bs: Any = None,
     quarters: Any = None,
 ) -> Dict[str, Any]:
-    """Classify and persist, replacing an assignment only with equal/stronger evidence."""
+    """Persist only stronger-source or equally rich deterministic classification evidence."""
     clean_symbol = symbol.upper().strip()
     if not clean_symbol:
         raise ValueError("Taxonomy classification requires a canonical symbol")
@@ -314,15 +327,18 @@ def classify_and_persist_company(
     if existing and incoming_priority < existing_priority:
         return existing
     if existing and incoming_priority == existing_priority:
+        incoming = {
+            "classification_state": state,
+            "sub_industry": canonical_sub,
+        }
+        if _classification_richness(incoming) < _classification_richness(existing):
+            return existing
         unchanged = (
             existing["sector"] == canonical_sector
             and existing["industry"] == canonical_industry
             and existing.get("sub_industry") == canonical_sub
         )
         if unchanged:
-            return existing
-        # Never let an equal-priority unknown replace a meaningful assignment.
-        if state == "UNCLASSIFIED" and existing.get("classification_state") != "UNCLASSIFIED":
             return existing
 
     conn = database.get_db_connection()
