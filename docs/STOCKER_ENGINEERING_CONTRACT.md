@@ -1,5 +1,5 @@
 # STOCKER ENGINEERING & PRODUCT CONTRACT
-**Version**: 1.0 (Phase V4.1 Checkpoint)  
+**Version**: 1.1 (Phase V4.1 Checkpoint)  
 **Target Audience**: Developers, AI Coding Agents (Gemini, Codex), System Architects  
 **Purpose**: Permanent product & architectural invariants for the Stocker codebase to prevent architectural drift, maintain verification integrity, and enforce fail-closed engineering.
 
@@ -90,7 +90,7 @@ Every company in Stocker progresses through explicit, trackable research stages:
 | Lifecycle Stage | Valid States | Description |
 | :--- | :--- | :--- |
 | **1. Identity** | `unresolved`, `resolved`, `officially_verified` | Security resolution from raw user input to canonical BSE/NSE/ISIN identity. |
-| **2. Financial Data** | `missing`, `ready`, `stale`, `error` | Ingestion and local caching of standardized financial statements. |
+| **2. Financial Data** | `missing`, `ready`, `stale`, `error` | Ingestion and local caching of standardized reported financial statements. |
 | **3. Deterministic Analysis** | `not_ready`, `ready` | Calculation of statement ratios, margins, CAGRs, working capital, and diagnostics. |
 | **4. Official Verification** | `not_run`, `partial`, `verified`, `discrepancy` | Multi-source reconciliation of latest reported figures against official exchange XBRL/PDF filings. |
 | **5. Source Filings** | `not_searched`, `partial`, `ready`, `error` | Discovery and indexing of Annual Reports, Concalls, Presentations, and Announcements. |
@@ -156,7 +156,7 @@ $$\mathbf{Document\ Discovery} \neq \mathbf{Document\ Analysis}$$
 - Triggered explicitly by the user ("Run Live AI Analysis").
 - Reads document content and extracts structured claims, guidance targets, and recent corporate developments.
 - Persists structured facts with verified source page and quotation citations.
-- Runs deterministic code to audit claims against audited financial results across multi-period series.
+- Runs deterministic code to audit claims against standardized reported financial results across multi-period series.
 
 ---
 
@@ -192,7 +192,7 @@ The investor-facing Business Analysis UI is strictly organized into **4 structur
 ## 9. Projections & Assumptions
 
 ### Projection Classification
-- **Historical-Only / Preliminary**: Generated before Business Analysis is run, based strictly on historical trends, median margins, and standardized assumptions. Clearly badged as `Historical-Only`.
+- **Historical-Only / Preliminary**: Generated before Business Analysis is run. Must be constructed strictly using actual historical company financials, deterministic historical trends/medians, explicit evidence-derived assumptions, or explicit user overrides. If a material assumption cannot be supported by historical evidence, it must remain unavailable or low-confidence rather than being silently replaced by generic company-looking defaults (e.g., 10% revenue growth, 18% OPM, 5% capex, 25% tax, 22x P/E). A projection may be explicitly `unavailable` if sufficient evidence does not exist. Clearly badged as `Historical-Only`.
 - **Evidence-Enriched**: Generated after Business Analysis incorporates verified management targets, capacity commissioning schedules, and audited capex outlays.
 
 ### Assumption Provenance
@@ -217,13 +217,29 @@ Investment score (valuation/quality attractiveness) and research evidence confid
 
 ---
 
-## 11. Financial Truth Hierarchy
+## 11. Claim-Type-Aware Financial Truth Hierarchy
 
-Stocker enforces a strict precedence hierarchy for financial figures:
+Because different sources establish fundamentally different categories of facts, Stocker employs a **Claim-Type-Aware Truth Model** rather than a simplistic universal precedence order:
 
-$$\text{Official Exchange Filings (XBRL / PDF / Results)} \;\succ\; \text{Standardized Statements (Screener.in)} \;\succ\; \text{Company Presentation Disclosures} \;\succ\; \text{AI Extractions / Estimates}$$
+1. **For Reported Financial Statement Figures**:
+   - Official exchange/company statutory filings (XBRL / PDF results) with proven `company` + `security` + `period` + `scope` + `metric` + `unit/currency` are **authoritative** over secondary standardized ingestion (e.g., Screener).
+2. **For Management Guidance & Strategic Statements**:
+   - The primary company filing, concall transcript, investor presentation, annual report, or exchange announcement where management actually made the statement is the **authoritative** source.
+3. **For Stocker Calculations**:
+   - The authoritative source is the underlying compatible reported facts plus the deterministic formula.
+4. **For AI Interpretation**:
+   - AI is **never** an authoritative factual source; it interprets and synthesizes cited primary evidence.
 
-Official verification must serve as the authoritative bedrock underlying the analytics, projections, and ranking engine—not merely a cosmetic UI badge.
+### Strict Comparability Preconditions
+No source or figure may override or reconcile against another unless the facts are proven comparable across all dimensions:
+- Same company and security identity
+- Exact reporting period duration and ending date
+- Exact reporting scope (Standalone vs Consolidated)
+- Compatible canonical metric definition
+- Known and normalized unit and currency
+- Appropriate claim type
+
+> **Rule**: Unknown, non-comparable, or ambiguous evidence fails closed.
 
 ---
 
@@ -252,7 +268,7 @@ All data displayed to the user must carry one of the standard provenance labels:
 
 | Label | Description |
 | :--- | :--- |
-| **Reported Fact** | Stated number or text from standardized financial statements or company disclosures. |
+| **Reported Fact** | Stated number or text from standardized reported financial statements or company disclosures. |
 | **Officially Verified** | Deterministically reconciled against official exchange filings (NSE/BSE). |
 | **Management Guidance** | Verbatim forward statement or target stated by company management. |
 | **Stocker Calculation** | Deterministic mathematical calculation evaluated by Python engine. |
@@ -278,7 +294,7 @@ The following architectural debt items are documented for systematic resolution 
 4. **Persistence of Added Companies**: Manually added companies in SQLite risk being reset if binary DB files are checked out from older commits.
 5. **Empty-Universe Bootstrap**: Handling bootstrap initialization when starting with zero pre-seeded companies in local storage.
 6. **Zero vs Unavailable Ratio Defaulting**: Certain missing financial ratios default to `0.0` rather than explicit `None` / `Unavailable`.
-7. **Official Verification Pipeline Integration**: Verification status currently exists alongside statements but is not yet fully plumbed into the core ranking score.
+7. **Official Verification Pipeline Governance**: Official verification currently exists beside the decision pipeline rather than underneath it. It does not yet fully govern canonical financial facts $\to$ deterministic analytics $\to$ projections $\to$ ranking / investment conclusions.
 8. **V4 Fundamental Models Document Extraction Wiring**: `BusinessQuality`, `CompetitivePosition`, `CapitalAllocationAudit`, and `GovernanceAndForensicWatch` models require automated LLM prompt extraction wiring.
 9. **Hardcoded Fallback Mappings**: BSE / Company IR document discovery uses fallback dictionary mappings for specific legacy tickers.
 10. **Document Date Normalization**: Filing discovery sorting requires deterministic multi-format date normalization across all exchange sources.
@@ -289,7 +305,8 @@ The following architectural debt items are documented for systematic resolution 
 15. **Projection Fallback Defaults**: DCF engine contains legacy fallback percentages when historical statement series are brief.
 16. **Hardcoded Projection Years**: DCF projection tables assume fixed forward fiscal year spans rather than dynamic period generation.
 17. **Banking / NBFC Model Specialization**: DCF and valuation metrics are optimized for industrial/services firms and need specialized banking models (NIM, NPA, CASA, P/B).
-18. **UI Lifecycle State Communication**: The UI should explicitly show research lifecycle badges (Identity Verified, Statement Ingested, Filings Discovered, AI Analyzed).
+18. **Post-AI Dependency Staleness**: After Business / AI Analysis completes or is refreshed, dependent outputs such as evidence-enriched projections, DCF valuations, investment scores/rankings, and thesis takeaways may remain based on the previous historical/no-AI state until a manual reload or recomputation occurs. The system requires an explicit dependency invalidation and recomputation cascade when upstream evidence changes.
+19. **UI Lifecycle State Communication**: The UI should explicitly show research lifecycle badges (Identity Verified, Statement Ingested, Filings Discovered, AI Analyzed).
 
 ---
 
