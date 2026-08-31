@@ -513,20 +513,13 @@ def get_stock_financial_truth(symbol: str):
     """
     Lightweight endpoint returning the persisted Canonical Financial Truth container
     (canonical facts, verification coverage, and provenance) without external network calls.
-    Computes deterministically from local cached inputs if not yet persisted.
+    Deterministically recomputes from local cached inputs if stale or missing.
     """
     clean_sym = symbol.strip().upper()
-    cached_truth = database.get_canonical_financial_facts(clean_sym)
-    if cached_truth:
-        return FinancialTruthContainer(**cached_truth)
-        
-    # If not in SQLite truth table, compute deterministically from local cache
-    stock_data = database.get_stock_cache(clean_sym)
-    if not stock_data:
+    from financial_truth_service import get_or_recompute_financial_truth
+    container = get_or_recompute_financial_truth(clean_sym)
+    if not container:
         raise HTTPException(status_code=404, detail=f"Financial data not found for '{clean_sym}'. Please add the stock first.")
-        
-    from financial_truth_service import build_financial_truth_for_stock
-    container = build_financial_truth_for_stock(clean_sym, stock_data)
     return container
 
 from doc_intelligence_engine import get_company_doc_intelligence

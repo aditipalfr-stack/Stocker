@@ -1610,14 +1610,15 @@ def save_canonical_financial_facts(
     facts: List[Dict[str, Any]],
     coverage_summary: Dict[str, Any],
     input_financial_version: Optional[str] = None,
-    verification_version: Optional[str] = None
+    verification_version: Optional[str] = None,
+    computed_at: Optional[str] = None
 ) -> None:
     """
     Persists canonical financial facts and truth container state for a company.
     Replaces existing facts for the symbol atomically within a transaction.
     """
     clean_sym = symbol.upper().strip()
-    now_iso = datetime.now(timezone.utc).isoformat()
+    now_iso = computed_at or datetime.now(timezone.utc).isoformat()
     conn = get_db_connection()
     try:
         with conn:

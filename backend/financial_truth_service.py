@@ -7,12 +7,16 @@ It reconciles standardized Screener statements with official exchange verificati
 - Evaluates curated quarterly and annual metrics
 - Selects the canonical truth value deterministically
 - Exposes discrepancies explicitly without silent overrides
+- Preserves NOT_COMPARABLE evidence across mismatched scopes without borrowing numbers
+- Enforces fail-closed unit and currency preservation
 - Computes comprehensive verification coverage metrics
+- Manages version invalidation & deterministic local recomputation (zero network calls)
 - Persists canonical facts into SQLite and provides query helpers for downstream consumers
 """
 
 import os
 import re
+import json
 from datetime import datetime, timezone
 from typing import Dict, List, Optional, Any, Tuple
 
@@ -107,6 +111,41 @@ def _extract_metric_values(stmt_obj: Any, target_metric: str) -> Dict[str, Optio
             
     return {}
 
+def _find_verification_match(
+    v_map: Dict[Tuple[str, str, str], Dict[str, Any]],
+    raw_v_records: List[Dict[str, Any]],
+    canonical_metric: str,
+    canonical_period: str,
+    statement_scope: str
+) -> Optional[Dict[str, Any]]:
+    """
+    Deterministic verification record matching:
+    1. Exact match by (canonical_metric, canonical_period, statement_scope) preferred.
+    2. Fallback: If no exact scope match, look for a record matching same (metric, period)
+       under a different scope that was flagged as NOT_COMPARABLE or different scope.
+    """
+    # 1. Exact match
+    exact = v_map.get((canonical_metric, canonical_period, statement_scope))
+    if exact:
+        return exact
+        
+    # 2. Mismatched scope inspection (e.g. statement is Consolidated, official is Standalone)
+    for r in raw_v_records:
+        m = r.get("canonical_metric", "")
+        p = r.get("canonical_period", "")
+        s = (r.get("scope") or "").capitalize()
+        if m == canonical_metric and p == canonical_period:
+            if s and s != statement_scope:
+                return {
+                    **r,
+                    "status": "NOT_COMPARABLE",
+                    "provenance_note": f"Official statutory filing available under {s} scope, which is not directly comparable with {statement_scope} reported statement."
+                }
+            elif r.get("status") == "NOT_COMPARABLE":
+                return r
+
+    return None
+
 def build_financial_truth_for_stock(
     symbol: str,
     stock_data: Dict[str, Any],
@@ -121,8 +160,11 @@ def build_financial_truth_for_stock(
     clean_sym = symbol.upper().strip()
     now_iso = datetime.now(timezone.utc).isoformat()
     if isinstance(stock_data, str):
-        import json
-        stock_data = json.loads(stock_data)
+        try:
+            stock_data = json.loads(stock_data)
+        except Exception:
+            pass
+            
     statement_scope = (stock_data.get("statement_type") or "consolidated").capitalize()
     input_fin_version = stock_data.get("fetched_at") or now_iso
     
@@ -157,12 +199,12 @@ def build_financial_truth_for_stock(
         if not canon_p or canon_p == "Unknown":
             continue
             
-        for c_metric, d_metric, unit in CURATED_QUARTERLY_METRICS:
+        for c_metric, d_metric, default_unit in CURATED_QUARTERLY_METRICS:
             val_dict = _extract_metric_values(quarters_stmt, c_metric)
             scr_val = val_dict.get(p_str)
             
-            # Lookup official verification match
-            v_rec = v_map.get((c_metric, canon_p, statement_scope))
+            # Lookup official verification match (with scope fallback)
+            v_rec = _find_verification_match(v_map, raw_v_records, c_metric, canon_p, statement_scope)
             
             fact = _evaluate_canonical_fact(
                 symbol=clean_sym,
@@ -171,7 +213,7 @@ def build_financial_truth_for_stock(
                 period=p_str,
                 canonical_period=canon_p,
                 scope=statement_scope,
-                unit=unit,
+                default_unit=default_unit,
                 screener_val=scr_val,
                 v_rec=v_rec,
                 screener_url=stock_data.get("source_url") or f"https://www.screener.in/company/{clean_sym}/",
@@ -196,7 +238,7 @@ def build_financial_truth_for_stock(
         if not canon_p or canon_p == "Unknown":
             continue
             
-        for c_metric, d_metric, unit in CURATED_ANNUAL_METRICS:
+        for c_metric, d_metric, default_unit in CURATED_ANNUAL_METRICS:
             # Select appropriate statement
             if c_metric in ("REVENUE", "OPERATING_PROFIT", "NET_PROFIT", "BASIC_EPS"):
                 val_dict = _extract_metric_values(pl_stmt, c_metric)
@@ -208,7 +250,7 @@ def build_financial_truth_for_stock(
                 val_dict = {}
                 
             scr_val = val_dict.get(p_str)
-            v_rec = v_map.get((c_metric, canon_p, statement_scope))
+            v_rec = _find_verification_match(v_map, raw_v_records, c_metric, canon_p, statement_scope)
             
             fact = _evaluate_canonical_fact(
                 symbol=clean_sym,
@@ -217,7 +259,7 @@ def build_financial_truth_for_stock(
                 period=disp_p,
                 canonical_period=canon_p,
                 scope=statement_scope,
-                unit=unit,
+                default_unit=default_unit,
                 screener_val=scr_val,
                 v_rec=v_rec,
                 screener_url=stock_data.get("source_url") or f"https://www.screener.in/company/{clean_sym}/",
@@ -239,7 +281,7 @@ def build_financial_truth_for_stock(
                 period=v_rec.get("period", c_p),
                 canonical_period=c_p,
                 scope=s_scope,
-                unit=v_rec.get("unit", "₹ Cr"),
+                default_unit=v_rec.get("unit", "₹ Cr"),
                 screener_val=None,
                 v_rec=v_rec,
                 screener_url=stock_data.get("source_url") or f"https://www.screener.in/company/{clean_sym}/",
@@ -304,7 +346,8 @@ def build_financial_truth_for_stock(
                 facts=facts_dicts,
                 coverage_summary=coverage_dict,
                 input_financial_version=input_fin_version,
-                verification_version=verif_version
+                verification_version=verif_version,
+                computed_at=now_iso
             )
         except Exception as e:
             print(f"Notice: Canonical financial truth persistence note for {clean_sym}: {e}")
@@ -318,7 +361,7 @@ def _evaluate_canonical_fact(
     period: str,
     canonical_period: str,
     scope: str,
-    unit: str,
+    default_unit: str,
     screener_val: Optional[float],
     v_rec: Optional[Dict[str, Any]],
     screener_url: str,
@@ -327,14 +370,12 @@ def _evaluate_canonical_fact(
     """
     Evaluates truth selection deterministically for a single financial fact.
     Enforces the fail-closed verification contract:
-    - VERIFIED -> canonical_value = official_value (High confidence)
+    - VERIFIED -> canonical_value = official_value (High confidence, verified unit/currency)
     - DISCREPANCY -> canonical_value = screener_val (Low confidence, discrepancy exposed)
     - NOT_COMPARABLE / INSUFFICIENT_EVIDENCE / OFFICIAL_SOURCE_MISSING -> canonical_value = screener_val (No override)
-    - SCREENER_VALUE_MISSING -> canonical_value = official_value (if present)
+    - SCREENER_VALUE_MISSING -> canonical_value = None (Unverified, never claim official selection)
     - UNVERIFIED -> canonical_value = screener_val
     """
-    currency = "INR"
-    
     if v_rec:
         status = v_rec.get("status", "UNVERIFIED")
         off_val = v_rec.get("official_value")
@@ -343,8 +384,12 @@ def _evaluate_canonical_fact(
         v_date = v_rec.get("verified_at")
         diff_abs = v_rec.get("variance_abs")
         diff_pct = v_rec.get("variance_pct")
+        v_unit = v_rec.get("unit")
+        v_curr = v_rec.get("currency")
         
         if status == "VERIFIED":
+            fact_unit = v_unit or default_unit
+            fact_curr = v_curr or "INR"
             return CanonicalFinancialFact(
                 symbol=symbol,
                 canonical_metric=canonical_metric,
@@ -353,8 +398,8 @@ def _evaluate_canonical_fact(
                 canonical_period=canonical_period,
                 scope=scope,
                 value=off_val,
-                unit=unit,
-                currency=currency,
+                unit=fact_unit,
+                currency=fact_curr,
                 selected_source_type="official",
                 selected_source_name=v_source_name,
                 selected_source_url=v_url,
@@ -369,6 +414,8 @@ def _evaluate_canonical_fact(
                 computed_at=computed_at
             )
         elif status == "DISCREPANCY":
+            fact_unit = v_unit or default_unit
+            fact_curr = v_curr or "INR"
             return CanonicalFinancialFact(
                 symbol=symbol,
                 canonical_metric=canonical_metric,
@@ -377,8 +424,8 @@ def _evaluate_canonical_fact(
                 canonical_period=canonical_period,
                 scope=scope,
                 value=screener_val,
-                unit=unit,
-                currency=currency,
+                unit=fact_unit,
+                currency=fact_curr,
                 selected_source_type="screener",
                 selected_source_name="Screener.in (Discrepancy with Official Filing)",
                 selected_source_url=screener_url,
@@ -393,6 +440,9 @@ def _evaluate_canonical_fact(
                 computed_at=computed_at
             )
         elif status == "NOT_COMPARABLE":
+            fact_unit = v_unit or default_unit
+            fact_curr = v_curr or "INR"
+            note = v_rec.get("provenance_note") or "Official filing available but scope or accounting standard is not directly comparable."
             return CanonicalFinancialFact(
                 symbol=symbol,
                 canonical_metric=canonical_metric,
@@ -401,8 +451,8 @@ def _evaluate_canonical_fact(
                 canonical_period=canonical_period,
                 scope=scope,
                 value=screener_val,
-                unit=unit,
-                currency=currency,
+                unit=fact_unit,
+                currency=fact_curr,
                 selected_source_type="screener" if screener_val is not None else "unverified",
                 selected_source_name="Screener.in" if screener_val is not None else None,
                 selected_source_url=screener_url,
@@ -412,11 +462,13 @@ def _evaluate_canonical_fact(
                 difference_absolute=None,
                 difference_pct=None,
                 confidence="Moderate" if screener_val is not None else "Unverified",
-                provenance_note="Official filing available but scope or accounting standard is not directly comparable.",
+                provenance_note=note,
                 verified_at=v_date,
                 computed_at=computed_at
             )
         elif status == "INSUFFICIENT_EVIDENCE":
+            fact_unit = v_unit if v_unit else "Unknown"
+            fact_curr = v_curr if v_curr else "Unknown"
             return CanonicalFinancialFact(
                 symbol=symbol,
                 canonical_metric=canonical_metric,
@@ -425,8 +477,8 @@ def _evaluate_canonical_fact(
                 canonical_period=canonical_period,
                 scope=scope,
                 value=screener_val,
-                unit=unit,
-                currency=currency,
+                unit=fact_unit,
+                currency=fact_curr,
                 selected_source_type="screener" if screener_val is not None else "unverified",
                 selected_source_name="Screener.in" if screener_val is not None else None,
                 selected_source_url=screener_url,
@@ -449,8 +501,8 @@ def _evaluate_canonical_fact(
                 canonical_period=canonical_period,
                 scope=scope,
                 value=screener_val,
-                unit=unit,
-                currency=currency,
+                unit=default_unit,
+                currency="INR",
                 selected_source_type="screener" if screener_val is not None else "unverified",
                 selected_source_name="Screener.in" if screener_val is not None else None,
                 selected_source_url=screener_url,
@@ -465,6 +517,8 @@ def _evaluate_canonical_fact(
                 computed_at=computed_at
             )
         elif status == "SCREENER_VALUE_MISSING":
+            fact_unit = v_unit or default_unit
+            fact_curr = v_curr or "INR"
             return CanonicalFinancialFact(
                 symbol=symbol,
                 canonical_metric=canonical_metric,
@@ -472,10 +526,10 @@ def _evaluate_canonical_fact(
                 period=period,
                 canonical_period=canonical_period,
                 scope=scope,
-                value=off_val,
-                unit=unit,
-                currency=currency,
-                selected_source_type="official" if off_val is not None else "unverified",
+                value=None, # Usable canonical value remains None because value was not reconciled against Screener
+                unit=fact_unit,
+                currency=fact_curr,
+                selected_source_type="unverified",
                 selected_source_name=v_source_name if off_val is not None else None,
                 selected_source_url=v_url,
                 screener_value=None,
@@ -483,8 +537,8 @@ def _evaluate_canonical_fact(
                 verification_status="SCREENER_VALUE_MISSING",
                 difference_absolute=None,
                 difference_pct=None,
-                confidence="Moderate" if off_val is not None else "Unverified",
-                provenance_note="Official metric reported but corresponding standardized row missing in Screener.",
+                confidence="Unverified",
+                provenance_note=f"Official statutory figure reported in {v_source_name or 'filing'}, but could not be reconciled as no corresponding standardized row exists in Screener.",
                 verified_at=v_date,
                 computed_at=computed_at
             )
@@ -498,8 +552,8 @@ def _evaluate_canonical_fact(
         canonical_period=canonical_period,
         scope=scope,
         value=screener_val,
-        unit=unit,
-        currency=currency,
+        unit=default_unit,
+        currency="INR",
         selected_source_type="screener" if screener_val is not None else "unverified",
         selected_source_name="Screener.in" if screener_val is not None else None,
         selected_source_url=screener_url if screener_val is not None else None,
@@ -509,9 +563,53 @@ def _evaluate_canonical_fact(
         difference_absolute=None,
         difference_pct=None,
         confidence="Unverified",
-        provenance_note="Standardized reported statement data; official verification not yet executed.",
+        provenance_note="Standardized reported statement data (assumed ₹ Cr / ₹ per Share based on Screener convention); official verification not yet executed.",
         verified_at=None,
         computed_at=computed_at
+    )
+
+# =============================================================================
+# VERSION INVALIDATION & RECOMPUTE GETTER
+# =============================================================================
+
+def get_or_recompute_financial_truth(symbol: str) -> Optional[FinancialTruthContainer]:
+    """
+    Lightweight deterministic helper to fetch or recompute Canonical Financial Truth.
+    Compares:
+      - Persisted input_financial_version vs current cached financial version (fetched_at)
+      - Persisted verification_version vs current persisted verification summary (last_verified_at)
+    If versions match and persisted truth exists: returns persisted truth immediately.
+    If versions differ or truth missing: deterministically recomputes from local persisted inputs and updates SQLite.
+    Zero external network calls.
+    """
+    clean_sym = symbol.upper().strip()
+    stock_data = database.get_stock_cache(clean_sym)
+    if not stock_data:
+        return None
+        
+    if isinstance(stock_data, str):
+        try:
+            stock_data = json.loads(stock_data)
+        except Exception:
+            pass
+            
+    v_summary = database.get_financial_verification_summary(clean_sym)
+    current_fin_version = stock_data.get("fetched_at")
+    current_verif_version = v_summary.get("last_verified_at") if v_summary else None
+    
+    persisted = database.get_canonical_financial_facts(clean_sym)
+    if persisted:
+        persisted_fin_ver = persisted.get("input_financial_version")
+        persisted_verif_ver = persisted.get("verification_version")
+        if persisted_fin_ver == current_fin_version and persisted_verif_ver == current_verif_version:
+            return FinancialTruthContainer(**persisted)
+            
+    # Deterministic local recomputation from persisted inputs
+    return build_financial_truth_for_stock(
+        symbol=clean_sym,
+        stock_data=stock_data,
+        verification_summary=v_summary,
+        persist=True
     )
 
 # =============================================================================

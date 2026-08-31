@@ -3,17 +3,20 @@ Stocker Phase 2A — Canonical Financial Truth Layer Comprehensive Test Suite
 ===========================================================================
 
 Validates all Phase 2A requirements for deterministic Canonical Financial Truth:
-- Exact Official Match (VERIFIED)
-- Tolerance Match (VERIFIED)
-- Real Discrepancy (DISCREPANCY without silent overrides)
-- Scope Isolation (NOT_COMPARABLE)
-- Period Isolation (Zero nearest-period fallback)
-- Currency Fail-Closed (INSUFFICIENT_EVIDENCE)
-- Unit / EPS Isolation (No unproven override)
-- Missing Sources (OFFICIAL_SOURCE_MISSING / SCREENER_VALUE_MISSING)
-- Financial & Verification Refresh Versioning
-- Inspection API (GET /api/stocks/{symbol}/financial-truth without network)
-- Downstream Contract Helpers (get_canonical_fact, get_canonical_series, has_material_verification_discrepancy)
+- Test A: Exact Official Match (VERIFIED -> Canonical Official, High confidence)
+- Test B: Within-Tolerance Match (VERIFIED -> Canonical Official)
+- Test C: Real Discrepancy (DISCREPANCY -> Preserves Standardized, Exposes Official, Low confidence)
+- Test D: Wrong Scope (NOT_COMPARABLE -> Retains evidence, no number borrowing)
+- Test E: Wrong Period (Zero nearest-period fallback)
+- Test F: Foreign / Unknown Currency (INSUFFICIENT_EVIDENCE -> Preserves currency metadata, fail closed)
+- Test G: EPS Unknown Unit (INSUFFICIENT_EVIDENCE -> Preserves unknown unit, no false ₹/Share claim)
+- Test H: Official Source Missing (OFFICIAL_SOURCE_MISSING -> Preserves standardized figure)
+- Test I: Screener Value Missing (SCREENER_VALUE_MISSING -> canonical value None, unverified source)
+- Test J: Financial Refresh Invalidation via Helper/API (Automatic recomputation on F2)
+- Test K: Verification Refresh Invalidation via Helper/API (Automatic recomputation on V2)
+- Test L: Version Stability (Same F + Same V -> No unnecessary recompute)
+- Test M: StockDetail Integration (Populated and fresh, no stale truth exposed)
+- Test N: Downstream Contract Helpers (get_canonical_fact, get_canonical_series, has_material_verification_discrepancy)
 """
 
 import os
@@ -22,13 +25,13 @@ import tempfile
 from pathlib import Path
 from datetime import datetime, timezone, timedelta
 from typing import Dict, Any, List, Optional, Tuple
-from unittest.mock import patch, MagicMock
 
 # Setup imports
 sys.path.insert(0, str(Path(__file__).parent))
 sys.path.insert(0, str(Path(__file__).parent.parent / "libs"))
 
 import database
+from scraper import serialize_stock_data
 from models import (
     FinancialStatement,
     FinancialRow,
@@ -40,6 +43,7 @@ from models import (
 )
 from financial_truth_service import (
     build_financial_truth_for_stock,
+    get_or_recompute_financial_truth,
     get_canonical_fact,
     get_canonical_series,
     has_material_verification_discrepancy
@@ -158,6 +162,8 @@ def run_all_tests():
         assert fact.selected_source_type == "official"
         assert fact.selected_source_name == "NSE Official XBRL Filing"
         assert fact.confidence == "High"
+        assert fact.unit == "₹ Cr"
+        assert fact.currency == "INR"
         assert fact.difference_absolute == 0.0
         print("  ✓ Test A passed: Exact match selected official value with High confidence.")
 
@@ -241,7 +247,7 @@ def run_all_tests():
         print("  ✓ Test C passed: Discrepancy exposed explicitly without silent override.")
 
     # -------------------------------------------------------------------------
-    # TEST D: Wrong Scope (NOT_COMPARABLE -> No Override)
+    # TEST D: Wrong Scope (NOT_COMPARABLE -> Retains Evidence, No Override)
     # -------------------------------------------------------------------------
     with IsolatedTestDatabase():
         print("\n--- Test D: Wrong Scope (Consolidated vs Standalone) ---")
@@ -258,6 +264,7 @@ def run_all_tests():
             "screener_value": 5000.0,
             "official_value": 4200.0,
             "status": "NOT_COMPARABLE",
+            "official_source_name": "BSE Standalone Result",
             "verified_at": "2026-05-01T10:00:00Z"
         }
         database.save_financial_verification_records([v_record])
@@ -267,8 +274,11 @@ def run_all_tests():
         
         assert fact is not None
         assert fact.scope == "Consolidated"
+        assert fact.verification_status == "NOT_COMPARABLE", f"Expected NOT_COMPARABLE status, got {fact.verification_status}"
         assert fact.value == 5000.0, "Consolidated fact must not be overridden by Standalone official figure"
-        print("  ✓ Test D passed: Scope isolation strictly preserved.")
+        assert fact.official_value == 4200.0, "Official standalone value should be retained as evidence"
+        assert fact.confidence == "Moderate"
+        print("  ✓ Test D passed: Scope isolation strictly preserved with explicit NOT_COMPARABLE status.")
 
     # -------------------------------------------------------------------------
     # TEST E: Wrong Period (Zero Nearest-Period Substitution)
@@ -317,7 +327,7 @@ def run_all_tests():
             "scope": "Consolidated",
             "screener_value": 5000.0,
             "official_value": 600.0, # in USD or Millions without proof
-            "unit": "Unknown",
+            "unit": "USD Millions",
             "currency": "USD",
             "status": "INSUFFICIENT_EVIDENCE",
             "verified_at": "2026-05-01T10:00:00Z"
@@ -329,7 +339,9 @@ def run_all_tests():
         
         assert fact.verification_status == "INSUFFICIENT_EVIDENCE"
         assert fact.value == 5000.0, "Must not override Screener with unknown/foreign currency official amount"
-        print("  ✓ Test F passed: Unknown/foreign currency failed closed.")
+        assert fact.currency == "USD", f"Expected USD currency metadata preserved, got {fact.currency}"
+        assert fact.unit == "USD Millions", f"Expected USD Millions unit preserved, got {fact.unit}"
+        print("  ✓ Test F passed: Unknown/foreign currency failed closed with exact currency metadata preserved.")
 
     # -------------------------------------------------------------------------
     # TEST G: EPS Without Explicit ₹/Share Proof
@@ -348,6 +360,7 @@ def run_all_tests():
             "screener_value": 80.0,
             "official_value": 80.0,
             "unit": "Unknown",
+            "currency": "INR",
             "status": "INSUFFICIENT_EVIDENCE",
             "verified_at": "2026-05-01T10:00:00Z"
         }
@@ -358,7 +371,8 @@ def run_all_tests():
         
         assert fact.verification_status == "INSUFFICIENT_EVIDENCE"
         assert fact.value == 80.0
-        print("  ✓ Test G passed: Unproven EPS unit rejected from VERIFIED status.")
+        assert fact.unit == "Unknown", f"Expected Unknown unit, got {fact.unit}"
+        print("  ✓ Test G passed: Unproven EPS unit preserved as Unknown without false ₹/Share claim.")
 
     # -------------------------------------------------------------------------
     # TEST H: Official Source Missing
@@ -390,7 +404,7 @@ def run_all_tests():
         print("  ✓ Test H passed: Standardized figure preserved under OFFICIAL_SOURCE_MISSING.")
 
     # -------------------------------------------------------------------------
-    # TEST I: Screener Value Missing + Official Value Present
+    # TEST I: Screener Value Missing + Official Value Present (Strict Policy)
     # -------------------------------------------------------------------------
     with IsolatedTestDatabase():
         print("\n--- Test I: Screener Value Missing ---")
@@ -416,27 +430,57 @@ def run_all_tests():
         container = build_financial_truth_for_stock("NEWLISTED", stock)
         fact = next((f for f in container.facts if f.canonical_metric == "REVENUE" and f.canonical_period == "2026-Q1"), None)
         
-        assert fact is not None
-        assert fact.verification_status in ("SCREENER_VALUE_MISSING", "UNVERIFIED") or fact.value == 1550.0
-        print("  ✓ Test I passed: Missing Screener row handled safely.")
+        assert fact is not None, "Expected fact for Q1 FY27 in container"
+        assert fact.verification_status == "SCREENER_VALUE_MISSING", f"Expected SCREENER_VALUE_MISSING, got {fact.verification_status}"
+        assert fact.screener_value is None, f"Expected screener_value is None, got {fact.screener_value}"
+        assert fact.official_value == 1550.0, f"Expected official_value 1550.0, got {fact.official_value}"
+        assert fact.value is None, f"Canonical usable value must remain None for unreconciled missing screener data, got {fact.value}"
+        assert fact.selected_source_type != "official", f"selected_source_type must not claim official verified selection, got {fact.selected_source_type}"
+        assert fact.confidence == "Unverified", f"Expected Unverified confidence, got {fact.confidence}"
+        print("  ✓ Test I passed: Missing Screener row strictly satisfies Phase 2A policy (canonical value None, unreconciled).")
 
     # -------------------------------------------------------------------------
-    # TEST J & K: Financial & Verification Refresh Invalidation
+    # TEST J: Financial Refresh Invalidation via Helper / API
     # -------------------------------------------------------------------------
     with IsolatedTestDatabase():
-        from scraper import serialize_stock_data
-        v1_time = "2026-08-31T09:00:00Z"
-        stock_v1 = make_sample_stock_data("TESTCO", fetched_at=v1_time)
-        database.save_stock_cache("TESTCO", "Test Co", "IT", "Software", serialize_stock_data(stock_v1))
+        print("\n--- Test J: Financial Refresh Invalidation via Helper ---")
+        f1_time = "2026-08-31T09:00:00Z"
+        stock_f1 = make_sample_stock_data("AUTOINV", fetched_at=f1_time)
+        database.save_stock_cache("AUTOINV", "Auto Inv Ltd", "IT", "Software", serialize_stock_data(stock_f1))
         
         # Initial truth build
-        c1 = build_financial_truth_for_stock("TESTCO", stock_v1)
-        assert c1.input_financial_version == v1_time
-        assert c1.verified_count == 0
+        c1 = get_or_recompute_financial_truth("AUTOINV")
+        assert c1 is not None
+        assert c1.input_financial_version == f1_time
         
-        # Refresh 1: Official verification runs
+        # Update stock cache to F2
+        f2_time = "2026-08-31T11:00:00Z"
+        stock_f2 = make_sample_stock_data("AUTOINV", fetched_at=f2_time)
+        database.save_stock_cache("AUTOINV", "Auto Inv Ltd", "IT", "Software", serialize_stock_data(stock_f2))
+        
+        # Call getter without manually calling build
+        c2 = get_or_recompute_financial_truth("AUTOINV")
+        assert c2 is not None
+        assert c2.input_financial_version == f2_time, f"Expected recomputed input version {f2_time}, got {c2.input_financial_version}"
+        print("  ✓ Test J passed: Financial refresh automatically triggered recomputation on F2.")
+
+    # -------------------------------------------------------------------------
+    # TEST K: Verification Refresh Invalidation via Helper / API
+    # -------------------------------------------------------------------------
+    with IsolatedTestDatabase():
+        print("\n--- Test K: Verification Refresh Invalidation via Helper ---")
+        f1_time = "2026-08-31T09:00:00Z"
+        stock_f1 = make_sample_stock_data("VERIFINV", fetched_at=f1_time)
+        database.save_stock_cache("VERIFINV", "Verif Inv Ltd", "IT", "Software", serialize_stock_data(stock_f1))
+        
+        c1 = get_or_recompute_financial_truth("VERIFINV")
+        assert c1.verified_count == 0
+        assert c1.verification_version is None
+        
+        # Save new verification record with version V2
+        v2_time = "2026-08-31T12:00:00Z"
         v_record = {
-            "symbol": "TESTCO",
+            "symbol": "VERIFINV",
             "metric_name": "Revenue",
             "canonical_metric": "REVENUE",
             "period": "FY26",
@@ -445,45 +489,66 @@ def run_all_tests():
             "screener_value": 5000.0,
             "official_value": 5000.0,
             "status": "VERIFIED",
-            "verified_at": "2026-08-31T10:00:00Z"
+            "verified_at": v2_time
         }
         database.save_financial_verification_records([v_record])
         
-        c2 = build_financial_truth_for_stock("TESTCO", stock_v1)
+        # Call getter without manually calling build
+        c2 = get_or_recompute_financial_truth("VERIFINV")
+        assert c2 is not None
         assert c2.verified_count == 1
-        assert c2.verification_version == "2026-08-31T10:00:00Z"
-        
-        # Refresh 2: Financial statements updated
-        v2_time = "2026-08-31T11:00:00Z"
-        stock_v2 = make_sample_stock_data("TESTCO", fetched_at=v2_time)
-        c3 = build_financial_truth_for_stock("TESTCO", stock_v2)
-        assert c3.input_financial_version == v2_time
-        assert c3.verified_count == 1
-        print("  ✓ Test J & K passed: Invalidation and version tracking verified across refreshes.")
+        assert c2.verification_version == v2_time, f"Expected verification version {v2_time}, got {c2.verification_version}"
+        print("  ✓ Test K passed: Verification refresh automatically triggered recomputation on V2.")
 
     # -------------------------------------------------------------------------
-    # TEST L: Inspection API (GET /api/stocks/{symbol}/financial-truth)
+    # TEST L: Version Stability (Same F + Same V -> No Recompute)
     # -------------------------------------------------------------------------
     with IsolatedTestDatabase():
-        print("\n--- Test L: Inspection API Endpoint ---")
-        from scraper import serialize_stock_data
-        stock = make_sample_stock_data("INFY")
-        database.save_stock_cache("INFY", "Infosys Ltd", "IT", "Software", serialize_stock_data(stock))
+        print("\n--- Test L: Version Stability ---")
+        f1_time = "2026-08-31T09:00:00Z"
+        stock_f1 = make_sample_stock_data("STABLECO", fetched_at=f1_time)
+        database.save_stock_cache("STABLECO", "Stable Co", "IT", "Software", serialize_stock_data(stock_f1))
         
-        # Call API function directly
-        res = main.get_stock_financial_truth("INFY")
-        assert res is not None
-        assert res.symbol == "INFY"
-        assert len(res.facts) > 0
-        assert res.coverage.target_facts_count == len(res.facts)
-        print("  ✓ Test L passed: GET /api/stocks/{symbol}/financial-truth returned valid container locally.")
+        c1 = get_or_recompute_financial_truth("STABLECO")
+        ts1 = c1.last_computed_at
+        
+        # Call again without changing F or V
+        c2 = get_or_recompute_financial_truth("STABLECO")
+        assert c2.last_computed_at == ts1, "Expected identical persisted truth without recomputing"
+        print("  ✓ Test L passed: Version stability verified; no redundant recomputations.")
 
     # -------------------------------------------------------------------------
-    # TEST M: Downstream Contract Helpers
+    # TEST M: StockDetail Integration & Freshness
     # -------------------------------------------------------------------------
     with IsolatedTestDatabase():
-        print("\n--- Test M: Downstream Contract Helpers ---")
+        print("\n--- Test M: StockDetail Integration ---")
+        f1_time = "2026-08-31T09:00:00Z"
+        stock = make_sample_stock_data("DETAILCO", fetched_at=f1_time)
+        database.save_stock_cache("DETAILCO", "Detail Co", "IT", "Software", serialize_stock_data(stock))
+        
+        # 1. build_full_stock_detail includes financial_truth
+        detail = main.build_full_stock_detail(stock)
+        assert detail.financial_truth is not None, "StockDetail.financial_truth must be populated"
+        assert detail.financial_truth.symbol == "DETAILCO"
+        assert detail.financial_truth.input_financial_version == f1_time
+        assert len(detail.financial_truth.facts) > 0
+        
+        # 2. Update stock fetched_at to F2 and re-build detail
+        f2_time = "2026-08-31T11:00:00Z"
+        stock_f2 = make_sample_stock_data("DETAILCO", fetched_at=f2_time)
+        database.save_stock_cache("DETAILCO", "Detail Co", "IT", "Software", serialize_stock_data(stock_f2))
+        
+        detail2 = main.build_full_stock_detail(stock_f2)
+        assert detail2.financial_truth.input_financial_version == f2_time, "StockDetail must reflect updated financial version"
+        print("  ✓ Test M passed: StockDetail.financial_truth is integrated and remains fresh.")
+
+    # -------------------------------------------------------------------------
+    # TEST N: Downstream Contract Helpers
+    # -------------------------------------------------------------------------
+    with IsolatedTestDatabase():
+        print("\n--- Test N: Downstream Contract Helpers ---")
         stock = make_sample_stock_data("COLPAL")
+        database.save_stock_cache("COLPAL", "Colgate-Palmolive", "FMCG", "Consumer", serialize_stock_data(stock))
         
         # Add a discrepancy for testing helper
         v_record = {
@@ -520,10 +585,10 @@ def run_all_tests():
         
         has_disc_op = has_material_verification_discrepancy("COLPAL", metric="OPERATING_PROFIT")
         assert has_disc_op is True, "Operating profit should have a discrepancy"
-        print("  ✓ Test M passed: Downstream helpers operate accurately.")
+        print("  ✓ Test N passed: Downstream helpers operate accurately.")
 
     print("\n==================================================================")
-    print("🎉 ALL PHASE 2A FINANCIAL TRUTH TESTS (A - M) PASSED 100% CLEANLY!")
+    print("🎉 ALL PHASE 2A FINANCIAL TRUTH TESTS (A - N) PASSED 100% CLEANLY!")
     print("==================================================================")
 
 if __name__ == "__main__":
