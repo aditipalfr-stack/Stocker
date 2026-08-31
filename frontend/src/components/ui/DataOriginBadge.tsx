@@ -9,7 +9,7 @@ export type DataOrigin =
   | 'stocker_projection';
 
 const originConfig = {
-  reported_fact: { label: 'Reported Fact', icon: FileCheck2, className: 'origin-reported' },
+  reported_fact: { label: 'Screener Standardized', icon: FileCheck2, className: 'origin-reported' },
   stocker_calculation: { label: 'Stocker Calculation', icon: Calculator, className: 'origin-calculation' },
   management_guidance: { label: 'Management Guidance', icon: Target, className: 'origin-guidance' },
   ai_interpretation: { label: 'AI Interpretation', icon: Bot, className: 'origin-ai' },

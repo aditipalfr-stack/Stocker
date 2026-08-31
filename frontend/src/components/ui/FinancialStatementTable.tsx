@@ -24,8 +24,11 @@ interface FinancialStatementTableProps {
   comparisonLabel?: string;
 }
 
-export const FinancialStatementTable: React.FC<FinancialStatementTableProps> = ({ statement, comparisonLabel = 'vs prior period' }) => {
+export const FinancialStatementTable: React.FC<FinancialStatementTableProps> = ({ statement, comparisonLabel }) => {
   const latestIndex = statement.periods.length - 1;
+  const latestPeriod = statement.periods[latestIndex] || '';
+  const isLatestTTM = latestPeriod.trim().toUpperCase() === 'TTM';
+  const resolvedComparisonLabel = comparisonLabel || (isLatestTTM ? 'vs last completed FY' : 'vs prior period');
 
   return (
     <div className="financial-table-wrap">
@@ -36,15 +39,20 @@ export const FinancialStatementTable: React.FC<FinancialStatementTableProps> = (
               <span>Metric</span>
               <small>₹ Cr unless noted</small>
             </th>
-            {statement.periods.map((period, index) => (
-              <th key={period} className={`${index % 2 ? 'statement-col-band' : ''} ${index === latestIndex ? 'statement-latest-col' : ''}`}>
-                <span>{period}</span>
-                {index === latestIndex && <small className="latest-label">Latest</small>}
-              </th>
-            ))}
+            {statement.periods.map((period, index) => {
+              const isTTM = period.trim().toUpperCase() === 'TTM';
+              return (
+                <th key={period} className={`${index % 2 ? 'statement-col-band' : ''} ${index === latestIndex ? 'statement-latest-col' : ''}`}>
+                  <span>{period}</span>
+                  {index === latestIndex && (
+                    <small className="latest-label">{isTTM ? 'TTM' : 'Latest'}</small>
+                  )}
+                </th>
+              );
+            })}
             <th className="financial-trend-heading">
               <span>Trend</span>
-              <small>{comparisonLabel}</small>
+              <small>{resolvedComparisonLabel}</small>
             </th>
           </tr>
         </thead>

@@ -26,22 +26,110 @@ def get_row_values(stmt: Optional[FinancialStatement], metric_name: str) -> Dict
             return row.values
     return {}
 
+def classify_financial_business_model(
+    sector: Optional[str] = None,
+    industry: Optional[str] = None,
+    pl: Optional[FinancialStatement] = None,
+    bs: Optional[FinancialStatement] = None,
+    quarters: Optional[FinancialStatement] = None
+) -> str:
+    """
+    Deterministically classifies a company's financial business model:
+    - 'BANK': Commercial, public/private sector, or small finance banks
+    - 'NBFC_LENDER': Non-banking financial lenders, housing finance, microfinance
+    - 'INSURANCE': Life, health, and general insurance
+    - 'OTHER_FINANCIAL': Capital markets, broking, asset management, holding co
+    - 'GENERAL_CORPORATE': Manufacturing, IT, FMCG, services, pharma, industrial
+    - 'UNKNOWN': Ambiguous or insufficient data
+    """
+    sec = (sector or "").strip().lower()
+    ind = (industry or "").strip().lower()
+
+    # 1. Direct Industry / Sector Metadata Checks
+    if any(b in ind for b in ["private sector bank", "public sector bank", "foreign bank", "small finance bank", "payment bank"]):
+        return "BANK"
+    if ("bank" in ind or "banking" in ind or "banking" in sec) and not any(nb in ind for nb in ["non-banking", "nbfc", "databank", "food bank", "blood bank"]):
+        return "BANK"
+        
+    if any(n in ind for n in ["nbfc", "housing finance", "microfinance", "lending", "auto finance", "consumer finance"]) or ("non banking" in ind) or ("non-banking" in ind):
+        return "NBFC_LENDER"
+        
+    if any(ins in ind for ins in ["life insurance", "general insurance", "health insurance", "reinsurance"]) or "insurance" in ind:
+        return "INSURANCE"
+
+    # 2. Statement Row Signature Checks (from raw Screener tables)
+    all_metrics = set()
+    for stmt in (quarters, pl, bs):
+        if stmt and stmt.rows:
+            for r in stmt.rows:
+                if r.metric:
+                    all_metrics.add(r.metric.strip().lower())
+                    
+    has_deposits = any("deposit" in m for m in all_metrics)
+    has_advances = any(m in ("advances", "loans & advances", "loans and advances", "total advances") for m in all_metrics)
+    has_npa = any("npa" in m for m in all_metrics)
+    has_financing_profit = any("financing profit" in m or "financing margin" in m for m in all_metrics)
+    has_interest_earned = any("interest earned" in m or "interest expended" in m for m in all_metrics)
+    has_insurance_premiums = any("premiums earned" in m or "claims paid" in m for m in all_metrics)
+    
+    if has_deposits and (has_advances or has_npa or has_interest_earned or "bank" in sec or "financial" in sec):
+        return "BANK"
+    if has_npa or (has_deposits and has_financing_profit):
+        return "BANK"
+    if has_financing_profit or (has_advances and has_interest_earned):
+        return "NBFC_LENDER"
+    if has_insurance_premiums:
+        return "INSURANCE"
+        
+    # 3. Explicit Corporate Sector / Industry Evidence
+    corporate_sectors = [
+        "automobile", "it", "software", "technology", "pharmaceutical", "pharma", "fmcg",
+        "chemicals", "metals", "mining", "capital goods", "consumer durables", "oil & gas",
+        "energy", "power", "telecom", "infrastructure", "construction", "textiles",
+        "agriculture", "cement", "retail", "media", "real estate", "transport", "logistics"
+    ]
+    if any(cs in sec or cs in ind for cs in corporate_sectors):
+        return "GENERAL_CORPORATE"
+        
+    # Check standard corporate balance sheet signatures (Gross Block, Fixed Assets, Raw Materials, CWIP)
+    if any(cm in all_metrics for cm in ["fixed assets", "fixed assets +", "gross block", "raw material", "operating profit", "cwip"]):
+        if not (has_deposits or has_npa or has_financing_profit):
+            return "GENERAL_CORPORATE"
+            
+    if "financial services" in sec or "financial" in ind:
+        return "OTHER_FINANCIAL"
+        
+    return "UNKNOWN"
+
 def compute_financial_analytics(
     quarters: Optional[FinancialStatement],
     pl: Optional[FinancialStatement],
     bs: Optional[FinancialStatement],
     cf: Optional[FinancialStatement],
     symbol: Optional[str] = None,
-    financial_truth: Optional[Any] = None
+    financial_truth: Optional[Any] = None,
+    sector: Optional[str] = None,
+    industry: Optional[str] = None
 ) -> Dict[str, Any]:
     from financial_truth_resolver import (
         TruthAwareFinancialResolver,
         calculate_cagr,
         calculate_growth_pct,
         get_prior_quarter_canonical_key,
-        get_prior_year_quarter_canonical_key
+        get_prior_year_quarter_canonical_key,
+        get_common_completed_annual_periods,
+        classify_period_type
     )
     from models import AnalyticProvenanceSummary
+    
+    business_model = classify_financial_business_model(
+        sector=sector,
+        industry=industry,
+        pl=pl,
+        bs=bs,
+        quarters=quarters
+    )
+    is_financial_business = (business_model in ("BANK", "NBFC_LENDER", "INSURANCE", "OTHER_FINANCIAL"))
     
     resolver = TruthAwareFinancialResolver(
         symbol=symbol,
@@ -56,6 +144,7 @@ def compute_financial_analytics(
     provenance_map: Dict[str, Any] = {}
 
     analytics: Dict[str, Any] = {
+        "financial_business_model": business_model,
         "quarterly_analysis": {"trends": []},
         "annual_analysis": {},
         "cash_flow_quality": {},
@@ -279,13 +368,7 @@ def compute_financial_analytics(
     other_assets = get_row_values(bs, "Other Assets")
 
     fcf_trends = []
-    cum_5y_pat = 0.0
-    cum_5y_cfo = 0.0
-    cum_5y_fcf = 0.0
-    valid_fcf_count = 0
     valid_capex_pcts = []
-    
-    last_5_periods = y_periods[-5:] if len(y_periods) >= 5 else y_periods
     has_direct_capex = bool(direct_capex_vals)
     
     methodology_notes = []
@@ -294,12 +377,17 @@ def compute_financial_analytics(
     else:
         methodology_notes.append("CFO line not reported in Cash Flow statement.")
 
-    if has_direct_capex:
+    if is_financial_business:
+        methodology_notes.append("Conventional CFO/FCF analysis is not applicable for banking and financial entities.")
+    elif has_direct_capex:
         methodology_notes.append("Direct reported 'Fixed assets purchased / Capex' line item used (High Confidence).")
     else:
         methodology_notes.append("Direct Capex line not itemized in statement; derived from Balance Sheet net block & CWIP changes.")
 
     prior_valid_capex = []
+    cfo_facts_map: Dict[str, Optional[float]] = {}
+    pat_facts_map: Dict[str, Optional[float]] = {}
+    fcf_facts_map: Dict[str, Optional[float]] = {}
 
     for idx, p in enumerate(y_periods):
         cfo_fact = resolver.resolve_annual_fact("CFO", p)
@@ -310,6 +398,8 @@ def compute_financial_analytics(
         pat = pat_fact.value
         sales = sales_fact.value
         all_inputs_collected.extend([cfo_fact, pat_fact])
+        cfo_facts_map[p] = cfo
+        pat_facts_map[p] = pat
         
         capex = None
         capex_method = "Unavailable"
@@ -317,89 +407,88 @@ def compute_financial_analytics(
         confidence_reason = "Missing CFO or Balance Sheet data to determine Capex."
         possible_anomaly_warning = None
         
-        # Priority 1: Direct reported capex line item
-        if direct_capex_vals and p in direct_capex_vals and direct_capex_vals[p] is not None:
-            capex = abs(direct_capex_vals[p])
-            capex_method = "Reported Capex"
-            fcf_confidence = "High Confidence"
-            confidence_reason = "Direct reported fixed assets purchased line item used from cash flow statement."
-            prior_valid_capex.append(capex)
-        # Priority 2: Derived via Balance Sheet Net Block Delta + Depreciation + CWIP Delta
-        elif idx > 0 and fixed_assets and p in fixed_assets and y_periods[idx-1] in fixed_assets:
-            fa_curr = fixed_assets.get(p)
-            fa_prev = fixed_assets.get(y_periods[idx-1])
-            dep_val = y_dep.get(p) or 0.0
-            cwip_curr = cwip.get(p) or 0.0
-            cwip_prev = cwip.get(y_periods[idx-1]) or 0.0
-            
-            if fa_curr is not None and fa_prev is not None:
-                delta_fa = fa_curr - fa_prev
-                delta_cwip = cwip_curr - cwip_prev
-                calc_capex = delta_fa + dep_val + delta_cwip
-                capex = round(calc_capex, 1)
-                capex_method = "Derived from Balance Sheet (FA delta + Dep + CWIP delta)"
-                fcf_confidence = "Medium Confidence"
-                confidence_reason = "Derived from Balance Sheet net block change, depreciation, and CWIP delta."
-                
-                # Deterministic Sanity Checks on Derived Capex (preserve math, lower confidence, attach warning)
-                if calc_capex < 0:
-                    fcf_confidence = "Low Confidence"
-                    confidence_reason = "Derived Capex is negative due to net fixed asset reductions exceeding depreciation."
-                    possible_anomaly_warning = (
-                        f"Negative derived capex (₹{calc_capex:,.1f} Cr) in {p} indicates major asset disposals, "
-                        f"demergers, or write-downs exceeding new capital additions."
-                    )
-                elif sales and sales > 0 and (calc_capex / sales) > 0.80:
-                    pct = round((calc_capex / sales) * 100.0, 1)
-                    fcf_confidence = "Low Confidence"
-                    confidence_reason = f"Derived capex as % of sales is unusually elevated ({pct}% > 80%)."
-                    possible_anomaly_warning = (
-                        f"Derived capex represents {pct}% of annual sales in {p}, indicating an inorganic acquisition, "
-                        f"subsidiary consolidation, or large asset transfer rather than routine organic capex."
-                    )
-                elif prior_valid_capex and len(prior_valid_capex) >= 2:
-                    prior_avg = sum(prior_valid_capex[-3:]) / len(prior_valid_capex[-3:])
-                    if prior_avg > 0 and calc_capex > (3.5 * prior_avg) and (calc_capex - prior_avg) > 1000.0:
-                        ratio = round(calc_capex / prior_avg, 1)
-                        fcf_confidence = "Low Confidence"
-                        confidence_reason = f"Derived capex shows an extreme jump ({ratio}x) over historical baseline."
-                        possible_anomaly_warning = (
-                            f"Derived capex (₹{calc_capex:,.0f} Cr) is {ratio}x higher than the prior baseline average "
-                            f"(₹{prior_avg:,.0f} Cr), indicating potential inorganic asset additions or balance sheet restructuring."
-                        )
-                elif cfo is not None and cfo > 0 and calc_capex > (4.0 * cfo) and calc_capex > 2000.0 and (delta_cwip < 0.5 * calc_capex):
-                    ratio = round(calc_capex / cfo, 1)
-                    fcf_confidence = "Low Confidence"
-                    confidence_reason = f"Derived capex significantly exceeds operating cash flow ({ratio}x CFO)."
-                    possible_anomaly_warning = (
-                        f"Derived capex is {ratio}x operating cash flow without corresponding CWIP gestation, "
-                        f"signaling possible inorganic block additions."
-                    )
-                    
-                prior_valid_capex.append(max(calc_capex, 0.0))
-        
-        # Calculate Stocker FCF only if both CFO and Capex are available
-        fcf = None
-        if cfo is not None and capex is not None:
-            fcf = round(cfo - capex, 1)
+        if is_financial_business:
+            capex = None
+            capex_method = "Not Applicable (Financial Business Model)"
+            fcf_confidence = "Not Applicable"
+            confidence_reason = "Conventional Capex and Free Cash Flow are not applicable to banking and financial institutions."
         else:
-            if fcf_confidence != "Low Confidence":
-                fcf_confidence = "Unavailable"
+            # Priority 1: Direct reported capex line item
+            if direct_capex_vals and p in direct_capex_vals and direct_capex_vals[p] is not None:
+                capex = abs(direct_capex_vals[p])
+                capex_method = "Reported Capex"
+                fcf_confidence = "High Confidence"
+                confidence_reason = "Direct reported fixed assets purchased line item used from cash flow statement."
+                prior_valid_capex.append(capex)
+            # Priority 2: Derived via Balance Sheet Net Block Delta + Depreciation + CWIP Delta
+            elif idx > 0 and fixed_assets and p in fixed_assets and y_periods[idx-1] in fixed_assets:
+                fa_curr = fixed_assets.get(p)
+                fa_prev = fixed_assets.get(y_periods[idx-1])
+                dep_val = y_dep.get(p) or 0.0
+                cwip_curr = cwip.get(p) or 0.0
+                cwip_prev = cwip.get(y_periods[idx-1]) or 0.0
+                
+                if fa_curr is not None and fa_prev is not None:
+                    delta_fa = fa_curr - fa_prev
+                    delta_cwip = cwip_curr - cwip_prev
+                    calc_capex = delta_fa + dep_val + delta_cwip
+                    capex = round(calc_capex, 1)
+                    capex_method = "Derived from Balance Sheet (FA delta + Dep + CWIP delta)"
+                    fcf_confidence = "Medium Confidence"
+                    confidence_reason = "Derived from Balance Sheet net block change, depreciation, and CWIP delta."
+                    
+                    # Deterministic Sanity Checks on Derived Capex (preserve math, lower confidence, attach warning)
+                    if calc_capex < 0:
+                        fcf_confidence = "Low Confidence"
+                        confidence_reason = "Derived Capex is negative due to net fixed asset reductions exceeding depreciation."
+                        possible_anomaly_warning = (
+                            f"Negative derived capex (₹{calc_capex:,.1f} Cr) in {p} indicates major asset disposals, "
+                            f"demergers, or write-downs exceeding new capital additions."
+                        )
+                    elif sales and sales > 0 and (calc_capex / sales) > 0.80:
+                        pct = round((calc_capex / sales) * 100.0, 1)
+                        fcf_confidence = "Low Confidence"
+                        confidence_reason = f"Derived capex as % of sales is unusually elevated ({pct}% > 80%)."
+                        possible_anomaly_warning = (
+                            f"Derived capex represents {pct}% of annual sales in {p}, indicating an inorganic acquisition, "
+                            f"subsidiary consolidation, or large asset transfer rather than routine organic capex."
+                        )
+                    elif prior_valid_capex and len(prior_valid_capex) >= 2:
+                        prior_avg = sum(prior_valid_capex[-3:]) / len(prior_valid_capex[-3:])
+                        if prior_avg > 0 and calc_capex > (3.5 * prior_avg) and (calc_capex - prior_avg) > 1000.0:
+                            ratio = round(calc_capex / prior_avg, 1)
+                            fcf_confidence = "Low Confidence"
+                            confidence_reason = f"Derived capex shows an extreme jump ({ratio}x) over historical baseline."
+                            possible_anomaly_warning = (
+                                f"Derived capex (₹{calc_capex:,.0f} Cr) is {ratio}x higher than the prior baseline average "
+                                f"(₹{prior_avg:,.0f} Cr), indicating potential inorganic asset additions or balance sheet restructuring."
+                            )
+                    elif cfo is not None and cfo > 0 and calc_capex > (4.0 * cfo) and calc_capex > 2000.0 and (delta_cwip < 0.5 * calc_capex):
+                        ratio = round(calc_capex / cfo, 1)
+                        fcf_confidence = "Low Confidence"
+                        confidence_reason = f"Derived capex significantly exceeds operating cash flow ({ratio}x CFO)."
+                        possible_anomaly_warning = (
+                            f"Derived capex is {ratio}x operating cash flow without corresponding CWIP gestation, "
+                            f"signaling possible inorganic block additions."
+                        )
+                        
+                    prior_valid_capex.append(max(calc_capex, 0.0))
             
+        # Calculate Stocker FCF only for general corporate if both CFO and Capex are available
+        fcf = None
+        if not is_financial_business:
+            if cfo is not None and capex is not None:
+                fcf = round(cfo - capex, 1)
+                fcf_facts_map[p] = fcf
+            else:
+                if fcf_confidence != "Low Confidence":
+                    fcf_confidence = "Unavailable"
+                
         cfo_to_pat = round((cfo / pat) * 100.0, 1) if (cfo is not None and pat is not None and pat > 0) else None
         
         if sales and capex is not None and sales > 0 and capex >= 0:
             valid_capex_pcts.append(round((capex / sales) * 100.0, 1))
 
-        if p in last_5_periods:
-            if pat is not None:
-                cum_5y_pat += pat
-            if cfo is not None:
-                cum_5y_cfo += cfo
-            if fcf is not None:
-                cum_5y_fcf += fcf
-                valid_fcf_count += 1
-                
         fcf_trends.append({
             "period": p,
             "reported_cfo_cr": cfo,
@@ -417,7 +506,23 @@ def compute_financial_analytics(
             }
         })
         
-    cfo_to_pat_5yr = round((cum_5y_cfo / cum_5y_pat) * 100.0, 1) if cum_5y_pat > 0 and cum_5y_cfo != 0 else None
+    # Exact Common Completed Annual Periods for 5Y CFO/PAT
+    common_5y_periods = get_common_completed_annual_periods([cfo_facts_map, pat_facts_map], count=5)
+    if len(common_5y_periods) == 5:
+        cum_5y_pat = sum(pat_facts_map[p] for p in common_5y_periods if pat_facts_map.get(p) is not None)
+        cum_5y_cfo = sum(cfo_facts_map[p] for p in common_5y_periods if cfo_facts_map.get(p) is not None)
+        cfo_to_pat_5yr = round((cum_5y_cfo / cum_5y_pat) * 100.0, 1) if (cum_5y_pat is not None and cum_5y_pat > 0 and cum_5y_cfo is not None and cum_5y_cfo != 0) else None
+    else:
+        cum_5y_pat = None
+        cum_5y_cfo = None
+        cfo_to_pat_5yr = None
+
+    # Exact Common Completed Annual Periods for 5Y FCF
+    if not is_financial_business:
+        common_5y_fcf_periods = get_common_completed_annual_periods([cfo_facts_map, pat_facts_map, fcf_facts_map], count=5)
+        cum_5y_fcf = sum(fcf_facts_map[p] for p in common_5y_fcf_periods if fcf_facts_map.get(p) is not None) if len(common_5y_fcf_periods) == 5 else None
+    else:
+        cum_5y_fcf = None
     
     # Historical capex-to-sales %
     historical_capex_sales_pct = (
@@ -427,36 +532,44 @@ def compute_financial_analytics(
     analytics["historical_parameters"]["capex_to_sales_pct"] = historical_capex_sales_pct
 
     # Determine Cash Conversion Quality & Overall FCF Confidence
-    if cfo_to_pat_5yr is not None:
-        if cfo_to_pat_5yr >= 100.0:
-            conv_quality = "Superior (CFO exceeds PAT)"
-        elif cfo_to_pat_5yr >= 75.0:
-            conv_quality = "Adequate (Healthy Cash Conversion)"
-        elif cfo_to_pat_5yr >= 50.0:
-            conv_quality = "Moderate (Working Capital Drag)"
+    if is_financial_business:
+        conv_quality = "Not applicable for banking/financial business model"
+        overall_fcf_confidence = "Not Applicable (Financial Business Model)"
+        cf_applicability = "not_applicable_financial_business"
+    else:
+        cf_applicability = "applicable" if cfo_to_pat_5yr is not None else "insufficient"
+        if cfo_to_pat_5yr is not None:
+            if cfo_to_pat_5yr >= 100.0:
+                conv_quality = "Superior (CFO exceeds PAT)"
+            elif cfo_to_pat_5yr >= 75.0:
+                conv_quality = "Adequate (Healthy Cash Conversion)"
+            elif cfo_to_pat_5yr >= 50.0:
+                conv_quality = "Moderate (Working Capital Drag)"
+            else:
+                conv_quality = "Weak (Significant Working Capital Lock-in)"
         else:
-            conv_quality = "Weak (Significant Working Capital Lock-in)"
-    else:
-        conv_quality = "Inconclusive / Incomplete Data"
+            conv_quality = "Inconclusive / Incomplete Data"
 
-    recent_fcf_trends = fcf_trends[-5:] if len(fcf_trends) >= 5 else fcf_trends
-    recent_confidences = [item.get("fcf_confidence") for item in recent_fcf_trends if item.get("fcf_confidence")]
-    if all(c == "High Confidence" for c in recent_confidences) and len(recent_confidences) >= 3:
-        overall_fcf_confidence = "High Confidence (Direct Reported Capex)"
-    elif any(c == "Low Confidence" for c in recent_confidences):
-        overall_fcf_confidence = "Low Confidence (High Volatility / Distortions Detected)"
-    elif any(c == "Medium Confidence" for c in recent_confidences):
-        overall_fcf_confidence = "Medium Confidence (Balance Sheet Derived)"
-    else:
-        overall_fcf_confidence = "Unavailable / Incomplete Data"
+        recent_fcf_trends = fcf_trends[-5:] if len(fcf_trends) >= 5 else fcf_trends
+        recent_confidences = [item.get("fcf_confidence") for item in recent_fcf_trends if item.get("fcf_confidence")]
+        if all(c == "High Confidence" for c in recent_confidences) and len(recent_confidences) >= 3:
+            overall_fcf_confidence = "High Confidence (Direct Reported Capex)"
+        elif any(c == "Low Confidence" for c in recent_confidences):
+            overall_fcf_confidence = "Low Confidence (High Volatility / Distortions Detected)"
+        elif any(c == "Medium Confidence" for c in recent_confidences):
+            overall_fcf_confidence = "Medium Confidence (Balance Sheet Derived)"
+        else:
+            overall_fcf_confidence = "Unavailable / Incomplete Data"
 
     analytics["cash_flow_quality"] = {
-        "cumulative_5y_pat_cr": round(cum_5y_pat, 1) if cum_5y_pat > 0 else None,
-        "cumulative_5y_cfo_cr": round(cum_5y_cfo, 1) if cum_5y_cfo != 0 else None,
-        "cumulative_5y_fcf_cr": round(cum_5y_fcf, 1) if valid_fcf_count >= 3 else None,
+        "applicability": cf_applicability,
+        "common_annual_periods": common_5y_periods,
+        "cumulative_5y_pat_cr": round(cum_5y_pat, 1) if (cum_5y_pat is not None and cum_5y_pat > 0) else None,
+        "cumulative_5y_cfo_cr": round(cum_5y_cfo, 1) if (cum_5y_cfo is not None and cum_5y_cfo != 0) else None,
+        "cumulative_5y_fcf_cr": round(cum_5y_fcf, 1) if cum_5y_fcf is not None else None,
         "cfo_to_pat_5yr_pct": cfo_to_pat_5yr,
         "cash_conversion_quality": conv_quality,
-        "is_fcf_directly_reported": has_direct_capex,
+        "is_fcf_directly_reported": has_direct_capex if not is_financial_business else False,
         "overall_fcf_confidence": overall_fcf_confidence,
         "methodology_notes": methodology_notes,
         "fcf_trends": fcf_trends
@@ -501,12 +614,37 @@ def compute_financial_analytics(
     cwip_pct = latest_bs.get("cwip_to_fixed_assets_pct")
     debt_eq = latest_bs.get("debt_to_equity")
 
+    # If banking or financial, CWIP does not indicate capex expansion
+    has_expansion = bool(cwip_pct is not None and cwip_pct >= 12.0) if not is_financial_business else False
+
     analytics["balance_sheet_efficiency"] = {
         "latest_debt_to_equity": debt_eq,
         "latest_cwip_to_net_block_pct": cwip_pct,
-        "has_significant_capex_trigger": bool(cwip_pct is not None and cwip_pct >= 12.0),
+        "has_significant_capex_trigger": has_expansion,
         "bs_trends": bs_trends
     }
+
+    # Bank-specific reported metrics
+    if is_financial_business:
+        deposits_vals = get_row_values(bs, "Deposits") or get_row_values(bs, "Total Deposits")
+        advances_vals = get_row_values(bs, "Advances") or get_row_values(bs, "Loans & Advances")
+        gnpa_vals = get_row_values(quarters, "Gross NPA %") or get_row_values(pl, "Gross NPA %")
+        nnpa_vals = get_row_values(quarters, "Net NPA %") or get_row_values(pl, "Net NPA %")
+        
+        latest_bs_p = bs.periods[-1] if (bs and bs.periods) else None
+        latest_q_p = quarters.periods[-1] if (quarters and quarters.periods) else None
+        
+        latest_dep = deposits_vals.get(latest_bs_p) if (deposits_vals and latest_bs_p) else None
+        latest_adv = advances_vals.get(latest_bs_p) if (advances_vals and latest_bs_p) else None
+        latest_gnpa = gnpa_vals.get(latest_q_p) if (gnpa_vals and latest_q_p) else (gnpa_vals.get(latest_bs_p) if gnpa_vals else None)
+        latest_nnpa = nnpa_vals.get(latest_q_p) if (nnpa_vals and latest_q_p) else (nnpa_vals.get(latest_bs_p) if nnpa_vals else None)
+        
+        analytics["bank_metrics"] = {
+            "latest_deposits_cr": latest_dep,
+            "latest_advances_cr": latest_adv,
+            "latest_gross_npa_pct": latest_gnpa,
+            "latest_net_npa_pct": latest_nnpa
+        }
 
     # -------------------------------------------------------------------------
     # Overall Analytic Provenance Summary
@@ -633,6 +771,14 @@ def compute_financial_analytics(
     else:
         yoy_source = "Quarterly Financial Results (Screener.in)"
 
+    # Formula transparency explanations adjusted for banking/financial entities
+    if is_financial_business:
+        cfo_pat_explanation = "Conventional 5-Year CFO/PAT conversion is not applicable to banking and financial institutions because customer deposits and lending disbursements dominate operating cash flows."
+        fcf_explanation = "Conventional Free Cash Flow (CFO - Capex) is not applicable to banking and financial institutions because operating cash flows reflect financial asset/liability movements rather than industrial capital expenditure."
+    else:
+        cfo_pat_explanation = f"The company converted {cfo_to_pat_5yr}% of its accounting net profit into actual operational cash flow over the last 5 common financial years ({conv_quality})." if cfo_to_pat_5yr is not None else "Cash flow conversion data incomplete."
+        fcf_explanation = f"In {last_p}, operating cash flow was ₹{latest_cfo:,.0f} Cr and capital expenditure was ₹{latest_capex:,.0f} Cr ({latest_capex_meth}, {latest_fcf_conf}), resulting in ₹{latest_fcf:,.0f} Cr of free cash flow." + (f" Note: {latest_anomaly}" if latest_anomaly else "") if (latest_cfo is not None and latest_capex is not None and latest_fcf is not None) else "FCF requires reliable CFO and Capex figures."
+
     analytics["formula_transparency"] = {
         "sales_cagr_3yr": {
             "metric_name": "Sales 3-Year CAGR",
@@ -662,15 +808,15 @@ def compute_financial_analytics(
         },
         "cfo_to_pat_5yr": {
             "metric_name": "5-Year CFO to PAT Conversion %",
-            "value": cfo_to_pat_5yr,
+            "value": cfo_to_pat_5yr if not is_financial_business else None,
             "formula": "(Cumulative 5-Year CFO / Cumulative 5-Year PAT) × 100",
             "inputs": {
-                "Cumulative 5Y CFO (₹ Cr)": round(cum_5y_cfo, 1) if cum_5y_cfo != 0 else None,
-                "Cumulative 5Y PAT (₹ Cr)": round(cum_5y_pat, 1) if cum_5y_pat > 0 else None,
-                "Period Range": f"{y_periods[-5]} to {y_periods[-1]}" if len(y_periods) >= 5 else "Last 5 Years"
+                "Cumulative 5Y CFO (₹ Cr)": round(cum_5y_cfo, 1) if (cum_5y_cfo is not None and cum_5y_cfo != 0) else None,
+                "Cumulative 5Y PAT (₹ Cr)": round(cum_5y_pat, 1) if (cum_5y_pat is not None and cum_5y_pat > 0) else None,
+                "Period Range": f"{common_5y_periods[0]} to {common_5y_periods[-1]}" if len(common_5y_periods) == 5 else "Last 5 Common Completed FYs"
             },
             "source": "Audited Cash Flow & Profit/Loss Statements",
-            "explanation": f"The company converted {cfo_to_pat_5yr}% of its accounting net profit into actual operational cash flow over the last 5 financial years ({conv_quality})." if cfo_to_pat_5yr is not None else "Cash flow conversion data incomplete."
+            "explanation": cfo_pat_explanation
         },
         "free_cash_flow": {
             "metric_name": "Free Cash Flow (FCF)",
@@ -684,7 +830,7 @@ def compute_financial_analytics(
                 "Period": last_p
             },
             "source": "Audited Cash Flow Statement / Balance Sheet Gross Block Reconciliation",
-            "explanation": f"In {last_p}, operating cash flow was ₹{latest_cfo:,.0f} Cr and capital expenditure was ₹{latest_capex:,.0f} Cr ({latest_capex_meth}, {latest_fcf_conf}), resulting in ₹{latest_fcf:,.0f} Cr of free cash flow." + (f" Note: {latest_anomaly}" if latest_anomaly else "") if (latest_cfo is not None and latest_capex is not None and latest_fcf is not None) else "FCF requires reliable CFO and Capex figures."
+            "explanation": fcf_explanation
         },
         "debt_to_equity": {
             "metric_name": "Debt to Equity Ratio",

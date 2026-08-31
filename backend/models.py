@@ -175,6 +175,7 @@ class StockSummary(BaseModel):
     source_name: str = "Screener.in"
     source_url: str = ""
     statement_type: str = "consolidated"
+    financial_business_model: str = "GENERAL_CORPORATE"
     fetched_at: str = ""
 
 class StockDetail(BaseModel):
@@ -197,6 +198,7 @@ class StockDetail(BaseModel):
     source_name: str = "Screener.in"
     source_url: str = ""
     statement_type: str = "consolidated"
+    financial_business_model: str = "GENERAL_CORPORATE"
     fetched_at: str = ""
     documents_checked_at: Optional[str] = None
     verification_summary: Optional["FinancialVerificationSummary"] = None

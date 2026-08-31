@@ -103,6 +103,89 @@ def get_canonical_quarter_display_name(canonical_period: str) -> str:
     q_map = {"1": "Jun", "2": "Sep", "3": "Dec", "4": "Mar"}
     return f"{q_map.get(q_num, 'Q' + q_num)} {year}"
 
+def classify_period_type(period_str: str) -> str:
+    """
+    Deterministically classifies a reporting period string into one of:
+    - 'ttm': Trailing 12 months / LTM
+    - 'quarterly': Quarter periods (e.g. Jun 2026, 2026-Q1, Q1 FY27, Sep 2025, Dec 2025)
+    - 'annual_completed': Completed fiscal year periods (e.g. Mar 2026, FY26, 2026-FY)
+    - 'unknown': Ambiguous or unparseable
+    """
+    if not period_str:
+        return "unknown"
+    p_clean = str(period_str).strip().upper()
+    if p_clean in ("TTM", "LTM", "TRAILING 12 MONTHS", "TRAILING TWELVE MONTHS", "TRAIL. 12M", "TRAIL 12M"):
+        return "ttm"
+    if re.match(r"^\d{4}-FY$", p_clean) or re.match(r"^FY\d{2,4}$", p_clean):
+        return "annual_completed"
+    if re.match(r"^\d{4}-Q[1-4]$", p_clean) or re.search(r"Q[1-4]", p_clean):
+        return "quarterly"
+    # Month Year formats:
+    m_match = re.search(r"\b(JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC)[A-Z]*\s*[-/,.]?\s*(\d{4})\b", p_clean)
+    if m_match:
+        m = m_match.group(1)
+        if m in ("JUN", "SEP", "DEC"):
+            return "quarterly"
+        return "annual_completed"
+    return "unknown"
+
+def parse_period_year(period_str: str) -> int:
+    """Extracts numeric calendar/fiscal year for chronological sorting."""
+    p_clean = str(period_str).strip().upper()
+    m_yr = re.search(r"(\d{4})", p_clean)
+    if m_yr:
+        return int(m_yr.group(1))
+    m_fy = re.search(r"FY\s*(\d{2})", p_clean)
+    if m_fy:
+        return int(m_fy.group(1)) + 2000
+    return 0
+
+def get_common_completed_annual_periods(
+    required_series: List[Any],
+    count: int = 5
+) -> List[str]:
+    """
+    Deterministically computes the exact common completed annual periods across multiple series.
+    Rules:
+    - Excludes TTM / LTM
+    - Excludes non-annual periods (e.g. quarterly June/Sept/Dec)
+    - Requires exact common period keys across ALL provided series with non-None values
+    - Sorts chronologically by fiscal year
+    - Takes the latest N completed common periods
+    - If fewer than `count` common periods exist, returns empty list [] (fail closed)
+    - Never pads, substitutes, or uses mismatched period sets
+    """
+    if not required_series:
+        return []
+        
+    series_period_sets = []
+    for s in required_series:
+        if isinstance(s, dict):
+            valid_p = {
+                p for p, v in s.items()
+                if v is not None and classify_period_type(p) != "ttm" and str(p).strip().upper() != "TTM"
+            }
+        elif isinstance(s, (list, tuple, set)):
+            valid_p = {
+                p for p in s
+                if p is not None and classify_period_type(p) != "ttm" and str(p).strip().upper() != "TTM"
+            }
+        else:
+            continue
+        series_period_sets.append(valid_p)
+        
+    if not series_period_sets:
+        return []
+        
+    # Exact set intersection across ALL provided series
+    common = set.intersection(*series_period_sets)
+    if not common or len(common) < count:
+        return []
+        
+    # Sort chronologically
+    sorted_common = sorted(list(common), key=parse_period_year)
+    return sorted_common[-count:]
+
 class TruthAwareFinancialResolver:
     """
     In-memory fast lookup resolver for canonical financial facts and standardized statements.

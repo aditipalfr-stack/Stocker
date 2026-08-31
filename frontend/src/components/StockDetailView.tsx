@@ -309,6 +309,14 @@ export const StockDetailView: React.FC<StockDetailViewProps> = ({
   const annualOpm = latestRowPair(stock.profit_loss, ['opm %', 'operating profit margin']);
   const annualPat = latestRowPair(stock.profit_loss, ['net profit', 'pat']);
 
+  const businessModel = stock.financial_business_model || stock.analytics?.financial_business_model || 'GENERAL_CORPORATE';
+  const isFinancialBusiness = ['BANK', 'NBFC_LENDER', 'INSURANCE', 'OTHER_FINANCIAL'].includes(businessModel);
+  const isBank = (businessModel === 'BANK');
+
+  const latestPlPeriod = stock.profit_loss.periods[stock.profit_loss.periods.length - 1] || '';
+  const isPlTTM = latestPlPeriod.trim().toUpperCase() === 'TTM';
+  const priorPlPeriod = stock.profit_loss.periods[stock.profit_loss.periods.length - 2] || 'prior FY';
+
   const quarterlySummary: StatementSummaryItem[] = [
     {
       label: 'Revenue',
@@ -366,22 +374,33 @@ export const StockDetailView: React.FC<StockDetailViewProps> = ({
       provenance: stock.analytics?.provenance?.pat_cagr_3yr
     },
     {
-      label: 'Latest OPM',
+      label: isPlTTM ? 'TTM OPM' : 'Latest OPM',
       concept: 'opm',
       value: formatPercent(annualOpm.current),
-      detail: <ChangeIndicator metric={annualOpm.metric} current={annualOpm.current} previous={annualOpm.previous} />,
+      detail: isPlTTM 
+        ? `vs ${priorPlPeriod}` 
+        : <ChangeIndicator metric={annualOpm.metric} current={annualOpm.current} previous={annualOpm.previous} />,
       tone: toneFromSignedValue((annualOpm.current ?? 0) - (annualOpm.previous ?? 0))
     },
     {
-      label: 'Latest PAT',
+      label: isPlTTM ? 'TTM PAT' : 'Latest PAT',
       value: formatCrores(annualPat.current),
-      detail: <ChangeIndicator metric={annualPat.metric} current={annualPat.current} previous={annualPat.previous} />,
+      detail: isPlTTM
+        ? `vs ${priorPlPeriod}`
+        : <ChangeIndicator metric={annualPat.metric} current={annualPat.current} previous={annualPat.previous} />,
       tone: annualPat.current !== null && annualPat.current < 0 ? 'negative' : toneFromSignedValue((annualPat.current ?? 0) - (annualPat.previous ?? 0)),
       provenance: latestFcfTrend?.provenance?.pat
     }
   ];
 
-  const cashFlowSummary: StatementSummaryItem[] = [
+  const cashFlowSummary: StatementSummaryItem[] = isFinancialBusiness ? [
+    {
+      label: 'Cash Flow Analysis',
+      value: 'Not applicable for banking & financial institutions',
+      detail: 'Operating cash flows are dominated by customer deposit and lending movements',
+      tone: 'neutral'
+    }
+  ] : [
     {
       label: 'CFO',
       concept: 'cfo',
@@ -391,10 +410,10 @@ export const StockDetailView: React.FC<StockDetailViewProps> = ({
       provenance: latestFcfTrend?.provenance?.cfo
     },
     {
-      label: 'CFO/PAT',
+      label: '5Y CFO/PAT',
       concept: 'cfo_pat',
       value: formatPercent(stock.analytics?.cash_flow_quality?.cfo_to_pat_5yr_pct),
-      detail: stock.analytics?.cash_flow_quality?.cash_conversion_quality || '5-year cash conversion',
+      detail: stock.analytics?.cash_flow_quality?.cash_conversion_quality || '5-year common period conversion',
       tone: cashConversionTone(stock.analytics?.cash_flow_quality?.cash_conversion_quality),
       onDetails: () => setSelectedFormulaKey('cfo_to_pat_5yr'),
       provenance: stock.analytics?.provenance?.cfo_to_pat_5yr
@@ -403,20 +422,51 @@ export const StockDetailView: React.FC<StockDetailViewProps> = ({
       label: 'Capex',
       concept: 'capex',
       value: formatCrores(latestFcfTrend?.capex_cr),
-      detail: 'Neutral: direction needs context',
+      detail: latestFcfTrend?.capex_methodology || 'Neutral: direction needs context',
       tone: 'neutral'
     },
     {
       label: 'FCF',
       concept: 'fcf',
       value: formatCrores(latestFcfTrend?.stocker_derived_fcf_cr),
-      detail: <ChangeIndicator metric="Free Cash Flow" current={latestFcfTrend?.stocker_derived_fcf_cr} previous={previousFcfTrend?.stocker_derived_fcf_cr} />,
+      detail: latestFcfTrend?.fcf_confidence ? `FCF (${latestFcfTrend.fcf_confidence})` : <ChangeIndicator metric="Free Cash Flow" current={latestFcfTrend?.stocker_derived_fcf_cr} previous={previousFcfTrend?.stocker_derived_fcf_cr} />,
       tone: toneForPositiveMetric(latestFcfTrend?.stocker_derived_fcf_cr, previousFcfTrend?.stocker_derived_fcf_cr),
       onDetails: () => setSelectedFormulaKey('free_cash_flow')
     }
   ];
 
-  const balanceSheetSummary: StatementSummaryItem[] = [
+  const bankDeposits = stock.analytics?.bank_metrics?.latest_deposits_cr ?? latestRowPair(stock.balance_sheet, ['deposits', 'total deposits']).current;
+  const bankAdvances = stock.analytics?.bank_metrics?.latest_advances_cr ?? latestRowPair(stock.balance_sheet, ['advances', 'loans & advances']).current;
+  const bankGnpa = stock.analytics?.bank_metrics?.latest_gross_npa_pct;
+  const bankNnpa = stock.analytics?.bank_metrics?.latest_net_npa_pct;
+
+  const balanceSheetSummary: StatementSummaryItem[] = isBank ? [
+    {
+      label: 'Deposits',
+      value: formatCrores(bankDeposits),
+      detail: 'Total customer deposits',
+      tone: 'neutral'
+    },
+    {
+      label: 'Borrowings',
+      value: formatCrores(latestBsTrend?.borrowings_cr ?? stock.analytics?.balance_sheet_efficiency?.borrowings_cr),
+      detail: <ChangeIndicator metric="Borrowings" current={latestBsTrend?.borrowings_cr} previous={previousBsTrend?.borrowings_cr} />,
+      tone: 'neutral',
+      provenance: latestBsTrend?.provenance?.borrowings
+    },
+    {
+      label: 'Advances / Loans',
+      value: formatCrores(bankAdvances),
+      detail: 'Loan book size',
+      tone: 'neutral'
+    },
+    {
+      label: 'Gross NPA %',
+      value: formatPercent(bankGnpa),
+      detail: isFiniteNumber(bankNnpa) ? `Net NPA: ${bankNnpa}%` : (bankGnpa === null || bankGnpa === undefined ? 'Bank-specific metric unavailable in current source' : 'Asset Quality'),
+      tone: 'neutral'
+    }
+  ] : [
     {
       label: 'Borrowings',
       value: formatCrores(latestBsTrend?.borrowings_cr ?? stock.analytics?.balance_sheet_efficiency?.borrowings_cr),
@@ -1313,10 +1363,22 @@ export const StockDetailView: React.FC<StockDetailViewProps> = ({
           {financialSubTab === 'balance_sheet' && <FinancialStatementTable statement={stock.balance_sheet} />}
           {financialSubTab === 'cash_flow' && (
             <div className="space-y-6">
+              {isFinancialBusiness && (
+                <div className="p-4 rounded-2xl bg-sky-950/30 border border-sky-800/40 text-xs text-sky-200 flex items-start gap-3">
+                  <Info className="w-4 h-4 text-sky-400 mt-0.5 flex-shrink-0" />
+                  <div>
+                    <span className="font-semibold text-sky-300">Banking & Financial Business Model Notice:</span>
+                    <p className="mt-1 text-slate-300">
+                      Conventional CFO/FCF quality analysis is not used for banking businesses because deposit, lending and financial-asset movements dominate operating cash flows. The raw standardized cash flow statement is presented below for source faithfulness.
+                    </p>
+                  </div>
+                </div>
+              )}
+
               <FinancialStatementTable statement={stock.cash_flow} />
 
-              {/* Free Cash Flow Reconciliation & Capex Methodology Breakdown */}
-              {stock.analytics?.cash_flow_quality?.fcf_trends && stock.analytics.cash_flow_quality.fcf_trends.length > 0 && (
+              {/* Free Cash Flow Reconciliation & Capex Methodology Breakdown (General Corporate only) */}
+              {!isFinancialBusiness && stock.analytics?.cash_flow_quality?.fcf_trends && stock.analytics.cash_flow_quality.fcf_trends.length > 0 && (
                 <details className="advanced-details">
                   <summary>
                     <div>

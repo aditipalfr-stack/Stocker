@@ -176,6 +176,7 @@ export interface StockSummary {
   source_name?: string;
   source_url?: string;
   statement_type?: string;
+  financial_business_model?: string;
   fetched_at?: string;
 }
 
@@ -197,6 +198,7 @@ export interface StockDetail {
   source_name?: string;
   source_url?: string;
   statement_type?: string;
+  financial_business_model?: string;
   fetched_at?: string;
   documents_checked_at?: string | null;
   verification_summary?: FinancialVerificationSummary | null;
@@ -212,6 +214,13 @@ export interface StockDetail {
   projection: ProjectionResult;
   score: ScoreBreakdown;
   analytics: {
+    financial_business_model?: string;
+    bank_metrics?: {
+      latest_deposits_cr?: number | null;
+      latest_advances_cr?: number | null;
+      latest_gross_npa_pct?: number | null;
+      latest_net_npa_pct?: number | null;
+    };
     quarterly_analysis: {
       trends: Array<{
         period: string;
@@ -250,6 +259,8 @@ export interface StockDetail {
     provenance?: Record<string, AnalyticValueWithProvenance>;
     provenance_summary?: AnalyticProvenanceSummary;
     cash_flow_quality: {
+      applicability?: string;
+      common_annual_periods?: string[];
       cumulative_5y_pat_cr?: number | null;
       cumulative_5y_cfo_cr?: number | null;
       cumulative_5y_fcf_cr?: number | null;

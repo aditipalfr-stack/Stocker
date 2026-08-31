@@ -99,7 +99,7 @@ export const FinancialProvenanceBadge: React.FC<FinancialProvenanceBadgeProps> =
         title={config.title}
       >
         <Icon className="w-2.5 h-2.5 flex-shrink-0" />
-        {!compact && <span>{config.label}</span>}
+        <span>{config.label}</span>
       </button>
 
       {showModal && (
