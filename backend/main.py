@@ -29,6 +29,7 @@ from models import (
     CompanyRegistryItem, CompanySearchResult, CompanySearchResponse,
     AddCompanyRequest, AddCompanyResponse,
     FinancialVerificationItem, FinancialVerificationSummary, FinancialVerificationResponse,
+    CanonicalFinancialFact, VerificationCoverageSummary, FinancialTruthContainer,
     ResearchLifecycleStatus, DiscoverFilingsResponse
 )
 import database
@@ -104,6 +105,18 @@ def build_full_stock_detail(stock_data: Dict[str, Any], custom_assumptions: Opti
     verif_summary_dict = database.get_financial_verification_summary(symbol)
     verif_summary = FinancialVerificationSummary(**verif_summary_dict) if verif_summary_dict else None
 
+    # 6. Canonical Financial Truth Layer (Phase 2A)
+    financial_truth = None
+    try:
+        from financial_truth_service import build_financial_truth_for_stock
+        financial_truth = build_financial_truth_for_stock(
+            symbol=symbol,
+            stock_data=stock_data,
+            verification_summary=verif_summary_dict
+        )
+    except Exception as e_truth:
+        print(f"Notice: Canonical financial truth build note for {symbol}: {e_truth}")
+
     # Record projection computation state (tracks doc_intel version used)
     doc_intel_version = getattr(doc_intel, "extraction_timestamp", None) if doc_intel else None
     database.record_projection_computation_state(
@@ -134,7 +147,8 @@ def build_full_stock_detail(stock_data: Dict[str, Any], custom_assumptions: Opti
         statement_type=statement_type,
         fetched_at=fetched_at,
         documents_checked_at=database.get_document_sources_checked_at(symbol) or stock_data.get("documents_checked_at"),
-        verification_summary=verif_summary
+        verification_summary=verif_summary,
+        financial_truth=financial_truth
     )
 
 @app.get("/api/health")
@@ -493,6 +507,27 @@ def trigger_stock_financial_verification(symbol: str):
         summary=FinancialVerificationSummary(**res["summary"]),
         records=[FinancialVerificationItem(**r) for r in res["records"]]
     )
+
+@app.get("/api/stocks/{symbol}/financial-truth", response_model=FinancialTruthContainer)
+def get_stock_financial_truth(symbol: str):
+    """
+    Lightweight endpoint returning the persisted Canonical Financial Truth container
+    (canonical facts, verification coverage, and provenance) without external network calls.
+    Computes deterministically from local cached inputs if not yet persisted.
+    """
+    clean_sym = symbol.strip().upper()
+    cached_truth = database.get_canonical_financial_facts(clean_sym)
+    if cached_truth:
+        return FinancialTruthContainer(**cached_truth)
+        
+    # If not in SQLite truth table, compute deterministically from local cache
+    stock_data = database.get_stock_cache(clean_sym)
+    if not stock_data:
+        raise HTTPException(status_code=404, detail=f"Financial data not found for '{clean_sym}'. Please add the stock first.")
+        
+    from financial_truth_service import build_financial_truth_for_stock
+    container = build_financial_truth_for_stock(clean_sym, stock_data)
+    return container
 
 from doc_intelligence_engine import get_company_doc_intelligence
 from llm_service import is_llm_available, get_available_llm_provider

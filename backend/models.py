@@ -200,6 +200,7 @@ class StockDetail(BaseModel):
     fetched_at: str = ""
     documents_checked_at: Optional[str] = None
     verification_summary: Optional["FinancialVerificationSummary"] = None
+    financial_truth: Optional["FinancialTruthContainer"] = None
 
 # =============================================================================
 # COMPANY REGISTRY & IDENTITY MODELS (PHASE A & B)
@@ -336,7 +337,59 @@ class FinancialVerificationResponse(BaseModel):
     summary: FinancialVerificationSummary
     records: List[FinancialVerificationItem]
 
+# =============================================================================
+# CANONICAL FINANCIAL TRUTH MODELS (PHASE 2A)
+# =============================================================================
+
+class CanonicalFinancialFact(BaseModel):
+    symbol: str
+    canonical_metric: str # e.g. "REVENUE", "OPERATING_PROFIT", "OPM_PCT", "NET_PROFIT", "BASIC_EPS", "CFO", "BORROWINGS", "FIXED_ASSETS", "CWIP"
+    display_metric: str # e.g. "Revenue / Sales", "Operating Profit", "Operating Profit Margin %", "Net Profit", "Basic EPS"
+    period: str # e.g. "Jun 2026", "FY26"
+    canonical_period: str # e.g. "2026-Q1", "2026-FY"
+    scope: str # "Consolidated" or "Standalone"
+    value: Optional[float] = None # Canonical usable truth value (None if missing, never 0.0)
+    unit: str = "₹ Cr" # "₹ Cr", "₹ / Share", "%"
+    currency: str = "INR"
+    selected_source_type: str # "official", "screener", "stocker_calculation", "unverified"
+    selected_source_name: Optional[str] = None
+    selected_source_url: Optional[str] = None
+    screener_value: Optional[float] = None
+    official_value: Optional[float] = None
+    verification_status: str # "VERIFIED", "DISCREPANCY", "NOT_COMPARABLE", "INSUFFICIENT_EVIDENCE", "OFFICIAL_SOURCE_MISSING", "SCREENER_VALUE_MISSING", "UNVERIFIED"
+    difference_absolute: Optional[float] = None
+    difference_pct: Optional[float] = None
+    confidence: str = "Unverified" # "High", "Moderate", "Low", "Unverified"
+    provenance_note: str = ""
+    verified_at: Optional[str] = None
+    computed_at: Optional[str] = None
+
+class VerificationCoverageSummary(BaseModel):
+    symbol: str
+    target_facts_count: int = 0
+    officially_verified_count: int = 0
+    discrepancy_count: int = 0
+    not_comparable_count: int = 0
+    insufficient_evidence_count: int = 0
+    official_source_missing_count: int = 0
+    screener_value_missing_count: int = 0
+    unverified_count: int = 0
+    coverage_pct: float = 0.0
+    overall_truth_state: str = "UNVERIFIED" # "VERIFIED", "DISCREPANCY", "PARTIAL", "UNVERIFIED"
+
+class FinancialTruthContainer(BaseModel):
+    symbol: str
+    facts: List[CanonicalFinancialFact] = []
+    coverage: VerificationCoverageSummary
+    discrepancies_count: int = 0
+    verified_count: int = 0
+    unverified_count: int = 0
+    last_computed_at: str
+    input_financial_version: Optional[str] = None
+    verification_version: Optional[str] = None
+
 # Rebuild models for forward references
+FinancialTruthContainer.model_rebuild()
 StockDetail.model_rebuild()
 FinancialVerificationResponse.model_rebuild()
 

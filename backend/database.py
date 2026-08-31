@@ -215,6 +215,59 @@ def init_db() -> None:
                     computed_at TEXT NOT NULL
                 );
             """)
+
+            # 11. Canonical Financial Facts (Phase 2A Financial Truth Layer)
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS canonical_financial_facts (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    symbol TEXT NOT NULL,
+                    canonical_metric TEXT NOT NULL,
+                    display_metric TEXT NOT NULL,
+                    period TEXT NOT NULL,
+                    canonical_period TEXT NOT NULL,
+                    scope TEXT NOT NULL,
+                    canonical_value REAL,
+                    unit TEXT NOT NULL,
+                    currency TEXT NOT NULL DEFAULT 'INR',
+                    selected_source_type TEXT NOT NULL,
+                    selected_source_name TEXT,
+                    selected_source_url TEXT,
+                    screener_value REAL,
+                    official_value REAL,
+                    verification_status TEXT NOT NULL,
+                    difference_absolute REAL,
+                    difference_pct REAL,
+                    confidence TEXT NOT NULL,
+                    provenance_note TEXT,
+                    verified_at TEXT,
+                    computed_at TEXT NOT NULL,
+                    input_financial_version TEXT,
+                    verification_version TEXT,
+                    UNIQUE(symbol, canonical_metric, period, scope)
+                );
+            """)
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_cff_lookup ON canonical_financial_facts(symbol, canonical_metric, period, scope);")
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_cff_canon_p ON canonical_financial_facts(symbol, canonical_period, canonical_metric);")
+
+            # 12. Canonical Financial Truth Header State
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS canonical_financial_truth_state (
+                    symbol TEXT PRIMARY KEY,
+                    input_financial_version TEXT,
+                    verification_version TEXT,
+                    target_facts_count INTEGER NOT NULL DEFAULT 0,
+                    verified_count INTEGER NOT NULL DEFAULT 0,
+                    discrepancies_count INTEGER NOT NULL DEFAULT 0,
+                    not_comparable_count INTEGER NOT NULL DEFAULT 0,
+                    insufficient_evidence_count INTEGER NOT NULL DEFAULT 0,
+                    official_source_missing_count INTEGER NOT NULL DEFAULT 0,
+                    screener_value_missing_count INTEGER NOT NULL DEFAULT 0,
+                    unverified_count INTEGER NOT NULL DEFAULT 0,
+                    coverage_pct REAL NOT NULL DEFAULT 0.0,
+                    overall_truth_state TEXT NOT NULL DEFAULT 'UNVERIFIED',
+                    computed_at TEXT NOT NULL
+                );
+            """)
     finally:
         conn.close()
 
@@ -1547,6 +1600,260 @@ def get_financial_verification_summary(symbol: str) -> Dict[str, Any]:
         "last_verified_at": last_verified or company.get("identity_verified_at") or company.get("source_last_verified_at"),
         "confidence_score": confidence if total > 0 else (1.0 if company.get("source") in ("NSE", "BSE", "verified_official") else 0.0)
     }
+
+# ---------------------------------------------------------
+# CANONICAL FINANCIAL TRUTH HELPERS (PHASE 2A)
+# ---------------------------------------------------------
+
+def save_canonical_financial_facts(
+    symbol: str,
+    facts: List[Dict[str, Any]],
+    coverage_summary: Dict[str, Any],
+    input_financial_version: Optional[str] = None,
+    verification_version: Optional[str] = None
+) -> None:
+    """
+    Persists canonical financial facts and truth container state for a company.
+    Replaces existing facts for the symbol atomically within a transaction.
+    """
+    clean_sym = symbol.upper().strip()
+    now_iso = datetime.now(timezone.utc).isoformat()
+    conn = get_db_connection()
+    try:
+        with conn:
+            # 1. Clear prior facts for this symbol
+            conn.execute("DELETE FROM canonical_financial_facts WHERE symbol = ?", (clean_sym,))
+            
+            # 2. Insert new canonical facts
+            for f in facts:
+                conn.execute("""
+                    INSERT INTO canonical_financial_facts (
+                        symbol, canonical_metric, display_metric, period, canonical_period, scope,
+                        canonical_value, unit, currency, selected_source_type, selected_source_name,
+                        selected_source_url, screener_value, official_value, verification_status,
+                        difference_absolute, difference_pct, confidence, provenance_note,
+                        verified_at, computed_at, input_financial_version, verification_version
+                    )
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """, (
+                    clean_sym,
+                    f.get("canonical_metric", ""),
+                    f.get("display_metric", ""),
+                    f.get("period", ""),
+                    f.get("canonical_period", ""),
+                    f.get("scope", "Consolidated"),
+                    f.get("value"),
+                    f.get("unit", "₹ Cr"),
+                    f.get("currency", "INR"),
+                    f.get("selected_source_type", "unverified"),
+                    f.get("selected_source_name"),
+                    f.get("selected_source_url"),
+                    f.get("screener_value"),
+                    f.get("official_value"),
+                    f.get("verification_status", "UNVERIFIED"),
+                    f.get("difference_absolute"),
+                    f.get("difference_pct"),
+                    f.get("confidence", "Unverified"),
+                    f.get("provenance_note", ""),
+                    f.get("verified_at"),
+                    f.get("computed_at") or now_iso,
+                    input_financial_version,
+                    verification_version
+                ))
+                
+            # 3. Upsert truth header state
+            conn.execute("""
+                INSERT INTO canonical_financial_truth_state (
+                    symbol, input_financial_version, verification_version, target_facts_count,
+                    verified_count, discrepancies_count, not_comparable_count, insufficient_evidence_count,
+                    official_source_missing_count, screener_value_missing_count, unverified_count,
+                    coverage_pct, overall_truth_state, computed_at
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(symbol) DO UPDATE SET
+                    input_financial_version = excluded.input_financial_version,
+                    verification_version = excluded.verification_version,
+                    target_facts_count = excluded.target_facts_count,
+                    verified_count = excluded.verified_count,
+                    discrepancies_count = excluded.discrepancies_count,
+                    not_comparable_count = excluded.not_comparable_count,
+                    insufficient_evidence_count = excluded.insufficient_evidence_count,
+                    official_source_missing_count = excluded.official_source_missing_count,
+                    screener_value_missing_count = excluded.screener_value_missing_count,
+                    unverified_count = excluded.unverified_count,
+                    coverage_pct = excluded.coverage_pct,
+                    overall_truth_state = excluded.overall_truth_state,
+                    computed_at = excluded.computed_at
+            """, (
+                clean_sym,
+                input_financial_version,
+                verification_version,
+                coverage_summary.get("target_facts_count", len(facts)),
+                coverage_summary.get("officially_verified_count", 0),
+                coverage_summary.get("discrepancy_count", 0),
+                coverage_summary.get("not_comparable_count", 0),
+                coverage_summary.get("insufficient_evidence_count", 0),
+                coverage_summary.get("official_source_missing_count", 0),
+                coverage_summary.get("screener_value_missing_count", 0),
+                coverage_summary.get("unverified_count", 0),
+                coverage_summary.get("coverage_pct", 0.0),
+                coverage_summary.get("overall_truth_state", "UNVERIFIED"),
+                now_iso
+            ))
+    finally:
+        conn.close()
+
+def get_canonical_financial_facts(symbol: str) -> Optional[Dict[str, Any]]:
+    """
+    Retrieves the complete persisted Canonical Financial Truth container for a symbol.
+    Returns None if no truth records have been computed/persisted.
+    """
+    clean_sym = symbol.upper().strip()
+    conn = get_db_connection()
+    try:
+        cur = conn.cursor()
+        cur.execute("SELECT * FROM canonical_financial_truth_state WHERE symbol = ?", (clean_sym,))
+        st_row = cur.fetchone()
+        if not st_row:
+            return None
+            
+        cur.execute("SELECT * FROM canonical_financial_facts WHERE symbol = ? ORDER BY id ASC", (clean_sym,))
+        fact_rows = cur.fetchall()
+        
+        facts = []
+        for r in fact_rows:
+            facts.append({
+                "symbol": r["symbol"],
+                "canonical_metric": r["canonical_metric"],
+                "display_metric": r["display_metric"],
+                "period": r["period"],
+                "canonical_period": r["canonical_period"],
+                "scope": r["scope"],
+                "value": r["canonical_value"],
+                "unit": r["unit"],
+                "currency": r["currency"],
+                "selected_source_type": r["selected_source_type"],
+                "selected_source_name": r["selected_source_name"],
+                "selected_source_url": r["selected_source_url"],
+                "screener_value": r["screener_value"],
+                "official_value": r["official_value"],
+                "verification_status": r["verification_status"],
+                "difference_absolute": r["difference_absolute"],
+                "difference_pct": r["difference_pct"],
+                "confidence": r["confidence"],
+                "provenance_note": r["provenance_note"],
+                "verified_at": r["verified_at"],
+                "computed_at": r["computed_at"]
+            })
+            
+        coverage = {
+            "symbol": clean_sym,
+            "target_facts_count": st_row["target_facts_count"],
+            "officially_verified_count": st_row["verified_count"],
+            "discrepancy_count": st_row["discrepancies_count"],
+            "not_comparable_count": st_row["not_comparable_count"],
+            "insufficient_evidence_count": st_row["insufficient_evidence_count"],
+            "official_source_missing_count": st_row["official_source_missing_count"],
+            "screener_value_missing_count": st_row["screener_value_missing_count"],
+            "unverified_count": st_row["unverified_count"],
+            "coverage_pct": st_row["coverage_pct"],
+            "overall_truth_state": st_row["overall_truth_state"]
+        }
+        
+        return {
+            "symbol": clean_sym,
+            "facts": facts,
+            "coverage": coverage,
+            "discrepancies_count": st_row["discrepancies_count"],
+            "verified_count": st_row["verified_count"],
+            "unverified_count": st_row["unverified_count"],
+            "last_computed_at": st_row["computed_at"],
+            "input_financial_version": st_row["input_financial_version"],
+            "verification_version": st_row["verification_version"]
+        }
+    finally:
+        conn.close()
+
+def get_canonical_fact_by_key(symbol: str, canonical_metric: str, period: str, scope: str = "Consolidated") -> Optional[Dict[str, Any]]:
+    """Retrieves a single canonical financial fact by symbol, canonical_metric, period, and scope."""
+    clean_sym = symbol.upper().strip()
+    conn = get_db_connection()
+    try:
+        cur = conn.cursor()
+        cur.execute("""
+            SELECT * FROM canonical_financial_facts
+            WHERE symbol = ? AND canonical_metric = ? AND (period = ? OR canonical_period = ?) AND scope = ?
+            LIMIT 1
+        """, (clean_sym, canonical_metric.upper().strip(), period, period, scope.capitalize()))
+        r = cur.fetchone()
+        if not r:
+            return None
+        return {
+            "symbol": r["symbol"],
+            "canonical_metric": r["canonical_metric"],
+            "display_metric": r["display_metric"],
+            "period": r["period"],
+            "canonical_period": r["canonical_period"],
+            "scope": r["scope"],
+            "value": r["canonical_value"],
+            "unit": r["unit"],
+            "currency": r["currency"],
+            "selected_source_type": r["selected_source_type"],
+            "selected_source_name": r["selected_source_name"],
+            "selected_source_url": r["selected_source_url"],
+            "screener_value": r["screener_value"],
+            "official_value": r["official_value"],
+            "verification_status": r["verification_status"],
+            "difference_absolute": r["difference_absolute"],
+            "difference_pct": r["difference_pct"],
+            "confidence": r["confidence"],
+            "provenance_note": r["provenance_note"],
+            "verified_at": r["verified_at"],
+            "computed_at": r["computed_at"]
+        }
+    finally:
+        conn.close()
+
+def get_canonical_facts_series(symbol: str, canonical_metric: str, scope: str = "Consolidated") -> List[Dict[str, Any]]:
+    """Retrieves a time series of canonical financial facts for a given metric and scope."""
+    clean_sym = symbol.upper().strip()
+    conn = get_db_connection()
+    try:
+        cur = conn.cursor()
+        cur.execute("""
+            SELECT * FROM canonical_financial_facts
+            WHERE symbol = ? AND canonical_metric = ? AND scope = ?
+            ORDER BY id ASC
+        """, (clean_sym, canonical_metric.upper().strip(), scope.capitalize()))
+        rows = cur.fetchall()
+        series = []
+        for r in rows:
+            series.append({
+                "symbol": r["symbol"],
+                "canonical_metric": r["canonical_metric"],
+                "display_metric": r["display_metric"],
+                "period": r["period"],
+                "canonical_period": r["canonical_period"],
+                "scope": r["scope"],
+                "value": r["canonical_value"],
+                "unit": r["unit"],
+                "currency": r["currency"],
+                "selected_source_type": r["selected_source_type"],
+                "selected_source_name": r["selected_source_name"],
+                "selected_source_url": r["selected_source_url"],
+                "screener_value": r["screener_value"],
+                "official_value": r["official_value"],
+                "verification_status": r["verification_status"],
+                "difference_absolute": r["difference_absolute"],
+                "difference_pct": r["difference_pct"],
+                "confidence": r["confidence"],
+                "provenance_note": r["provenance_note"],
+                "verified_at": r["verified_at"],
+                "computed_at": r["computed_at"]
+            })
+        return series
+    finally:
+        conn.close()
 
 # Auto-initialize on module load unless test mode is active
 if not (os.environ.get("PYTEST_CURRENT_TEST") or os.environ.get("STOCKER_TEST_MODE") or os.environ.get("STOCKER_DB_PATH")):
