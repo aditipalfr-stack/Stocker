@@ -9,8 +9,10 @@ Verifies seamless end-to-end integration of:
 - Corporate Analytics Integrity
 - Safety Quarantine for Non-Bank Financial Businesses (NBFC, Insurance)
 - Taxonomy Downgrade Protection
+- Strict SQLite DB Isolation (zero mutations to runtime backend/data/stocker.db)
 
 Scenarios:
+- DB Isolation check: verifies test execution strictly uses isolated temp DB
 - Scenario A: WIPRO (general corporate -> GENERAL_CORPORATE, bank_analytics=None, corporate analytics active)
 - Scenario B: ICICIBANK (canonical taxonomy -> BANK -> BankEngine runs, DuPont quarantined, corporate DCF suppressed)
 - Scenario C: HDFCBANK (seeded bank -> normalized taxonomy -> BANK -> BankEngine routes correctly)
@@ -21,7 +23,9 @@ Scenarios:
 """
 
 import os
+import shutil
 import sys
+import tempfile
 from pathlib import Path
 import unittest
 
@@ -53,7 +57,28 @@ import database
 class TestV43IntegrationE2E(unittest.TestCase):
 
     def setUp(self):
+        self.temp_dir = tempfile.mkdtemp(prefix="stocker_e2e_integration_test_")
+        self.db_path = Path(self.temp_dir) / "stocker_e2e.db"
+        self.old_env = os.environ.get("STOCKER_DB_PATH")
+        self.old_path = database.DB_PATH
+        os.environ["STOCKER_DB_PATH"] = str(self.db_path)
+        database.DB_PATH = self.db_path
         database.init_db()
+
+    def tearDown(self):
+        database.DB_PATH = self.old_path
+        if self.old_env is None:
+            os.environ.pop("STOCKER_DB_PATH", None)
+        else:
+            os.environ["STOCKER_DB_PATH"] = self.old_env
+        shutil.rmtree(self.temp_dir, ignore_errors=True)
+
+    def test_db_isolation_never_touches_runtime_db(self):
+        """Verify test DB path is isolated and not pointing to production/runtime DB."""
+        runtime_db_path = Path(__file__).parent / "data" / "stocker.db"
+        self.assertNotEqual(str(database.DB_PATH), str(runtime_db_path))
+        self.assertTrue(str(database.DB_PATH).startswith(self.temp_dir))
+        self.assertTrue(self.db_path.exists())
 
     def test_scenario_a_wipro_general_corporate(self):
         """Scenario A: General corporate (WIPRO) gets canonical taxonomy, GENERAL_CORPORATE, no bank_analytics."""
@@ -62,7 +87,7 @@ class TestV43IntegrationE2E(unittest.TestCase):
             sector="Information Technology",
             industry="IT Services & Consulting",
             sub_industry="Software Services",
-            source="screener_source"
+            source="screener_metadata"
         )
         self.assertEqual(tax["sector"], "Information Technology")
         self.assertEqual(tax["industry"], "IT Services")
@@ -118,7 +143,7 @@ class TestV43IntegrationE2E(unittest.TestCase):
             symbol="ICICIBANK",
             sector="Financial Services",
             industry="Private Sector Bank",
-            source="screener_source"
+            source="screener_metadata"
         )
         self.assertEqual(tax["sector"], "Financial Services")
         self.assertEqual(tax["industry"], "Private Sector Banks")
@@ -201,7 +226,7 @@ class TestV43IntegrationE2E(unittest.TestCase):
             symbol="BAJFINANCE",
             sector="Financial Services",
             industry="NBFC",
-            source="screener_source"
+            source="screener_metadata"
         )
         self.assertEqual(tax["sector"], "Financial Services")
         biz_model = classify_financial_business_model(sector=tax["sector"], industry=tax["industry"])
@@ -231,7 +256,7 @@ class TestV43IntegrationE2E(unittest.TestCase):
             symbol="HDFCLIFE",
             sector="Financial Services",
             industry="Life Insurance",
-            source="screener_source"
+            source="screener_metadata"
         )
         self.assertEqual(tax["sector"], "Financial Services")
         biz_model = classify_financial_business_model(sector=tax["sector"], industry=tax["industry"])
