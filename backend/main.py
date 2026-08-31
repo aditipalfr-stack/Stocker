@@ -41,6 +41,12 @@ from ranking_engine import compute_stock_score
 from company_resolver import resolve_and_search_companies, resolve_canonical_company, normalize_symbol
 from official_financial_service import run_official_financial_verification
 from research_lifecycle_service import get_research_lifecycle_status
+from company_taxonomy_service import (
+    classify_and_persist_company,
+    get_company_taxonomy,
+    normalize_classification,
+    resolve_local_company_taxonomy,
+)
 
 app = FastAPI(
     title="Stocker - Fundamental Stock Analysis & Decision Engine",
@@ -64,8 +70,25 @@ def build_full_stock_detail(stock_data: Dict[str, Any], custom_assumptions: Opti
         
     symbol = stock_data["symbol"]
     name = stock_data["name"]
-    sector = stock_data.get("sector", "Diversified")
-    industry = stock_data.get("industry", "Indian Equities")
+    try:
+        taxonomy = resolve_local_company_taxonomy(symbol, stock_data)
+    except Exception as taxonomy_error:
+        print(f"Notice: Local taxonomy classification note for {symbol}: {taxonomy_error}")
+        fallback_sector, fallback_industry, fallback_sub, fallback_state = normalize_classification(
+            stock_data.get("sector"), stock_data.get("industry"), stock_data.get("sub_industry")
+        )
+        taxonomy = {
+            "sector": fallback_sector,
+            "industry": fallback_industry,
+            "sub_industry": fallback_sub,
+            "source": "unknown",
+            "classification_method": "local_fallback",
+            "confidence": "Unverified",
+            "classification_state": fallback_state,
+        }
+    sector = taxonomy.get("sector", "Unclassified")
+    industry = taxonomy.get("industry", "Unclassified")
+    sub_industry = taxonomy.get("sub_industry")
     about = stock_data.get("about", "")
     source_name = stock_data.get("source_name", "Screener.in")
     source_url = stock_data.get("source_url", "")
@@ -140,6 +163,8 @@ def build_full_stock_detail(stock_data: Dict[str, Any], custom_assumptions: Opti
         name=name,
         sector=sector,
         industry=industry,
+        sub_industry=sub_industry,
+        taxonomy=taxonomy,
         about=about,
         ratios=ratios,
         quarters=quarters,
@@ -207,6 +232,8 @@ def get_all_stocks(sector: Optional[str] = None, min_score: Optional[float] = No
             name=d.name,
             sector=d.sector,
             industry=d.industry,
+            sub_industry=d.sub_industry,
+            taxonomy=d.taxonomy,
             current_price=r.current_price,
             market_cap_cr=r.market_cap_cr,
             pe_ratio=r.stock_pe,
@@ -317,9 +344,10 @@ def execute_add_company_to_universe(symbol_or_query: str) -> AddCompanyResponse:
                 detail=f"Unable to ingest standardized financial statements for '{canonical_sym}'. Please verify ticker symbol."
             )
             
-    # Update company registry with verified metadata and set in_universe=1
-    sector = stock_data.get("sector") or canonical_info.get("sector") or "Broad Market"
-    industry = stock_data.get("industry") or canonical_info.get("industry") or "Indian Equities"
+    # Persist canonical identity before taxonomy so the compatibility fields can
+    # be updated atomically by the taxonomy service.
+    raw_sector = stock_data.get("source_sector") or canonical_info.get("sector") or stock_data.get("sector")
+    raw_industry = stock_data.get("source_industry") or canonical_info.get("industry") or stock_data.get("industry")
     real_name = stock_data.get("name") or company_name
     
     database.upsert_company_registry_item({
@@ -329,8 +357,8 @@ def execute_add_company_to_universe(symbol_or_query: str) -> AddCompanyResponse:
         "bse_code": canonical_info.get("bse_code"),
         "isin": canonical_info.get("isin"),
         "exchange": canonical_info.get("exchange"),
-        "sector": sector,
-        "industry": industry,
+        "sector": raw_sector or "Unclassified",
+        "industry": raw_industry or "Unclassified",
         "aliases": canonical_info.get("aliases", [real_name, canonical_sym]),
         "source": canonical_info.get("source", "screener_ingestion"),
         "source_last_verified_at": canonical_info.get("source_last_verified_at"),
@@ -340,6 +368,42 @@ def execute_add_company_to_universe(symbol_or_query: str) -> AddCompanyResponse:
         "in_universe": True,
         "is_active": True
     })
+
+    taxonomy = classify_and_persist_company(
+        symbol=canonical_sym,
+        sector=raw_sector,
+        industry=raw_industry,
+        sub_industry=stock_data.get("source_sub_industry") or canonical_info.get("sub_industry"),
+        source=stock_data.get("taxonomy_source") or canonical_info.get("source") or "unknown",
+        classification_method="add_company_ingestion",
+        pl=stock_data.get("profit_loss"),
+        bs=stock_data.get("balance_sheet"),
+        quarters=stock_data.get("quarters"),
+    )
+    # If separately supplied registry metadata is stronger, it may reclassify
+    # the same mapping without creating duplicate taxonomy entities.
+    if canonical_info.get("sector") or canonical_info.get("industry"):
+        taxonomy = classify_and_persist_company(
+            symbol=canonical_sym,
+            sector=canonical_info.get("sector"),
+            industry=canonical_info.get("industry"),
+            sub_industry=canonical_info.get("sub_industry"),
+            source=canonical_info.get("source") or "authoritative_registry",
+            classification_method="canonical_identity_metadata",
+            pl=stock_data.get("profit_loss"),
+            bs=stock_data.get("balance_sheet"),
+            quarters=stock_data.get("quarters"),
+        )
+    stock_data["sector"] = taxonomy["sector"]
+    stock_data["industry"] = taxonomy["industry"]
+    stock_data["sub_industry"] = taxonomy.get("sub_industry")
+    try:
+        from scraper import serialize_stock_data
+        database.save_stock_cache(
+            canonical_sym, real_name, taxonomy["sector"], taxonomy["industry"], serialize_stock_data(stock_data)
+        )
+    except Exception as taxonomy_cache_error:
+        print(f"Notice: Canonical taxonomy cache update note for {canonical_sym}: {taxonomy_cache_error}")
     
     detail = build_full_stock_detail(stock_data)
     research_status = get_research_lifecycle_status(canonical_sym)
@@ -447,7 +511,18 @@ def get_registered_companies(active_only: bool = False):
     Lists all companies in the persistent SQLite registry.
     """
     companies = database.get_universe_companies(active_only=active_only)
-    return [CompanyRegistryItem(**c) for c in companies]
+    enriched = []
+    for company in companies:
+        taxonomy = get_company_taxonomy(company["symbol"])
+        if taxonomy:
+            company = {**company, **{
+                "sector": taxonomy["sector"],
+                "industry": taxonomy["industry"],
+                "sub_industry": taxonomy.get("sub_industry"),
+                "taxonomy": taxonomy,
+            }}
+        enriched.append(CompanyRegistryItem(**company))
+    return enriched
 
 @app.get("/api/stocks/top-picks")
 def get_top_picks():

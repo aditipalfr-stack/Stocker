@@ -12,7 +12,6 @@ from models import (
     KeyRatios, FinancialStatement, FinancialRow,
     ConcallInsight, AnnualReportInsight, DocumentLinks, DocumentItem
 )
-from data_seed import COMPANY_METADATA
 
 CACHE_DIR = os.path.join(os.path.dirname(__file__), "data")
 CACHE_FILE = os.path.join(CACHE_DIR, "stocks_cache.json")
@@ -150,6 +149,49 @@ def parse_screener_ratios(soup: BeautifulSoup) -> KeyRatios:
                     ratios_dict["debt_to_equity"] = parse_num(val_text)
                     
     return KeyRatios(**ratios_dict)
+
+def parse_screener_taxonomy_metadata(soup: BeautifulSoup) -> Tuple[Optional[str], Optional[str], Optional[str]]:
+    """Extract only explicitly labelled Screener sector/industry metadata.
+
+    The parser intentionally fails closed.  It does not infer classification from
+    company names, peer names, or arbitrary page text.
+    """
+    sector: Optional[str] = None
+    industry: Optional[str] = None
+    sub_industry: Optional[str] = None
+
+    # Screener exposes a deterministic market-taxonomy breadcrumb in the peer
+    # section. Path depth is the hierarchy; index membership links use /company/
+    # and are intentionally ignored.
+    market_labels: List[str] = []
+    for anchor in soup.select("#peers a[href^='/market/']"):
+        label = clean_metric_name(anchor.get_text(" ", strip=True))
+        if label and (not market_labels or label != market_labels[-1]):
+            market_labels.append(label)
+    if market_labels:
+        sector = market_labels[0]
+        industry = market_labels[1] if len(market_labels) > 1 else None
+        sub_industry = market_labels[2] if len(market_labels) > 2 else None
+        if industry and industry.lower() == sector.lower() and len(market_labels) > 2:
+            industry = market_labels[2]
+            sub_industry = market_labels[3] if len(market_labels) > 3 else None
+
+    candidates = soup.select("#peers .sub, #peers p, .company-info .sub, [data-sector], [data-industry]")
+    for node in candidates:
+        if not sector and node.get("data-sector"):
+            sector = clean_metric_name(node.get("data-sector"))
+        if not industry and node.get("data-industry"):
+            industry = clean_metric_name(node.get("data-industry"))
+        text = clean_metric_name(node.get_text(" ", strip=True))
+        if not sector:
+            match = re.search(r"\bSector\s*:\s*(.+?)(?=\s+Industry\s*:|$)", text, re.IGNORECASE)
+            if match:
+                sector = match.group(1).strip(" -|,")
+        if not industry:
+            match = re.search(r"\bIndustry\s*:\s*(.+)$", text, re.IGNORECASE)
+            if match:
+                industry = match.group(1).strip(" -|,")
+    return sector or None, industry or None, sub_industry or None
 
 def parse_screener_documents(soup: BeautifulSoup, symbol: str, source_url: str = "", company_name: str = "") -> DocumentLinks:
     """
@@ -335,8 +377,13 @@ def serialize_stock_data(stock_data: Dict[str, Any]) -> Dict[str, Any]:
     return {
         "symbol": stock_data.get("symbol", ""),
         "name": stock_data.get("name", ""),
-        "sector": stock_data.get("sector", "Broad Market"),
-        "industry": stock_data.get("industry", "Indian Equities"),
+        "sector": stock_data.get("sector", "Unclassified"),
+        "industry": stock_data.get("industry", "Unclassified"),
+        "sub_industry": stock_data.get("sub_industry"),
+        "source_sector": stock_data.get("source_sector"),
+        "source_industry": stock_data.get("source_industry"),
+        "source_sub_industry": stock_data.get("source_sub_industry"),
+        "taxonomy_source": stock_data.get("taxonomy_source"),
         "about": stock_data.get("about", ""),
         "source_name": stock_data.get("source_name", "Screener.in"),
         "source_url": stock_data.get("source_url", ""),
@@ -443,12 +490,12 @@ def fetch_stock_from_screener(symbol: str, force_refresh: bool = False) -> Optio
             return hydrate_stock_data(cached_entry)
         return None
 
-    meta = COMPANY_METADATA.get(clean_sym, {})
-    sector = meta.get("sector", "Broad Market")
-    industry = meta.get("industry", "Indian Equities")
-    if not about_text and "about" in meta:
-        about_text = meta["about"]
-    elif not about_text:
+    source_sector, source_industry, source_sub_industry = parse_screener_taxonomy_metadata(soup)
+    registry = database.get_company_by_symbol(clean_sym) or {}
+    sector = source_sector or registry.get("sector") or "Unclassified"
+    industry = source_industry or registry.get("industry") or "Unclassified"
+    taxonomy_source = "screener_metadata" if (source_sector or source_industry or source_sub_industry) else (registry.get("source") or "unknown")
+    if not about_text:
         about_text = f"{company_name} is a listed company in the Indian stock market."
 
     concall_insights: List[ConcallInsight] = []
@@ -460,6 +507,10 @@ def fetch_stock_from_screener(symbol: str, force_refresh: bool = False) -> Optio
         "name": company_name,
         "sector": sector,
         "industry": industry,
+        "source_sector": source_sector or registry.get("sector"),
+        "source_industry": source_industry or registry.get("industry"),
+        "source_sub_industry": source_sub_industry,
+        "taxonomy_source": taxonomy_source,
         "about": about_text,
         "source_name": "Screener.in",
         "source_url": source_url,

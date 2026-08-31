@@ -585,16 +585,23 @@ def test_cash_flow_case_e_raw_cash_flow_filtering():
     print("✓ Cash Flow Case E passed: Injected non-statement rows successfully filtered from raw cash flow.")
 
 def test_cash_flow_case_f_cfo_to_pat_deterministic():
-    """Case F: CFO / PAT conversion % remains strict deterministic code calculation."""
+    """Case F: 5Y CFO / PAT uses five exact matched completed annual periods."""
     print("Testing Cash Flow Case F: Deterministic CFO / PAT calculation...")
+    periods = ["Mar 2022", "Mar 2023", "Mar 2024", "Mar 2025", "Mar 2026"]
     pl = FinancialStatement(
-        periods=["Mar 2025", "Mar 2026"],
-        rows=[FinancialRow(metric="Net Profit", values={"Mar 2025": 10000.0, "Mar 2026": 12500.0})]
+        periods=periods,
+        rows=[FinancialRow(metric="Net Profit", values={
+            "Mar 2022": 3500.0, "Mar 2023": 4000.0, "Mar 2024": 4500.0,
+            "Mar 2025": 5000.0, "Mar 2026": 5500.0,
+        })]
     )
-    bs = FinancialStatement(periods=["Mar 2025", "Mar 2026"], rows=[])
+    bs = FinancialStatement(periods=periods, rows=[])
     cf = FinancialStatement(
-        periods=["Mar 2025", "Mar 2026"],
-        rows=[FinancialRow(metric="Cash from Operating Activity", values={"Mar 2025": 11000.0, "Mar 2026": 15000.0})]
+        periods=periods,
+        rows=[FinancialRow(metric="Cash from Operating Activity", values={
+            "Mar 2022": 4000.0, "Mar 2023": 4500.0, "Mar 2024": 5000.0,
+            "Mar 2025": 6000.0, "Mar 2026": 6500.0,
+        })]
     )
     q = FinancialStatement(periods=["Mar 2026"], rows=[])
     

@@ -152,11 +152,24 @@ class ScoreBreakdown(BaseModel):
     key_catalysts: List[str]
     key_risks: List[str]
 
+class CompanyTaxonomy(BaseModel):
+    sector: str = "Unclassified"
+    industry: str = "Unclassified"
+    sub_industry: Optional[str] = None
+    source: str = "unknown"
+    classification_method: str = "source_label_normalization"
+    confidence: str = "Unverified"
+    classification_state: str = "UNCLASSIFIED"
+    classified_at: Optional[str] = None
+    updated_at: Optional[str] = None
+
 class StockSummary(BaseModel):
     symbol: str
     name: str
     sector: str
     industry: str
+    sub_industry: Optional[str] = None
+    taxonomy: Optional[CompanyTaxonomy] = None
     current_price: Optional[float] = None
     market_cap_cr: Optional[float] = None
     pe_ratio: Optional[float] = None
@@ -183,6 +196,8 @@ class StockDetail(BaseModel):
     name: str
     sector: str
     industry: str
+    sub_industry: Optional[str] = None
+    taxonomy: Optional[CompanyTaxonomy] = None
     about: str
     ratios: KeyRatios
     quarters: FinancialStatement
@@ -216,8 +231,10 @@ class CompanyRegistryItem(BaseModel):
     bse_code: Optional[str] = None
     isin: Optional[str] = None
     exchange: Optional[str] = None
-    sector: Optional[str] = "Broad Market"
-    industry: Optional[str] = "Indian Equities"
+    sector: Optional[str] = "Unclassified"
+    industry: Optional[str] = "Unclassified"
+    sub_industry: Optional[str] = None
+    taxonomy: Optional[CompanyTaxonomy] = None
     aliases: List[str] = []
     is_active: bool = True
     in_universe: bool = True
@@ -239,6 +256,7 @@ class CompanySearchResult(BaseModel):
     exchange: Optional[str] = None
     sector: Optional[str] = None
     industry: Optional[str] = None
+    sub_industry: Optional[str] = None
     already_added: bool = False
     source: str = "local" # "local", "screener_search", "nse_master", "bse_master", "unresolved_input"
     match_score: Optional[int] = None
@@ -427,4 +445,3 @@ FinancialTruthContainer.model_rebuild()
 StockDetail.model_rebuild()
 FinancialVerificationResponse.model_rebuild()
 AnalyticValueWithProvenance.model_rebuild()
-

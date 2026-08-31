@@ -86,7 +86,9 @@ def classify_financial_business_model(
         "automobile", "it", "software", "technology", "pharmaceutical", "pharma", "fmcg",
         "chemicals", "metals", "mining", "capital goods", "consumer durables", "oil & gas",
         "energy", "power", "telecom", "infrastructure", "construction", "textiles",
-        "agriculture", "cement", "retail", "media", "real estate", "transport", "logistics"
+        "agriculture", "cement", "retail", "media", "real estate", "transport", "logistics",
+        "consumer staples", "consumer discretionary", "materials", "industrials", "health care",
+        "communication services", "utilities"
     ]
     if any(cs in sec or cs in ind for cs in corporate_sectors):
         return "GENERAL_CORPORATE"
@@ -1946,6 +1948,5 @@ def process_and_verify_company_knowledge(
         "operational_kpi_evolution": kpi_trends,
         "guidance_vs_projections": guidance_triangulation
     }
-
 
 

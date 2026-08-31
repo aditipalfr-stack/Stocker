@@ -154,8 +154,8 @@ def init_db() -> None:
                     bse_code TEXT,
                     isin TEXT,
                     exchange TEXT,
-                    sector TEXT DEFAULT 'Broad Market',
-                    industry TEXT DEFAULT 'Indian Equities',
+                    sector TEXT DEFAULT 'Unclassified',
+                    industry TEXT DEFAULT 'Unclassified',
                     aliases TEXT DEFAULT '[]',
                     is_active INTEGER DEFAULT 1,
                     in_universe INTEGER DEFAULT 1,
@@ -175,7 +175,60 @@ def init_db() -> None:
             conn.execute("CREATE INDEX IF NOT EXISTS idx_reg_isin ON company_registry(isin);")
             conn.execute("CREATE INDEX IF NOT EXISTS idx_reg_universe ON company_registry(in_universe, is_active);")
 
-            # 9. Persistent Authoritative Financial Verification Records (Phase B)
+            # 9. Normalized Company Taxonomy (Phase 3A)
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS taxonomy_sectors (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    canonical_name TEXT NOT NULL,
+                    normalized_key TEXT NOT NULL UNIQUE,
+                    created_at TEXT NOT NULL
+                );
+            """)
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS taxonomy_industries (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    sector_id INTEGER NOT NULL,
+                    canonical_name TEXT NOT NULL,
+                    normalized_key TEXT NOT NULL,
+                    created_at TEXT NOT NULL,
+                    FOREIGN KEY(sector_id) REFERENCES taxonomy_sectors(id),
+                    UNIQUE(sector_id, normalized_key)
+                );
+            """)
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_taxonomy_industry_sector ON taxonomy_industries(sector_id);")
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS taxonomy_sub_industries (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    industry_id INTEGER NOT NULL,
+                    canonical_name TEXT NOT NULL,
+                    normalized_key TEXT NOT NULL,
+                    created_at TEXT NOT NULL,
+                    FOREIGN KEY(industry_id) REFERENCES taxonomy_industries(id),
+                    UNIQUE(industry_id, normalized_key)
+                );
+            """)
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_taxonomy_sub_industry_parent ON taxonomy_sub_industries(industry_id);")
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS company_taxonomy (
+                    symbol TEXT PRIMARY KEY COLLATE NOCASE,
+                    sector_id INTEGER NOT NULL,
+                    industry_id INTEGER NOT NULL,
+                    sub_industry_id INTEGER,
+                    source TEXT NOT NULL,
+                    classification_method TEXT NOT NULL,
+                    confidence TEXT NOT NULL,
+                    classification_state TEXT NOT NULL,
+                    classified_at TEXT NOT NULL,
+                    updated_at TEXT NOT NULL,
+                    FOREIGN KEY(sector_id) REFERENCES taxonomy_sectors(id),
+                    FOREIGN KEY(industry_id) REFERENCES taxonomy_industries(id),
+                    FOREIGN KEY(sub_industry_id) REFERENCES taxonomy_sub_industries(id)
+                );
+            """)
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_company_taxonomy_sector ON company_taxonomy(sector_id);")
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_company_taxonomy_industry ON company_taxonomy(industry_id);")
+
+            # 10. Persistent Authoritative Financial Verification Records (Phase B)
             conn.execute("""
                 CREATE TABLE IF NOT EXISTS financial_verification_records (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -206,7 +259,7 @@ def init_db() -> None:
             conn.execute("CREATE INDEX IF NOT EXISTS idx_verif_sym_period ON financial_verification_records(symbol, canonical_period, canonical_metric);")
             conn.execute("CREATE INDEX IF NOT EXISTS idx_verif_status ON financial_verification_records(status);")
 
-            # 10. Projection & Score Computation State (tracks evidence enrichment vs AI updates)
+            # 11. Projection & Score Computation State (tracks evidence enrichment vs AI updates)
             conn.execute("""
                 CREATE TABLE IF NOT EXISTS projection_computation_state (
                     symbol TEXT PRIMARY KEY,
@@ -216,7 +269,7 @@ def init_db() -> None:
                 );
             """)
 
-            # 11. Canonical Financial Facts (Phase 2A Financial Truth Layer)
+            # 12. Canonical Financial Facts (Phase 2A Financial Truth Layer)
             conn.execute("""
                 CREATE TABLE IF NOT EXISTS canonical_financial_facts (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -249,7 +302,7 @@ def init_db() -> None:
             conn.execute("CREATE INDEX IF NOT EXISTS idx_cff_lookup ON canonical_financial_facts(symbol, canonical_metric, period, scope);")
             conn.execute("CREATE INDEX IF NOT EXISTS idx_cff_canon_p ON canonical_financial_facts(symbol, canonical_period, canonical_metric);")
 
-            # 12. Canonical Financial Truth Header State
+            # 13. Canonical Financial Truth Header State
             conn.execute("""
                 CREATE TABLE IF NOT EXISTS canonical_financial_truth_state (
                     symbol TEXT PRIMARY KEY,
@@ -274,6 +327,8 @@ def init_db() -> None:
     # Automatically seed initial registry if empty
     try:
         seed_company_registry()
+        from company_taxonomy_service import bootstrap_existing_taxonomy
+        bootstrap_existing_taxonomy()
     except Exception:
         pass
 
@@ -936,8 +991,8 @@ def upsert_company_registry_item(item: Dict[str, Any]) -> int:
                 up_bse = bse_code or existing_dict.get("bse_code")
                 up_isin = isin or existing_dict.get("isin")
                 up_exchange = exchange or existing_dict.get("exchange")
-                up_sector = sector if sector and sector != "Broad Market" else (existing_dict.get("sector") or sector or "Broad Market")
-                up_industry = industry if industry and industry != "Indian Equities" else (existing_dict.get("industry") or industry or "Indian Equities")
+                up_sector = sector if sector and sector not in ("Broad Market", "Unclassified") else (existing_dict.get("sector") or sector or "Unclassified")
+                up_industry = industry if industry and industry not in ("Indian Equities", "Unclassified") else (existing_dict.get("industry") or industry or "Unclassified")
                 
                 up_in_uni = (1 if in_universe_val else 0) if in_universe_val is not None else existing_dict.get("in_universe")
                 up_is_act = (1 if is_active_val else 0) if is_active_val is not None else existing_dict.get("is_active")
@@ -978,8 +1033,8 @@ def upsert_company_registry_item(item: Dict[str, Any]) -> int:
                 aliases_json = _merge_aliases(None, incoming_aliases)
                 in_uni = 1 if in_universe_val is not False else 0
                 is_act = 1 if is_active_val is not False else 0
-                sec_val = sector or "Broad Market"
-                ind_val = industry or "Indian Equities"
+                sec_val = sector or "Unclassified"
+                ind_val = industry or "Unclassified"
                 
                 cur = conn.execute("""
                     INSERT INTO company_registry (
@@ -1239,8 +1294,8 @@ def seed_company_registry(seed_records: Optional[List[Dict[str, Any]]] = None) -
                             "bse_code": None,
                             "isin": None,
                             "exchange": None,
-                            "sector": stock_dict.get("sector") or meta.get("sector") or "Broad Market",
-                            "industry": stock_dict.get("industry") or meta.get("industry") or "Indian Equities",
+                            "sector": stock_dict.get("sector") or meta.get("sector") or "Unclassified",
+                            "industry": stock_dict.get("industry") or meta.get("industry") or "Unclassified",
                             "aliases": [clean_s, stock_dict.get("name") or clean_s],
                             "in_universe": True,
                             "is_active": True,
@@ -1264,8 +1319,8 @@ def seed_company_registry(seed_records: Optional[List[Dict[str, Any]]] = None) -
                 bse = str(rec.get("bse_code") or "").strip() or None
                 isin = (rec.get("isin") or "").upper().strip() or None
                 exchange = (rec.get("exchange") or "").strip() or None
-                sector = rec.get("sector", "Broad Market")
-                industry = rec.get("industry", "Indian Equities")
+                sector = rec.get("sector", "Unclassified")
+                industry = rec.get("industry", "Unclassified")
                 aliases = rec.get("aliases", [])
                 source = rec.get("source", "seed_reference")
                 id_src_name = rec.get("identity_source_name") or (source if source == "seed_reference" else None)
@@ -1292,8 +1347,8 @@ def seed_company_registry(seed_records: Optional[List[Dict[str, Any]]] = None) -
                             bse_code = COALESCE(?, bse_code),
                             isin = COALESCE(?, isin),
                             exchange = COALESCE(?, exchange),
-                            sector = CASE WHEN ? != 'Broad Market' THEN ? ELSE sector END,
-                            industry = CASE WHEN ? != 'Indian Equities' THEN ? ELSE industry END,
+                            sector = CASE WHEN ? NOT IN ('Broad Market', 'Unclassified') THEN ? ELSE sector END,
+                            industry = CASE WHEN ? NOT IN ('Indian Equities', 'Unclassified') THEN ? ELSE industry END,
                             aliases = ?,
                             updated_at = ?
                         WHERE id = ?
@@ -1862,6 +1917,5 @@ if not (os.environ.get("PYTEST_CURRENT_TEST") or os.environ.get("STOCKER_TEST_MO
         init_db()
     except Exception:
         pass
-
 
 
