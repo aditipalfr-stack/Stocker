@@ -19,3 +19,13 @@ frontend/node_modules/
 !.env.example
 .history/
 
+# Runtime Databases & Caches (Persistence independent of Git)
+backend/data/stocker.db
+backend/data/stocker.db-*
+backend/data/stocks_cache.json
+backend/data/pdf_cache/
+backend/data/doc_intelligence_generated/
+*.db-wal
+*.db-shm
+
+

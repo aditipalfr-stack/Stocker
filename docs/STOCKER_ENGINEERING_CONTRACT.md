@@ -178,7 +178,7 @@ The investor-facing Business Analysis UI is strictly organized into **4 structur
    - Capacity expansion roadmaps and capex pipeline.
    - Competitive position, economic moat durability, and pricing power.
 3. **Management & Execution**:
-   - Promise vs Delivery track record (audited commitments vs reported outcomes with dual citations).
+   - Promise vs Delivery track record (documented/verified commitments vs reported outcomes with dual citations).
    - Management Guidance vs Stocker DCF Projections triangulation (basis-point variance analysis).
    - Capital allocation audit (CWIP efficiency, reinvestment rate, shareholder dividend discipline).
    - Governance and accounting watch (working capital drift, auditor observations, legal contingencies).
@@ -193,7 +193,7 @@ The investor-facing Business Analysis UI is strictly organized into **4 structur
 
 ### Projection Classification
 - **Historical-Only / Preliminary**: Generated before Business Analysis is run. Must be constructed strictly using actual historical company financials, deterministic historical trends/medians, explicit evidence-derived assumptions, or explicit user overrides. If a material assumption cannot be supported by historical evidence, it must remain unavailable or low-confidence rather than being silently replaced by generic company-looking defaults (e.g., 10% revenue growth, 18% OPM, 5% capex, 25% tax, 22x P/E). A projection may be explicitly `unavailable` if sufficient evidence does not exist. Clearly badged as `Historical-Only`.
-- **Evidence-Enriched**: Generated after Business Analysis incorporates verified management targets, capacity commissioning schedules, and audited capex outlays.
+- **Evidence-Enriched**: Generated after Business Analysis incorporates verified management targets, capacity commissioning schedules, and documented/verified capex outlays.
 
 ### Assumption Provenance
 Every critical projection assumption must explicitly state:
