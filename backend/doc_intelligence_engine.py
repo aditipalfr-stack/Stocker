@@ -77,8 +77,8 @@ def get_company_doc_intelligence(
     # If not yet generated, return None (NO mock sample fallback!)
     return None
 
-def _extract_metric_from_statement(stmt_data: Any, metric_aliases: List[str], target_period: str) -> Optional[float]:
-    """Helper to find a numeric value for a given metric and period in statement rows."""
+def _extract_metric_from_statement(stmt_data: Any, canonical_aliases: List[str], target_period: str) -> Optional[float]:
+    """Helper to find a numeric value for a given canonical metric list and period in statement rows."""
     if not stmt_data:
         return None
     
@@ -94,23 +94,35 @@ def _extract_metric_from_statement(stmt_data: Any, metric_aliases: List[str], ta
         if isinstance(raw_rows, list):
             rows = raw_rows
         elif isinstance(raw_rows, dict):
-            # dict of metric -> list of values
             for m_name, vals in raw_rows.items():
                 rows.append({"metric": m_name, "values": {p: v for p, v in zip(periods, vals)} if isinstance(vals, list) else vals})
 
-    # Find matching period index or key
+    # Exact period matching
     matched_period = None
     target_clean = target_period.upper().replace(" ", "").replace("-", "")
+    t_yr_match = re.search(r'(?:FY|20|MAR|DEC|JUN|SEP)?(\d{2,4})', target_clean)
+    t_yr = t_yr_match.group(1) if t_yr_match else None
+    if t_yr and len(t_yr) == 2:
+        t_yr = "20" + t_yr
+
     for p in periods:
         p_clean = str(p).upper().replace(" ", "").replace("-", "")
-        if target_clean in p_clean or p_clean in target_clean:
+        if target_clean == p_clean or target_clean in p_clean or p_clean in target_clean:
             matched_period = p
             break
-            
+        if t_yr:
+            p_yr_match = re.search(r'(?:FY|20|MAR|DEC|JUN|SEP)?(\d{2,4})', p_clean)
+            p_yr = p_yr_match.group(1) if p_yr_match else None
+            if p_yr and len(p_yr) == 2:
+                p_yr = "20" + p_yr
+            if t_yr and p_yr and t_yr == p_yr:
+                matched_period = p
+                break
+                
     if not matched_period:
         return None
 
-    # Search rows for metric aliases
+    # Search rows for exact or strict canonical aliases
     for r in rows:
         if isinstance(r, dict):
             m_name = r.get("metric", "")
@@ -119,9 +131,10 @@ def _extract_metric_from_statement(stmt_data: Any, metric_aliases: List[str], ta
             m_name = getattr(r, "metric", "")
             vals = getattr(r, "values", {})
             
-        m_name_lower = str(m_name).lower().strip()
-        for alias in metric_aliases:
-            if alias.lower() in m_name_lower:
+        m_clean = str(m_name).lower().strip()
+        for alias in canonical_aliases:
+            a_clean = alias.lower().strip()
+            if m_clean == a_clean or m_clean.startswith(a_clean) or a_clean.startswith(m_clean):
                 if isinstance(vals, dict):
                     val = vals.get(matched_period)
                     if isinstance(val, (int, float)):
@@ -132,6 +145,69 @@ def _extract_metric_from_statement(stmt_data: Any, metric_aliases: List[str], ta
                         return float(vals[idx])
     return None
 
+CANONICAL_METRIC_DEFINITIONS = {
+    "REVENUE": {
+        "topic_keywords": ["revenue", "sales", "topline", "turnover"],
+        "statement_metrics": ["sales", "revenue", "revenue from operations", "total revenue", "total income", "interest earned"],
+        "source_stmt": "pl",
+        "is_lower_better": False
+    },
+    "OPM": {
+        "topic_keywords": ["opm", "operating profit margin", "ebitda margin", "operating margin"],
+        "statement_metrics": ["opm %", "operating profit margin", "ebitda margin %"],
+        "source_stmt": "pl",
+        "is_lower_better": False
+    },
+    "NET_PROFIT": {
+        "topic_keywords": ["net profit", "pat", "profit after tax", "bottomline"],
+        "statement_metrics": ["net profit", "pat", "profit after tax"],
+        "source_stmt": "pl",
+        "is_lower_better": False
+    },
+    "CAPEX": {
+        "topic_keywords": ["capex", "capital expenditure", "cwip"],
+        "statement_metrics": ["cwip", "capital work in progress", "fixed assets"],
+        "source_stmt": "bs",
+        "is_lower_better": False
+    },
+    "ADVANCES": {
+        "topic_keywords": ["advances", "loan book", "loans & advances", "loans and advances", "loan growth", "gross advances", "total advances"],
+        "statement_metrics": ["advances", "loans & advances", "loans and advances", "total advances"],
+        "source_stmt": "bs",
+        "is_lower_better": False
+    },
+    "DEPOSITS": {
+        "topic_keywords": ["deposits", "deposit growth", "total deposits", "casa"],
+        "statement_metrics": ["deposits", "total deposits"],
+        "source_stmt": "bs",
+        "is_lower_better": False
+    },
+    "GNPA": {
+        "topic_keywords": ["gnpa", "gross npa", "gross non performing", "gross non-performing"],
+        "statement_metrics": ["gnpa %", "gross npa %", "gnpa", "gross npa"],
+        "source_stmt": "pl",
+        "is_lower_better": True
+    },
+    "NNPA": {
+        "topic_keywords": ["nnpa", "net npa", "net non performing", "net non-performing"],
+        "statement_metrics": ["nnpa %", "net npa %", "nnpa", "net npa"],
+        "source_stmt": "pl",
+        "is_lower_better": True
+    },
+    "COST_TO_INCOME": {
+        "topic_keywords": ["cost to income", "cost-to-income", "cost/income"],
+        "statement_metrics": ["cost to income %", "cost to income"],
+        "source_stmt": "pl",
+        "is_lower_better": True
+    },
+    "CREDIT_COST": {
+        "topic_keywords": ["credit cost", "credit costs"],
+        "statement_metrics": ["credit cost %", "credit cost"],
+        "source_stmt": "pl",
+        "is_lower_better": True
+    }
+}
+
 def evaluate_management_guidance_vs_actual(
     guidance_items: List[ManagementGuidanceItem],
     financial_statements: Optional[Dict[str, Any]] = None,
@@ -140,8 +216,8 @@ def evaluate_management_guidance_vs_actual(
 ) -> List[ManagementGuidanceItem]:
     """
     Deterministically compares management guidance targets against actual financial statements
-    or verified knowledge facts without LLM arithmetic.
-    Assigns: MET, PARTIALLY_MET, MISSED, NOT_YET_DUE, NOT_COMPARABLE, INSUFFICIENT_EVIDENCE.
+    or verified knowledge facts without LLM arithmetic or invented policy thresholds.
+    Assigns: MET, MISSED, NOT_YET_DUE, NOT_COMPARABLE, INSUFFICIENT_EVIDENCE.
     """
     if not guidance_items:
         return []
@@ -167,8 +243,15 @@ def evaluate_management_guidance_vs_actual(
         topic = (item.metric_or_topic or "").lower()
         target_p = item.target_period or ""
         
-        # Check if target period is in the future
-        # E.g. Target is FY27 / FY28 or Mar 2027 while latest statement is FY25/FY26
+        # 1. Source-First Fail-Closed Check
+        if getattr(item, "source_support_status", "SUPPORTED") == "UNSUPPORTED" or not item.source_document_title:
+            item.status = "INSUFFICIENT_EVIDENCE"
+            item.confidence = "LOW"
+            item.comparison_detail = "Unverified source filing; guidance cannot be verified against actuals."
+            evaluated_items.append(item)
+            continue
+
+        # 2. Check if target period is in the future
         target_yr_match = re.search(r'(?:FY|20)(\d{2,4})', target_p, re.IGNORECASE)
         latest_yr_match = re.search(r'(?:FY|20)(\d{2,4})', str(latest_pl_period), re.IGNORECASE) if latest_pl_period else None
         
@@ -190,40 +273,29 @@ def evaluate_management_guidance_vs_actual(
             evaluated_items.append(item)
             continue
             
-        # Try to find actual metric in statements
+        # 3. Canonical Metric Resolution
+        matched_canonical = None
+        for c_key, c_def in CANONICAL_METRIC_DEFINITIONS.items():
+            if any(k in topic for k in c_def["topic_keywords"]):
+                matched_canonical = c_def
+                break
+                
         actual_val = None
         actual_period = target_p
+        is_lower_better = matched_canonical["is_lower_better"] if matched_canonical else False
         
-        # 1. Sales / Revenue
-        if any(k in topic for k in ["sales", "revenue", "topline", "growth"]):
-            actual_val = _extract_metric_from_statement(pl_stmt, ["sales", "revenue", "interest earned", "total income"], target_p)
-            if actual_val is None and quarters_stmt:
-                actual_val = _extract_metric_from_statement(quarters_stmt, ["sales", "revenue", "interest earned"], target_p)
-                
-        # 2. Operating Margin / OPM / EBITDA
-        elif any(k in topic for k in ["opm", "margin", "ebitda"]):
-            actual_val = _extract_metric_from_statement(pl_stmt, ["opm %", "operating profit margin", "ebitda margin"], target_p)
-            if actual_val is None and quarters_stmt:
-                actual_val = _extract_metric_from_statement(quarters_stmt, ["opm %", "operating profit margin"], target_p)
-                
-        # 3. Capex / CWIP
-        elif any(k in topic for k in ["capex", "capital expenditure", "cwip", "capacity"]):
-            actual_val = _extract_metric_from_statement(bs_stmt, ["cwip", "capital work in progress", "fixed assets"], target_p)
-            
-        # 4. Bank metrics: Advances, Deposits, NPA
-        elif any(k in topic for k in ["advance", "loan", "credit"]):
-            actual_val = _extract_metric_from_statement(bs_stmt, ["advances", "loans", "borrowings"], target_p)
-        elif any(k in topic for k in ["deposit", "casa"]):
-            actual_val = _extract_metric_from_statement(bs_stmt, ["deposits"], target_p)
-        elif any(k in topic for k in ["gnpa", "gross npa", "npa", "nnpa", "asset quality"]):
-            actual_val = _extract_metric_from_statement(pl_stmt, ["gnpa", "gross npa", "provisions"], target_p)
+        if matched_canonical:
+            tgt_stmt = pl_stmt if matched_canonical["source_stmt"] == "pl" else bs_stmt
+            actual_val = _extract_metric_from_statement(tgt_stmt, matched_canonical["statement_metrics"], target_p)
+            if actual_val is None and quarters_stmt and matched_canonical["source_stmt"] == "pl":
+                actual_val = _extract_metric_from_statement(quarters_stmt, matched_canonical["statement_metrics"], target_p)
 
-        # 5. Check knowledge facts if statement extraction did not find exact match
+        # 4. Check knowledge facts if statement extraction did not find exact match
         if actual_val is None and knowledge_facts:
             for kf in knowledge_facts:
                 kf_metric = str(kf.get("metric_name", "")).lower()
                 kf_period = str(kf.get("period_or_date", "")).lower()
-                if (any(w in kf_metric for w in topic.split()) or topic in kf_metric) and (target_p.lower() in kf_period or kf_period in target_p.lower()):
+                if matched_canonical and any(m in kf_metric for m in matched_canonical["statement_metrics"]) and (target_p.lower() in kf_period or kf_period in target_p.lower()):
                     if kf.get("numeric_value") is not None:
                         actual_val = float(kf["numeric_value"])
                         actual_period = kf.get("period_or_date", target_p)
@@ -233,66 +305,90 @@ def evaluate_management_guidance_vs_actual(
         r_min = item.quantified_range_min
         r_max = item.quantified_range_max
 
-        # If actual value was found deterministically:
+        # 5. Objective Deterministic Comparison (No invented percentage thresholds)
         if actual_val is not None:
             item.actual_reported_value = actual_val
             item.actual_reported_period = actual_period
-            item.actual_reported_source = "Audited Financial Statements"
-            
-            # Lower-is-better metrics: GNPA, NNPA, debt, cost-to-income, credit cost
-            is_lower_better = any(k in topic for k in ["gnpa", "nnpa", "npa", "cost to income", "credit cost", "debt", "leverage"])
+            item.actual_reported_source = "Financial Statement Data"
             
             if target_num is not None:
+                variance = round(actual_val - target_num, 2)
+                pct_var = round(((actual_val - target_num) / abs(target_num)) * 100.0, 2) if target_num != 0 else 0.0
+                
                 if is_lower_better:
-                    if actual_val <= 1.05 * target_num:
+                    if actual_val <= target_num:
                         item.status = "MET"
-                        item.comparison_detail = f"Actual {actual_val} {item.unit or ''} achieved target <= {target_num} {item.unit or ''} in {actual_period}."
-                    elif actual_val <= 1.25 * target_num:
-                        item.status = "PARTIALLY_MET"
-                        item.comparison_detail = f"Actual {actual_val} {item.unit or ''} was slightly above target {target_num} {item.unit or ''} in {actual_period}."
+                        item.comparison_detail = f"Actual {actual_val} {item.unit or ''} achieved target (target <= {target_num} {item.unit or ''}, variance: {variance:+} {item.unit or ''}) in {actual_period}."
                     else:
                         item.status = "MISSED"
-                        item.comparison_detail = f"Actual {actual_val} {item.unit or ''} missed target {target_num} {item.unit or ''} in {actual_period}."
+                        item.comparison_detail = f"Actual {actual_val} {item.unit or ''} missed target (target <= {target_num} {item.unit or ''}, variance: {variance:+} {item.unit or ''}) in {actual_period}."
                 else:
-                    if actual_val >= 0.95 * target_num:
+                    if actual_val >= target_num:
                         item.status = "MET"
-                        item.comparison_detail = f"Actual {actual_val} {item.unit or ''} met or exceeded target {target_num} {item.unit or ''} in {actual_period}."
-                    elif actual_val >= 0.75 * target_num:
-                        item.status = "PARTIALLY_MET"
-                        item.comparison_detail = f"Actual {actual_val} {item.unit or ''} partially delivered vs target {target_num} {item.unit or ''} in {actual_period}."
+                        item.comparison_detail = f"Actual {actual_val} {item.unit or ''} met target {target_num} {item.unit or ''} (variance: {variance:+} {item.unit or ''}, {pct_var:+}% ) in {actual_period}."
                     else:
                         item.status = "MISSED"
-                        item.comparison_detail = f"Actual {actual_val} {item.unit or ''} missed target {target_num} {item.unit or ''} in {actual_period}."
-            elif r_min is not None:
-                if is_lower_better:
-                    upper_bound = r_max if r_max is not None else r_min
-                    if actual_val <= upper_bound:
-                        item.status = "MET"
-                        item.comparison_detail = f"Actual {actual_val} {item.unit or ''} achieved guided range <= {upper_bound} in {actual_period}."
+                        item.comparison_detail = f"Actual {actual_val} {item.unit or ''} missed target {target_num} {item.unit or ''} (variance: {variance:+} {item.unit or ''}, {pct_var:+}% ) in {actual_period}."
+                        
+            elif r_min is not None or r_max is not None:
+                if r_min is not None and r_max is not None:
+                    if is_lower_better:
+                        if actual_val <= r_max:
+                            item.status = "MET"
+                            item.comparison_detail = f"Actual {actual_val} {item.unit or ''} achieved guided range {r_min}–{r_max} {item.unit or ''} in {actual_period}."
+                        else:
+                            item.status = "MISSED"
+                            item.comparison_detail = f"Actual {actual_val} {item.unit or ''} missed guided range {r_min}–{r_max} {item.unit or ''} in {actual_period}."
                     else:
-                        item.status = "MISSED"
-                        item.comparison_detail = f"Actual {actual_val} {item.unit or ''} exceeded guided limit {upper_bound} in {actual_period}."
-                else:
-                    if actual_val >= r_min:
-                        item.status = "MET"
-                        item.comparison_detail = f"Actual {actual_val} {item.unit or ''} met guided range (>= {r_min} {item.unit or ''}) in {actual_period}."
-                    elif actual_val >= 0.85 * r_min:
-                        item.status = "PARTIALLY_MET"
-                        item.comparison_detail = f"Actual {actual_val} {item.unit or ''} came close to guided minimum {r_min} {item.unit or ''} in {actual_period}."
+                        if actual_val >= r_min and (r_max is None or actual_val <= r_max):
+                            item.status = "MET"
+                            item.comparison_detail = f"Actual {actual_val} {item.unit or ''} fell within guided range {r_min}–{r_max} {item.unit or ''} in {actual_period}."
+                        elif actual_val > r_max:
+                            item.status = "MET"
+                            item.comparison_detail = f"Actual {actual_val} {item.unit or ''} exceeded guided range {r_min}–{r_max} {item.unit or ''} in {actual_period}."
+                        else:
+                            item.status = "MISSED"
+                            item.comparison_detail = f"Actual {actual_val} {item.unit or ''} missed guided range {r_min}–{r_max} {item.unit or ''} in {actual_period}."
+                elif r_min is not None:
+                    if is_lower_better:
+                        if actual_val <= r_min:
+                            item.status = "MET"
+                            item.comparison_detail = f"Actual {actual_val} {item.unit or ''} achieved guided ceiling <= {r_min} {item.unit or ''} in {actual_period}."
+                        else:
+                            item.status = "MISSED"
+                            item.comparison_detail = f"Actual {actual_val} {item.unit or ''} exceeded guided ceiling <= {r_min} {item.unit or ''} in {actual_period}."
                     else:
-                        item.status = "MISSED"
-                        item.comparison_detail = f"Actual {actual_val} {item.unit or ''} missed guided range {r_min}–{r_max or ''} in {actual_period}."
+                        if actual_val >= r_min:
+                            item.status = "MET"
+                            item.comparison_detail = f"Actual {actual_val} {item.unit or ''} met guided floor >= {r_min} {item.unit or ''} in {actual_period}."
+                        else:
+                            item.status = "MISSED"
+                            item.comparison_detail = f"Actual {actual_val} {item.unit or ''} missed guided floor >= {r_min} {item.unit or ''} in {actual_period}."
+                elif r_max is not None:
+                    if is_lower_better:
+                        if actual_val <= r_max:
+                            item.status = "MET"
+                            item.comparison_detail = f"Actual {actual_val} {item.unit or ''} achieved guided ceiling <= {r_max} {item.unit or ''} in {actual_period}."
+                        else:
+                            item.status = "MISSED"
+                            item.comparison_detail = f"Actual {actual_val} {item.unit or ''} exceeded guided ceiling <= {r_max} {item.unit or ''} in {actual_period}."
+                    else:
+                        if actual_val >= r_max:
+                            item.status = "MET"
+                            item.comparison_detail = f"Actual {actual_val} {item.unit or ''} met guided target {r_max} {item.unit or ''} in {actual_period}."
+                        else:
+                            item.status = "MISSED"
+                            item.comparison_detail = f"Actual {actual_val} {item.unit or ''} missed guided target {r_max} {item.unit or ''} in {actual_period}."
             else:
-                # Qualitative guidance with reported financial context
                 item.status = "NOT_COMPARABLE"
-                item.comparison_detail = f"Qualitative guidance reported; exact numerical target not specified."
+                item.comparison_detail = "Qualitative commentary without quantified metric target."
         else:
-            if not target_num and not r_min:
+            if not target_num and r_min is None and r_max is None:
                 item.status = "NOT_COMPARABLE"
                 item.comparison_detail = "Qualitative commentary without quantified metric target."
             else:
                 item.status = "INSUFFICIENT_EVIDENCE"
-                item.comparison_detail = f"Audited financial statements do not contain exact line-item disclosure for '{item.metric_or_topic}' in period '{target_p}'."
+                item.comparison_detail = f"Financial statements do not contain exact line-item disclosure for '{item.metric_or_topic}' in period '{target_p}'."
                 
         evaluated_items.append(item)
         

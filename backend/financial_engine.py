@@ -31,10 +31,7 @@ def classify_financial_business_model(
     industry: Optional[str] = None,
     pl: Optional[FinancialStatement] = None,
     bs: Optional[FinancialStatement] = None,
-    quarters: Optional[FinancialStatement] = None,
-    sector_name: Optional[str] = None,
-    industry_name: Optional[str] = None,
-    sub_industry_name: Optional[str] = None
+    quarters: Optional[FinancialStatement] = None
 ) -> str:
     """
     Deterministically classifies a company's financial business model:
@@ -45,8 +42,8 @@ def classify_financial_business_model(
     - 'GENERAL_CORPORATE': Manufacturing, IT, FMCG, services, pharma, industrial
     - 'UNKNOWN': Ambiguous or insufficient data
     """
-    sec = (sector or sector_name or "").strip().lower()
-    ind = (industry or industry_name or sub_industry_name or "").strip().lower()
+    sec = (sector or "").strip().lower()
+    ind = (industry or "").strip().lower()
 
     # 1. Direct Industry / Sector Metadata Checks
     if any(b in ind for b in ["private sector bank", "public sector bank", "foreign bank", "small finance bank", "payment bank"]):

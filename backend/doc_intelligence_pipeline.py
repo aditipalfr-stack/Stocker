@@ -544,9 +544,8 @@ def run_multi_document_ai_pipeline(
     
     tax_info = resolve_local_company_taxonomy(clean_sym, stock_data=stock_data)
     biz_model = classify_financial_business_model(
-        sector_name=tax_info.get("sector"),
-        industry_name=tax_info.get("industry"),
-        sub_industry_name=tax_info.get("sub_industry")
+        sector=tax_info.get("sector"),
+        industry=tax_info.get("industry")
     )
     docs_hash = database.compute_source_documents_hash(candidate_docs)
 

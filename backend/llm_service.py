@@ -669,6 +669,368 @@ OFFICIAL URL: {doc_url}
         print(f"    ⚠️ Failed to generate single doc summary for {doc_title}: {e}")
         return None
 
+def sanitize_citation(
+    url: Optional[str],
+    doc_title: Optional[str],
+    candidate_documents_meta: Optional[List[Dict[str, Any]]] = None,
+    latest_doc_url: Optional[str] = None,
+    latest_doc_title: Optional[str] = None,
+    older_doc_url: Optional[str] = None,
+    older_doc_title: Optional[str] = None
+) -> Tuple[Optional[str], Optional[str]]:
+    """
+    Strict Citation Sanitization & Attribution Verification:
+    Maps a cited URL or Title to a verified document in the candidate corpus.
+    Fails closed and returns (None, None) for hallucinated/unmapped references.
+    """
+    if not url and not doc_title:
+        return None, None
+        
+    valid_urls_map = {}
+    if candidate_documents_meta:
+        for d in candidate_documents_meta:
+            u = d.get("url", "").strip()
+            t = d.get("title", "").strip()
+            if u:
+                valid_urls_map[u] = t
+
+    # 1. Exact URL match in verified corpus
+    if url and url in valid_urls_map:
+        return url, valid_urls_map[url]
+        
+    # 2. Confident title match in verified corpus
+    if doc_title:
+        clean_title = doc_title.lower().strip()
+        for v_url, v_title in valid_urls_map.items():
+            clean_v = v_title.lower().strip()
+            if clean_title == clean_v or (len(clean_title) > 8 and clean_title in clean_v) or (len(clean_v) > 8 and clean_v in clean_title):
+                return v_url, v_title
+                
+    # 3. Exact URL match to primary baseline documents
+    if url and url == latest_doc_url:
+        return latest_doc_url, latest_doc_title
+    if url and url == older_doc_url:
+        return older_doc_url, older_doc_title
+        
+    # 4. Strictly reject unmapped / hallucinated URLs or titles
+    return None, None
+
+def verify_citation_page(doc_url: Optional[str], quote: Optional[str], text_claim: Optional[str]) -> Optional[int]:
+    """Verifies page occurrence in cached document pages."""
+    if not doc_url:
+        return None
+    try:
+        cached_pages = database.get_cached_document_pages(doc_url)
+        if not cached_pages:
+            return None
+        if quote and len(quote.strip()) >= 10:
+            q_clean = quote.lower().strip()
+            q_snippet = q_clean[:25]
+            for p_num, p_text in cached_pages:
+                if q_clean in p_text.lower() or q_snippet in p_text.lower():
+                    return p_num
+        if text_claim and len(text_claim.strip()) >= 15:
+            words = [w.strip() for w in text_claim.lower().split() if len(w) > 4]
+            if len(words) >= 3:
+                for p_num, p_text in cached_pages:
+                    t_low = p_text.lower()
+                    matches = sum(1 for w in words if w in t_low)
+                    if matches >= min(3, len(words)):
+                        return p_num
+    except Exception:
+        pass
+    return None
+
+def sanitize_and_verify_intelligence_result(
+    result: GenericDocumentIntelligenceResult,
+    symbol: str,
+    candidate_documents_meta: Optional[List[Dict[str, Any]]] = None,
+    latest_doc_url: Optional[str] = None,
+    latest_doc_title: Optional[str] = None,
+    older_doc_url: Optional[str] = None,
+    older_doc_title: Optional[str] = None,
+    pl_stmt: Optional[Any] = None,
+    quarters_stmt: Optional[Any] = None,
+    bs_stmt: Optional[Any] = None,
+    cf_stmt: Optional[Any] = None,
+    precomputed_document_summaries: Optional[List[Dict[str, Any]]] = None,
+    financial_business_model: str = "GENERAL_CORPORATE"
+) -> GenericDocumentIntelligenceResult:
+    """
+    Sanitizes all citations in extracted intelligence, rejects unmapped sources,
+    verifies page numbers, and evaluates management guidance deterministically.
+    """
+    # 1. RecentChange: headline, category, detail, source_doc, source_page, source_url
+    for c in result.what_changed_recently:
+        c.source_url, matched_doc = sanitize_citation(
+            c.source_url, c.source_doc, candidate_documents_meta,
+            latest_doc_url, latest_doc_title, older_doc_url, older_doc_title
+        )
+        if matched_doc:
+            c.source_doc = matched_doc
+        elif not c.source_url:
+            c.source_doc = None
+        page_match = verify_citation_page(c.source_url, None, f"{c.headline} {c.detail}")
+        if page_match:
+            c.source_page = page_match
+        elif not c.source_url:
+            c.source_page = None
+            
+    # 2. GrowthDriver: driver_title, driver_type, description, target_timeline, stated_outlay_or_value, execution_status, expected_impact, source_page, source_quote, source_url, confidence
+    for g in result.growth_drivers:
+        g.source_url, _ = sanitize_citation(
+            g.source_url, None, candidate_documents_meta,
+            latest_doc_url, latest_doc_title, older_doc_url, older_doc_title
+        )
+        page_match = verify_citation_page(g.source_url, g.source_quote, f"{g.driver_title} {g.description}")
+        if page_match:
+            g.source_page = page_match
+        elif not g.source_url:
+            g.source_page = None
+            g.source_quote = None
+            
+    # 3. PromiseVsDeliveryItem
+    for p in result.promise_vs_delivery:
+        p.source_url_actual, _ = sanitize_citation(
+            p.source_url_actual, p.actual_in_period, candidate_documents_meta,
+            latest_doc_url, latest_doc_title, older_doc_url, older_doc_title
+        )
+        p.source_url_promise, _ = sanitize_citation(
+            p.source_url_promise, p.promised_in_period, candidate_documents_meta,
+            latest_doc_url, latest_doc_title, older_doc_url, older_doc_title
+        )
+        
+        if p.source_url_actual:
+            act_page = verify_citation_page(p.source_url_actual, p.actual_quote, p.actual_outcome)
+            if act_page:
+                p.actual_source_page = act_page
+        else:
+            p.actual_source_page = None
+            p.actual_quote = None
+            
+        if p.source_url_promise:
+            prom_page = verify_citation_page(p.source_url_promise, p.promise_quote, p.management_promise)
+            if prom_page:
+                p.promise_source_page = prom_page
+        else:
+            p.promise_source_page = None
+            p.promise_quote = None
+            
+        if not p.source_url_promise or not p.source_url_actual:
+            p.status = "Not Enough Evidence"
+        else:
+            try:
+                from financial_engine import verify_promise_vs_delivery_item
+                verified_dict = verify_promise_vs_delivery_item(
+                    item=p.model_dump(),
+                    pl_stmt=pl_stmt,
+                    quarters_stmt=quarters_stmt,
+                    current_year=None
+                )
+                p.status = verified_dict.get("status", "Not Enough Evidence")
+                p.financial_numbers_check = verified_dict.get("financial_numbers_check")
+                if verified_dict.get("stocker_analysis"):
+                    p.stocker_analysis = verified_dict["stocker_analysis"]
+            except Exception as e:
+                print(f"Notice: Verification engine error on promise item: {e}")
+
+    # 4. DemandMomentum
+    if result.demand_momentum:
+        result.demand_momentum.source_url, _ = sanitize_citation(
+            result.demand_momentum.source_url, None, candidate_documents_meta,
+            latest_doc_url, latest_doc_title, older_doc_url, older_doc_title
+        )
+        if result.demand_momentum.source_url:
+            d_page = verify_citation_page(result.demand_momentum.source_url, result.demand_momentum.source_quote, result.demand_momentum.summary)
+            if d_page:
+                result.demand_momentum.source_page = d_page
+        else:
+            result.demand_momentum.source_page = None
+            result.demand_momentum.source_quote = None
+
+    # 5. RisksAndCashIssues
+    if result.risks_and_cash:
+        result.risks_and_cash.source_url, _ = sanitize_citation(
+            result.risks_and_cash.source_url, None, candidate_documents_meta,
+            latest_doc_url, latest_doc_title, older_doc_url, older_doc_title
+        )
+        if result.risks_and_cash.source_url:
+            r_page = verify_citation_page(result.risks_and_cash.source_url, result.risks_and_cash.source_quote, None)
+            if r_page:
+                result.risks_and_cash.source_page = r_page
+        else:
+            result.risks_and_cash.source_page = None
+            result.risks_and_cash.source_quote = None
+
+    # 6. Integrated Persistent Company Knowledge & Triangulation Layer
+    all_facts: List[Dict[str, Any]] = []
+    try:
+        from financial_engine import process_and_verify_company_knowledge
+        if precomputed_document_summaries:
+            for s in precomputed_document_summaries:
+                for f in s.get("extracted_facts", []):
+                    if isinstance(f, dict):
+                        all_facts.append(f)
+        db_facts = database.get_company_knowledge_facts(symbol)
+        seen_fact_keys = set()
+        merged_facts = []
+        for f in (all_facts + db_facts):
+            key = (f.get("metric_name", ""), f.get("period_or_date", ""), f.get("doc_url", ""))
+            if key not in seen_fact_keys:
+                seen_fact_keys.add(key)
+                merged_facts.append(f)
+                
+        stock_data_pkg = {
+            "profit_loss": pl_stmt,
+            "quarters": quarters_stmt,
+            "balance_sheet": bs_stmt,
+            "cash_flow": cf_stmt
+        }
+        
+        projection_pkg = None
+        try:
+            from projection_engine import generate_scenario_suite
+            from models import KeyRatios, FinancialStatement
+            from financial_engine import get_row_values
+            cached_stock = database.get_stock_cache(symbol) or {}
+            r_dict = cached_stock.get("ratios")
+            if r_dict:
+                ratios_obj = KeyRatios(**r_dict) if isinstance(r_dict, dict) else r_dict
+                analytics = cached_stock.get("analytics") or {}
+                pl_obj = FinancialStatement(**pl_stmt) if isinstance(pl_stmt, dict) else pl_stmt
+                bs_obj = FinancialStatement(**bs_stmt) if isinstance(bs_stmt, dict) else bs_stmt
+                cf_obj = FinancialStatement(**cf_stmt) if isinstance(cf_stmt, dict) else cf_stmt
+                
+                scenario_suite = generate_scenario_suite(
+                    ratios=ratios_obj,
+                    pl=pl_obj,
+                    bs=bs_obj,
+                    cf=cf_obj,
+                    analytics=analytics,
+                    doc_intel=None
+                )
+                base_case = scenario_suite.get("base_case")
+                bull_case = scenario_suite.get("bull_case")
+                bear_case = scenario_suite.get("bear_case")
+                
+                base_sales = base_case.assumptions.revenue_growth_rate_pct if base_case else None
+                bull_sales = bull_case.assumptions.revenue_growth_rate_pct if bull_case else None
+                bear_sales = bear_case.assumptions.revenue_growth_rate_pct if bear_case else None
+                target_opm = base_case.assumptions.target_opm_pct if base_case else None
+                capex_sales = base_case.assumptions.capex_pct_of_sales if base_case else None
+                
+                base_pat_cagr = None
+                bull_pat_cagr = None
+                bear_pat_cagr = None
+                if base_case and len(base_case.projections) >= 3:
+                    y_pat = get_row_values(pl_obj, "Net Profit") or get_row_values(pl_obj, "PAT") if pl_obj else {}
+                    y_periods = pl_obj.periods if pl_obj else []
+                    latest_pat = y_pat.get(y_periods[-1], 0.0) if y_periods else 0.0
+                    if latest_pat > 0:
+                        yr3_pat_base = base_case.projections[2].pat_cr
+                        if yr3_pat_base > 0:
+                            base_pat_cagr = round(((yr3_pat_base / latest_pat) ** (1.0 / 3.0) - 1.0) * 100.0, 1)
+                        if bull_case and len(bull_case.projections) >= 3:
+                            yr3_pat_bull = bull_case.projections[2].pat_cr
+                            if yr3_pat_bull > 0:
+                                bull_pat_cagr = round(((yr3_pat_bull / latest_pat) ** (1.0 / 3.0) - 1.0) * 100.0, 1)
+                        if bear_case and len(bear_case.projections) >= 3:
+                            yr3_pat_bear = bear_case.projections[2].pat_cr
+                            if yr3_pat_bear > 0:
+                                bear_pat_cagr = round(((yr3_pat_bear / latest_pat) ** (1.0 / 3.0) - 1.0) * 100.0, 1)
+
+                projection_pkg = {
+                    "revenue_growth_rate_pct": base_sales,
+                    "base_sales_cagr": base_sales,
+                    "bull_sales_cagr": bull_sales,
+                    "bear_sales_cagr": bear_sales,
+                    "target_opm_pct": target_opm,
+                    "capex_pct_of_sales": capex_sales,
+                    "base_pat_cagr": base_pat_cagr,
+                    "bull_pat_cagr": bull_pat_cagr,
+                    "bear_pat_cagr": bear_pat_cagr,
+                    "projection_source": "Stocker DCF Projection Engine"
+                }
+        except Exception as e_proj:
+            print(f"Notice: Projection derivation skipped during knowledge verification: {e_proj}")
+            projection_pkg = None
+
+        knowledge_res = process_and_verify_company_knowledge(
+            symbol=symbol,
+            facts_list=merged_facts,
+            stock_data=stock_data_pkg,
+            projection_assumptions=projection_pkg
+        )
+        
+        from doc_intelligence_models import VerifiedFactComparison, InterDocumentKPITrend, GuidanceVsProjection
+        result.verified_facts = [VerifiedFactComparison(**vf) for vf in knowledge_res.get("verified_facts", [])]
+        result.operational_kpi_evolution = [InterDocumentKPITrend(**it) for it in knowledge_res.get("operational_kpi_evolution", [])]
+        result.guidance_vs_projections = [GuidanceVsProjection(**gp) for gp in knowledge_res.get("guidance_vs_projections", [])]
+    except Exception as e_k:
+        print(f"Notice: Knowledge verification engine error: {e_k}")
+
+    # 7. Document Evidence Items: Validate source URLs, titles, and verify pages
+    from doc_intelligence_models import DocumentEvidenceItem
+    sanitized_evidence: List[DocumentEvidenceItem] = []
+    for idx, ev in enumerate(result.evidence_items):
+        ev.symbol = symbol
+        s_url, matched_doc = sanitize_citation(
+            ev.source_url, ev.source_document_title, candidate_documents_meta,
+            latest_doc_url, latest_doc_title, older_doc_url, older_doc_title
+        )
+        if s_url:
+            ev.source_url = s_url
+            if matched_doc:
+                ev.source_document_title = matched_doc
+            page_match = verify_citation_page(ev.source_url, ev.evidence_quote, f"{ev.title} {ev.statement}")
+            if page_match:
+                ev.page = page_match
+            ev.status = "SUPPORTED"
+        else:
+            ev.source_url = ""
+            ev.status = "UNSUPPORTED"
+            ev.confidence = "LOW"
+        if not ev.id:
+            ev.id = f"evi_{symbol}_{idx+1}_{abs(hash(ev.title + ev.statement))}"
+        sanitized_evidence.append(ev)
+    result.evidence_items = sanitized_evidence
+
+    # 8. Management Guidance Items: Fail closed on unverified sources, evaluate deterministically
+    sanitized_guidance = []
+    for g in result.management_guidance_items:
+        g_url, g_doc = sanitize_citation(
+            g.source_document_url, g.source_document_title, candidate_documents_meta,
+            latest_doc_url, latest_doc_title, older_doc_url, older_doc_title
+        )
+        if g_url:
+            g.source_document_url = g_url
+            if g_doc:
+                g.source_document_title = g_doc
+            g.source_support_status = "SUPPORTED"
+        else:
+            g.source_document_url = ""
+            g.source_support_status = "UNSUPPORTED"
+            g.confidence = "LOW"
+            g.status = "INSUFFICIENT_EVIDENCE"
+            g.comparison_detail = "Unverified source filing; guidance cannot be verified against actuals."
+        sanitized_guidance.append(g)
+    result.management_guidance_items = sanitized_guidance
+
+    try:
+        from doc_intelligence_engine import evaluate_management_guidance_vs_actual
+        eval_guidance = evaluate_management_guidance_vs_actual(
+            guidance_items=result.management_guidance_items,
+            financial_statements={"profit_loss": pl_stmt, "quarters": quarters_stmt, "balance_sheet": bs_stmt, "cash_flow": cf_stmt},
+            knowledge_facts=all_facts,
+            business_model=financial_business_model
+        )
+        result.management_guidance_items = eval_guidance
+    except Exception as e_g:
+        print(f"Notice: Guidance evaluation engine error: {e_g}")
+
+    result.financial_business_model = financial_business_model
+    return result
+
 def extract_document_intelligence_with_llm(
     symbol: str,
     company_name: str,
@@ -824,297 +1186,21 @@ SYNTHESIS INSTRUCTIONS:
             
         result = GenericDocumentIntelligenceResult(**data_to_parse)
         
-        # Strict Citation Sanitization & Attribution Verification
-        valid_urls_map = {}
-        if candidate_documents_meta:
-            for d in candidate_documents_meta:
-                u = d.get("url", "").strip()
-                t = d.get("title", "").strip()
-                if u:
-                    valid_urls_map[u] = t
-                    
-        def _sanitize_citation(url: Optional[str], doc_title: Optional[str]) -> Tuple[Optional[str], Optional[str]]:
-            if not url and not doc_title:
-                return None, None
-            # 1. Exact URL match in verified corpus
-            if url and url in valid_urls_map:
-                return url, valid_urls_map[url]
-            # 2. Confident title match in verified corpus
-            if doc_title:
-                clean_title = doc_title.lower().strip()
-                for v_url, v_title in valid_urls_map.items():
-                    clean_v = v_title.lower().strip()
-                    if clean_title == clean_v or (len(clean_title) > 8 and clean_title in clean_v) or (len(clean_v) > 8 and clean_v in clean_title):
-                        return v_url, v_title
-            # 3. Exact URL match to primary baseline documents
-            if url and url == latest_doc_url:
-                return latest_doc_url, latest_doc_title
-            if url and url == older_doc_url:
-                return older_doc_url, older_doc_title
-            # 4. Strictly reject unmapped / hallucinated URLs or titles
-            return None, None
-
-        def _verify_page(doc_url: Optional[str], quote: Optional[str], text_claim: Optional[str]) -> Optional[int]:
-            if not doc_url:
-                return None
-            try:
-                cached_pages = database.get_cached_document_pages(doc_url)
-                if not cached_pages:
-                    return None
-                if quote and len(quote.strip()) >= 10:
-                    q_clean = quote.lower().strip()
-                    q_snippet = q_clean[:25]
-                    for p_num, p_text in cached_pages:
-                        if q_clean in p_text.lower() or q_snippet in p_text.lower():
-                            return p_num
-                if text_claim and len(text_claim.strip()) >= 15:
-                    words = [w.strip() for w in text_claim.lower().split() if len(w) > 4]
-                    if len(words) >= 3:
-                        for p_num, p_text in cached_pages:
-                            t_low = p_text.lower()
-                            matches = sum(1 for w in words if w in t_low)
-                            if matches >= min(3, len(words)):
-                                return p_num
-            except Exception:
-                pass
-            return None
-
-        # 1. RecentChange: headline, category, detail, source_doc, source_page, source_url
-        for c in result.what_changed_recently:
-            c.source_url, matched_doc = _sanitize_citation(c.source_url, c.source_doc)
-            if matched_doc:
-                c.source_doc = matched_doc
-            elif not c.source_url:
-                c.source_doc = None
-            page_match = _verify_page(c.source_url, None, f"{c.headline} {c.detail}")
-            if page_match:
-                c.source_page = page_match
-            elif not c.source_url:
-                c.source_page = None
-                
-        # 2. GrowthDriver: driver_title, driver_type, description, target_timeline, stated_outlay_or_value, execution_status, expected_impact, source_page, source_quote, source_url, confidence
-        for g in result.growth_drivers:
-            g.source_url, _ = _sanitize_citation(g.source_url, None)
-            page_match = _verify_page(g.source_url, g.source_quote, f"{g.driver_title} {g.description}")
-            if page_match:
-                g.source_page = page_match
-            elif not g.source_url:
-                g.source_page = None
-                g.source_quote = None
-                
-        # 3. PromiseVsDeliveryItem: area, management_promise, promised_in_period, promise_source_page, promise_quote, actual_outcome, actual_in_period, actual_source_page, actual_quote, status, stocker_analysis, financial_numbers_check, source_url_promise, source_url_actual, confidence
-        for p in result.promise_vs_delivery:
-            p.source_url_actual, _ = _sanitize_citation(p.source_url_actual, p.actual_in_period)
-            p.source_url_promise, _ = _sanitize_citation(p.source_url_promise, p.promised_in_period)
-            
-            if p.source_url_actual:
-                act_page = _verify_page(p.source_url_actual, p.actual_quote, p.actual_outcome)
-                if act_page:
-                    p.actual_source_page = act_page
-            else:
-                p.actual_source_page = None
-                p.actual_quote = None
-                
-            if p.source_url_promise:
-                prom_page = _verify_page(p.source_url_promise, p.promise_quote, p.management_promise)
-                if prom_page:
-                    p.promise_source_page = prom_page
-            else:
-                p.promise_source_page = None
-                p.promise_quote = None
-                
-            if not p.source_url_promise or not p.source_url_actual:
-                p.status = "Not Enough Evidence"
-            else:
-                # Deterministic Chronological & Mathematical Verification in Code
-                try:
-                    from financial_engine import verify_promise_vs_delivery_item
-                    verified_dict = verify_promise_vs_delivery_item(
-                        item=p.model_dump(),
-                        pl_stmt=pl_stmt,
-                        quarters_stmt=quarters_stmt,
-                        current_year=None  # Computes runtime UTC datetime
-                    )
-                    p.status = verified_dict.get("status", "Not Enough Evidence")
-                    p.financial_numbers_check = verified_dict.get("financial_numbers_check")
-                    if verified_dict.get("stocker_analysis"):
-                        p.stocker_analysis = verified_dict["stocker_analysis"]
-                except Exception as e:
-                    print(f"Notice: Verification engine error on promise item: {e}")
-        # 4. DemandMomentum: summary, company_specific_metrics, segment_trends, market_share_and_pricing, headwinds_and_risks, source_page, source_quote, source_url, confidence
-        if result.demand_momentum:
-            result.demand_momentum.source_url, _ = _sanitize_citation(result.demand_momentum.source_url, None)
-            if result.demand_momentum.source_url:
-                d_page = _verify_page(result.demand_momentum.source_url, result.demand_momentum.source_quote, result.demand_momentum.summary)
-                if d_page:
-                    result.demand_momentum.source_page = d_page
-            else:
-                result.demand_momentum.source_page = None
-                result.demand_momentum.source_quote = None
-
-        # 5. RisksAndCashIssues: working_capital_and_receivables, debt_and_capex_burden, margin_and_cost_pressures, execution_and_bottlenecks, regulatory_or_legal_headwinds, reported_numbers_comparison, source_page, source_quote, source_url, confidence
-        if result.risks_and_cash:
-            result.risks_and_cash.source_url, _ = _sanitize_citation(result.risks_and_cash.source_url, None)
-            if result.risks_and_cash.source_url:
-                r_page = _verify_page(result.risks_and_cash.source_url, result.risks_and_cash.source_quote, None)
-                if r_page:
-                    result.risks_and_cash.source_page = r_page
-            else:
-                result.risks_and_cash.source_page = None
-                result.risks_and_cash.source_quote = None
-
-        # 6. Integrated Persistent Company Knowledge & Triangulation Layer
-        try:
-            from financial_engine import process_and_verify_company_knowledge
-            # Collect facts from precomputed summaries and database
-            all_facts: List[Dict[str, Any]] = []
-            if precomputed_document_summaries:
-                for s in precomputed_document_summaries:
-                    for f in s.get("extracted_facts", []):
-                        if isinstance(f, dict):
-                            all_facts.append(f)
-            # Merge with database facts
-            db_facts = database.get_company_knowledge_facts(symbol)
-            seen_fact_keys = set()
-            merged_facts = []
-            for f in (all_facts + db_facts):
-                key = (f.get("metric_name", ""), f.get("period_or_date", ""), f.get("doc_url", ""))
-                if key not in seen_fact_keys:
-                    seen_fact_keys.add(key)
-                    merged_facts.append(f)
-                    
-            stock_data_pkg = {
-                "profit_loss": pl_stmt,
-                "quarters": quarters_stmt,
-                "balance_sheet": bs_stmt,
-                "cash_flow": cf_stmt
-            }
-            
-            projection_pkg = None
-            try:
-                from projection_engine import generate_scenario_suite
-                from models import KeyRatios, FinancialStatement
-                from financial_engine import get_row_values
-                cached_stock = database.get_stock_cache(symbol) or {}
-                r_dict = cached_stock.get("ratios")
-                if r_dict:
-                    ratios_obj = KeyRatios(**r_dict) if isinstance(r_dict, dict) else r_dict
-                    analytics = cached_stock.get("analytics") or {}
-                    pl_obj = FinancialStatement(**pl_stmt) if isinstance(pl_stmt, dict) else pl_stmt
-                    bs_obj = FinancialStatement(**bs_stmt) if isinstance(bs_stmt, dict) else bs_stmt
-                    cf_obj = FinancialStatement(**cf_stmt) if isinstance(cf_stmt, dict) else cf_stmt
-                    
-                    scenario_suite = generate_scenario_suite(
-                        ratios=ratios_obj,
-                        pl=pl_obj,
-                        bs=bs_obj,
-                        cf=cf_obj,
-                        analytics=analytics,
-                        doc_intel=None
-                    )
-                    base_case = scenario_suite.get("base_case")
-                    bull_case = scenario_suite.get("bull_case")
-                    bear_case = scenario_suite.get("bear_case")
-                    
-                    base_sales = base_case.assumptions.revenue_growth_rate_pct if base_case else None
-                    bull_sales = bull_case.assumptions.revenue_growth_rate_pct if bull_case else None
-                    bear_sales = bear_case.assumptions.revenue_growth_rate_pct if bear_case else None
-                    target_opm = base_case.assumptions.target_opm_pct if base_case else None
-                    capex_sales = base_case.assumptions.capex_pct_of_sales if base_case else None
-                    
-                    base_pat_cagr = None
-                    bull_pat_cagr = None
-                    bear_pat_cagr = None
-                    if base_case and len(base_case.projections) >= 3:
-                        y_pat = get_row_values(pl_obj, "Net Profit") or get_row_values(pl_obj, "PAT") if pl_obj else {}
-                        y_periods = pl_obj.periods if pl_obj else []
-                        latest_pat = y_pat.get(y_periods[-1], 0.0) if y_periods else 0.0
-                        if latest_pat > 0:
-                            yr3_pat_base = base_case.projections[2].pat_cr
-                            if yr3_pat_base > 0:
-                                base_pat_cagr = round(((yr3_pat_base / latest_pat) ** (1.0 / 3.0) - 1.0) * 100.0, 1)
-                            if bull_case and len(bull_case.projections) >= 3:
-                                yr3_pat_bull = bull_case.projections[2].pat_cr
-                                if yr3_pat_bull > 0:
-                                    bull_pat_cagr = round(((yr3_pat_bull / latest_pat) ** (1.0 / 3.0) - 1.0) * 100.0, 1)
-                            if bear_case and len(bear_case.projections) >= 3:
-                                yr3_pat_bear = bear_case.projections[2].pat_cr
-                                if yr3_pat_bear > 0:
-                                    bear_pat_cagr = round(((yr3_pat_bear / latest_pat) ** (1.0 / 3.0) - 1.0) * 100.0, 1)
-
-                    projection_pkg = {
-                        "revenue_growth_rate_pct": base_sales,
-                        "base_sales_cagr": base_sales,
-                        "bull_sales_cagr": bull_sales,
-                        "bear_sales_cagr": bear_sales,
-                        "target_opm_pct": target_opm,
-                        "capex_pct_of_sales": capex_sales,
-                        "base_pat_cagr": base_pat_cagr,
-                        "bull_pat_cagr": bull_pat_cagr,
-                        "bear_pat_cagr": bear_pat_cagr,
-                        "projection_source": "Stocker DCF Projection Engine"
-                    }
-            except Exception as e_proj:
-                print(f"Notice: Projection derivation skipped during knowledge verification: {e_proj}")
-                projection_pkg = None
-
-            knowledge_res = process_and_verify_company_knowledge(
-                symbol=symbol,
-                facts_list=merged_facts,
-                stock_data=stock_data_pkg,
-                projection_assumptions=projection_pkg
-            )
-            
-            from doc_intelligence_models import VerifiedFactComparison, InterDocumentKPITrend, GuidanceVsProjection
-            result.verified_facts = [VerifiedFactComparison(**vf) for vf in knowledge_res.get("verified_facts", [])]
-            result.operational_kpi_evolution = [InterDocumentKPITrend(**it) for it in knowledge_res.get("operational_kpi_evolution", [])]
-            result.guidance_vs_projections = [GuidanceVsProjection(**gp) for gp in knowledge_res.get("guidance_vs_projections", [])]
-        except Exception as e_k:
-            print(f"Notice: Knowledge verification engine error: {e_k}")
-
-        # 7. Document Evidence Items: Validate source URLs, titles, and verify pages
-        from doc_intelligence_models import DocumentEvidenceItem
-        sanitized_evidence: List[DocumentEvidenceItem] = []
-        for idx, ev in enumerate(result.evidence_items):
-            ev.symbol = symbol
-            s_url, matched_doc = _sanitize_citation(ev.source_url, ev.source_document_title)
-            if s_url:
-                ev.source_url = s_url
-                if matched_doc:
-                    ev.source_document_title = matched_doc
-                page_match = _verify_page(ev.source_url, ev.evidence_quote, f"{ev.title} {ev.statement}")
-                if page_match:
-                    ev.page = page_match
-                ev.status = "SUPPORTED"
-            else:
-                ev.source_url = ""
-                ev.status = "UNSUPPORTED"
-                ev.confidence = "LOW"
-            if not ev.id:
-                ev.id = f"evi_{symbol}_{idx+1}_{abs(hash(ev.title + ev.statement))}"
-            sanitized_evidence.append(ev)
-        result.evidence_items = sanitized_evidence
-
-        # 8. Management Guidance Items: Sanitize citations and evaluate deterministically
-        try:
-            from doc_intelligence_engine import evaluate_management_guidance_vs_actual
-            for g in result.management_guidance_items:
-                g_url, g_doc = _sanitize_citation(g.source_document_url, g.source_document_title)
-                if g_url:
-                    g.source_document_url = g_url
-                    if g_doc:
-                        g.source_document_title = g_doc
-            eval_guidance = evaluate_management_guidance_vs_actual(
-                guidance_items=result.management_guidance_items,
-                financial_statements={"profit_loss": pl_stmt, "quarters": quarters_stmt, "balance_sheet": bs_stmt, "cash_flow": cf_stmt},
-                knowledge_facts=all_facts if 'all_facts' in locals() else [],
-                business_model=financial_business_model
-            )
-            result.management_guidance_items = eval_guidance
-        except Exception as e_g:
-            print(f"Notice: Guidance evaluation engine error: {e_g}")
-
-        result.financial_business_model = financial_business_model
+        result = sanitize_and_verify_intelligence_result(
+            result=result,
+            symbol=symbol,
+            candidate_documents_meta=candidate_documents_meta,
+            latest_doc_url=latest_doc_url,
+            latest_doc_title=latest_doc_title,
+            older_doc_url=older_doc_url,
+            older_doc_title=older_doc_title,
+            pl_stmt=pl_stmt,
+            quarters_stmt=quarters_stmt,
+            bs_stmt=bs_stmt,
+            cf_stmt=cf_stmt,
+            precomputed_document_summaries=precomputed_document_summaries,
+            financial_business_model=financial_business_model
+        )
 
         return True, result, "Extraction succeeded"
     except AIServiceError:
