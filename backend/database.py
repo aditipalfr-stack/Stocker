@@ -847,7 +847,10 @@ def upsert_company_registry_item(item: Dict[str, Any]) -> int:
     is_active_val = item.get("is_active")
     source = item.get("source", "manual")
     now_iso = datetime.now(timezone.utc).isoformat()
-    source_last_verified_at = item.get("source_last_verified_at") or now_iso
+    source_last_verified_at = item.get("source_last_verified_at")
+    identity_source_name = item.get("identity_source_name")
+    identity_source_url = item.get("identity_source_url")
+    identity_verified_at = item.get("identity_verified_at")
     
     conn = get_db_connection()
     try:
@@ -862,21 +865,26 @@ def upsert_company_registry_item(item: Dict[str, Any]) -> int:
             )
             
             if existing:
-                row_id = existing["id"]
-                merged_aliases_json = _merge_aliases(existing["aliases"], incoming_aliases)
+                existing_dict = dict(existing)
+                row_id = existing_dict["id"]
+                merged_aliases_json = _merge_aliases(existing_dict.get("aliases"), incoming_aliases)
                 
                 # Determine updated field values
-                up_name = company_name if company_name and company_name != clean_sym else (existing["company_name"] or company_name)
-                up_nse = nse_symbol or existing["nse_symbol"]
-                up_bse = bse_code or existing["bse_code"]
-                up_isin = isin or existing["isin"]
-                up_exchange = exchange or existing["exchange"]
-                up_sector = sector if sector and sector != "Broad Market" else (existing["sector"] or sector or "Broad Market")
-                up_industry = industry if industry and industry != "Indian Equities" else (existing["industry"] or industry or "Indian Equities")
+                up_name = company_name if company_name and company_name != clean_sym else (existing_dict.get("company_name") or company_name)
+                up_nse = nse_symbol or existing_dict.get("nse_symbol")
+                up_bse = bse_code or existing_dict.get("bse_code")
+                up_isin = isin or existing_dict.get("isin")
+                up_exchange = exchange or existing_dict.get("exchange")
+                up_sector = sector if sector and sector != "Broad Market" else (existing_dict.get("sector") or sector or "Broad Market")
+                up_industry = industry if industry and industry != "Indian Equities" else (existing_dict.get("industry") or industry or "Indian Equities")
                 
-                up_in_uni = (1 if in_universe_val else 0) if in_universe_val is not None else existing["in_universe"]
-                up_is_act = (1 if is_active_val else 0) if is_active_val is not None else existing["is_active"]
-                up_source = existing["source"] if existing["source"] == "seed" else source
+                up_in_uni = (1 if in_universe_val else 0) if in_universe_val is not None else existing_dict.get("in_universe")
+                up_is_act = (1 if is_active_val else 0) if is_active_val is not None else existing_dict.get("is_active")
+                up_source = source if source in ("NSE", "BSE", "nse_master", "bse_master") else (existing_dict.get("source") or source)
+                up_verif_at = source_last_verified_at or existing_dict.get("source_last_verified_at")
+                up_id_name = identity_source_name or existing_dict.get("identity_source_name")
+                up_id_url = identity_source_url or existing_dict.get("identity_source_url")
+                up_id_verif = identity_verified_at or existing_dict.get("identity_verified_at")
                 
                 conn.execute("""
                     UPDATE company_registry
@@ -892,12 +900,16 @@ def upsert_company_registry_item(item: Dict[str, Any]) -> int:
                         is_active = ?,
                         source = ?,
                         source_last_verified_at = ?,
+                        identity_source_name = ?,
+                        identity_source_url = ?,
+                        identity_verified_at = ?,
                         updated_at = ?
                     WHERE id = ?
                 """, (
                     up_name, up_nse, up_bse, up_isin, up_exchange,
                     up_sector, up_industry, merged_aliases_json,
-                    up_in_uni, up_is_act, up_source, source_last_verified_at, now_iso,
+                    up_in_uni, up_is_act, up_source, up_verif_at,
+                    up_id_name, up_id_url, up_id_verif, now_iso,
                     row_id
                 ))
                 return row_id
@@ -912,13 +924,17 @@ def upsert_company_registry_item(item: Dict[str, Any]) -> int:
                     INSERT INTO company_registry (
                         symbol, company_name, nse_symbol, bse_code, isin,
                         exchange, sector, industry, aliases, is_active,
-                        in_universe, source, source_last_verified_at, created_at, updated_at
+                        in_universe, source, source_last_verified_at,
+                        identity_source_name, identity_source_url, identity_verified_at,
+                        created_at, updated_at
                     )
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """, (
                     clean_sym, company_name, nse_symbol, bse_code, isin,
                     exchange, sec_val, ind_val, aliases_json, is_act,
-                    in_uni, source, source_last_verified_at, now_iso, now_iso
+                    in_uni, source, source_last_verified_at,
+                    identity_source_name, identity_source_url, identity_verified_at,
+                    now_iso, now_iso
                 ))
                 return cur.lastrowid or 0
     finally:

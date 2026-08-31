@@ -296,9 +296,6 @@ def execute_add_company_to_universe(symbol_or_query: str) -> AddCompanyResponse:
     industry = stock_data.get("industry") or canonical_info.get("industry") or "Indian Equities"
     real_name = stock_data.get("name") or company_name
     
-    from scraper import serialize_stock_data
-    database.save_stock_cache(canonical_sym, real_name, sector, industry, serialize_stock_data(stock_data))
-    
     database.upsert_company_registry_item({
         "symbol": canonical_sym,
         "company_name": real_name,
@@ -310,6 +307,10 @@ def execute_add_company_to_universe(symbol_or_query: str) -> AddCompanyResponse:
         "industry": industry,
         "aliases": canonical_info.get("aliases", [real_name, canonical_sym]),
         "source": canonical_info.get("source", "screener_ingestion"),
+        "source_last_verified_at": canonical_info.get("source_last_verified_at"),
+        "identity_source_name": canonical_info.get("identity_source_name"),
+        "identity_source_url": canonical_info.get("identity_source_url"),
+        "identity_verified_at": canonical_info.get("identity_verified_at"),
         "in_universe": True,
         "is_active": True
     })
@@ -386,10 +387,18 @@ def discover_stock_filings(symbol: str):
         )
         
     company_name = reg.get("company_name", clean_sym)
+    bse_code = reg.get("bse_code")
+    nse_symbol = reg.get("nse_symbol")
     
-    # 2. Run explicit trusted document waterfall
+    # 2. Run explicit trusted document waterfall with canonical registry identifiers
     from document_sourcing import execute_document_sourcing_waterfall
-    execute_document_sourcing_waterfall(clean_sym, company_name)
+    execute_document_sourcing_waterfall(
+        symbol=clean_sym,
+        company_name=company_name,
+        screener_soup=None,
+        bse_code=bse_code,
+        nse_symbol=nse_symbol
+    )
     
     db_docs = database.get_source_documents(clean_sym)
     filing_count = len(db_docs) if db_docs else 0

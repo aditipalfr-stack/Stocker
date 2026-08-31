@@ -320,8 +320,9 @@ def run_all_tests():
         })
 
         # Save mock filings via trusted waterfall execution
-        def mock_waterfall_exec(sym, name):
+        def mock_waterfall_exec(symbol, company_name=None, *args, **kwargs):
             from models import DocumentItem
+            sym = symbol or kwargs.get("symbol")
             database.save_source_documents(sym, [
                 DocumentItem(
                     title="Colgate Annual Report 2025",
@@ -347,13 +348,11 @@ def run_all_tests():
         except HTTPException as he:
             assert he.status_code == 404
 
-        print("✓ Test 6 passed: /discover-filings requires canonical security and updates trusted sync state.")
-
     # -------------------------------------------------------------------------
-    # TEST 7: Nullable Ratios Safe End-to-End
+    # TEST 7: Nullable Ratios Safe End-to-End (Fallback Path Fully Exercised)
     # -------------------------------------------------------------------------
     with IsolatedTestDatabase():
-        print("\n--- Test 7: Nullable Ratios Safe End-to-End (No crashes with None ratios) ---")
+        print("\n--- Test 7: Nullable Ratios Safe End-to-End (Fallback Path Fully Exercised) ---")
         sparse_ratios = KeyRatios(
             current_price=None,
             market_cap_cr=None,
@@ -368,30 +367,33 @@ def run_all_tests():
             profit_growth_3yr_cagr=None
         )
         
+        # Completely empty / zero historical Sales to exercise fallback sales path
         stock_sparse = {
             "symbol": "SPARSECO",
             "name": "Sparse Company Ltd",
             "sector": "Industrials",
             "industry": "Machinery",
-            "about": "A company with missing reported ratios.",
+            "about": "A company with missing reported ratios and missing historical sales rows.",
             "source_name": "Screener.in",
             "source_url": "https://screener.in/sparseco",
             "statement_type": "consolidated",
             "fetched_at": datetime.now(timezone.utc).isoformat(),
             "ratios": sparse_ratios,
-            "quarters": FinancialStatement(periods=["Jun 2025"], rows=[FinancialRow(metric="Sales", values={"Jun 2025": 100.0})]),
-            "profit_loss": FinancialStatement(periods=["Mar 2025"], rows=[FinancialRow(metric="Sales", values={"Mar 2025": 400.0})]),
-            "balance_sheet": FinancialStatement(periods=["Mar 2025"], rows=[FinancialRow(metric="Equity Capital", values={"Mar 2025": 50.0})]),
-            "cash_flow": FinancialStatement(periods=["Mar 2025"], rows=[FinancialRow(metric="Cash from Operating Activity", values={"Mar 2025": 60.0})]),
+            "quarters": FinancialStatement(periods=[], rows=[]),
+            "profit_loss": FinancialStatement(periods=[], rows=[]),
+            "balance_sheet": FinancialStatement(periods=[], rows=[]),
+            "cash_flow": FinancialStatement(periods=[], rows=[]),
             "concall_insights": [],
             "annual_report_insights": [],
             "documents": DocumentLinks()
         }
 
-        # 1. build_full_stock_detail must not crash
+        # 1. build_full_stock_detail must not crash and must not throw TypeError
         detail = build_full_stock_detail(stock_sparse)
         assert detail.symbol == "SPARSECO"
         assert detail.ratios.current_price is None
+        assert detail.ratios.market_cap_cr is None
+        assert detail.ratios.stock_pe is None
         assert detail.score.data_confidence == "Low / Incomplete Data"
         assert detail.projection.dcf_fair_value_per_share > 0
 
@@ -400,14 +402,15 @@ def run_all_tests():
         score = compute_stock_score("SPARSECO", "Sparse Company Ltd", sparse_ratios, analytics, detail.projection)
         assert score.data_confidence == "Low / Incomplete Data"
 
-        print("✓ Test 7 passed: Entire pipeline safely handles KeyRatios with all None values without crashing.")
+        print("✓ Test 7 passed: Fallback calculation paths safely handle KeyRatios with all None values without TypeError or crashing.")
 
     # -------------------------------------------------------------------------
-    # TEST 8: Research Lifecycle State Transitions (Evidence Enrichment Tracking)
+    # TEST 8: Research Lifecycle State Transitions (Dual Version & Refresh Stale Tracking)
     # -------------------------------------------------------------------------
     with IsolatedTestDatabase():
-        print("\n--- Test 8: Research Lifecycle State Transitions ---")
-        mock_stock = sample_complete_stock_data("INFY", "Infosys Limited")
+        print("\n--- Test 8: Research Lifecycle State Transitions & Version Tracking ---")
+        fin_v1 = "2026-08-31T09:00:00Z"
+        mock_stock = sample_complete_stock_data("INFY", "Infosys Limited", fetched_at=fin_v1)
         serialized = serialize_stock_data(mock_stock)
         database.save_stock_cache("INFY", "Infosys Limited", "IT", "Software", serialized)
         database.upsert_company_registry_item({
@@ -422,16 +425,16 @@ def run_all_tests():
         st1 = get_research_lifecycle_status("INFY")
         assert st1.financial_data == "ready"
         assert st1.business_analysis == "not_run"
-        assert st1.projection == "historical_only"
+        assert st1.projection == "unavailable", f"Expected unavailable for financial-only baseline, got {st1.projection}"
         assert st1.investment_score == "provisional"
-        print("  ✓ State 1 verified: Financial-only -> projection=historical_only, investment_score=provisional")
+        print("  ✓ State 1 verified: Financial-only -> projection=unavailable, investment_score=provisional")
 
         # Phase 2: Newly Generated Business Analysis (before StockDetail recomputation)
-        ai_timestamp = "2026-08-31T10:00:00Z"
+        ai_v1 = "2026-08-31T10:00:00Z"
         ai_data = {
             "company_name": "Infosys Limited",
             "symbol": "INFY",
-            "extraction_timestamp": ai_timestamp,
+            "extraction_timestamp": ai_v1,
             "latest_document_period": "FY25",
             "promise_vs_delivery": [
                 {
@@ -473,12 +476,34 @@ def run_all_tests():
             recomputed_detail = build_full_stock_detail(mock_stock)
             assert recomputed_detail.symbol == "INFY"
 
-        # Check lifecycle after StockDetail recomputed with the new Business Analysis
+        # Check lifecycle after StockDetail recomputed with matching versions
         st3 = get_research_lifecycle_status("INFY")
         assert st3.business_analysis == "ready"
         assert st3.projection == "evidence_enriched", f"Expected evidence_enriched projection, got {st3.projection}"
         assert st3.investment_score == "evidence_enriched", f"Expected evidence_enriched investment_score, got {st3.investment_score}"
-        print("  ✓ State 3 verified: Post-recomputation -> projection=evidence_enriched, investment_score=evidence_enriched")
+        print("  ✓ State 3 verified: Post-recomputation with matching versions -> projection=evidence_enriched, investment_score=evidence_enriched")
+
+        # Phase 4: Financial Refresh (Version C) occurring AFTER Business Analysis
+        fin_v2 = "2026-08-31T11:00:00Z"
+        mock_stock_refreshed = sample_complete_stock_data("INFY", "Infosys Limited", fetched_at=fin_v2)
+        database.save_stock_cache("INFY", "Infosys Limited", "IT", "Software", serialize_stock_data(mock_stock_refreshed))
+
+        # Lifecycle must become stale because financials are now newer than AI analysis
+        st4 = get_research_lifecycle_status("INFY")
+        assert st4.business_analysis == "stale", f"Expected stale Business Analysis after financial refresh, got {st4.business_analysis}"
+        assert st4.projection == "stale", f"Expected stale projection after financial refresh, got {st4.projection}"
+        assert st4.investment_score == "provisional", f"Expected provisional score after financial refresh, got {st4.investment_score}"
+
+        # Even if build_full_stock_detail runs with old AI, it must NOT become evidence_enriched
+        with patch("scraper.fetch_stock_from_screener", return_value=mock_stock_refreshed):
+            recomputed_detail2 = build_full_stock_detail(mock_stock_refreshed)
+            assert recomputed_detail2.symbol == "INFY"
+
+        st5 = get_research_lifecycle_status("INFY")
+        assert st5.business_analysis == "stale"
+        assert st5.projection == "stale"
+        assert st5.investment_score == "provisional"
+        print("  ✓ State 4 & 5 verified: Financial refresh invalidates prior AI evidence and prevents false evidence_enriched promotion.")
 
     # -------------------------------------------------------------------------
     # TEST 9: Financial Freshness States (ready vs stale >90d vs error)
@@ -538,10 +563,114 @@ def run_all_tests():
             mock_seed.assert_not_called()
         print("✓ Test 10 passed: Total count > 0 with 0 active items preserves empty universe without reseeding.")
 
+    # -------------------------------------------------------------------------
+    # TEST 11: Authoritative Identity Provenance & Lifecycle State
+    # -------------------------------------------------------------------------
+    with IsolatedTestDatabase(seed=False):
+        print("\n--- Test 11: Authoritative Identity Provenance & Lifecycle State ---")
+        verif_time = "2026-08-31T08:00:00Z"
+        
+        # 1. Authoritative NSE-resolved company
+        database.upsert_company_registry_item({
+            "symbol": "COLPAL",
+            "company_name": "Colgate-Palmolive (India) Limited",
+            "nse_symbol": "COLPAL",
+            "bse_code": "500830",
+            "isin": "INE162A01024",
+            "exchange": "NSE",
+            "source": "NSE",
+            "identity_source_name": "NSE Security Master",
+            "identity_source_url": "https://archives.nseindia.com/content/equities/EQUITY_L.csv",
+            "identity_verified_at": verif_time,
+            "source_last_verified_at": verif_time,
+            "in_universe": True,
+            "is_active": True
+        })
+        
+        colpal_reg = database.get_company_by_symbol("COLPAL")
+        assert colpal_reg["identity_source_name"] == "NSE Security Master"
+        assert colpal_reg["identity_verified_at"] == verif_time
+        assert colpal_reg["source"] == "NSE"
+        
+        colpal_lifecycle = get_research_lifecycle_status("COLPAL")
+        assert colpal_lifecycle.identity == "officially_verified", f"Expected officially_verified, got {colpal_lifecycle.identity}"
+
+        # 2. Screener/seed-reference company without official verification timestamp
+        database.upsert_company_registry_item({
+            "symbol": "UNVERIFIED_CO",
+            "company_name": "Unverified Co Ltd",
+            "source": "screener_ingestion",
+            "in_universe": True,
+            "is_active": True
+        })
+        
+        unver_reg = database.get_company_by_symbol("UNVERIFIED_CO")
+        assert unver_reg["source_last_verified_at"] is None, "Verification timestamp must not be fabricated!"
+        
+        unver_lifecycle = get_research_lifecycle_status("UNVERIFIED_CO")
+        assert unver_lifecycle.identity == "resolved", f"Expected resolved, got {unver_lifecycle.identity}"
+
+        print("✓ Test 11 passed: Authoritative identity provenance persisted and lifecycle distinguishes officially_verified vs resolved.")
+
+    # -------------------------------------------------------------------------
+    # TEST 12: BSE Filing Discovery Using Canonical Registry Scrip Code
+    # -------------------------------------------------------------------------
+    with IsolatedTestDatabase(seed=False):
+        print("\n--- Test 12: BSE Filing Discovery Using Canonical Registry Scrip Code ---")
+        from document_sourcing import BSE_SCRIP_CODES, discover_documents_bse_fallback
+        
+        # Security NOT present in hardcoded BSE_SCRIP_CODES map
+        unmapped_symbol = "BERGEPAINT"
+        assert unmapped_symbol not in BSE_SCRIP_CODES, "Security must not be in hardcoded fallback map for this test"
+        
+        database.upsert_company_registry_item({
+            "symbol": unmapped_symbol,
+            "company_name": "Berger Paints India Limited",
+            "nse_symbol": "BERGEPAINT",
+            "bse_code": "509480",
+            "source": "NSE",
+            "in_universe": True,
+            "is_active": True
+        })
+
+        mock_bse_response = {
+            "Table": [
+                {
+                    "NEWSSUB": "Berger Paints Q3 FY26 Earnings Conference Call Transcript",
+                    "ATTACHMENTNAME": "berge_q3_transcript.pdf",
+                    "NEWS_DT": "2026-01-15"
+                }
+            ]
+        }
+
+        with patch("requests.get") as mock_get, \
+             patch("document_sourcing.validate_document_candidate", return_value=(True, "berge_q3_transcript.pdf")):
+            mock_resp = MagicMock()
+            mock_resp.status_code = 200
+            mock_resp.json.return_value = mock_bse_response
+            mock_get.return_value = mock_resp
+
+            found_docs = discover_documents_bse_fallback(
+                symbol=unmapped_symbol,
+                company_name="Berger Paints India Limited",
+                needed_types=["concall_transcript"]
+            )
+            
+            assert len(found_docs) > 0, "Expected BSE discovery to find document using registry bse_code"
+            assert found_docs[0].ticker == unmapped_symbol
+            assert "berge_q3_transcript.pdf" in found_docs[0].url
+            
+            # Verify the API URL called included the registry bse_code '509480'
+            called_url = mock_get.call_args[0][0]
+            assert "strScrip=509480" in called_url, f"Expected strScrip=509480 in {called_url}"
+
+        print("✓ Test 12 passed: BSE filing discovery successfully uses persisted registry bse_code for unmapped companies.")
+
     print("\n==================================================================")
-    print("🎉 ALL PHASE V4.1 STEP 1A TESTS (1-10) PASSED 100% CLEANLY!")
+    print("🎉 ALL PHASE V4.1 STEP 1A TESTS (1-12) PASSED 100% CLEANLY!")
     print("==================================================================")
 
 if __name__ == "__main__":
     run_all_tests()
+
 

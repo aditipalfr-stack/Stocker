@@ -155,7 +155,13 @@ def run_projections(
             latest_sales = y_sales[p]
             
     if latest_sales <= 0:
-        latest_sales = ratios.market_cap_cr / max(ratios.stock_pe, 1.0) if ratios.market_cap_cr > 0 else 1000.0
+        if (
+            ratios.market_cap_cr is not None and ratios.market_cap_cr > 0 and
+            ratios.stock_pe is not None and ratios.stock_pe > 0
+        ):
+            latest_sales = ratios.market_cap_cr / ratios.stock_pe
+        else:
+            latest_sales = 1000.0  # Unsupported fallback placeholder
 
     y_pat = get_row_values(pl, "Net Profit") or get_row_values(pl, "PAT")
     latest_pat = y_pat.get(y_periods[-1], 0.0) or 0.0 if y_periods else 0.0

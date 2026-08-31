@@ -412,11 +412,20 @@ def discover_documents_bse_fallback(
     company_name: str, 
     needed_types: List[str],
     from_date_str: Optional[str] = None,
-    to_date_str: Optional[str] = None
+    to_date_str: Optional[str] = None,
+    bse_code: Optional[str] = None
 ) -> List[DocumentItem]:
     """Stage 2: Discover direct exchange filings from BSE India within the date window."""
     found: List[DocumentItem] = []
-    scrip_code = BSE_SCRIP_CODES.get(symbol.upper().strip())
+    scrip_code = bse_code or BSE_SCRIP_CODES.get(symbol.upper().strip())
+    if not scrip_code:
+        try:
+            reg = database.get_company_by_symbol(symbol)
+            if reg and reg.get("bse_code"):
+                scrip_code = str(reg["bse_code"]).strip()
+        except Exception:
+            pass
+
     if not scrip_code:
         return found
         
@@ -479,11 +488,20 @@ def discover_documents_nse_fallback(
     company_name: str, 
     needed_types: List[str],
     from_date_str: Optional[str] = None,
-    to_date_str: Optional[str] = None
+    to_date_str: Optional[str] = None,
+    nse_symbol: Optional[str] = None
 ) -> List[DocumentItem]:
     """Stage 3: Discover verified direct exchange filings from NSE India within the date window."""
     found: List[DocumentItem] = []
-    clean_sym = symbol.upper().strip()
+    clean_sym = (nse_symbol or symbol).upper().strip()
+    if not nse_symbol:
+        try:
+            reg = database.get_company_by_symbol(symbol)
+            if reg and reg.get("nse_symbol"):
+                clean_sym = str(reg["nse_symbol"]).upper().strip()
+        except Exception:
+            pass
+
     headers = {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
         "Referer": "https://www.nseindia.com/"
@@ -632,7 +650,9 @@ def discover_documents_company_ir_fallback(
 def execute_document_sourcing_waterfall(
     symbol: str,
     company_name: str,
-    screener_soup: Optional[BeautifulSoup] = None
+    screener_soup: Optional[BeautifulSoup] = None,
+    bse_code: Optional[str] = None,
+    nse_symbol: Optional[str] = None
 ) -> DocumentLinks:
     """
     Executes the multi-source waterfall with TRUE network & content validation:
@@ -648,6 +668,18 @@ def execute_document_sourcing_waterfall(
     fallback_sources_used: List[str] = []
     invalid_links_count = 0
     
+    # Resolve canonical identifiers from registry if not provided
+    if not bse_code or not nse_symbol:
+        try:
+            reg = database.get_company_by_symbol(clean_sym)
+            if reg:
+                if not bse_code and reg.get("bse_code"):
+                    bse_code = str(reg["bse_code"]).strip()
+                if not nse_symbol and reg.get("nse_symbol"):
+                    nse_symbol = str(reg["nse_symbol"]).upper().strip()
+        except Exception:
+            pass
+
     # 0. Check previous sync state to establish Date-Window for Incremental Refresh
     sync_state = database.get_document_sync_state(clean_sym, category="all")
     last_checked_at = sync_state.get("last_checked_at") if sync_state else None
@@ -693,7 +725,8 @@ def execute_document_sourcing_waterfall(
             company_name, 
             needed_types,
             from_date_str=from_date_bse,
-            to_date_str=to_date_bse
+            to_date_str=to_date_bse,
+            bse_code=bse_code
         )
         if bse_docs:
             fallback_sources_used.append("BSE India")
@@ -707,7 +740,8 @@ def execute_document_sourcing_waterfall(
             company_name, 
             ["announcement"],
             from_date_str=from_date_nse,
-            to_date_str=to_date_nse
+            to_date_str=to_date_nse,
+            nse_symbol=nse_symbol
         )
         if nse_docs:
             fallback_sources_used.append("NSE India")
@@ -844,7 +878,8 @@ def discover_historical_document(
     symbol: str, 
     company_name: str, 
     doc_type: str, 
-    period_or_year: str
+    period_or_year: str,
+    bse_code: Optional[str] = None
 ) -> Optional[DocumentItem]:
     """
     On-Demand True Historical Document Discovery:
@@ -858,8 +893,15 @@ def discover_historical_document(
     """
     clean_sym = symbol.upper().strip()
     target_clean = period_or_year.lower().strip().replace("fy", "20")
-    scrip_code = BSE_SCRIP_CODES.get(clean_sym)
-    
+    scrip_code = bse_code or BSE_SCRIP_CODES.get(clean_sym)
+    if not scrip_code:
+        try:
+            reg = database.get_company_by_symbol(clean_sym)
+            if reg and reg.get("bse_code"):
+                scrip_code = str(reg["bse_code"]).strip()
+        except Exception:
+            pass
+
     headers = {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
         "Referer": "https://www.bseindia.com/"

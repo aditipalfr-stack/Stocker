@@ -22,12 +22,12 @@ def get_research_lifecycle_status(symbol: str) -> ResearchLifecycleStatus:
     notes: List[str] = []
 
     # 1. IDENTITY STATE
-    # - officially_verified: verified against authoritative exchange / master data
+    # - officially_verified: verified against authoritative exchange / master data with persisted identity_verified_at
     # - resolved: canonical record present in company_registry
     # - unresolved: not found in local registry
     reg = database.get_company_by_symbol(clean_sym)
     if reg:
-        if reg.get("identity_verified_at") or reg.get("source") in ["nse_master", "bse_master", "mca_official"]:
+        if reg.get("identity_verified_at") and reg.get("source") in ["NSE", "BSE", "nse_master", "bse_master", "mca_official"]:
             identity_state = "officially_verified"
             notes.append("Authoritative exchange security identity confirmed.")
         else:
@@ -158,16 +158,20 @@ def get_research_lifecycle_status(symbol: str) -> ResearchLifecycleStatus:
 
     # 7. PROJECTION STATE & 8. INVESTMENT SCORE STATE
     # - evidence_enriched: DCF valuation incorporates verified guidance & business drivers from Business Analysis
-    # - historical_only: DCF based on historical financial trends & baseline assumptions
-    # - stale: Business Analysis was updated but projections have not incorporated new evidence
-    # - unavailable: insufficient financial data
+    # - stale: Business Analysis was updated/stale and projections have not incorporated matching versions
+    # - unavailable: pre-AI baseline / insufficient financial data
     proj_rec = database.get_projection_computation_state(clean_sym)
     projection_updated_at: Optional[str] = proj_rec.get("computed_at") if proj_rec else fin_updated_at
 
     if has_statements:
-        if business_analysis_state in ("ready", "stale"):
-            # Check if projection was actually computed with the current Business Analysis version
-            if proj_rec and proj_rec.get("doc_intel_version") and proj_rec.get("doc_intel_version") == ba_updated_at:
+        if business_analysis_state == "ready":
+            # Dual-check: Must match both current doc_intel_version AND current fin_data_version
+            if (
+                proj_rec and
+                proj_rec.get("doc_intel_version") and
+                proj_rec.get("doc_intel_version") == ba_updated_at and
+                proj_rec.get("fin_data_version") == fin_updated_at
+            ):
                 projection_state = "evidence_enriched"
                 investment_score_state = "evidence_enriched"
                 notes.append("Evidence-enriched DCF scenario model incorporating forward guidance.")
@@ -175,22 +179,24 @@ def get_research_lifecycle_status(symbol: str) -> ResearchLifecycleStatus:
                 projection_state = "stale"
                 investment_score_state = "provisional"
                 notes.append("Projection is pending recomputation following new Business Analysis evidence.")
+        elif business_analysis_state == "stale":
+            projection_state = "stale"
+            investment_score_state = "provisional"
+            notes.append("Projection is stale: new financial statements were ingested after Business Analysis.")
         else:
-            if financial_data_state == "ready":
-                projection_state = "historical_only"
-                notes.append("Historical-only baseline projection from financial statements.")
-                # Check if missing fundamental ratios make score incomplete
-                cached_ratios = cached.get("ratios", {}) if cached else {}
-                if isinstance(cached_ratios, dict) and (cached_ratios.get("stock_pe") is None or cached_ratios.get("roce_pct") is None):
-                    investment_score_state = "incomplete"
-                    notes.append("Incomplete investment score due to missing fundamental ratio inputs.")
-                else:
-                    investment_score_state = "provisional"
-                    notes.append("Provisional investment score derived from financial statements.")
+            # Financials ingested without deep AI Business Analysis:
+            # Conservative lifecycle policy: Do not label default-heavy projections historical_only
+            projection_state = "unavailable"
+            notes.append("Projection baseline unavailable pending evidence-based business drivers.")
+            
+            # Check if missing fundamental ratios make score incomplete
+            cached_ratios = cached.get("ratios", {}) if cached else {}
+            if isinstance(cached_ratios, dict) and (cached_ratios.get("stock_pe") is None or cached_ratios.get("roce_pct") is None):
+                investment_score_state = "incomplete"
+                notes.append("Incomplete investment score due to missing fundamental ratio inputs.")
             else:
-                projection_state = "unavailable"
-                investment_score_state = "unavailable"
-                notes.append("Insufficient financial data for DCF valuation modeling.")
+                investment_score_state = "provisional"
+                notes.append("Provisional investment score derived from financial statements.")
     else:
         projection_state = "unavailable"
         investment_score_state = "unavailable"
