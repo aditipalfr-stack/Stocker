@@ -4,6 +4,7 @@ Stocker Phase 2C — Financial Analytics Safety & Sector Routing Test Suite
 =============================================================================
 Tests Scenarios A through L:
 - Test A: 5Y common-period CFO/PAT with TTM excluded.
+- Test A2: 5Y common-period strictly requires annual_completed (quarterly/unknown rejected).
 - Test B: Missing one CFO year -> 5Y ratio unavailable.
 - Test C: Bank classifier using ICICI-like rows & industry metadata.
 - Test D: Manufacturing / corporate classifier.
@@ -12,6 +13,7 @@ Tests Scenarios A through L:
 - Test G: Bank CWIP does not create expansion signal.
 - Test H: General corporate CFO/FCF behavior unchanged.
 - Test I: Actual zero remains zero, missing remains None.
+- Test I2: Legitimate 0.0 cumulative CFO preserved as 0.0, CFO/PAT = 0.0%.
 - Test J: TTM is not classified as completed annual FY.
 - Test K: Deposit/GNPA/NNPA extraction missing -> None (never 0.0).
 - Test L: Zero network or AI calls in deterministic sector routing.
@@ -53,6 +55,7 @@ class TestFinancialSafetyV42C(unittest.TestCase):
         self.assertEqual(classify_period_type("Sep 2025"), "quarterly")
         self.assertEqual(classify_period_type("Dec 2025"), "quarterly")
         self.assertEqual(classify_period_type("2026-Q1"), "quarterly")
+        self.assertEqual(classify_period_type("Unknown String"), "unknown")
 
     def test_a_5y_common_periods_with_ttm_excluded(self):
         """Test A: 5Y common-period CFO/PAT calculation excludes TTM and aligns identical years."""
@@ -95,6 +98,31 @@ class TestFinancialSafetyV42C(unittest.TestCase):
         self.assertEqual(cf_quality["cumulative_5y_cfo_cr"], 750.0)
         # CFO / PAT = (750 / 650) * 100 = 115.4%
         self.assertEqual(cf_quality["cfo_to_pat_5yr_pct"], 115.4)
+
+    def test_a2_common_completed_annual_periods_excludes_quarterly_and_unknown(self):
+        """Test A2: get_common_completed_annual_periods strictly requires annual_completed."""
+        s1 = {
+            "Mar 2022": 100,
+            "Mar 2023": 110,
+            "Mar 2024": 120,
+            "Mar 2025": 130,
+            "Mar 2026": 140,
+            "Jun 2026": 35,
+            "Unknown Period": 99,
+            "TTM": 150
+        }
+        s2 = {
+            "Mar 2022": 90,
+            "Mar 2023": 100,
+            "Mar 2024": 110,
+            "Mar 2025": 120,
+            "Mar 2026": 130,
+            "Jun 2026": 30,
+            "Unknown Period": 95,
+            "TTM": 140
+        }
+        common = get_common_completed_annual_periods([s1, s2], count=5)
+        self.assertEqual(common, ["Mar 2022", "Mar 2023", "Mar 2024", "Mar 2025", "Mar 2026"])
 
     def test_b_missing_one_cfo_year_fails_closed(self):
         """Test B: If fewer than 5 common completed annual periods exist, 5Y ratio is unavailable (None)."""
@@ -337,6 +365,38 @@ class TestFinancialSafetyV42C(unittest.TestCase):
         bs_eff = analytics["balance_sheet_efficiency"]
         self.assertEqual(bs_eff["latest_debt_to_equity"], 0.0)
         self.assertEqual(bs_eff["bs_trends"][0]["borrowings_cr"], 0.0)
+
+    def test_i2_legitimate_zero_cumulative_cfo_preserved(self):
+        """Test I2: When 5-year CFO sums to 0.0 and PAT > 0, cumulative CFO is 0.0 and CFO/PAT is 0.0%."""
+        pl = FinancialStatement(
+            statement_name="profit_loss",
+            periods=["Mar 2022", "Mar 2023", "Mar 2024", "Mar 2025", "Mar 2026"],
+            rows=[
+                FinancialRow(metric="Sales", values={"Mar 2022": 1000, "Mar 2023": 1100, "Mar 2024": 1200, "Mar 2025": 1300, "Mar 2026": 1400}),
+                FinancialRow(metric="Net Profit", values={"Mar 2022": 100, "Mar 2023": 100, "Mar 2024": 100, "Mar 2025": 100, "Mar 2026": 100})
+            ]
+        )
+        cf = FinancialStatement(
+            statement_name="cash_flow",
+            periods=["Mar 2022", "Mar 2023", "Mar 2024", "Mar 2025", "Mar 2026"],
+            rows=[
+                FinancialRow(metric="Cash from Operating Activity", values={"Mar 2022": 50, "Mar 2023": -50, "Mar 2024": 100, "Mar 2025": -100, "Mar 2026": 0})
+            ]
+        )
+        analytics = compute_financial_analytics(
+            quarters=None,
+            pl=pl,
+            bs=None,
+            cf=cf,
+            sector="General Manufacturing",
+            industry="Packaging"
+        )
+        cf_quality = analytics["cash_flow_quality"]
+        self.assertEqual(cf_quality["cumulative_5y_pat_cr"], 500.0)
+        self.assertEqual(cf_quality["cumulative_5y_cfo_cr"], 0.0)
+        self.assertEqual(cf_quality["cfo_to_pat_5yr_pct"], 0.0)
+        self.assertEqual(cf_quality["applicability"], "applicable")
+        self.assertEqual(cf_quality["cash_conversion_quality"], "Weak (Significant Working Capital Lock-in)")
 
     def test_k_bank_metrics_missing_are_none(self):
         """Test K: Missing bank metrics are returned as None (never 0.0)."""

@@ -511,7 +511,7 @@ def compute_financial_analytics(
     if len(common_5y_periods) == 5:
         cum_5y_pat = sum(pat_facts_map[p] for p in common_5y_periods if pat_facts_map.get(p) is not None)
         cum_5y_cfo = sum(cfo_facts_map[p] for p in common_5y_periods if cfo_facts_map.get(p) is not None)
-        cfo_to_pat_5yr = round((cum_5y_cfo / cum_5y_pat) * 100.0, 1) if (cum_5y_pat is not None and cum_5y_pat > 0 and cum_5y_cfo is not None and cum_5y_cfo != 0) else None
+        cfo_to_pat_5yr = round((cum_5y_cfo / cum_5y_pat) * 100.0, 1) if (cum_5y_pat is not None and cum_5y_pat > 0 and cum_5y_cfo is not None) else None
     else:
         cum_5y_pat = None
         cum_5y_cfo = None
@@ -565,7 +565,7 @@ def compute_financial_analytics(
         "applicability": cf_applicability,
         "common_annual_periods": common_5y_periods,
         "cumulative_5y_pat_cr": round(cum_5y_pat, 1) if (cum_5y_pat is not None and cum_5y_pat > 0) else None,
-        "cumulative_5y_cfo_cr": round(cum_5y_cfo, 1) if (cum_5y_cfo is not None and cum_5y_cfo != 0) else None,
+        "cumulative_5y_cfo_cr": round(cum_5y_cfo, 1) if cum_5y_cfo is not None else None,
         "cumulative_5y_fcf_cr": round(cum_5y_fcf, 1) if cum_5y_fcf is not None else None,
         "cfo_to_pat_5yr_pct": cfo_to_pat_5yr,
         "cash_conversion_quality": conv_quality,
@@ -811,7 +811,7 @@ def compute_financial_analytics(
             "value": cfo_to_pat_5yr if not is_financial_business else None,
             "formula": "(Cumulative 5-Year CFO / Cumulative 5-Year PAT) × 100",
             "inputs": {
-                "Cumulative 5Y CFO (₹ Cr)": round(cum_5y_cfo, 1) if (cum_5y_cfo is not None and cum_5y_cfo != 0) else None,
+                "Cumulative 5Y CFO (₹ Cr)": round(cum_5y_cfo, 1) if cum_5y_cfo is not None else None,
                 "Cumulative 5Y PAT (₹ Cr)": round(cum_5y_pat, 1) if (cum_5y_pat is not None and cum_5y_pat > 0) else None,
                 "Period Range": f"{common_5y_periods[0]} to {common_5y_periods[-1]}" if len(common_5y_periods) == 5 else "Last 5 Common Completed FYs"
             },

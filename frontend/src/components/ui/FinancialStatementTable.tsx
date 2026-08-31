@@ -75,16 +75,19 @@ export const FinancialStatementTable: React.FC<FinancialStatementTableProps> = (
                 <td className="financial-metric-name">
                   <span>{row.metric}{glossaryTerm && <ConceptHelp term={glossaryTerm} />}</span>
                 </td>
-                {statement.periods.map((period, periodIndex) => (
-                  <td key={period} className={`${periodIndex % 2 ? 'statement-col-band' : ''} ${periodIndex === latestIndex ? `statement-latest-col statement-latest-${latestTone}` : ''}`}>
-                    <FinancialMetricCell
-                      metric={row.metric}
-                      value={row.values[period]}
-                      previous={periodIndex > 0 ? row.values[statement.periods[periodIndex - 1]] : null}
-                      showChange={periodIndex === latestIndex && presentation.direction !== 'neutral'}
-                    />
-                  </td>
-                ))}
+                {statement.periods.map((period, periodIndex) => {
+                  const isCellTTM = period.trim().toUpperCase() === 'TTM';
+                  return (
+                    <td key={period} className={`${periodIndex % 2 ? 'statement-col-band' : ''} ${periodIndex === latestIndex ? `statement-latest-col statement-latest-${isLatestTTM ? 'neutral' : latestTone}` : ''}`}>
+                      <FinancialMetricCell
+                        metric={row.metric}
+                        value={row.values[period]}
+                        previous={periodIndex > 0 ? row.values[statement.periods[periodIndex - 1]] : null}
+                        showChange={periodIndex === latestIndex && presentation.direction !== 'neutral' && !isCellTTM}
+                      />
+                    </td>
+                  );
+                })}
                 <td className="financial-sparkline-cell">
                   {presentation.showSparkline
                     ? <Sparkline values={values} label={`${row.metric} trend`} tone={trendToneFromValues(row.metric, latestValue, previousValue)} />

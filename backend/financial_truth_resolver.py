@@ -163,12 +163,12 @@ def get_common_completed_annual_periods(
         if isinstance(s, dict):
             valid_p = {
                 p for p, v in s.items()
-                if v is not None and classify_period_type(p) != "ttm" and str(p).strip().upper() != "TTM"
+                if v is not None and classify_period_type(p) == "annual_completed"
             }
         elif isinstance(s, (list, tuple, set)):
             valid_p = {
                 p for p in s
-                if p is not None and classify_period_type(p) != "ttm" and str(p).strip().upper() != "TTM"
+                if p is not None and classify_period_type(p) == "annual_completed"
             }
         else:
             continue

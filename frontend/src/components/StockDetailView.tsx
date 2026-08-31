@@ -303,6 +303,30 @@ export const StockDetailView: React.FC<StockDetailViewProps> = ({
     fcf_cr: row.stocker_derived_fcf_cr
   }));
 
+  const bankFundingChartData = stock.balance_sheet.periods.map(period => {
+    const depRow = findStatementRow(stock.balance_sheet, ['deposits', 'total deposits']);
+    const advRow = findStatementRow(stock.balance_sheet, ['advances', 'loans & advances', 'loans and advances']);
+    const borRow = findStatementRow(stock.balance_sheet, ['borrowings']);
+    return {
+      period,
+      deposits_cr: depRow?.values[period] ?? null,
+      advances_cr: advRow?.values[period] ?? null,
+      borrowings_cr: borRow?.values[period] ?? null,
+    };
+  });
+
+  const npaStatement = stock.quarters.periods.length > 0 ? stock.quarters : stock.profit_loss;
+  const bankNpaChartData = npaStatement.periods.map(period => {
+    const gnpaRow = findStatementRow(stock.quarters, ['gross npa %', 'gross npa']) || findStatementRow(stock.profit_loss, ['gross npa %', 'gross npa']);
+    const nnpaRow = findStatementRow(stock.quarters, ['net npa %', 'net npa']) || findStatementRow(stock.profit_loss, ['net npa %', 'net npa']);
+    return {
+      period,
+      gross_npa_pct: gnpaRow?.values[period] ?? null,
+      net_npa_pct: nnpaRow?.values[period] ?? null,
+    };
+  });
+  const hasNpaData = bankNpaChartData.some(d => isFiniteNumber(d.gross_npa_pct) || isFiniteNumber(d.net_npa_pct));
+
   const quarterSales = latestRowPair(stock.quarters, ['sales', 'revenue']);
   const quarterPat = latestRowPair(stock.quarters, ['net profit', 'pat']);
   const quarterOpm = latestRowPair(stock.quarters, ['opm %', 'operating profit margin']);
@@ -824,20 +848,51 @@ export const StockDetailView: React.FC<StockDetailViewProps> = ({
             </div>
           </div>
 
-          {/* 3. Forensic Cash Check */}
+          {/* 3. Forensic Cash Check / Bank Asset Quality */}
           <div className="bg-slate-950/70 p-3.5 rounded-2xl border border-slate-800/80 space-y-1.5 flex flex-col justify-between">
-            <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider flex items-center gap-1">
-              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
-              Cash Conversion & Safety
-            </span>
-            <div>
-              <div className="flex items-center gap-2 font-mono text-xs my-1">
-                <span className="text-emerald-400 font-bold">5Y CFO/PAT: {formatPercent(stock.analytics?.cash_flow_quality?.cfo_to_pat_5yr_pct)}</span>
-              </div>
-              <p className="text-[11px] text-slate-400 leading-tight">
-                Debt/Equity: <strong className="text-slate-200">{isFiniteNumber(stock.ratios.debt_to_equity) ? `${stock.ratios.debt_to_equity}x` : '—'}</strong> | CWIP: <strong className="text-slate-200">{formatPercent(stock.analytics?.balance_sheet_efficiency?.latest_cwip_to_net_block_pct)}</strong>
-              </p>
-            </div>
+            {isBank ? (
+              <>
+                <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider flex items-center gap-1">
+                  <CheckCircle2 className="w-3.5 h-3.5 text-cyan-400" />
+                  Asset Quality & Funding
+                </span>
+                <div>
+                  <div className="flex items-center gap-2 font-mono text-xs my-1">
+                    <span className="text-cyan-300 font-bold">Deposits: {formatCrores(bankDeposits)}</span>
+                  </div>
+                  <p className="text-[11px] text-slate-400 leading-tight">
+                    GNPA: <strong className="text-slate-200">{formatPercent(bankGnpa)}</strong> | NNPA: <strong className="text-slate-200">{formatPercent(bankNnpa)}</strong> | Advances: <strong className="text-slate-200">{formatCrores(bankAdvances)}</strong>
+                  </p>
+                </div>
+              </>
+            ) : isFinancialBusiness ? (
+              <>
+                <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider flex items-center gap-1">
+                  <CheckCircle2 className="w-3.5 h-3.5 text-slate-400" />
+                  Financial Model Safety
+                </span>
+                <div>
+                  <p className="text-[11px] text-slate-400 leading-snug italic my-1">
+                    Sector-specific financial quality model pending. Industrial CFO/CWIP metrics are not applicable.
+                  </p>
+                </div>
+              </>
+            ) : (
+              <>
+                <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider flex items-center gap-1">
+                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+                  Cash Conversion & Safety
+                </span>
+                <div>
+                  <div className="flex items-center gap-2 font-mono text-xs my-1">
+                    <span className="text-emerald-400 font-bold">5Y CFO/PAT: {formatPercent(stock.analytics?.cash_flow_quality?.cfo_to_pat_5yr_pct)}</span>
+                  </div>
+                  <p className="text-[11px] text-slate-400 leading-tight">
+                    Debt/Equity: <strong className="text-slate-200">{isFiniteNumber(stock.ratios.debt_to_equity) ? `${stock.ratios.debt_to_equity}x` : '—'}</strong> | CWIP: <strong className="text-slate-200">{formatPercent(stock.analytics?.balance_sheet_efficiency?.latest_cwip_to_net_block_pct)}</strong>
+                  </p>
+                </div>
+              </>
+            )}
           </div>
 
           {/* 4. Valuation Scenario Bridge */}
@@ -846,20 +901,26 @@ export const StockDetailView: React.FC<StockDetailViewProps> = ({
               <TrendingUp className="w-3.5 h-3.5 text-purple-400" />
               Valuation Bridge (3Y)
             </span>
-            {lifecycleStatusPending ? (
+            {isFinancialBusiness ? (
+              <p className="text-[11px] text-slate-400 leading-snug italic">
+                Sector-specific projection model not implemented yet. Industrial DCF is suppressed.
+              </p>
+            ) : lifecycleStatusPending ? (
               <p className="text-[11px] text-slate-400 leading-snug">Research classification pending. Latest stored values remain available in the projection model.</p>
             ) : projectionUnavailable ? (
               <p className="text-[11px] text-slate-400 leading-snug">Projection unavailable with current evidence.</p>
-            ) : <div className="space-y-1">
-              <div className="flex items-center justify-between text-[11px] font-mono">
-                <span className="text-slate-500">Base DCF:</span>
-                <span className="text-emerald-400 font-bold">₹{stock.projection.dcf_fair_value_per_share} ({stock.projection.dcf_upside_pct > 0 ? `+${stock.projection.dcf_upside_pct}%` : `${stock.projection.dcf_upside_pct}%`})</span>
+            ) : (
+              <div className="space-y-1">
+                <div className="flex items-center justify-between text-[11px] font-mono">
+                  <span className="text-slate-500">Base DCF:</span>
+                  <span className="text-emerald-400 font-bold">₹{stock.projection.dcf_fair_value_per_share} ({stock.projection.dcf_upside_pct > 0 ? `+${stock.projection.dcf_upside_pct}%` : `${stock.projection.dcf_upside_pct}%`})</span>
+                </div>
+                <div className="flex items-center justify-between text-[11px] font-mono">
+                  <span className="text-slate-500">Target (Exit P/E):</span>
+                  <span className="text-purple-300 font-bold">₹{stock.projection.target_price_exit_pe} ({stock.projection.target_price_upside_pct > 0 ? `+${stock.projection.target_price_upside_pct}%` : `${stock.projection.target_price_upside_pct}%`})</span>
+                </div>
               </div>
-              <div className="flex items-center justify-between text-[11px] font-mono">
-                <span className="text-slate-500">Target (Exit P/E):</span>
-                <span className="text-purple-300 font-bold">₹{stock.projection.target_price_exit_pe} ({stock.projection.target_price_upside_pct > 0 ? `+${stock.projection.target_price_upside_pct}%` : `${stock.projection.target_price_upside_pct}%`})</span>
-              </div>
-            </div>}
+            )}
           </div>
 
         </div>
@@ -938,29 +999,43 @@ export const StockDetailView: React.FC<StockDetailViewProps> = ({
       {/* TAB 1: INTERACTIVE PROJECTIONS & DCF VALUATION */}
       {activeTab === 'projection' && (
         <div className="space-y-6">
-          {lifecycleStatusPending && (
-            <div className="rounded-2xl border border-slate-800 bg-slate-950/70 p-4 flex items-start gap-3">
-              <Info className="w-4 h-4 text-slate-400 shrink-0 mt-0.5" />
-              <div>
-                <p className="text-xs font-bold text-slate-200">Projection classification pending</p>
-                <p className="text-[11px] text-slate-400 mt-1">Showing the latest stored projection while Stocker loads its research lifecycle classification.</p>
+          {isFinancialBusiness ? (
+            <div className="glass-panel rounded-3xl p-8 border border-slate-800 text-center space-y-4">
+              <div className="w-12 h-12 rounded-2xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center mx-auto text-amber-400">
+                <Sliders className="w-6 h-6" />
               </div>
-            </div>
-          )}
-          {researchStatus && (
-            <div className={`rounded-2xl border p-4 flex items-start gap-3 ${researchStatus.projection === 'evidence_enriched' ? 'bg-emerald-950/30 border-emerald-800/50' : researchStatus.projection === 'stale' ? 'bg-amber-950/30 border-amber-800/50' : 'bg-slate-950/70 border-slate-800'}`}>
-              {researchStatus.projection === 'stale' ? <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" /> : <Info className="w-4 h-4 text-cyan-400 shrink-0 mt-0.5" />}
-              <div>
-                <p className="text-xs font-bold text-slate-100">
-                  {researchStatus.projection === 'historical_only' ? 'Preliminary / Historical-only' : researchStatus.projection === 'evidence_enriched' ? 'Evidence-enriched' : researchStatus.projection === 'stale' ? 'Business evidence changed. Projection needs refresh.' : 'Projection unavailable with current evidence.'}
-                </p>
-                <p className="text-[11px] text-slate-400 mt-1 leading-relaxed">
-                  {researchStatus.projection === 'historical_only' ? 'Based on available historical financial evidence. Run Business Analysis to incorporate management guidance, capacity plans, demand drivers and execution history.' : researchStatus.projection === 'evidence_enriched' ? 'Company filing and business evidence has been incorporated into this projection.' : researchStatus.projection === 'stale' ? 'Refresh the projection before relying on valuation outputs.' : 'Stocker does not have enough supported evidence to present a valid projection or DCF.'}
+              <div className="space-y-2 max-w-lg mx-auto">
+                <h3 className="text-base font-bold text-white">Sector-Specific Projection Model Pending</h3>
+                <p className="text-xs text-slate-400 leading-relaxed">
+                  Corporate Discounted Cash Flow (DCF) and Free Cash Flow projections are not applicable to banking and financial institutions because operating cash flows and capital structures are fundamentally different. A specialized financial institutions valuation model is planned for a future phase.
                 </p>
               </div>
             </div>
-          )}
-          {!projectionUnavailable && <>
+          ) : (
+            <>
+              {lifecycleStatusPending && (
+                <div className="rounded-2xl border border-slate-800 bg-slate-950/70 p-4 flex items-start gap-3">
+                  <Info className="w-4 h-4 text-slate-400 shrink-0 mt-0.5" />
+                  <div>
+                    <p className="text-xs font-bold text-slate-200">Projection classification pending</p>
+                    <p className="text-[11px] text-slate-400 mt-1">Showing the latest stored projection while Stocker loads its research lifecycle classification.</p>
+                  </div>
+                </div>
+              )}
+              {researchStatus && (
+                <div className={`rounded-2xl border p-4 flex items-start gap-3 ${researchStatus.projection === 'evidence_enriched' ? 'bg-emerald-950/30 border-emerald-800/50' : researchStatus.projection === 'stale' ? 'bg-amber-950/30 border-amber-800/50' : 'bg-slate-950/70 border-slate-800'}`}>
+                  {researchStatus.projection === 'stale' ? <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" /> : <Info className="w-4 h-4 text-cyan-400 shrink-0 mt-0.5" />}
+                  <div>
+                    <p className="text-xs font-bold text-slate-100">
+                      {researchStatus.projection === 'historical_only' ? 'Preliminary / Historical-only' : researchStatus.projection === 'evidence_enriched' ? 'Evidence-enriched' : researchStatus.projection === 'stale' ? 'Business evidence changed. Projection needs refresh.' : 'Projection unavailable with current evidence.'}
+                    </p>
+                    <p className="text-[11px] text-slate-400 mt-1 leading-relaxed">
+                      {researchStatus.projection === 'historical_only' ? 'Based on available historical financial evidence. Run Business Analysis to incorporate management guidance, capacity plans, demand drivers and execution history.' : researchStatus.projection === 'evidence_enriched' ? 'Company filing and business evidence has been incorporated into this projection.' : researchStatus.projection === 'stale' ? 'Refresh the projection before relying on valuation outputs.' : 'Stocker does not have enough supported evidence to present a valid projection or DCF.'}
+                    </p>
+                  </div>
+                </div>
+              )}
+              {!projectionUnavailable && <>
           
           {/* Projections Control Panel */}
           <div className="glass-panel rounded-3xl p-6 border border-slate-800 space-y-6">
@@ -1285,6 +1360,8 @@ export const StockDetailView: React.FC<StockDetailViewProps> = ({
             </div>
           </div>
           </>}
+          </>
+        )}
         </div>
       )}
 
@@ -1460,115 +1537,253 @@ export const StockDetailView: React.FC<StockDetailViewProps> = ({
       {/* TAB 4: TREND ANALYTICS & VISUALIZATIONS */}
       {activeTab === 'charts' && (
         <div className="space-y-6">
-          
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            
-            {/* Chart 1: Quarterly Sales & Operating Profit Trend */}
-            <div className="glass-panel rounded-3xl p-6 border border-slate-800 space-y-4">
-              <div>
-                <h4 className="font-bold text-white text-sm"><ConceptHelp term="opm" label="Quarterly Revenue & OPM % Trajectory" /></h4>
-                <p className="text-xs text-slate-400"><ConceptHelp term="qoq" label="Quarter-on-quarter momentum" /> and margin expansion</p>
+          {isBank ? (
+            <div className="space-y-6">
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                {/* Bank Chart 1: Revenue & Net Profit (PAT) Trajectory */}
+                <div className="glass-panel rounded-3xl p-6 border border-slate-800 space-y-4">
+                  <div>
+                    <h4 className="font-bold text-white text-sm">Quarterly Revenue & Net Profit Trajectory</h4>
+                    <p className="text-xs text-slate-400">Total revenue / financing income and bottom-line PAT trend</p>
+                  </div>
+                  <div className="h-72 w-full">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <AreaChart data={quarterlyTrends}>
+                        <defs>
+                          <linearGradient id="colorSalesBank" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="5%" stopColor="#0284c7" stopOpacity={0.4}/>
+                            <stop offset="95%" stopColor="#0284c7" stopOpacity={0}/>
+                          </linearGradient>
+                        </defs>
+                        <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" />
+                        <XAxis dataKey="period" stroke="var(--chart-axis)" fontSize={10} />
+                        <YAxis yAxisId="left" stroke="#0284c7" fontSize={10} tickFormatter={formatCompactCrores} width={58} />
+                        <YAxis yAxisId="right" orientation="right" stroke="#10b981" fontSize={10} tickFormatter={formatCompactCrores} width={58} />
+                        {latestQuarterTrend?.period && <ReferenceLine x={latestQuarterTrend.period} stroke="var(--border-strong)" strokeDasharray="4 4" label={{ value: 'Latest', fill: 'var(--text-muted)', fontSize: 10 }} />}
+                        <Tooltip 
+                          contentStyle={{ backgroundColor: 'var(--card-bg)', borderColor: 'var(--border-strong)', color: 'var(--text-primary)', borderRadius: '12px' }}
+                          labelStyle={{ color: 'var(--text-primary)', fontWeight: 700 }}
+                          cursor={{ fill: 'var(--hover-bg)' }}
+                          formatter={(val: any, name: string) => [
+                            isFiniteNumber(val) ? `₹${val.toLocaleString('en-IN')} Cr` : 'Unavailable',
+                            name
+                          ]}
+                        />
+                        <Legend wrapperStyle={{ fontSize: '11px', paddingTop: '10px' }} />
+                        <Area yAxisId="left" type="monotone" dataKey="sales" name="Total Revenue (₹ Cr)" stroke="#0284c7" fillOpacity={1} fill="url(#colorSalesBank)" />
+                        <Line yAxisId="right" type="monotone" dataKey="pat" name="Net Profit PAT (₹ Cr)" stroke="#10b981" strokeWidth={2.5} dot={{ r: 3 }} />
+                      </AreaChart>
+                    </ResponsiveContainer>
+                  </div>
+                </div>
+
+                {/* Bank Chart 2: Deposits vs Advances vs Borrowings */}
+                <div className="glass-panel rounded-3xl p-6 border border-slate-800 space-y-4">
+                  <div>
+                    <h4 className="font-bold text-white text-sm">Banking Balance Sheet: Funding & Advances</h4>
+                    <p className="text-xs text-slate-400">Deposit mobilization vs loan book expansion and wholesale borrowings</p>
+                  </div>
+                  <div className="h-72 w-full">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={bankFundingChartData}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" />
+                        <XAxis dataKey="period" stroke="var(--chart-axis)" fontSize={10} />
+                        <YAxis stroke="var(--chart-axis)" fontSize={10} tickFormatter={formatCompactCrores} width={58} />
+                        <Tooltip 
+                          contentStyle={{ backgroundColor: 'var(--card-bg)', borderColor: 'var(--border-strong)', color: 'var(--text-primary)', borderRadius: '12px' }}
+                          labelStyle={{ color: 'var(--text-primary)', fontWeight: 700 }}
+                          cursor={{ fill: 'var(--hover-bg)' }}
+                          formatter={(val: any, name: string) => [isFiniteNumber(val) ? `₹${val.toLocaleString('en-IN')} Cr` : 'Unavailable', name]}
+                        />
+                        <Legend wrapperStyle={{ fontSize: '11px', paddingTop: '10px' }} />
+                        <Bar dataKey="deposits_cr" name="Deposits (₹ Cr)" fill="#0ea5e9" radius={[4, 4, 0, 0]} />
+                        <Bar dataKey="advances_cr" name="Advances (₹ Cr)" fill="#10b981" radius={[4, 4, 0, 0]} />
+                        <Bar dataKey="borrowings_cr" name="Borrowings (₹ Cr)" fill="#64748b" radius={[4, 4, 0, 0]} />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                </div>
               </div>
-              <div className="h-72 w-full">
-                <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart data={quarterlyTrends}>
-                    <defs>
-                      <linearGradient id="colorSales" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#10b981" stopOpacity={0.4}/>
-                        <stop offset="95%" stopColor="#10b981" stopOpacity={0}/>
-                      </linearGradient>
-                    </defs>
-                    <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" />
-                    <XAxis dataKey="period" stroke="var(--chart-axis)" fontSize={10} />
-                    <YAxis yAxisId="left" stroke="#10b981" fontSize={10} tickFormatter={formatCompactCrores} width={58} />
-                    <YAxis yAxisId="right" orientation="right" stroke="#06b6d4" fontSize={10} tickFormatter={(value) => `${value}%`} width={42} />
-                    {latestQuarterTrend?.period && <ReferenceLine x={latestQuarterTrend.period} stroke="var(--border-strong)" strokeDasharray="4 4" label={{ value: 'Latest', fill: 'var(--text-muted)', fontSize: 10 }} />}
-                    <Tooltip 
-                      contentStyle={{ backgroundColor: 'var(--card-bg)', borderColor: 'var(--border-strong)', color: 'var(--text-primary)', borderRadius: '12px' }}
-                      labelStyle={{ color: 'var(--text-primary)', fontWeight: 700 }}
-                      cursor={{ fill: 'var(--hover-bg)' }}
-                      formatter={(val: any, name: string) => [
-                        isFiniteNumber(val) ? (name.includes('OPM') ? `${val}%` : `₹${val.toLocaleString('en-IN')} Cr`) : 'Unavailable',
-                        name
-                      ]}
-                    />
-                    <Legend wrapperStyle={{ fontSize: '11px', paddingTop: '10px' }} />
-                    <Area yAxisId="left" type="monotone" dataKey="sales" name="Sales (₹ Cr)" stroke="#10b981" fillOpacity={1} fill="url(#colorSales)" />
-                    <Line yAxisId="right" type="monotone" dataKey="opm_pct" name="OPM %" stroke="#06b6d4" strokeWidth={2.5} dot={{ r: 3 }} />
-                  </AreaChart>
-                </ResponsiveContainer>
+
+              {/* Bank Chart 3: Asset Quality: Gross NPA % vs Net NPA % */}
+              {hasNpaData ? (
+                <div className="glass-panel rounded-3xl p-6 border border-slate-800 space-y-4">
+                  <div>
+                    <h4 className="font-bold text-white text-sm">Asset Quality: Gross NPA % vs Net NPA % Trajectory</h4>
+                    <p className="text-xs text-slate-400">Tracking non-performing assets and provisioning buffer health</p>
+                  </div>
+                  <div className="h-72 w-full">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <LineChart data={bankNpaChartData}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" />
+                        <XAxis dataKey="period" stroke="var(--chart-axis)" fontSize={10} />
+                        <YAxis stroke="var(--chart-axis)" fontSize={10} tickFormatter={(v) => `${v}%`} width={48} />
+                        <Tooltip 
+                          contentStyle={{ backgroundColor: 'var(--card-bg)', borderColor: 'var(--border-strong)', color: 'var(--text-primary)', borderRadius: '12px' }}
+                          labelStyle={{ color: 'var(--text-primary)', fontWeight: 700 }}
+                          cursor={{ fill: 'var(--hover-bg)' }}
+                          formatter={(val: any, name: string) => [isFiniteNumber(val) ? `${val}%` : 'Unavailable', name]}
+                        />
+                        <Legend wrapperStyle={{ fontSize: '11px', paddingTop: '10px' }} />
+                        <Line type="monotone" dataKey="gross_npa_pct" name="Gross NPA %" stroke="#f59e0b" strokeWidth={2.5} dot={{ r: 3 }} />
+                        <Line type="monotone" dataKey="net_npa_pct" name="Net NPA %" stroke="#ef4444" strokeWidth={2.5} dot={{ r: 3 }} />
+                      </LineChart>
+                    </ResponsiveContainer>
+                  </div>
+                </div>
+              ) : (
+                <div className="p-4 rounded-2xl bg-slate-900/50 border border-slate-800 text-xs text-slate-400">
+                  <span className="font-semibold text-slate-300">Asset Quality Note:</span> Gross NPA and Net NPA trajectory data is not available in the current source tables for this institution.
+                </div>
+              )}
+            </div>
+          ) : isFinancialBusiness ? (
+            <div className="space-y-6">
+              <div className="glass-panel rounded-3xl p-6 border border-slate-800 space-y-4">
+                <div>
+                  <h4 className="font-bold text-white text-sm">Quarterly Revenue Trajectory</h4>
+                  <p className="text-xs text-slate-400">Reported topline progression</p>
+                </div>
+                <div className="h-72 w-full">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <AreaChart data={quarterlyTrends}>
+                      <defs>
+                        <linearGradient id="colorSalesFin" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor="#0ea5e9" stopOpacity={0.4}/>
+                          <stop offset="95%" stopColor="#0ea5e9" stopOpacity={0}/>
+                        </linearGradient>
+                      </defs>
+                      <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" />
+                      <XAxis dataKey="period" stroke="var(--chart-axis)" fontSize={10} />
+                      <YAxis stroke="#0ea5e9" fontSize={10} tickFormatter={formatCompactCrores} width={58} />
+                      <Tooltip 
+                        contentStyle={{ backgroundColor: 'var(--card-bg)', borderColor: 'var(--border-strong)', color: 'var(--text-primary)', borderRadius: '12px' }}
+                        labelStyle={{ color: 'var(--text-primary)', fontWeight: 700 }}
+                        cursor={{ fill: 'var(--hover-bg)' }}
+                        formatter={(val: any, name: string) => [isFiniteNumber(val) ? `₹${val.toLocaleString('en-IN')} Cr` : 'Unavailable', name]}
+                      />
+                      <Legend wrapperStyle={{ fontSize: '11px', paddingTop: '10px' }} />
+                      <Area type="monotone" dataKey="sales" name="Revenue (₹ Cr)" stroke="#0ea5e9" fillOpacity={1} fill="url(#colorSalesFin)" />
+                    </AreaChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+
+              <div className="p-4 rounded-2xl bg-sky-950/30 border border-sky-800/40 text-xs text-sky-200">
+                <span className="font-semibold text-sky-300">Financial Sector Notice:</span> Conventional industrial charts (Earnings Quality CFO/FCF and Balance Sheet CWIP triggers) are omitted because this entity operates under a financial business model. Specialized metrics for this sub-sector will be introduced in a future phase.
               </div>
             </div>
+          ) : (
+            <>
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                
+                {/* Chart 1: Quarterly Sales & Operating Profit Trend */}
+                <div className="glass-panel rounded-3xl p-6 border border-slate-800 space-y-4">
+                  <div>
+                    <h4 className="font-bold text-white text-sm"><ConceptHelp term="opm" label="Quarterly Revenue & OPM % Trajectory" /></h4>
+                    <p className="text-xs text-slate-400"><ConceptHelp term="qoq" label="Quarter-on-quarter momentum" /> and margin expansion</p>
+                  </div>
+                  <div className="h-72 w-full">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <AreaChart data={quarterlyTrends}>
+                        <defs>
+                          <linearGradient id="colorSales" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="5%" stopColor="#10b981" stopOpacity={0.4}/>
+                            <stop offset="95%" stopColor="#10b981" stopOpacity={0}/>
+                          </linearGradient>
+                        </defs>
+                        <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" />
+                        <XAxis dataKey="period" stroke="var(--chart-axis)" fontSize={10} />
+                        <YAxis yAxisId="left" stroke="#10b981" fontSize={10} tickFormatter={formatCompactCrores} width={58} />
+                        <YAxis yAxisId="right" orientation="right" stroke="#06b6d4" fontSize={10} tickFormatter={(value) => `${value}%`} width={42} />
+                        {latestQuarterTrend?.period && <ReferenceLine x={latestQuarterTrend.period} stroke="var(--border-strong)" strokeDasharray="4 4" label={{ value: 'Latest', fill: 'var(--text-muted)', fontSize: 10 }} />}
+                        <Tooltip 
+                          contentStyle={{ backgroundColor: 'var(--card-bg)', borderColor: 'var(--border-strong)', color: 'var(--text-primary)', borderRadius: '12px' }}
+                          labelStyle={{ color: 'var(--text-primary)', fontWeight: 700 }}
+                          cursor={{ fill: 'var(--hover-bg)' }}
+                          formatter={(val: any, name: string) => [
+                            isFiniteNumber(val) ? (name.includes('OPM') ? `${val}%` : `₹${val.toLocaleString('en-IN')} Cr`) : 'Unavailable',
+                            name
+                          ]}
+                        />
+                        <Legend wrapperStyle={{ fontSize: '11px', paddingTop: '10px' }} />
+                        <Area yAxisId="left" type="monotone" dataKey="sales" name="Sales (₹ Cr)" stroke="#10b981" fillOpacity={1} fill="url(#colorSales)" />
+                        <Line yAxisId="right" type="monotone" dataKey="opm_pct" name="OPM %" stroke="#06b6d4" strokeWidth={2.5} dot={{ r: 3 }} />
+                      </AreaChart>
+                    </ResponsiveContainer>
+                  </div>
+                </div>
 
-            {/* Chart 2: Earnings Quality: Net Profit vs CFO vs FCF */}
-            <div className="glass-panel rounded-3xl p-6 border border-slate-800 space-y-4">
-              <div>
-                <h4 className="font-bold text-white text-sm">Earnings Quality: Net Profit vs <ConceptHelp term="cfo" label="CFO" /> vs <ConceptHelp term="fcf" label="Free Cash Flow" /></h4>
-                <p className="text-xs text-slate-400">Validating whether accounting profits convert into hard operational cash</p>
+                {/* Chart 2: Earnings Quality: Net Profit vs CFO vs FCF */}
+                <div className="glass-panel rounded-3xl p-6 border border-slate-800 space-y-4">
+                  <div>
+                    <h4 className="font-bold text-white text-sm">Earnings Quality: Net Profit vs <ConceptHelp term="cfo" label="CFO" /> vs <ConceptHelp term="fcf" label="Free Cash Flow" /></h4>
+                    <p className="text-xs text-slate-400">Validating whether accounting profits convert into hard operational cash</p>
+                  </div>
+                  <div className="h-72 w-full">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={fcfChartData}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" />
+                        <XAxis dataKey="period" stroke="var(--chart-axis)" fontSize={10} />
+                        <YAxis stroke="var(--chart-axis)" fontSize={10} tickFormatter={formatCompactCrores} width={58} />
+                        {latestFcfTrend?.period && <ReferenceLine x={latestFcfTrend.period} stroke="var(--border-strong)" strokeDasharray="4 4" label={{ value: 'Latest', fill: 'var(--text-muted)', fontSize: 10 }} />}
+                        <ReferenceLine y={0} stroke="var(--border-strong)" />
+                        <Tooltip 
+                          contentStyle={{ backgroundColor: 'var(--card-bg)', borderColor: 'var(--border-strong)', color: 'var(--text-primary)', borderRadius: '12px' }}
+                          labelStyle={{ color: 'var(--text-primary)', fontWeight: 700 }}
+                          cursor={{ fill: 'var(--hover-bg)' }}
+                          formatter={(val: any) => [isFiniteNumber(val) ? `₹${val.toLocaleString('en-IN')} Cr` : 'Unavailable']}
+                        />
+                        <Legend wrapperStyle={{ fontSize: '11px', paddingTop: '10px' }} />
+                        <Bar dataKey="pat_cr" name="Net Profit (PAT)" fill="#64748b" radius={[4, 4, 0, 0]}>
+                          {fcfChartData.map((entry, index) => <Cell key={`pat-${index}`} fill={(entry.pat_cr ?? 0) < 0 ? '#fb7185' : '#64748b'} />)}
+                        </Bar>
+                        <Bar dataKey="cfo_cr" name="Cash from Operations (CFO)" fill="#06b6d4" radius={[4, 4, 0, 0]}>
+                          {fcfChartData.map((entry, index) => <Cell key={`cfo-${index}`} fill={(entry.cfo_cr ?? 0) < 0 ? '#fb7185' : '#06b6d4'} />)}
+                        </Bar>
+                        <Bar dataKey="fcf_cr" name="Free Cash Flow (FCF)" fill="#10b981" radius={[4, 4, 0, 0]}>
+                          {fcfChartData.map((entry, index) => <Cell key={`fcf-${index}`} fill={(entry.fcf_cr ?? 0) < 0 ? '#fb7185' : '#10b981'} />)}
+                        </Bar>
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                </div>
+
               </div>
-              <div className="h-72 w-full">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={fcfChartData}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" />
-                    <XAxis dataKey="period" stroke="var(--chart-axis)" fontSize={10} />
-                    <YAxis stroke="var(--chart-axis)" fontSize={10} tickFormatter={formatCompactCrores} width={58} />
-                    {latestFcfTrend?.period && <ReferenceLine x={latestFcfTrend.period} stroke="var(--border-strong)" strokeDasharray="4 4" label={{ value: 'Latest', fill: 'var(--text-muted)', fontSize: 10 }} />}
-                    <ReferenceLine y={0} stroke="var(--border-strong)" />
-                    <Tooltip 
-                      contentStyle={{ backgroundColor: 'var(--card-bg)', borderColor: 'var(--border-strong)', color: 'var(--text-primary)', borderRadius: '12px' }}
-                      labelStyle={{ color: 'var(--text-primary)', fontWeight: 700 }}
-                      cursor={{ fill: 'var(--hover-bg)' }}
-                      formatter={(val: any) => [isFiniteNumber(val) ? `₹${val.toLocaleString('en-IN')} Cr` : 'Unavailable']}
-                    />
-                    <Legend wrapperStyle={{ fontSize: '11px', paddingTop: '10px' }} />
-                    <Bar dataKey="pat_cr" name="Net Profit (PAT)" fill="#64748b" radius={[4, 4, 0, 0]}>
-                      {fcfChartData.map((entry, index) => <Cell key={`pat-${index}`} fill={(entry.pat_cr ?? 0) < 0 ? '#fb7185' : '#64748b'} />)}
-                    </Bar>
-                    <Bar dataKey="cfo_cr" name="Cash from Operations (CFO)" fill="#06b6d4" radius={[4, 4, 0, 0]}>
-                      {fcfChartData.map((entry, index) => <Cell key={`cfo-${index}`} fill={(entry.cfo_cr ?? 0) < 0 ? '#fb7185' : '#06b6d4'} />)}
-                    </Bar>
-                    <Bar dataKey="fcf_cr" name="Free Cash Flow (FCF)" fill="#10b981" radius={[4, 4, 0, 0]}>
-                      {fcfChartData.map((entry, index) => <Cell key={`fcf-${index}`} fill={(entry.fcf_cr ?? 0) < 0 ? '#fb7185' : '#10b981'} />)}
-                    </Bar>
-                  </BarChart>
-                </ResponsiveContainer>
+
+              {/* Chart 3: Balance Sheet & CWIP Growth Trigger */}
+              <div className="glass-panel rounded-3xl p-6 border border-slate-800 space-y-4">
+                <div>
+                  <h4 className="font-bold text-white text-sm"><ConceptHelp term="cwip" label="Balance Sheet Capital Allocation & CWIP Trigger" /></h4>
+                  <p className="text-xs text-slate-400">Capital Work in Progress (CWIP) as % of Net Block signals upcoming revenue capacity</p>
+                </div>
+                <div className="h-72 w-full">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={bsTrends}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" />
+                      <XAxis dataKey="period" stroke="var(--chart-axis)" fontSize={10} />
+                      <YAxis yAxisId="left" stroke="var(--chart-axis)" fontSize={10} tickFormatter={formatCompactCrores} width={58} />
+                      <YAxis yAxisId="right" orientation="right" stroke="#f59e0b" fontSize={10} tickFormatter={(value) => `${value}%`} width={42} />
+                      {latestBsTrend?.period && <ReferenceLine x={latestBsTrend.period} stroke="var(--border-strong)" strokeDasharray="4 4" label={{ value: 'Latest', fill: 'var(--text-muted)', fontSize: 10 }} />}
+                      <Tooltip 
+                        contentStyle={{ backgroundColor: 'var(--card-bg)', borderColor: 'var(--border-strong)', color: 'var(--text-primary)', borderRadius: '12px' }}
+                        labelStyle={{ color: 'var(--text-primary)', fontWeight: 700 }}
+                        cursor={{ fill: 'var(--hover-bg)' }}
+                        formatter={(value: any, name: string) => [
+                          isFiniteNumber(value) ? name.includes('%') ? `${value}%` : `₹${value.toLocaleString('en-IN')} Cr` : 'Unavailable',
+                          name
+                        ]}
+                      />
+                      <Legend wrapperStyle={{ fontSize: '11px', paddingTop: '10px' }} />
+                      <Bar yAxisId="left" dataKey="fixed_assets_cr" name="Fixed Assets (₹ Cr)" fill="var(--chart-axis)" radius={[4, 4, 0, 0]} />
+                      <Bar yAxisId="left" dataKey="cwip_cr" name="CWIP (₹ Cr)" fill="#f59e0b" radius={[4, 4, 0, 0]} />
+                      <Line yAxisId="right" type="monotone" dataKey="cwip_to_fixed_assets_pct" name="CWIP / Net Block %" stroke="#10b981" strokeWidth={2} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
               </div>
-            </div>
-
-          </div>
-
-          {/* Chart 3: Balance Sheet & CWIP Growth Trigger */}
-          <div className="glass-panel rounded-3xl p-6 border border-slate-800 space-y-4">
-            <div>
-              <h4 className="font-bold text-white text-sm"><ConceptHelp term="cwip" label="Balance Sheet Capital Allocation & CWIP Trigger" /></h4>
-              <p className="text-xs text-slate-400">Capital Work in Progress (CWIP) as % of Net Block signals upcoming revenue capacity</p>
-            </div>
-            <div className="h-72 w-full">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={bsTrends}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" />
-                  <XAxis dataKey="period" stroke="var(--chart-axis)" fontSize={10} />
-                  <YAxis yAxisId="left" stroke="var(--chart-axis)" fontSize={10} tickFormatter={formatCompactCrores} width={58} />
-                  <YAxis yAxisId="right" orientation="right" stroke="#f59e0b" fontSize={10} tickFormatter={(value) => `${value}%`} width={42} />
-                  {latestBsTrend?.period && <ReferenceLine x={latestBsTrend.period} stroke="var(--border-strong)" strokeDasharray="4 4" label={{ value: 'Latest', fill: 'var(--text-muted)', fontSize: 10 }} />}
-                  <Tooltip 
-                    contentStyle={{ backgroundColor: 'var(--card-bg)', borderColor: 'var(--border-strong)', color: 'var(--text-primary)', borderRadius: '12px' }}
-                    labelStyle={{ color: 'var(--text-primary)', fontWeight: 700 }}
-                    cursor={{ fill: 'var(--hover-bg)' }}
-                    formatter={(value: any, name: string) => [
-                      isFiniteNumber(value) ? name.includes('%') ? `${value}%` : `₹${value.toLocaleString('en-IN')} Cr` : 'Unavailable',
-                      name
-                    ]}
-                  />
-                  <Legend wrapperStyle={{ fontSize: '11px', paddingTop: '10px' }} />
-                  <Bar yAxisId="left" dataKey="fixed_assets_cr" name="Fixed Assets (₹ Cr)" fill="var(--chart-axis)" radius={[4, 4, 0, 0]} />
-                  <Bar yAxisId="left" dataKey="cwip_cr" name="CWIP (₹ Cr)" fill="#f59e0b" radius={[4, 4, 0, 0]} />
-                  <Line yAxisId="right" type="monotone" dataKey="cwip_to_fixed_assets_pct" name="CWIP / Net Block %" stroke="#10b981" strokeWidth={2} />
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-          </div>
-
+            </>
+          )}
         </div>
       )}
 
