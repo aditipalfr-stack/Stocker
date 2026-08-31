@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
-import { StockDetail, BusinessAnalysisIntelligence } from '../../types';
-import { AiStatusResult } from '../../api';
+import React, { useState, useEffect, useCallback } from 'react';
+import { StockDetail, BusinessAnalysisIntelligence, SourceFilingsResponse } from '../../types';
+import { AiStatusResult, fetchSourceFilings } from '../../api';
 import { 
   Sparkles, TrendingUp, CheckCircle2, FileText, 
   Compass, Clock, AlertTriangle, KeyRound, Zap, HelpCircle
@@ -35,6 +35,34 @@ export const BusinessAnalysisView: React.FC<BusinessAnalysisViewProps> = ({
 }) => {
   const [activeSubTab, setActiveSubTab] = useState<'investment' | 'growth' | 'management' | 'filings'>('investment');
 
+  // Source Filings cache lifted to parent container to persist across tab switches
+  const [filingsCache, setFilingsCache] = useState<Record<string, SourceFilingsResponse>>({});
+  const [filingsLoading, setFilingsLoading] = useState<boolean>(false);
+  const [filingsError, setFilingsError] = useState<string | null>(null);
+
+  const loadSourceFilings = useCallback(async (targetSymbol: string, force: boolean = false) => {
+    if (!force && filingsCache[targetSymbol]) {
+      return; // Already cached for this symbol!
+    }
+    setFilingsLoading(true);
+    setFilingsError(null);
+    try {
+      const data = await fetchSourceFilings(targetSymbol);
+      setFilingsCache(prev => ({ ...prev, [targetSymbol]: data }));
+    } catch (err: any) {
+      setFilingsError(err.message || `Failed to load source filings for ${targetSymbol}`);
+    } finally {
+      setFilingsLoading(false);
+    }
+  }, [filingsCache]);
+
+  // When user opens the 'filings' subtab, fetch on demand if not cached
+  useEffect(() => {
+    if (activeSubTab === 'filings') {
+      loadSourceFilings(stock.symbol);
+    }
+  }, [activeSubTab, stock.symbol, loadSourceFilings]);
+
   const isAnalyzed = Boolean(
     docIntel && (
       (docIntel.promise_vs_delivery && docIntel.promise_vs_delivery.length > 0) ||
@@ -52,12 +80,15 @@ export const BusinessAnalysisView: React.FC<BusinessAnalysisViewProps> = ({
     hour12: true
   }) : null;
 
-  const totalFilingsCount = (
-    (stock.documents?.annual_reports?.length || 0) +
-    (stock.documents?.concalls?.length || 0) +
-    (stock.documents?.presentations?.length || 0) +
-    (stock.documents?.material_announcements?.length || 0)
-  );
+  // Lightweight filing count calculation: prioritize diagnostics counts if available, otherwise array counts
+  const totalFilingsCount = stock.documents?.diagnostics?.ai_ready_documents_count !== undefined
+    ? stock.documents.diagnostics.ai_ready_documents_count
+    : (
+      (stock.documents?.annual_reports?.length || 0) +
+      (stock.documents?.concalls?.length || 0) +
+      (stock.documents?.presentations?.length || 0) +
+      (stock.documents?.material_announcements?.length || 0)
+    );
 
   return (
     <div className="space-y-8">
@@ -238,7 +269,14 @@ export const BusinessAnalysisView: React.FC<BusinessAnalysisViewProps> = ({
           )}
 
           {activeSubTab === 'filings' && (
-            <SourceFilingsView symbol={stock.symbol} companyName={stock.name} />
+            <SourceFilingsView
+              symbol={stock.symbol}
+              companyName={stock.name}
+              filingsData={filingsCache[stock.symbol] || null}
+              loading={filingsLoading}
+              error={filingsError}
+              onRetry={() => loadSourceFilings(stock.symbol, true)}
+            />
           )}
         </>
       )}

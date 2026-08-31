@@ -385,30 +385,32 @@ from llm_service import is_llm_available, get_available_llm_provider
 from doc_intelligence_pipeline import run_generic_document_pipeline, select_default_document_working_set, fetch_historical_evidence_document
 
 def _get_minimal_financial_analytics(symbol: str) -> Optional[Dict[str, Any]]:
-    """Retrieves or minimally computes only the essential analytics needed for business analysis cross-checks."""
+    """Retrieves or minimally computes only the essential analytics from local cache/persistence without network calls."""
     clean_sym = symbol.upper().strip()
     cached = database.get_stock_cache(clean_sym)
-    if cached and "analytics" in cached:
+    if cached and "analytics" in cached and cached["analytics"]:
         return cached["analytics"]
     
-    try:
-        data = cached or fetch_stock_from_screener(clean_sym, force_refresh=False)
-        if data:
+    if cached:
+        try:
             from financial_engine import compute_financial_analytics
             from models import FinancialStatement
-            pl_raw = data.get("profit_loss") or data.get("profit_and_loss")
-            bs_raw = data.get("balance_sheet")
-            cf_raw = data.get("cash_flow")
-            quarters_raw = data.get("quarters")
+            pl_raw = cached.get("profit_loss") or cached.get("profit_and_loss")
+            bs_raw = cached.get("balance_sheet")
+            cf_raw = cached.get("cash_flow")
+            quarters_raw = cached.get("quarters")
             
-            pl = FinancialStatement(**pl_raw) if pl_raw else None
-            bs = FinancialStatement(**bs_raw) if bs_raw else None
-            cf = FinancialStatement(**cf_raw) if cf_raw else None
-            quarters = FinancialStatement(**quarters_raw) if quarters_raw else None
+            if pl_raw or bs_raw or cf_raw or quarters_raw:
+                pl = FinancialStatement(**pl_raw) if pl_raw else None
+                bs = FinancialStatement(**bs_raw) if bs_raw else None
+                cf = FinancialStatement(**cf_raw) if cf_raw else None
+                quarters = FinancialStatement(**quarters_raw) if quarters_raw else None
+                
+                return compute_financial_analytics(quarters, pl, bs, cf)
+        except Exception as e:
+            print(f"Notice: Minimal analytics computation note: {e}")
             
-            return compute_financial_analytics(quarters, pl, bs, cf)
-    except Exception as e:
-        print(f"Notice: Minimal analytics computation note: {e}")
+    # If no cache is found locally, return None (no external network fetch!)
     return None
 
 @app.get("/api/stocks/{symbol}/business-analysis")

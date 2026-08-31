@@ -1,6 +1,5 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { DocumentLinks, DocumentItem, DocumentSummaryItem, SourceFilingsResponse } from '../../types';
-import { fetchSourceFilings } from '../../api';
 import { 
   FileText, ExternalLink, Search, Sparkles, 
   Mic, Presentation, Bell, ChevronDown, CheckCircle2, AlertTriangle, RefreshCw
@@ -10,47 +9,23 @@ import { DataOriginBadge } from '../ui/DataOriginBadge';
 interface SourceFilingsViewProps {
   symbol: string;
   companyName: string;
+  filingsData: SourceFilingsResponse | null;
+  loading: boolean;
+  error: string | null;
+  onRetry: () => void;
 }
 
-export const SourceFilingsView: React.FC<SourceFilingsViewProps> = ({ symbol, companyName }) => {
-  const [filingsData, setFilingsData] = useState<SourceFilingsResponse | null>(null);
-  const [loading, setLoading] = useState<boolean>(false);
-  const [error, setError] = useState<string | null>(null);
+export const SourceFilingsView: React.FC<SourceFilingsViewProps> = ({
+  symbol,
+  companyName,
+  filingsData,
+  loading,
+  error,
+  onRetry
+}) => {
   const [filterType, setFilterType] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [expandedDocUrl, setExpandedDocUrl] = useState<string | null>(null);
-
-  useEffect(() => {
-    let isMounted = true;
-
-    const loadFilings = async () => {
-      if (filingsData && filingsData.symbol === symbol) {
-        return; // Already cached in state
-      }
-      setLoading(true);
-      setError(null);
-      try {
-        const data = await fetchSourceFilings(symbol);
-        if (isMounted) {
-          setFilingsData(data);
-        }
-      } catch (err: any) {
-        if (isMounted) {
-          setError(err.message || `Failed to load source filings for ${symbol}`);
-        }
-      } finally {
-        if (isMounted) {
-          setLoading(false);
-        }
-      }
-    };
-
-    loadFilings();
-
-    return () => {
-      isMounted = false;
-    };
-  }, [symbol]);
 
   const documents = filingsData?.documents;
   const summariesMap = filingsData?.summaries || {};
@@ -87,20 +62,6 @@ export const SourceFilingsView: React.FC<SourceFilingsViewProps> = ({ symbol, co
     if (t.includes('presentation')) return <Presentation className="w-4 h-4 text-emerald-400" />;
     if (t.includes('announcement')) return <Bell className="w-4 h-4 text-rose-400" />;
     return <FileText className="w-4 h-4 text-cyan-400" />;
-  };
-
-  const handleRetry = () => {
-    setLoading(true);
-    setError(null);
-    fetchSourceFilings(symbol)
-      .then(data => {
-        setFilingsData(data);
-        setLoading(false);
-      })
-      .catch(err => {
-        setError(err.message || `Failed to load source filings for ${symbol}`);
-        setLoading(false);
-      });
   };
 
   return (
@@ -182,7 +143,7 @@ export const SourceFilingsView: React.FC<SourceFilingsViewProps> = ({ symbol, co
             <span>{error}</span>
           </div>
           <button
-            onClick={handleRetry}
+            onClick={onRetry}
             className="bg-rose-900/60 hover:bg-rose-800 text-rose-200 text-xs px-3.5 py-1.5 rounded-xl flex items-center gap-1.5 border border-rose-700/50 transition-all shrink-0"
           >
             <RefreshCw className="w-3.5 h-3.5" />

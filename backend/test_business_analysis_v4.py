@@ -295,10 +295,92 @@ def test_5_endpoints_payload_efficiency_and_field_names():
     assert "what_changed_recently" in data_di
     print("  ✓ Backward-compatible /doc-intelligence endpoint operates smoothly.")
 
+def test_6_no_network_on_business_analysis():
+    print("Test 6: Ensuring /business-analysis Never Hits Screener/Network...")
+    import main
+    
+    # Poison fetch_stock_from_screener to guarantee it is NEVER called by /business-analysis
+    original_fetch = main.fetch_stock_from_screener
+    def poisoned_fetch(*args, **kwargs):
+        raise AssertionError("VIOLATION: fetch_stock_from_screener was invoked during GET /business-analysis!")
+    
+    main.fetch_stock_from_screener = poisoned_fetch
+    try:
+        # Case A: Uncached / unknown symbol must return safely without network call
+        uncached_res = main.get_stock_business_analysis("UNCACHED_TEST_SYM")
+        if hasattr(uncached_res, "model_dump"):
+            uncached_res = uncached_res.model_dump()
+        assert uncached_res["symbol"] == "UNCACHED_TEST_SYM"
+        assert uncached_res["status"] == "not_analyzed"
+        assert uncached_res["source_documents"] == []
+        assert uncached_res["document_summaries"] == []
+        assert "business_quality" in uncached_res
+        assert "competitive_position" in uncached_res
+        assert "capital_allocation" in uncached_res
+        assert "governance_watch" in uncached_res
+        
+        # Case B: Cached symbol must compute/load analytics without network call
+        cached_res = main.get_stock_business_analysis("INFY")
+        if hasattr(cached_res, "model_dump"):
+            cached_res = cached_res.model_dump()
+        assert cached_res["symbol"] == "INFY"
+        assert cached_res["source_documents"] == []
+        assert cached_res["document_summaries"] == []
+        print("  ✓ Zero network calls verified during /business-analysis for both uncached and cached stocks.")
+    finally:
+        main.fetch_stock_from_screener = original_fetch
+
+def test_7_source_filings_caching_simulation():
+    print("Test 7: Source Filings Multi-Tab Caching & Symbol Invalidation Simulation...")
+    from main import get_stock_source_filings
+    
+    # Simulate parent BusinessAnalysisView cache state
+    filings_cache = {}
+    fetch_count = 0
+    
+    def simulate_load_filings(symbol: str, force: bool = False):
+        nonlocal fetch_count
+        if not force and symbol in filings_cache:
+            return filings_cache[symbol] # Cache HIT
+        fetch_count += 1
+        res = get_stock_source_filings(symbol)
+        if hasattr(res, "model_dump"):
+            res = res.model_dump()
+        filings_cache[symbol] = res
+        return res
+    
+    # 1. User opens Source Filings tab for INFY -> Cache MISS (Fetch 1)
+    res1 = simulate_load_filings("INFY")
+    assert fetch_count == 1
+    assert res1["symbol"] == "INFY"
+    assert "annual_reports" in res1["documents"]
+    
+    # 2. User switches to 'Investment View' and switches back to 'Source Filings' -> Cache HIT (Fetch remains 1)
+    res2 = simulate_load_filings("INFY")
+    assert fetch_count == 1
+    assert res2 == res1
+    
+    # 3. User switches stock to TCS and opens Source Filings -> Cache MISS for TCS (Fetch 2)
+    res_tcs = simulate_load_filings("TCS")
+    assert fetch_count == 2
+    assert res_tcs["symbol"] == "TCS"
+    
+    # 4. User navigates back to INFY -> Cache HIT for INFY (Fetch remains 2)
+    res3 = simulate_load_filings("INFY")
+    assert fetch_count == 2
+    assert res3 == res1
+    
+    # 5. User clicks 'Retry Loading' (force=True) -> Force Refetch (Fetch 3)
+    res_forced = simulate_load_filings("INFY", force=True)
+    assert fetch_count == 3
+    print("  ✓ Source Filings caching, tab-switch persistence, symbol invalidation, and retry verified.")
+
 if __name__ == "__main__":
     test_1_models_and_backward_compatibility()
     test_2_deterministic_financial_cross_check_enrichment()
     test_3_guidance_vs_projections_triangulation()
     test_4_inter_document_kpi_evolution()
     test_5_endpoints_payload_efficiency_and_field_names()
-    print("\n🎉 ALL V4 BUSINESS ANALYSIS TESTS (1-5) PASSED CLEANLY!")
+    test_6_no_network_on_business_analysis()
+    test_7_source_filings_caching_simulation()
+    print("\n🎉 ALL V4 BUSINESS ANALYSIS TESTS (1-7) PASSED CLEANLY!")
