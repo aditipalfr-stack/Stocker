@@ -296,11 +296,89 @@ def resolve_and_search_companies(query: str, limit: int = 10) -> List[Dict[str, 
     
     return scored_results[:limit]
 
+def resolve_proven_security_for_add(symbol_or_query: str) -> Tuple[Optional[Dict[str, Any]], bool, List[Dict[str, Any]]]:
+    """
+    Strict security resolver for the ADD COMPANY flow.
+    Fails closed:
+    - Never returns unverified / fabricated placeholder securities.
+    - If multiple plausible securities match: returns (None, True, candidates).
+    - If proven unique security is established: returns (canonical_security, False, [canonical_security]).
+    - If unresolved: returns (None, False, candidates).
+    """
+    clean_q = symbol_or_query.strip()
+    if not clean_q:
+        return (None, False, [])
+        
+    norm_sym = normalize_symbol(clean_q)
+    
+    # 1. Check local persistent registry first
+    local_item = (
+        database.get_company_by_symbol(norm_sym) or
+        database.get_company_by_symbol(clean_q) or
+        database.get_company_by_name(clean_q) or
+        (database.get_company_by_bse_code(clean_q) if clean_q.isdigit() else None)
+    )
+    if local_item:
+        return (local_item, False, [local_item])
+        
+    # 2. Check Authoritative Official Exchange Identity (Phase B adapter)
+    from authoritative_identity import lookup_authoritative_identity
+    auth_identity, is_ambig = lookup_authoritative_identity(clean_q, allow_seed_reference=True, use_live_exchange=True)
+    if is_ambig:
+        cands = resolve_and_search_companies(clean_q, limit=10)
+        return (None, True, cands)
+    if auth_identity:
+        return (auth_identity, False, [auth_identity])
+        
+    # 3. External Discovery & Disambiguation
+    candidates = resolve_and_search_companies(clean_q, limit=10)
+    if not candidates:
+        return (None, False, [])
+        
+    # Filter candidates with meaningful match score >= 50
+    plausible = [c for c in candidates if c.get("match_score", 0) >= 50]
+    if not plausible:
+        return (None, False, candidates)
+        
+    top_score = plausible[0].get("match_score", 0)
+    # Check if multiple candidates compete closely (within 15 pts of top score and score >= 60)
+    competing = [c for c in plausible if top_score - c.get("match_score", 0) <= 15 and c.get("match_score", 0) >= 60]
+    
+    # Check if top candidate is an exact match on symbol, nse_symbol, or normalized title
+    top_cand = plausible[0]
+    norm_q = normalize_company_title(clean_q)
+    norm_top_name = normalize_company_title(top_cand.get("company_name", ""))
+    is_exact_top = (
+        clean_q.upper() == top_cand.get("symbol", "").upper() or
+        clean_q.upper() == (top_cand.get("nse_symbol") or "").upper() or
+        (norm_q and norm_top_name and norm_q == norm_top_name)
+    )
+    
+    if len(competing) > 1 and not is_exact_top:
+        # Multiple plausible competing entities with no exact match -> Ambiguous!
+        return (None, True, competing)
+        
+    # Single clear top candidate. Reconcile with authoritative identity or local data
+    cand_sym = top_cand.get("symbol", "").upper().strip()
+    cand_name = top_cand.get("company_name", "")
+    
+    auth_cand, _ = lookup_authoritative_identity(cand_sym, allow_seed_reference=True, use_live_exchange=True)
+    if not auth_cand and cand_name:
+        auth_cand, _ = lookup_authoritative_identity(cand_name, allow_seed_reference=True, use_live_exchange=True)
+        
+    if auth_cand:
+        return (auth_cand, False, [auth_cand])
+        
+    # If not in official master but candidate has a high match score >= 70 and non-numeric ticker
+    if top_cand.get("match_score", 0) >= 70 and not cand_sym.isdigit():
+        return (top_cand, False, [top_cand])
+        
+    return (None, False, candidates)
+
 def resolve_canonical_company(symbol_or_name: str) -> Optional[Dict[str, Any]]:
     """
     Resolves a symbol or company name to its canonical identity candidate.
-    Checks local registry first, then discovery if missing.
-    If completely unresolved, returns an explicit unverified ticker candidate without fabricated metadata.
+    Checks local registry first, then authoritative lookup, then search resolver.
     """
     clean = symbol_or_name.strip()
     if not clean:
@@ -309,18 +387,32 @@ def resolve_canonical_company(symbol_or_name: str) -> Optional[Dict[str, Any]]:
     norm_sym = normalize_symbol(clean)
     
     # 1. Exact local registry lookup
-    local_item = database.get_company_by_symbol(norm_sym) or database.get_company_by_symbol(clean)
+    local_item = (
+        database.get_company_by_symbol(norm_sym) or
+        database.get_company_by_symbol(clean) or
+        database.get_company_by_name(clean) or
+        (database.get_company_by_bse_code(clean) if clean.isdigit() else None)
+    )
     if local_item:
         return local_item
         
-    # 2. Search resolver
-    candidates = resolve_and_search_companies(clean, limit=1)
+    # 2. Authoritative lookup
+    from authoritative_identity import lookup_authoritative_identity
+    auth_res, _ = lookup_authoritative_identity(clean, allow_seed_reference=True, use_live_exchange=True)
+    if auth_res:
+        return auth_res
+        
+    # 3. Search resolver
+    candidates = resolve_and_search_companies(clean, limit=5)
     if candidates:
         top = candidates[0]
         if top.get("match_score", 0) >= 70:
+            auth_top, _ = lookup_authoritative_identity(top["symbol"], allow_seed_reference=True, use_live_exchange=True)
+            if auth_top:
+                return auth_top
             return top
             
-    # 3. Explicit unverified candidate (no fabricated NSE symbol, BSE code, ISIN, exchange, or sector)
+    # 4. Explicit unverified candidate (no fabricated exchange/security metadata)
     return {
         "symbol": norm_sym,
         "company_name": clean,

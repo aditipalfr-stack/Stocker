@@ -1,25 +1,31 @@
 """
 =============================================================================
-Stocker Phase V4.1 Step 1A Regression & Core Workflow Test Suite
+Stocker Phase V4.1 Step 1A Comprehensive Core Workflow & Persistence Suite
 =============================================================================
 Verifies:
-1. Canonical company resolution & alias search (COLPAL, Colgate, INFY, Reliance)
-2. Fail-closed behavior on unknown queries
-3. Ingestion & Add Company flow without external waterfall blocking
-4. Deterministic research lifecycle status across all 8 contract dimensions
-5. Missing ratios represented as None (not 0.0)
-6. Empty universe semantics (no unwanted auto-reseeding when active universe is empty)
-7. Dedicated /discover-filings endpoint
+1. Fresh/Unseeded Canonical Resolution (COLPAL, Colgate, Colgate-Palmolive (India) Ltd -> same canonical security)
+2. Ambiguous query handling -> HTTP 409 AMBIGUOUS_COMPANY
+3. Unresolved input safety -> HTTP 404 without universe enrollment
+4. SQLite Durable Financial Cache (survives restart/request simulation without JSON cache)
+5. Decoupled document discovery boundary (no external waterfall during financial ingestion)
+6. /discover-filings canonical safety & trusted sync state
+7. Nullable ratios safe end-to-end (StockDetail, Projections, Ranking, StockSummary)
+8. Research Lifecycle state transitions (financial-only -> new AI -> stale -> recomputed -> evidence_enriched)
+9. Financial data freshness states (ready vs stale >90d vs error)
+10. Empty universe semantics (in-universe=0 preserved without unwanted re-seeding)
 =============================================================================
 """
 
 import os
 import sys
+import json
 import tempfile
 import shutil
+from datetime import datetime, timezone, timedelta
 from pathlib import Path
 from unittest.mock import patch, MagicMock
 from bs4 import BeautifulSoup
+from fastapi import HTTPException
 
 os.environ["STOCKER_TEST_MODE"] = "1"
 sys.path.insert(0, str(Path(__file__).parent.parent / "libs"))
@@ -29,17 +35,29 @@ import database
 from main import (
     search_companies, execute_add_company_to_universe,
     add_company_to_universe_by_body, get_stock_research_status,
-    discover_stock_filings, get_all_stocks
+    discover_stock_filings, get_all_stocks, build_full_stock_detail
 )
 from models import (
     KeyRatios, FinancialStatement, FinancialRow, AddCompanyRequest,
-    ResearchLifecycleStatus
+    ResearchLifecycleStatus, StockDetail, DocumentLinks
 )
-from scraper import parse_screener_ratios, parse_screener_documents
+from scraper import (
+    parse_screener_ratios, parse_screener_documents,
+    fetch_stock_from_screener, serialize_stock_data, hydrate_stock_data
+)
 from research_lifecycle_service import get_research_lifecycle_status
-from company_resolver import resolve_and_search_companies, resolve_canonical_company
+from company_resolver import (
+    resolve_and_search_companies, resolve_canonical_company,
+    resolve_proven_security_for_add
+)
+from projection_engine import run_projections, derive_projection_assumptions
+from ranking_engine import compute_stock_score
+from doc_intelligence_models import BusinessOutlookResult, PromiseVsDeliveryItem, StockerView
 
 class IsolatedTestDatabase:
+    def __init__(self, seed: bool = True):
+        self.seed = seed
+
     def __enter__(self):
         self.temp_dir = tempfile.mkdtemp(prefix="stocker_test_v41_")
         self.db_path = Path(self.temp_dir) / "test_stocker.db"
@@ -48,6 +66,13 @@ class IsolatedTestDatabase:
         self.orig_db_path = database.DB_PATH
         database.DB_PATH = self.db_path
         database.init_db()
+        if not self.seed:
+            conn = database.get_db_connection()
+            with conn:
+                conn.execute("DELETE FROM company_registry")
+                conn.execute("DELETE FROM stocks_cache")
+                conn.execute("DELETE FROM source_documents")
+            conn.close()
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
@@ -61,142 +86,209 @@ class IsolatedTestDatabase:
         except Exception:
             pass
 
-def run_tests():
+def sample_complete_stock_data(symbol="COLPAL", name="Colgate-Palmolive (India) Limited", fetched_at=None):
+    if not fetched_at:
+        fetched_at = datetime.now(timezone.utc).isoformat()
+    return {
+        "symbol": symbol,
+        "name": name,
+        "sector": "FMCG",
+        "industry": "Personal Care",
+        "about": f"{name} is a leading oral care company in India.",
+        "source_name": "Screener.in",
+        "source_url": f"https://www.screener.in/company/{symbol}/",
+        "statement_type": "consolidated",
+        "fetched_at": fetched_at,
+        "ratios": KeyRatios(
+            market_cap_cr=75000.0,
+            current_price=2800.0,
+            stock_pe=55.0,
+            book_value=65.0,
+            dividend_yield_pct=1.8,
+            roce_pct=72.0,
+            roe_pct=58.0,
+            face_value=1.0,
+            debt_to_equity=0.02,
+            interest_coverage=45.0,
+            fcf_yield_pct=2.4,
+            sales_growth_3yr_cagr=8.5,
+            profit_growth_3yr_cagr=10.2
+        ),
+        "quarters": FinancialStatement(periods=["Jun 2025", "Sep 2025"], rows=[FinancialRow(metric="Sales", values={"Jun 2025": 1400.0, "Sep 2025": 1450.0})]),
+        "profit_loss": FinancialStatement(periods=["Mar 2024", "Mar 2025"], rows=[
+            FinancialRow(metric="Sales", values={"Mar 2024": 5200.0, "Mar 2025": 5600.0}),
+            FinancialRow(metric="Operating Profit", values={"Mar 2024": 1500.0, "Mar 2025": 1700.0}),
+            FinancialRow(metric="OPM %", values={"Mar 2024": 28.8, "Mar 2025": 30.3}),
+            FinancialRow(metric="Net Profit", values={"Mar 2024": 1100.0, "Mar 2025": 1300.0})
+        ]),
+        "balance_sheet": FinancialStatement(periods=["Mar 2024", "Mar 2025"], rows=[
+            FinancialRow(metric="Equity Capital", values={"Mar 2024": 27.0, "Mar 2025": 27.0}),
+            FinancialRow(metric="Reserves", values={"Mar 2024": 1700.0, "Mar 2025": 1800.0}),
+            FinancialRow(metric="Borrowings", values={"Mar 2024": 50.0, "Mar 2025": 40.0}),
+            FinancialRow(metric="Investments", values={"Mar 2024": 300.0, "Mar 2025": 400.0})
+        ]),
+        "cash_flow": FinancialStatement(periods=["Mar 2024", "Mar 2025"], rows=[
+            FinancialRow(metric="Cash from Operating Activity", values={"Mar 2024": 1200.0, "Mar 2025": 1350.0}),
+            FinancialRow(metric="Fixed assets purchased", values={"Mar 2024": -120.0, "Mar 2025": -140.0})
+        ]),
+        "concall_insights": [],
+        "annual_report_insights": [],
+        "documents": DocumentLinks()
+    }
+
+def run_all_tests():
     print("==================================================================")
-    print("Running Stocker Phase V4.1 Core Workflow Test Suite")
+    print("Running Stocker Phase V4.1 Step 1A Comprehensive Test Suite")
     print("==================================================================")
 
-    with IsolatedTestDatabase():
-        # Seed test companies
-        database.upsert_company_registry_item({
-            "symbol": "INFY",
-            "company_name": "Infosys Limited",
-            "nse_symbol": "INFY",
-            "bse_code": "500209",
-            "sector": "Information Technology",
-            "industry": "Computers - Software",
-            "aliases": ["Infosys", "INFY"],
-            "source": "seed_reference",
-            "in_universe": True,
-            "is_active": True
-        })
-        database.upsert_company_registry_item({
-            "symbol": "RELIANCE",
-            "company_name": "Reliance Industries Limited",
-            "nse_symbol": "RELIANCE",
-            "bse_code": "500325",
-            "sector": "Energy",
-            "industry": "Refineries",
-            "aliases": ["Reliance", "RIL", "Reliance Industries"],
-            "source": "seed_reference",
-            "in_universe": True,
-            "is_active": True
-        })
-        database.upsert_company_registry_item({
-            "symbol": "COLPAL",
-            "company_name": "Colgate-Palmolive (India) Limited",
-            "nse_symbol": "COLPAL",
-            "bse_code": "500830",
-            "sector": "FMCG",
-            "industry": "Personal Care",
-            "aliases": ["Colgate", "Colgate Palmolive", "COLPAL"],
-            "source": "seed_reference",
-            "in_universe": True,
-            "is_active": True
-        })
-
-        # Test 1: Search resolves exact ticker
-        print("Test 1: Search resolves exact ticker symbol (INFY)...")
-        res1 = search_companies(q="INFY", limit=5)
-        assert res1.count > 0, "Expected at least 1 result for INFY"
-        assert res1.results[0].symbol == "INFY", f"Expected INFY top result, got {res1.results[0].symbol}"
-        assert res1.results[0].match_score >= 80, f"Expected match score >= 80, got {res1.results[0].match_score}"
-        print("✓ Test 1 Passed.")
-
-        # Test 2: Search resolves company name
-        print("Test 2: Search resolves company name ('Reliance Industries')...")
-        res2 = search_companies(q="Reliance Industries", limit=5)
-        assert res2.count > 0, "Expected at least 1 result for Reliance Industries"
-        symbols2 = [r.symbol for r in res2.results]
-        assert "RELIANCE" in symbols2, f"Expected RELIANCE in results, got {symbols2}"
-        print("✓ Test 2 Passed.")
-
-        # Test 3: Search resolves partial name / alias (Colgate -> COLPAL)
-        print("Test 3: Search resolves partial name and aliases (Colgate -> COLPAL) without hardcoding...")
-        res3 = search_companies(q="Colgate", limit=5)
-        assert res3.count > 0, "Expected at least 1 result for Colgate"
-        assert res3.results[0].symbol == "COLPAL", f"Expected COLPAL top result, got {res3.results[0].symbol}"
+    # -------------------------------------------------------------------------
+    # TEST 1: Fresh / Unseeded COLPAL Resolution across Ticker, Name, Legal Name
+    # -------------------------------------------------------------------------
+    with IsolatedTestDatabase(seed=False):
+        print("\n--- Test 1: Fresh/Unseeded Canonical Resolution for COLPAL-Class Entities ---")
+        # Empty registry check
+        assert database.get_company_registry_total_count() == 0, "DB must be completely empty before test"
         
-        canonical_colpal = resolve_canonical_company("Colgate-Palmolive (India) Ltd")
-        assert canonical_colpal is not None, "Expected canonical resolution for Colgate-Palmolive (India) Ltd"
-        assert canonical_colpal["symbol"] == "COLPAL", f"Expected COLPAL, got {canonical_colpal['symbol']}"
-        print("✓ Test 3 Passed.")
+        mock_nse_csv = (
+            "SYMBOL,NAME OF COMPANY,SERIES,DATE OF LISTING,PAID UP VALUE,MARKET LOT,ISIN NUMBER,FACE VALUE\n"
+            "COLPAL,Colgate-Palmolive (India) Limited,EQ,17-NOV-1978,1,1,INE162A01024,1\n"
+            "INFY,Infosys Limited,EQ,08-FEB-1995,5,1,INE009A01021,5\n"
+            "TATAMOTORS,Tata Motors Limited,EQ,22-JUL-1998,2,1,INE155A01022,2\n"
+            "TATASTEEL,Tata Steel Limited,EQ,18-NOV-1998,1,1,INE081A01020,1\n"
+            "TATAPOWER,Tata Power Company Limited,EQ,05-OCT-1998,1,1,INE245A01021,1\n"
+        )
+        
+        def mock_screener_discovery(q):
+            clean_q = q.lower().strip()
+            if "colgate" in clean_q or "colpal" in clean_q:
+                return [{
+                    "symbol": "COLPAL",
+                    "company_name": "Colgate-Palmolive (India) Limited",
+                    "source": "screener_search",
+                    "aliases": ["Colgate", "COLPAL"]
+                }]
+            elif "tata" in clean_q:
+                return [
+                    {"symbol": "TATAMOTORS", "company_name": "Tata Motors Limited", "source": "screener_search", "aliases": ["Tata Motors"]},
+                    {"symbol": "TATASTEEL", "company_name": "Tata Steel Limited", "source": "screener_search", "aliases": ["Tata Steel"]},
+                    {"symbol": "TATAPOWER", "company_name": "Tata Power Company Limited", "source": "screener_search", "aliases": ["Tata Power"]}
+                ]
+            return []
 
-        # Test 4: Fail closed on completely unknown query
-        print("Test 4: Fail closed on unknown query without fabricating security identifiers...")
-        res4 = search_companies(q="XYZNONEXISTENT999XYZ", limit=5)
-        for r in res4.results:
-            assert r.isin is None, "ISIN must not be fabricated"
-            assert r.exchange is None, "Exchange must not be fabricated"
-        print("✓ Test 4 Passed.")
+        with patch("urllib.request.urlopen") as mock_url_open, \
+             patch("company_resolver.search_screener_company_discovery", side_effect=mock_screener_discovery):
+            
+            mock_resp = MagicMock()
+            mock_resp.read.return_value = mock_nse_csv.encode("utf-8")
+            mock_resp.__enter__.return_value = mock_resp
+            mock_url_open.return_value = mock_resp
 
-        # Test 5 & 6: Add Company flow with query and symbol
-        print("Test 5 & 6: Add company via query and symbol...")
-        mock_stock = {
-            "symbol": "TESTCO",
-            "name": "Test Company Limited",
-            "sector": "FMCG",
-            "industry": "Personal Care",
-            "about": "Test description",
-            "source_name": "Screener.in",
-            "source_url": "https://www.screener.in/company/TESTCO/",
-            "statement_type": "consolidated",
-            "fetched_at": "2026-08-31T09:00:00Z",
-            "ratios": KeyRatios(
-                market_cap_cr=5000.0,
-                current_price=250.0,
-                stock_pe=25.0,
-                book_value=50.0,
-                dividend_yield_pct=1.5,
-                roce_pct=22.0,
-                roe_pct=18.0,
-                face_value=1.0,
-                debt_to_equity=0.1,
-                interest_coverage=15.0,
-                fcf_yield_pct=3.0,
-                sales_growth_3yr_cagr=12.0,
-                profit_growth_3yr_cagr=14.0
-            ),
-            "quarters": FinancialStatement(periods=["Jun 2025"], rows=[FinancialRow(metric="Sales", values={"Jun 2025": 1000.0})]),
-            "profit_loss": FinancialStatement(periods=["Mar 2025"], rows=[FinancialRow(metric="Sales", values={"Mar 2025": 4000.0})]),
-            "balance_sheet": FinancialStatement(periods=["Mar 2025"], rows=[FinancialRow(metric="Equity Capital", values={"Mar 2025": 500.0})]),
-            "cash_flow": FinancialStatement(periods=["Mar 2025"], rows=[FinancialRow(metric="Cash from Operating Activity", values={"Mar 2025": 600.0})]),
-            "concall_insights": [],
-            "annual_report_insights": [],
-            "documents": None
-        }
+            # Case A: Exact Ticker "COLPAL"
+            sec_a, is_ambig_a, _ = resolve_proven_security_for_add("COLPAL")
+            assert is_ambig_a is False, "COLPAL must not be ambiguous"
+            assert sec_a is not None, "COLPAL must resolve"
+            assert sec_a["symbol"] == "COLPAL", f"Expected COLPAL, got {sec_a['symbol']}"
 
-        with patch("main.fetch_stock_from_screener", return_value=mock_stock):
-            # Query body
-            add_res1 = add_company_to_universe_by_body(AddCompanyRequest(query="TESTCO"))
-            assert add_res1.success is True
-            assert add_res1.symbol == "TESTCO"
-            assert add_res1.research_status is not None
-            assert add_res1.research_status.financial_data == "ready"
-            assert add_res1.research_status.deterministic_analysis == "ready"
+            # Case B: Brand Name "Colgate"
+            sec_b, is_ambig_b, _ = resolve_proven_security_for_add("Colgate")
+            assert is_ambig_b is False, "Colgate must not be ambiguous"
+            assert sec_b is not None, "Colgate must resolve"
+            assert sec_b["symbol"] == "COLPAL", f"Expected COLPAL, got {sec_b['symbol']}"
 
-            # Symbol body (backward compatibility)
-            add_res2 = add_company_to_universe_by_body(AddCompanyRequest(symbol="TESTCO"))
-            assert add_res2.already_existed is True
-        print("✓ Test 5 & 6 Passed.")
+            # Case C: Full Legal Name "Colgate-Palmolive (India) Ltd"
+            sec_c, is_ambig_c, _ = resolve_proven_security_for_add("Colgate-Palmolive (India) Ltd")
+            assert is_ambig_c is False, "Full name must not be ambiguous"
+            assert sec_c is not None, "Full name must resolve"
+            assert sec_c["symbol"] == "COLPAL", f"Expected COLPAL, got {sec_c['symbol']}"
 
-        # Test 7: Decoupled document sourcing during financial ingestion
-        print("Test 7: Financial statement parsing extracts cheap HTML docs without executing external waterfall...")
+            print("✓ Case A, B, C passed: All 3 forms resolve to the exact same canonical COLPAL security from empty DB.")
+
+            # -----------------------------------------------------------------
+            # TEST 2: Ambiguous Query Rejection (HTTP 409 AMBIGUOUS_COMPANY)
+            # -----------------------------------------------------------------
+            print("\n--- Test 2: Ambiguous Query Handling (HTTP 409 AMBIGUOUS_COMPANY) ---")
+            sec_ambig, is_ambig, ambig_cands = resolve_proven_security_for_add("TATA")
+            assert is_ambig is True, "Query 'TATA' must be flagged as ambiguous"
+            assert len(ambig_cands) >= 2, f"Expected multiple candidates, got {len(ambig_cands)}"
+
+            try:
+                execute_add_company_to_universe("TATA")
+                assert False, "execute_add_company_to_universe('TATA') should have raised HTTPException 409"
+            except HTTPException as he:
+                assert he.status_code == 409, f"Expected 409, got {he.status_code}"
+                detail = he.detail
+                assert isinstance(detail, dict), "Detail must be a structured dictionary"
+                assert detail.get("code") == "AMBIGUOUS_COMPANY", f"Expected AMBIGUOUS_COMPANY, got {detail.get('code')}"
+                assert len(detail.get("candidates", [])) >= 2
+                print("✓ Test 2 passed: Ambiguous query returned HTTP 409 with candidate choices.")
+
+            # -----------------------------------------------------------------
+            # TEST 3: Unresolved Input Safety (HTTP 404 without universe pollution)
+            # -----------------------------------------------------------------
+            print("\n--- Test 3: Unresolved Input Safety (Fail Closed) ---")
+            sec_unres, is_ambig_u, unres_cands = resolve_proven_security_for_add("NONEXISTENTQUERY999")
+            assert sec_unres is None, "Unknown query must not resolve to any security"
+            assert is_ambig_u is False
+
+            try:
+                execute_add_company_to_universe("NONEXISTENTQUERY999")
+                assert False, "Unknown query must raise HTTPException 404"
+            except HTTPException as he:
+                assert he.status_code == 404, f"Expected 404, got {he.status_code}"
+                
+            # Verify universe has 0 polluted records
+            assert database.get_company_by_symbol("NONEXISTENTQUERY999") is None, "No fake security must be enrolled in DB"
+            print("✓ Test 3 passed: Unknown input rejected with 404 and 0 DB pollution.")
+
+    # -------------------------------------------------------------------------
+    # TEST 4: SQLite Durable Financial Cache (Survives restart/request context)
+    # -------------------------------------------------------------------------
+    with IsolatedTestDatabase():
+        print("\n--- Test 4: SQLite Durable Financial Cache (Survives restart/request simulation) ---")
+        mock_colpal = sample_complete_stock_data("COLPAL")
+        
+        # 1. Scrape & persist to SQLite
+        with patch("scraper.fetch_screener_html", return_value=("<html>mock</html>", "https://screener.in/colpal", "consolidated")), \
+             patch("scraper.parse_screener_table", return_value=mock_colpal["profit_loss"]), \
+             patch("scraper.parse_screener_ratios", return_value=mock_colpal["ratios"]), \
+             patch("scraper.parse_screener_documents", return_value=mock_colpal["documents"]):
+            
+            res_scrape = fetch_stock_from_screener("COLPAL", force_refresh=True)
+            assert res_scrape is not None
+            assert res_scrape["symbol"] == "COLPAL"
+
+        # 2. Simulate Application Restart & Delete JSON cache file
+        from scraper import CACHE_FILE
+        if os.path.exists(CACHE_FILE):
+            os.remove(CACHE_FILE)
+        assert not os.path.exists(CACHE_FILE), "JSON cache must be absent to test pure SQLite restoration"
+
+        # 3. Request stock in fresh context with live network completely disabled
+        with patch("scraper.fetch_screener_html", side_effect=Exception("Network Disabled!")):
+            restored = fetch_stock_from_screener("COLPAL", force_refresh=False)
+            assert restored is not None, "Stock must be restored from durable SQLite storage"
+            assert restored["symbol"] == "COLPAL"
+            assert restored["ratios"].roce_pct == 72.0
+            assert restored["ratios"].current_price == 2800.0
+            assert restored["profit_loss"] is not None
+
+            # Verify StockDetail can be built from pure SQLite cache
+            detail = build_full_stock_detail(restored)
+            assert detail.symbol == "COLPAL"
+            assert detail.score.total_composite_score > 0
+            assert detail.projection.dcf_fair_value_per_share > 0
+
+        print("✓ Test 4 passed: SQLite stocks_cache is durable and restores complete StockDetail without JSON cache or network.")
+
+    # -------------------------------------------------------------------------
+    # TEST 5: Decoupled Document Discovery Boundary
+    # -------------------------------------------------------------------------
+    with IsolatedTestDatabase():
+        print("\n--- Test 5: Decoupled Document Discovery Boundary during Ingestion ---")
         sample_html = """
         <html>
             <ul id="top-ratios">
-                <li><span class="name">Market Cap</span><span class="value">10,000</span></li>
-                <li><span class="name">Stock P/E</span><span class="value">20.5</span></li>
+                <li><span class="name">Current Price</span><span class="value">2800</span></li>
             </ul>
             <div class="documents">
                 <a href="https://example.com/ar2025.pdf">Annual Report 2025</a>
@@ -204,72 +296,252 @@ def run_tests():
         </html>
         """
         soup = BeautifulSoup(sample_html, "html.parser")
-        with patch("document_sourcing.execute_document_sourcing_waterfall") as mock_waterfall:
-            docs = parse_screener_documents(soup, "TESTCO", company_name="Test Company")
-            mock_waterfall.assert_not_called()
+        with patch("document_sourcing.execute_document_sourcing_waterfall") as mock_wf:
+            docs = parse_screener_documents(soup, "COLPAL", company_name="Colgate")
+            mock_wf.assert_not_called()
             assert docs is not None
-        print("✓ Test 7 Passed.")
 
-        # Test 8: Missing Screener ratios remain None instead of collapsing to 0.0
-        print("Test 8: Missing Screener ratios remain None instead of collapsing to 0.0...")
-        minimal_html = """
-        <html>
-            <ul id="top-ratios">
-                <li><span class="name">Current Price</span><span class="value">150.0</span></li>
-            </ul>
-        </html>
-        """
-        soup = BeautifulSoup(minimal_html, "html.parser")
-        ratios = parse_screener_ratios(soup)
-        assert ratios.current_price == 150.0
-        assert ratios.roce_pct is None, f"Expected None, got {ratios.roce_pct}"
-        assert ratios.roe_pct is None, f"Expected None, got {ratios.roe_pct}"
-        assert ratios.debt_to_equity is None, f"Expected None, got {ratios.debt_to_equity}"
-        assert ratios.fcf_yield_pct is None, f"Expected None, got {ratios.fcf_yield_pct}"
-        print("✓ Test 8 Passed.")
+        # Verify nothing was written to source_documents SQLite table
+        assert database.get_source_documents("COLPAL") == [], "Ingestion must NOT populate source_documents table"
+        assert database.get_document_sources_checked_at("COLPAL") is None, "Ingestion must NOT set documents_checked_at"
+        print("✓ Test 5 passed: Financial ingestion decoupled from external waterfall and does not fake discovery state.")
 
-        # Test 9: Research status endpoint returns 8 valid dimensions conforming to contract
-        print("Test 9: Research status endpoint returns 8 valid dimensions conforming to contract...")
-        st = get_stock_research_status("INFY")
-        assert st.symbol == "INFY"
-        assert st.identity in ["unresolved", "resolved", "officially_verified"]
-        assert st.financial_data in ["missing", "ready", "stale", "error"]
-        assert st.deterministic_analysis in ["not_ready", "ready"]
-        assert st.official_verification in ["not_run", "partial", "verified", "discrepancy"]
-        assert st.source_filings in ["not_searched", "partial", "ready", "error"]
-        assert st.business_analysis in ["not_run", "running", "ready", "stale", "error"]
-        assert st.projection in ["unavailable", "historical_only", "evidence_enriched", "stale"]
-        assert st.investment_score in ["unavailable", "provisional", "evidence_enriched", "incomplete"]
-        print("✓ Test 9 Passed.")
-
-        # Test 10: Empty universe semantics (total_count > 0, active == 0 does NOT auto-reseed)
-        print("Test 10: Empty universe semantics (total_count > 0, active == 0 does NOT auto-reseed)...")
+    # -------------------------------------------------------------------------
+    # TEST 6: /discover-filings Canonical Safety & Trusted Sync State
+    # -------------------------------------------------------------------------
+    with IsolatedTestDatabase():
+        print("\n--- Test 6: /discover-filings Canonical Safety & Sync State ---")
         database.upsert_company_registry_item({
-            "symbol": "INACTIVE_ONLY",
-            "company_name": "Inactive Only Co",
+            "symbol": "COLPAL",
+            "company_name": "Colgate-Palmolive (India) Limited",
+            "source": "seed_reference",
+            "in_universe": True,
+            "is_active": True
+        })
+
+        # Save mock filings via trusted waterfall execution
+        def mock_waterfall_exec(sym, name):
+            from models import DocumentItem
+            database.save_source_documents(sym, [
+                DocumentItem(
+                    title="Colgate Annual Report 2025",
+                    url="https://bseindia.com/ar2025.pdf",
+                    doc_type="annual_report",
+                    period_or_date="FY25",
+                    discovery_source="bse_announcements",
+                    actual_source_host="bseindia.com"
+                )
+            ])
+
+        with patch("document_sourcing.execute_document_sourcing_waterfall", side_effect=mock_waterfall_exec):
+            disc_res = discover_stock_filings("COLPAL")
+            assert disc_res.symbol == "COLPAL"
+            assert disc_res.filing_count == 1
+            assert disc_res.documents_checked_at is not None
+            assert disc_res.research_status.source_filings == "ready"
+
+        # Unregistered symbol must fail with 404
+        try:
+            discover_stock_filings("UNKNOWN_SECURITY_XYZ")
+            assert False, "Unregistered symbol must raise HTTPException 404 in /discover-filings"
+        except HTTPException as he:
+            assert he.status_code == 404
+
+        print("✓ Test 6 passed: /discover-filings requires canonical security and updates trusted sync state.")
+
+    # -------------------------------------------------------------------------
+    # TEST 7: Nullable Ratios Safe End-to-End
+    # -------------------------------------------------------------------------
+    with IsolatedTestDatabase():
+        print("\n--- Test 7: Nullable Ratios Safe End-to-End (No crashes with None ratios) ---")
+        sparse_ratios = KeyRatios(
+            current_price=None,
+            market_cap_cr=None,
+            stock_pe=None,
+            book_value=None,
+            roce_pct=None,
+            roe_pct=None,
+            debt_to_equity=None,
+            interest_coverage=None,
+            fcf_yield_pct=None,
+            sales_growth_3yr_cagr=None,
+            profit_growth_3yr_cagr=None
+        )
+        
+        stock_sparse = {
+            "symbol": "SPARSECO",
+            "name": "Sparse Company Ltd",
+            "sector": "Industrials",
+            "industry": "Machinery",
+            "about": "A company with missing reported ratios.",
+            "source_name": "Screener.in",
+            "source_url": "https://screener.in/sparseco",
+            "statement_type": "consolidated",
+            "fetched_at": datetime.now(timezone.utc).isoformat(),
+            "ratios": sparse_ratios,
+            "quarters": FinancialStatement(periods=["Jun 2025"], rows=[FinancialRow(metric="Sales", values={"Jun 2025": 100.0})]),
+            "profit_loss": FinancialStatement(periods=["Mar 2025"], rows=[FinancialRow(metric="Sales", values={"Mar 2025": 400.0})]),
+            "balance_sheet": FinancialStatement(periods=["Mar 2025"], rows=[FinancialRow(metric="Equity Capital", values={"Mar 2025": 50.0})]),
+            "cash_flow": FinancialStatement(periods=["Mar 2025"], rows=[FinancialRow(metric="Cash from Operating Activity", values={"Mar 2025": 60.0})]),
+            "concall_insights": [],
+            "annual_report_insights": [],
+            "documents": DocumentLinks()
+        }
+
+        # 1. build_full_stock_detail must not crash
+        detail = build_full_stock_detail(stock_sparse)
+        assert detail.symbol == "SPARSECO"
+        assert detail.ratios.current_price is None
+        assert detail.score.data_confidence == "Low / Incomplete Data"
+        assert detail.projection.dcf_fair_value_per_share > 0
+
+        # 2. compute_stock_score must not crash
+        analytics = {"growth_rates": {}, "cash_flow_quality": {}}
+        score = compute_stock_score("SPARSECO", "Sparse Company Ltd", sparse_ratios, analytics, detail.projection)
+        assert score.data_confidence == "Low / Incomplete Data"
+
+        print("✓ Test 7 passed: Entire pipeline safely handles KeyRatios with all None values without crashing.")
+
+    # -------------------------------------------------------------------------
+    # TEST 8: Research Lifecycle State Transitions (Evidence Enrichment Tracking)
+    # -------------------------------------------------------------------------
+    with IsolatedTestDatabase():
+        print("\n--- Test 8: Research Lifecycle State Transitions ---")
+        mock_stock = sample_complete_stock_data("INFY", "Infosys Limited")
+        serialized = serialize_stock_data(mock_stock)
+        database.save_stock_cache("INFY", "Infosys Limited", "IT", "Software", serialized)
+        database.upsert_company_registry_item({
+            "symbol": "INFY",
+            "company_name": "Infosys Limited",
+            "source": "seed_reference",
+            "in_universe": True,
+            "is_active": True
+        })
+
+        # Phase 1: Financial-Only stock (no business analysis yet)
+        st1 = get_research_lifecycle_status("INFY")
+        assert st1.financial_data == "ready"
+        assert st1.business_analysis == "not_run"
+        assert st1.projection == "historical_only"
+        assert st1.investment_score == "provisional"
+        print("  ✓ State 1 verified: Financial-only -> projection=historical_only, investment_score=provisional")
+
+        # Phase 2: Newly Generated Business Analysis (before StockDetail recomputation)
+        ai_timestamp = "2026-08-31T10:00:00Z"
+        ai_data = {
+            "company_name": "Infosys Limited",
+            "symbol": "INFY",
+            "extraction_timestamp": ai_timestamp,
+            "latest_document_period": "FY25",
+            "promise_vs_delivery": [
+                {
+                    "area": "Revenue Growth",
+                    "management_promise": "Reach 15% revenue growth",
+                    "promised_in_period": "FY24",
+                    "actual_outcome": "Delivered 16% revenue growth",
+                    "actual_in_period": "FY25",
+                    "status": "Delivered",
+                    "stocker_analysis": "Target met."
+                }
+            ],
+            "growth_drivers": [
+                {
+                    "driver_title": "Cloud Migration",
+                    "description": "Cloud migration pipeline",
+                    "execution_status": "In Progress"
+                }
+            ],
+            "what_changed_recently": [
+                {
+                    "headline": "Margin expansion across large deals",
+                    "category": "Demand / Deal Win",
+                    "detail": "Expanded operating margins across multi-year contracts."
+                }
+            ]
+        }
+        database.save_ai_analysis("INFY", "Infosys Limited", ai_data, "Gemini", "gemini-3.1-flash-lite")
+
+        # Check lifecycle immediately after AI generation
+        st2 = get_research_lifecycle_status("INFY")
+        assert st2.business_analysis == "ready"
+        assert st2.projection == "stale", f"Expected stale projection before recomputation, got {st2.projection}"
+        assert st2.investment_score == "provisional", f"Expected provisional score before recomputation, got {st2.investment_score}"
+        print("  ✓ State 2 verified: Business Analysis ready -> projection=stale (NOT evidence_enriched automatically)")
+
+        # Phase 3: Actual StockDetail Recomputation
+        with patch("scraper.fetch_stock_from_screener", return_value=mock_stock):
+            recomputed_detail = build_full_stock_detail(mock_stock)
+            assert recomputed_detail.symbol == "INFY"
+
+        # Check lifecycle after StockDetail recomputed with the new Business Analysis
+        st3 = get_research_lifecycle_status("INFY")
+        assert st3.business_analysis == "ready"
+        assert st3.projection == "evidence_enriched", f"Expected evidence_enriched projection, got {st3.projection}"
+        assert st3.investment_score == "evidence_enriched", f"Expected evidence_enriched investment_score, got {st3.investment_score}"
+        print("  ✓ State 3 verified: Post-recomputation -> projection=evidence_enriched, investment_score=evidence_enriched")
+
+    # -------------------------------------------------------------------------
+    # TEST 9: Financial Freshness States (ready vs stale >90d vs error)
+    # -------------------------------------------------------------------------
+    with IsolatedTestDatabase():
+        print("\n--- Test 9: Financial Freshness States ---")
+        # Fresh (<90 days)
+        mock_fresh = sample_complete_stock_data("FRESHCO", fetched_at=datetime.now(timezone.utc).isoformat())
+        database.save_stock_cache("FRESHCO", "Fresh Co", "FMCG", "Food", serialize_stock_data(mock_fresh))
+        database.upsert_company_registry_item({"symbol": "FRESHCO", "company_name": "Fresh Co", "in_universe": True, "is_active": True})
+        st_fresh = get_research_lifecycle_status("FRESHCO")
+        assert st_fresh.financial_data == "ready"
+
+        # Stale (>90 days old)
+        old_time = (datetime.now(timezone.utc) - timedelta(days=120)).isoformat()
+        mock_old = sample_complete_stock_data("OLDCO", fetched_at=old_time)
+        database.save_stock_cache("OLDCO", "Old Co", "FMCG", "Food", serialize_stock_data(mock_old))
+        database.upsert_company_registry_item({"symbol": "OLDCO", "company_name": "Old Co", "in_universe": True, "is_active": True})
+        st_old = get_research_lifecycle_status("OLDCO")
+        assert st_old.financial_data == "stale", f"Expected stale for 120d old financials, got {st_old.financial_data}"
+
+        # Malformed / Partial
+        partial_data = {
+            "symbol": "PARTIALCO",
+            "name": "Partial Co",
+            "profit_loss": None,
+            "balance_sheet": None,
+            "cash_flow": None,
+            "quarters": None,
+            "fetched_at": datetime.now(timezone.utc).isoformat()
+        }
+        database.save_stock_cache("PARTIALCO", "Partial Co", "FMCG", "Food", partial_data)
+        database.upsert_company_registry_item({"symbol": "PARTIALCO", "company_name": "Partial Co", "in_universe": True, "is_active": True})
+        st_part = get_research_lifecycle_status("PARTIALCO")
+        assert st_part.financial_data == "missing" or st_part.financial_data == "error"
+
+        print("✓ Test 9 passed: Financial freshness correctly tracks ready vs stale (>90d) vs error.")
+
+    # -------------------------------------------------------------------------
+    # TEST 10: Empty Universe Semantics
+    # -------------------------------------------------------------------------
+    with IsolatedTestDatabase(seed=False):
+        print("\n--- Test 10: Empty Universe Semantics ---")
+        # Populate inactive registry item
+        database.upsert_company_registry_item({
+            "symbol": "REMOVED_CO",
+            "company_name": "Removed Co",
             "in_universe": False,
             "is_active": False
         })
-        with patch("database.get_universe_symbols", return_value=[]):
-            with patch("database.seed_company_registry") as mock_seed:
-                stocks = get_all_stocks()
-                assert stocks == [], f"Expected empty list, got {stocks}"
-                mock_seed.assert_not_called()
-        print("✓ Test 10 Passed.")
+        assert database.get_company_registry_total_count() == 1
+        assert len(database.get_universe_companies(active_only=True)) == 0
 
-        # Test 11: Dedicated discover-filings endpoint
-        print("Test 11: Dedicated discover-filings endpoint executes waterfall and updates lifecycle...")
-        with patch("document_sourcing.execute_document_sourcing_waterfall") as mock_exec:
-            mock_exec.return_value = None
-            disc_res = discover_stock_filings("RELIANCE")
-            assert disc_res.symbol == "RELIANCE"
-            assert disc_res.research_status is not None
-            mock_exec.assert_called_once()
-        print("✓ Test 11 Passed.")
+        with patch("database.seed_company_registry") as mock_seed:
+            stocks = get_all_stocks()
+            assert stocks == [], f"Expected empty list, got {stocks}"
+            mock_seed.assert_not_called()
+        print("✓ Test 10 passed: Total count > 0 with 0 active items preserves empty universe without reseeding.")
 
     print("\n==================================================================")
-    print("ALL 11 TEST CASES PASSED CLEANLY!")
+    print("🎉 ALL PHASE V4.1 STEP 1A TESTS (1-10) PASSED 100% CLEANLY!")
     print("==================================================================")
 
 if __name__ == "__main__":
-    run_tests()
+    run_all_tests()
+

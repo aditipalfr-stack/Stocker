@@ -36,14 +36,14 @@ def derive_projection_assumptions(
     # 1. Historical Baselines
     hist_sales_cagr = growth_rates.get("sales_cagr_3yr")
     if hist_sales_cagr is None:
-        hist_sales_cagr = ratios.sales_growth_3yr_cagr or 10.0
+        hist_sales_cagr = ratios.sales_growth_3yr_cagr if ratios.sales_growth_3yr_cagr is not None else 10.0
     hist_sales_cagr = max(-10.0, min(50.0, hist_sales_cagr))
 
     hist_opm_median = hist_params.get("opm_median_pct", 18.0)
     hist_capex_pct = hist_params.get("capex_to_sales_pct", 5.0)
     hist_tax_rate = hist_params.get("effective_tax_rate_pct", 25.0)
     
-    stock_pe = ratios.stock_pe if (ratios.stock_pe and 5.0 <= ratios.stock_pe <= 100.0) else 22.0
+    stock_pe = ratios.stock_pe if (ratios.stock_pe is not None and 5.0 <= ratios.stock_pe <= 100.0) else 22.0
 
     # 2. Integrate Forward Document Intelligence Drivers
     forward_drivers = []
@@ -182,8 +182,8 @@ def run_projections(
     hist_opm_median = round(sum(valid_opms[-5:]) / len(valid_opms[-5:]), 1) if valid_opms else 18.0
 
     # Shares outstanding calculation
-    current_price = ratios.current_price if ratios.current_price > 0 else 100.0
-    market_cap_cr = ratios.market_cap_cr if ratios.market_cap_cr > 0 else 1000.0
+    current_price = ratios.current_price if (ratios.current_price is not None and ratios.current_price > 0) else 100.0
+    market_cap_cr = ratios.market_cap_cr if (ratios.market_cap_cr is not None and ratios.market_cap_cr > 0) else 1000.0
     shares_outstanding_cr = market_cap_cr / current_price  # e.g. 17.63 Lakh Cr / 1303 = 1353 Cr shares
     if shares_outstanding_cr <= 0:
         shares_outstanding_cr = 1.0
@@ -287,17 +287,22 @@ def run_projections(
     enterprise_value = pv_fcf_sum + pv_terminal_value
     equity_value = enterprise_value - (net_debt if net_debt > 0 else net_debt * 0.5)
     dcf_fair_value = round(equity_value / shares_outstanding_cr, 2)
-    dcf_upside = round(((dcf_fair_value - current_price) / current_price) * 100.0, 1)
     
     # 4. Exit Multiple Valuation (Year 3 Target Price)
     yr3_eps = projections[2].eps
     target_price_exit_pe = round(yr3_eps * exit_pe, 2)
-    target_price_upside = round(((target_price_exit_pe - current_price) / current_price) * 100.0, 1)
-    
-    # 3-Yr Expected IRR (CAGR)
-    if target_price_exit_pe > 0 and current_price > 0:
-        irr = round(((target_price_exit_pe / current_price) ** (1.0 / 3.0) - 1.0) * 100.0, 1)
+
+    # 5. Upsides & 3-Yr Expected IRR (CAGR)
+    if ratios.current_price is not None and ratios.current_price > 0:
+        dcf_upside = round(((dcf_fair_value - ratios.current_price) / ratios.current_price) * 100.0, 1)
+        target_price_upside = round(((target_price_exit_pe - ratios.current_price) / ratios.current_price) * 100.0, 1)
+        if target_price_exit_pe > 0:
+            irr = round(((target_price_exit_pe / ratios.current_price) ** (1.0 / 3.0) - 1.0) * 100.0, 1)
+        else:
+            irr = 0.0
     else:
+        dcf_upside = 0.0
+        target_price_upside = 0.0
         irr = 0.0
 
     return ProjectionResult(

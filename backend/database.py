@@ -205,6 +205,16 @@ def init_db() -> None:
             """)
             conn.execute("CREATE INDEX IF NOT EXISTS idx_verif_sym_period ON financial_verification_records(symbol, canonical_period, canonical_metric);")
             conn.execute("CREATE INDEX IF NOT EXISTS idx_verif_status ON financial_verification_records(status);")
+
+            # 10. Projection & Score Computation State (tracks evidence enrichment vs AI updates)
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS projection_computation_state (
+                    symbol TEXT PRIMARY KEY,
+                    fin_data_version TEXT,
+                    doc_intel_version TEXT,
+                    computed_at TEXT NOT NULL
+                );
+            """)
     finally:
         conn.close()
 
@@ -268,6 +278,40 @@ def save_stock_cache(symbol: str, name: str, sector: str, industry: str, data: D
                     data_json = excluded.data_json,
                     updated_at = excluded.updated_at
             """, (clean_sym, name, sector, industry, json.dumps(data, default=_db_json_serializer), now_iso))
+    finally:
+        conn.close()
+
+def record_projection_computation_state(
+    symbol: str, 
+    fin_data_version: Optional[str] = None, 
+    doc_intel_version: Optional[str] = None
+) -> None:
+    """Records the exact financial data and business analysis versions used in the latest projection computation."""
+    clean_sym = symbol.upper().strip()
+    now_iso = datetime.now(timezone.utc).isoformat()
+    conn = get_db_connection()
+    try:
+        with conn:
+            conn.execute("""
+                INSERT INTO projection_computation_state (symbol, fin_data_version, doc_intel_version, computed_at)
+                VALUES (?, ?, ?, ?)
+                ON CONFLICT(symbol) DO UPDATE SET
+                    fin_data_version = excluded.fin_data_version,
+                    doc_intel_version = excluded.doc_intel_version,
+                    computed_at = excluded.computed_at
+            """, (clean_sym, fin_data_version, doc_intel_version, now_iso))
+    finally:
+        conn.close()
+
+def get_projection_computation_state(symbol: str) -> Optional[Dict[str, Any]]:
+    """Retrieves the latest recorded projection computation state."""
+    clean_sym = symbol.upper().strip()
+    conn = get_db_connection()
+    try:
+        cur = conn.cursor()
+        cur.execute("SELECT * FROM projection_computation_state WHERE symbol = ?", (clean_sym,))
+        row = cur.fetchone()
+        return dict(row) if row else None
     finally:
         conn.close()
 

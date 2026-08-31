@@ -155,15 +155,21 @@ def compute_stock_score(
     # 5. Valuation Margin & IRR Score (0 - 100)
     # -------------------------------------------------------------------------
     val_score = 0.0
-    if dcf_upside >= 30.0: val_score += 45.0
-    elif dcf_upside >= 10.0: val_score += 30.0
-    elif dcf_upside >= -10.0: val_score += 18.0
-    else: val_score += 5.0
+    if dcf_upside is not None:
+        if dcf_upside >= 30.0: val_score += 45.0
+        elif dcf_upside >= 10.0: val_score += 30.0
+        elif dcf_upside >= -10.0: val_score += 18.0
+        else: val_score += 5.0
+    else:
+        val_score += 15.0
     
-    if irr >= 18.0: val_score += 45.0
-    elif irr >= 12.0: val_score += 30.0
-    elif irr >= 7.0: val_score += 18.0
-    else: val_score += 5.0
+    if irr is not None:
+        if irr >= 18.0: val_score += 45.0
+        elif irr >= 12.0: val_score += 30.0
+        elif irr >= 7.0: val_score += 18.0
+        else: val_score += 5.0
+    else:
+        val_score += 15.0
 
     if pe is not None and pe > 0:
         if pe < 20.0: val_score += 10.0
@@ -248,9 +254,9 @@ def compute_stock_score(
 
     thesis_parts = []
     if final_eff_score >= 75.0:
-        thesis_parts.append(f"Strong capital efficiency (ROCE: {roce or 'N/A'}%, ROE: {roe or 'N/A'}%)")
+        thesis_parts.append(f"Strong capital efficiency (ROCE: {roce if roce is not None else 'N/A'}%, ROE: {roe if roe is not None else 'N/A'}%)")
     if final_cash_score >= 75.0 and not is_banking:
-        thesis_parts.append(f"Healthy cash generation (5Y CFO/PAT: {cfo_to_pat or 'N/A'}%)")
+        thesis_parts.append(f"Healthy cash generation (5Y CFO/PAT: {cfo_to_pat if cfo_to_pat is not None else 'N/A'}%)")
     if exec_impact > 0:
         thesis_parts.append("Proven management execution track record on stated milestones")
     elif exec_impact < 0:
@@ -258,7 +264,7 @@ def compute_stock_score(
     if growth_vis_impact > 0:
         thesis_parts.append("Visible upcoming capacity additions / order book execution pipeline")
     if final_val_score >= 75.0:
-        thesis_parts.append(f"Valuation upside ({dcf_upside}% DCF margin, {irr}% 3Y IRR)")
+        thesis_parts.append(f"Valuation upside ({dcf_upside if dcf_upside is not None else 0.0}% DCF margin, {irr if irr is not None else 0.0}% 3Y IRR)")
 
     catalysts = []
     risks = []
@@ -270,9 +276,9 @@ def compute_stock_score(
         if has_cwip_trigger:
             catalysts.append("Upcoming commercial commissioning from active CWIP capacity")
         catalysts.append(f"Forward sales growth projected at {projection.assumptions.revenue_growth_rate_pct}% ({projection.assumptions.revenue_growth_source})")
-        if debt_eq and debt_eq > 0.9 and not is_banking:
+        if debt_eq is not None and debt_eq > 0.9 and not is_banking:
             risks.append(f"Elevated debt-to-equity ratio of {debt_eq}x in a high interest rate regime")
-        if pe and pe > 50.0:
+        if pe is not None and pe > 50.0:
             risks.append(f"Elevated valuation multiple (P/E {pe}x) leaves little margin for execution delays")
         if not risks:
             risks.append("Sector demand moderation or input cost inflation impacting operating margins")

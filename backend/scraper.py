@@ -307,16 +307,7 @@ def hydrate_stock_data(cached_dict: Dict[str, Any]) -> Dict[str, Any]:
     )
     data["documents"] = doc_links
     
-    # Sync re-classified documents into SQLite source_documents index
     clean_sym = data.get("symbol", "").upper().strip()
-    if clean_sym:
-        all_docs = ar_list + cc_list + ppt_list + ann_list
-        if all_docs:
-            try:
-                database.save_source_documents(clean_sym, all_docs)
-            except Exception:
-                pass
-                
     data["documents_checked_at"] = database.get_document_sources_checked_at(clean_sym) or cached_dict.get("documents_checked_at")
     return data
 
@@ -353,10 +344,12 @@ def serialize_stock_data(stock_data: Dict[str, Any]) -> Dict[str, Any]:
 def fetch_stock_from_screener(symbol: str, force_refresh: bool = False) -> Optional[Dict[str, Any]]:
     """
     Ingests exact raw financial statement data from Screener.in.
-    Priority:
-    1. Valid fresh cache (within 12 hours) if force_refresh is False
-    2. Live Screener.in scrape
-    3. Expired cache (as fallback if live scrape fails)
+    Primary durable storage: SQLite stocks_cache table.
+    Read priority:
+    1. SQLite persisted stock cache (fresh within 12 hours) if force_refresh is False
+    2. Legacy JSON cache (stocks_cache.json) if needed for backward compatibility
+    3. Live Screener.in scrape
+    4. Expired persisted cache (SQLite or JSON fallback if live scrape fails)
     
     SEED_STOCKS is NEVER used as a source of truth for financial statements.
     """
@@ -364,13 +357,33 @@ def fetch_stock_from_screener(symbol: str, force_refresh: bool = False) -> Optio
     os.makedirs(CACHE_DIR, exist_ok=True)
     
     cached_entry = None
-    # 1. Check local cache freshness
-    if os.path.exists(CACHE_FILE):
+    
+    # 1. Primary Durable Cache: SQLite stocks_cache table
+    try:
+        sqlite_cached = database.get_stock_cache(clean_sym)
+        if sqlite_cached and isinstance(sqlite_cached, dict):
+            cached_entry = sqlite_cached
+            if not force_refresh:
+                fetched_at_str = cached_entry.get("fetched_at")
+                if fetched_at_str:
+                    try:
+                        fetched_dt = datetime.fromisoformat(fetched_at_str.replace("Z", "+00:00"))
+                        age_seconds = (datetime.now(timezone.utc) - fetched_dt).total_seconds()
+                        if age_seconds < CACHE_TTL_SECONDS:
+                            # Fresh SQLite cache hit!
+                            return hydrate_stock_data(cached_entry)
+                    except Exception:
+                        pass
+    except Exception as e:
+        print(f"Notice: SQLite cache read note for {clean_sym}: {e}")
+
+    # 2. Secondary / Legacy Cache: JSON stocks_cache.json
+    if not cached_entry and os.path.exists(CACHE_FILE):
         try:
             with open(CACHE_FILE, "r") as f:
-                cache = json.load(f)
-                if clean_sym in cache:
-                    cached_entry = cache[clean_sym]
+                j_cache = json.load(f)
+                if clean_sym in j_cache:
+                    cached_entry = j_cache[clean_sym]
                     if not force_refresh:
                         fetched_at_str = cached_entry.get("fetched_at")
                         if fetched_at_str:
@@ -378,14 +391,14 @@ def fetch_stock_from_screener(symbol: str, force_refresh: bool = False) -> Optio
                                 fetched_dt = datetime.fromisoformat(fetched_at_str.replace("Z", "+00:00"))
                                 age_seconds = (datetime.now(timezone.utc) - fetched_dt).total_seconds()
                                 if age_seconds < CACHE_TTL_SECONDS:
-                                    # Fresh cache hit!
+                                    # Fresh JSON cache hit!
                                     return hydrate_stock_data(cached_entry)
                             except Exception:
                                 pass
         except Exception as e:
-            print(f"Error reading cache for {clean_sym}: {e}")
+            print(f"Error reading JSON cache for {clean_sym}: {e}")
 
-    # 2. Live Scraper from Screener.in
+    # 3. Live Scraper from Screener.in
     scrape_result = fetch_screener_html(clean_sym)
     if not scrape_result:
         # Fallback to expired cache if available
@@ -418,7 +431,6 @@ def fetch_stock_from_screener(symbol: str, force_refresh: bool = False) -> Optio
             return hydrate_stock_data(cached_entry)
         return None
 
-    # Metadata enrichment from static COMPANY_METADATA if available
     meta = COMPANY_METADATA.get(clean_sym, {})
     sector = meta.get("sector", "Broad Market")
     industry = meta.get("industry", "Indian Equities")
@@ -449,35 +461,25 @@ def fetch_stock_from_screener(symbol: str, force_refresh: bool = False) -> Optio
         "concall_insights": concall_insights,
         "annual_report_insights": ar_insights,
         "documents": documents,
-        "documents_checked_at": getattr(documents, "checked_at", None) or fetched_at
+        "documents_checked_at": getattr(documents, "checked_at", None) or database.get_document_sources_checked_at(clean_sym) or None
     }
     
-    # Save to Cache (JSON & SQLite)
+    # Save to Durable Cache (SQLite primary, JSON secondary)
     serialized = serialize_stock_data(stock_data)
+    try:
+        database.save_stock_cache(clean_sym, company_name, sector, industry, serialized)
+    except Exception as e_db:
+        print(f"Notice: Database stock cache save notice for {clean_sym}: {e_db}")
+        
     try:
         cache_data = {}
         if os.path.exists(CACHE_FILE):
             with open(CACHE_FILE, "r") as f:
                 cache_data = json.load(f)
-                
         cache_data[clean_sym] = serialized
         with open(CACHE_FILE, "w") as f:
             json.dump(cache_data, f, indent=2)
     except Exception as e:
-        print(f"Error updating cache for {clean_sym}: {e}")
-        
-    try:
-        database.save_stock_cache(clean_sym, company_name, sector, industry, serialized)
-        database.upsert_company_registry_item({
-            "symbol": clean_sym,
-            "company_name": company_name,
-            "sector": sector,
-            "industry": industry,
-            "source": "screener_ingestion",
-            "in_universe": True,
-            "is_active": True
-        })
-    except Exception as e_db:
-        print(f"Notice: Database sync skipped for {clean_sym}: {e_db}")
+        print(f"Error updating JSON cache for {clean_sym}: {e}")
         
     return stock_data

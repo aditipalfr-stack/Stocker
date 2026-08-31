@@ -38,10 +38,10 @@ def get_research_lifecycle_status(symbol: str) -> ResearchLifecycleStatus:
         notes.append("Unregistered or ambiguous company identity.")
 
     # 2. FINANCIAL DATA & CACHE STATE
-    # - ready: valid persisted financial statements present
-    # - stale: statements older than standard freshness window
+    # - ready: valid persisted financial statements present and fresh
+    # - stale: statements older than standard freshness window (90 days)
     # - missing: no statements cached/stored
-    # - error: malformed data
+    # - error: malformed or partial data
     cached = database.get_stock_cache(clean_sym)
     fin_updated_at: Optional[str] = None
     financial_data_state = "missing"
@@ -56,11 +56,25 @@ def get_research_lifecycle_status(symbol: str) -> ResearchLifecycleStatus:
 
         if has_pl and has_bs and has_cf and has_q:
             has_statements = True
-            financial_data_state = "ready"
-            notes.append("Standardized reported financial statements ingested.")
+            # Check age for genuine staleness (90 days)
+            is_old = False
+            if fin_updated_at:
+                try:
+                    f_dt = datetime.fromisoformat(fin_updated_at.replace("Z", "+00:00"))
+                    age_days = (datetime.now(timezone.utc) - f_dt).total_seconds() / 86400.0
+                    if age_days > 90.0:
+                        is_old = True
+                except Exception:
+                    pass
+            if is_old:
+                financial_data_state = "stale"
+                notes.append("Financial statements are older than standard freshness window.")
+            else:
+                financial_data_state = "ready"
+                notes.append("Standardized reported financial statements ingested.")
         elif has_pl or has_bs or has_cf or has_q:
-            financial_data_state = "stale"
-            notes.append("Partial or un-hydrated financial statements present.")
+            financial_data_state = "error"
+            notes.append("Malformed or incomplete financial statements present.")
     else:
         notes.append("Financial statement ingestion has not been run.")
 
@@ -142,40 +156,45 @@ def get_research_lifecycle_status(symbol: str) -> ResearchLifecycleStatus:
     except Exception as e:
         notes.append(f"Business Analysis lookup notice: {e}")
 
-    # 7. PROJECTION STATE
+    # 7. PROJECTION STATE & 8. INVESTMENT SCORE STATE
     # - evidence_enriched: DCF valuation incorporates verified guidance & business drivers from Business Analysis
     # - historical_only: DCF based on historical financial trends & baseline assumptions
     # - stale: Business Analysis was updated but projections have not incorporated new evidence
     # - unavailable: insufficient financial data
-    projection_updated_at: Optional[str] = None
+    proj_rec = database.get_projection_computation_state(clean_sym)
+    projection_updated_at: Optional[str] = proj_rec.get("computed_at") if proj_rec else fin_updated_at
+
     if has_statements:
-        projection_updated_at = fin_updated_at
-        if business_analysis_state == "ready":
-            # When Business Analysis is ready and fresh, projections are evidence-enriched
-            projection_state = "evidence_enriched"
-            notes.append("Evidence-enriched DCF scenario model incorporating forward guidance.")
-        elif business_analysis_state == "stale":
-            projection_state = "stale"
-            notes.append("Projection is pending recomputation following new Business Analysis evidence.")
+        if business_analysis_state in ("ready", "stale"):
+            # Check if projection was actually computed with the current Business Analysis version
+            if proj_rec and proj_rec.get("doc_intel_version") and proj_rec.get("doc_intel_version") == ba_updated_at:
+                projection_state = "evidence_enriched"
+                investment_score_state = "evidence_enriched"
+                notes.append("Evidence-enriched DCF scenario model incorporating forward guidance.")
+            else:
+                projection_state = "stale"
+                investment_score_state = "provisional"
+                notes.append("Projection is pending recomputation following new Business Analysis evidence.")
         else:
-            projection_state = "historical_only"
-            notes.append("Historical-only baseline projection from financial statements.")
+            if financial_data_state == "ready":
+                projection_state = "historical_only"
+                notes.append("Historical-only baseline projection from financial statements.")
+                # Check if missing fundamental ratios make score incomplete
+                cached_ratios = cached.get("ratios", {}) if cached else {}
+                if isinstance(cached_ratios, dict) and (cached_ratios.get("stock_pe") is None or cached_ratios.get("roce_pct") is None):
+                    investment_score_state = "incomplete"
+                    notes.append("Incomplete investment score due to missing fundamental ratio inputs.")
+                else:
+                    investment_score_state = "provisional"
+                    notes.append("Provisional investment score derived from financial statements.")
+            else:
+                projection_state = "unavailable"
+                investment_score_state = "unavailable"
+                notes.append("Insufficient financial data for DCF valuation modeling.")
     else:
         projection_state = "unavailable"
-        notes.append("Insufficient financial data for DCF valuation modeling.")
-
-    # 8. INVESTMENT SCORE STATE
-    # - evidence_enriched: full score supported by evidence-enriched projections & execution track record
-    # - provisional: financial-only scoring before document intelligence
-    # - incomplete: missing key statements/ratios
-    # - unavailable: no financial data
-    if projection_state == "evidence_enriched":
-        investment_score_state = "evidence_enriched"
-    elif deterministic_analysis_state == "ready":
-        investment_score_state = "provisional"
-        notes.append("Provisional investment score derived from financial statements.")
-    else:
         investment_score_state = "unavailable"
+        notes.append("Insufficient financial data for DCF valuation modeling.")
 
     return ResearchLifecycleStatus(
         symbol=clean_sym,

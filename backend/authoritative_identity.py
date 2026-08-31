@@ -304,8 +304,8 @@ def fetch_official_identity_from_exchange(
             if series not in ("EQ", "BE", ""):
                 continue
                 
-            # Match by Symbol or ISIN
-            if clean_input in (nse_sym, isin_code):
+            # Match by Symbol, ISIN, or exact normalized legal company name
+            if clean_input in (nse_sym, isin_code) or (len(clean_input) >= 4 and normalize_legal_name(comp_name) == normalize_legal_name(clean_input)):
                 return {
                     "symbol": nse_sym,
                     "company_name": comp_name,

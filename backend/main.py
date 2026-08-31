@@ -104,6 +104,14 @@ def build_full_stock_detail(stock_data: Dict[str, Any], custom_assumptions: Opti
     verif_summary_dict = database.get_financial_verification_summary(symbol)
     verif_summary = FinancialVerificationSummary(**verif_summary_dict) if verif_summary_dict else None
 
+    # Record projection computation state (tracks doc_intel version used)
+    doc_intel_version = getattr(doc_intel, "extraction_timestamp", None) if doc_intel else None
+    database.record_projection_computation_state(
+        symbol=symbol,
+        fin_data_version=fetched_at,
+        doc_intel_version=doc_intel_version
+    )
+
     return StockDetail(
         symbol=symbol,
         name=name,
@@ -227,13 +235,43 @@ def search_companies(q: str = Query(..., min_length=1, description="Company name
     )
 
 def execute_add_company_to_universe(symbol_or_query: str) -> AddCompanyResponse:
+    """
+    Unified execution pipeline for adding or searching a company:
+    1. Reconciles raw query against authoritative exchange master and local registry.
+    2. Fails closed with 409 AMBIGUOUS_COMPANY on competing candidates.
+    3. Fails closed with 404 on unverified / unresolved inputs.
+    4. Ingests financial statements into primary durable SQLite storage.
+    5. Returns AddCompanyResponse with full StockDetail and 8-dimension ResearchLifecycleStatus.
+    """
+    from company_resolver import resolve_proven_security_for_add
     clean_input = symbol_or_query.strip()
     if not clean_input:
         raise HTTPException(status_code=400, detail="Company symbol or query cannot be empty.")
         
-    canonical_info = resolve_canonical_company(clean_input)
+    canonical_info, is_ambiguous, candidates = resolve_proven_security_for_add(clean_input)
+    if is_ambiguous:
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "code": "AMBIGUOUS_COMPANY",
+                "message": f"Multiple listed securities match query '{clean_input}'. Please select a specific candidate.",
+                "candidates": [
+                    {
+                        "symbol": c.get("symbol"),
+                        "company_name": c.get("company_name"),
+                        "nse_symbol": c.get("nse_symbol"),
+                        "bse_code": c.get("bse_code"),
+                        "match_score": c.get("match_score")
+                    } for c in candidates[:6]
+                ]
+            }
+        )
+        
     if not canonical_info:
-        raise HTTPException(status_code=404, detail=f"Could not resolve listed company for '{clean_input}'.")
+        raise HTTPException(
+            status_code=404, 
+            detail=f"Could not resolve a verified listed security for '{clean_input}'. Please verify company name or ticker symbol."
+        )
         
     canonical_sym = canonical_info.get("symbol", "").upper().strip()
     company_name = canonical_info.get("company_name", canonical_sym)
@@ -242,7 +280,7 @@ def execute_add_company_to_universe(symbol_or_query: str) -> AddCompanyResponse:
     existing = database.get_company_by_symbol(canonical_sym)
     already_existed = bool(existing and existing.get("in_universe") and existing.get("is_active"))
     
-    # Ingest financial statements using standardized Screener ingestion
+    # Ingest financial statements using standardized Screener ingestion (durable in SQLite)
     stock_data = fetch_stock_from_screener(canonical_sym, force_refresh=True)
     if not stock_data:
         # If live scrape failed, attempt fallback resolution without force_refresh
@@ -327,18 +365,29 @@ def discover_stock_filings(symbol: str):
     """
     Executes explicit document discovery waterfall (BSE, NSE, Company IR, network validation),
     indexes metadata into source_documents table, and updates sync state without running AI.
+    Requires registered or verified canonical company.
     """
     from datetime import datetime, timezone
+    from company_resolver import resolve_canonical_company
     clean_sym = symbol.upper().strip()
-    company_name = clean_sym
+    
+    # 1. Resolve canonical security identity
     reg = database.get_company_by_symbol(clean_sym)
-    if reg:
-        company_name = reg.get("company_name", clean_sym)
-    else:
-        cached = database.get_stock_cache(clean_sym)
-        if cached:
-            company_name = cached.get("company_name", clean_sym)
+    if not reg:
+        canonical_cand = resolve_canonical_company(clean_sym)
+        if canonical_cand and canonical_cand.get("source") != "unresolved_input":
+            clean_sym = canonical_cand.get("symbol", clean_sym).upper().strip()
+            reg = database.get_company_by_symbol(clean_sym) or canonical_cand
             
+    if not reg:
+        raise HTTPException(
+            status_code=404, 
+            detail=f"Cannot discover filings: '{symbol}' is not a registered or verified listed company."
+        )
+        
+    company_name = reg.get("company_name", clean_sym)
+    
+    # 2. Run explicit trusted document waterfall
     from document_sourcing import execute_document_sourcing_waterfall
     execute_document_sourcing_waterfall(clean_sym, company_name)
     
