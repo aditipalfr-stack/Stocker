@@ -141,38 +141,65 @@ def format_financials_for_prompt(symbol: str, stock_data: Optional[Dict[str, Any
         if pat: lines.append(f"{'Net Profit':<18} | " + " | ".join(f"{str(v or '-'):>8}" for v in pat[-6:]))
         if eps: lines.append(f"{'EPS (₹)':<18} | " + " | ".join(f"{str(v or '-'):>8}" for v in eps[-6:]))
         
-    # 2. Cash Flow Summary
-    cf_years, cf_rows = _extract_statement_table(cf_data)
-    if cf_years:
-        cfo = cf_rows.get("Cash from Operating Activity", []) or cf_rows.get("Operating Cash Flow", []) or cf_rows.get("CFO", [])
-        if cfo:
-            lines.append("\n[Operating Cash Flow (CFO)]")
-            lines.append(f"{'CFO (₹ Cr)':<18} | " + " | ".join(f"{str(v or '-'):>8}" for v in cfo[-6:]))
-
-    # 3. Balance Sheet Capex & Debt
+    # 2. Balance Sheet Summary
     bs_years, bs_rows = _extract_statement_table(bs_data)
     if bs_years:
-        borrowings = bs_rows.get("Borrowings", [])
+        eq = bs_rows.get("Equity Capital", []) or bs_rows.get("Share Capital", [])
+        res = bs_rows.get("Reserves", [])
+        borr = bs_rows.get("Borrowings", []) or bs_rows.get("Total Debt", [])
+        fa = bs_rows.get("Fixed Assets", [])
         cwip = bs_rows.get("CWIP", [])
-        fixed_assets = bs_rows.get("Fixed Assets", [])
-        lines.append("\n[Balance Sheet & Capex]")
-        if borrowings: lines.append(f"{'Borrowings':<18} | " + " | ".join(f"{str(v or '-'):>8}" for v in borrowings[-6:]))
-        if fixed_assets: lines.append(f"{'Fixed Assets':<18} | " + " | ".join(f"{str(v or '-'):>8}" for v in fixed_assets[-6:]))
-        if cwip: lines.append(f"{'CWIP (Work-in-Prog)':<18} | " + " | ".join(f"{str(v or '-'):>8}" for v in cwip[-6:]))
-
-    # 4. Recent Quarters
+        tot_a = bs_rows.get("Total Assets", [])
+        
+        lines.append("\n[Balance Sheet Position (₹ in Crores)]")
+        header = f"{'Metric':<18} | " + " | ".join(f"{str(y):>8}" for y in bs_years[-6:])
+        lines.append(header)
+        lines.append("-" * len(header))
+        if eq: lines.append(f"{'Equity Capital':<18} | " + " | ".join(f"{str(v or '-'):>8}" for v in eq[-6:]))
+        if res: lines.append(f"{'Reserves':<18} | " + " | ".join(f"{str(v or '-'):>8}" for v in res[-6:]))
+        if borr: lines.append(f"{'Borrowings':<18} | " + " | ".join(f"{str(v or '-'):>8}" for v in borr[-6:]))
+        if fa: lines.append(f"{'Fixed Assets':<18} | " + " | ".join(f"{str(v or '-'):>8}" for v in fa[-6:]))
+        if cwip: lines.append(f"{'CWIP':<18} | " + " | ".join(f"{str(v or '-'):>8}" for v in cwip[-6:]))
+        if tot_a: lines.append(f"{'Total Assets':<18} | " + " | ".join(f"{str(v or '-'):>8}" for v in tot_a[-6:]))
+        
+    # 3. Cash Flow Generation
+    cf_years, cf_rows = _extract_statement_table(cf_data)
+    if cf_years:
+        cfo = cf_rows.get("Cash from Operating Activity", []) or cf_rows.get("CFO", [])
+        cfi = cf_rows.get("Cash from Investing Activity", []) or cf_rows.get("CFI", [])
+        cff = cf_rows.get("Cash from Financing Activity", []) or cf_rows.get("CFF", [])
+        fa_purch = cf_rows.get("Fixed assets purchased", []) or cf_rows.get("Capex", [])
+        
+        lines.append("\n[Cash Flow Generation (₹ in Crores)]")
+        header = f"{'Metric':<18} | " + " | ".join(f"{str(y):>8}" for y in cf_years[-6:])
+        lines.append(header)
+        lines.append("-" * len(header))
+        if cfo: lines.append(f"{'Cash from Ops':<18} | " + " | ".join(f"{str(v or '-'):>8}" for v in cfo[-6:]))
+        if fa_purch: lines.append(f"{'Capex Outlay':<18} | " + " | ".join(f"{str(v or '-'):>8}" for v in fa_purch[-6:]))
+        if cfi: lines.append(f"{'Cash from Inv':<18} | " + " | ".join(f"{str(v or '-'):>8}" for v in cfi[-6:]))
+        if cff: lines.append(f"{'Cash from Fin':<18} | " + " | ".join(f"{str(v or '-'):>8}" for v in cff[-6:]))
+        
+    # 4. Recent Quarterly Trend
     q_periods, q_rows = _extract_statement_table(q_data)
     if q_periods:
         q_sales = q_rows.get("Sales", []) or q_rows.get("Revenue", [])
+        q_op = q_rows.get("Operating Profit", []) or q_rows.get("EBITDA", [])
         q_opm = q_rows.get("OPM %", []) or q_rows.get("OPM", [])
         q_pat = q_rows.get("Net Profit", []) or q_rows.get("PAT", [])
-        lines.append("\n[Recent 6 Quarters Trend]")
-        lines.append(f"{'Quarter':<18} | " + " | ".join(f"{str(q):>8}" for q in q_periods[-6:]))
+        
+        lines.append("\n[Recent Quarterly Performance (₹ in Crores)]")
+        header = f"{'Metric':<18} | " + " | ".join(f"{str(q):>8}" for q in q_periods[-6:])
+        lines.append(header)
+        lines.append("-" * len(header))
         if q_sales: lines.append(f"{'Qtr Sales':<18} | " + " | ".join(f"{str(v or '-'):>8}" for v in q_sales[-6:]))
+        if q_op: lines.append(f"{'Qtr EBITDA':<18} | " + " | ".join(f"{str(v or '-'):>8}" for v in q_op[-6:]))
         if q_opm: lines.append(f"{'Qtr OPM %':<18} | " + " | ".join(f"{str(v or '-'):>8}" for v in q_opm[-6:]))
         if q_pat: lines.append(f"{'Qtr PAT':<18} | " + " | ".join(f"{str(v or '-'):>8}" for v in q_pat[-6:]))
         
     return "\n".join(lines)
+
+# Backward-compatibility alias
+format_audited_financials_for_prompt = format_financials_for_prompt
 
 def select_default_document_working_set(documents: DocumentLinks) -> List[DocumentItem]:
     """
@@ -559,7 +586,7 @@ def run_multi_document_ai_pipeline(
 
     tagged_all_documents_text = "\n".join(tagged_chunks)
 
-    # 4. Compile Audited Financials Summary & Retrieve Structured Statements
+    # 4. Compile Standardized Financials Summary & Retrieve Structured Statements
     stock_data = database.get_stock_cache(clean_sym)
     if not stock_data:
         try:
@@ -567,7 +594,7 @@ def run_multi_document_ai_pipeline(
         except Exception:
             stock_data = {}
             
-    financial_statements_text = format_audited_financials_for_prompt(clean_sym, stock_data=stock_data)
+    financial_statements_text = format_financials_for_prompt(clean_sym, stock_data=stock_data)
     pl_stmt = (stock_data.get("profit_loss") or stock_data.get("profit_and_loss")) if stock_data else None
     quarters_stmt = stock_data.get("quarters") if stock_data else None
     bs_stmt = stock_data.get("balance_sheet") if stock_data else None

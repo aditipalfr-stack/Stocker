@@ -241,9 +241,14 @@ class TestV44IntegrationE2E(unittest.TestCase):
         self.assertIn("standardized financial statement tables", SYSTEM_PROMPT.lower())
         self.assertNotIn("screener.in audited data", SYSTEM_PROMPT.lower())
         
+        from doc_intelligence_pipeline import format_financials_for_prompt, format_audited_financials_for_prompt
         formatted = format_financials_for_prompt("TESTSYM", stock_data={"symbol": "TESTSYM"})
         self.assertIn("STANDARDIZED", formatted)
         self.assertNotIn("AUDITED", formatted)
+        
+        # Test backward-compatibility alias
+        formatted_alias = format_audited_financials_for_prompt("TESTSYM", stock_data={"symbol": "TESTSYM"})
+        self.assertEqual(formatted, formatted_alias)
 
     def test_scenario_6_business_analysis_lifecycle_and_not_checked(self):
         """Scenario 6: Unverified cached read yields not_checked; changed docs yields stale; no AI calls made."""
