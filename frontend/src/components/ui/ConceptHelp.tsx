@@ -34,8 +34,9 @@ export const ConceptHelp: React.FC<ConceptHelpProps> = ({
     const rect = triggerRef.current?.getBoundingClientRect();
     if (rect) {
       const popoverWidth = 320;
+      const popoverHeight = 480;
       setPosition({
-        top: rect.bottom + 8,
+        top: Math.max(12, Math.min(rect.bottom + 8, window.innerHeight - popoverHeight - 12)),
         left: Math.max(12, Math.min(rect.left + rect.width / 2 - popoverWidth / 2, window.innerWidth - popoverWidth - 12))
       });
     }
@@ -117,6 +118,12 @@ export const ConceptHelp: React.FC<ConceptHelpProps> = ({
             <div>
               <span className="help-eyebrow">How Stocker uses it</span>
               <p className="text-xs leading-relaxed text-secondary">{item.howStockerUses}</p>
+            </div>
+          )}
+          {item.userAction && (
+            <div>
+              <span className="help-eyebrow">What you need to do</span>
+              <p className="text-xs leading-relaxed text-secondary">{item.userAction}</p>
             </div>
           )}
           {isFinancialBusiness && item.financialBusinessNote && (

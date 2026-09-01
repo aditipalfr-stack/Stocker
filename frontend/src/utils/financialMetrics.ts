@@ -58,12 +58,16 @@ const METRIC_RULES: Array<{ matches: (metric: string) => boolean; presentation: 
     presentation: { direction: 'higher_is_better', importance: 'supporting', changeUnit: 'basis_points', negativeResultIsBad: true, showSparkline: false }
   },
   {
-    matches: metric => /^(roa|roa %|return on assets|nim|nim %|net interest margin|cost to income|cost to income ratio|credit cost|credit cost %|capital adequacy ratio|car)$/.test(metric),
+    matches: metric => /^(cost[- ]to[- ]income(?: ratio)?|credit cost(?: ratio)?)(?: %)?$/.test(metric),
+    presentation: { direction: 'lower_is_better', importance: 'supporting', changeUnit: 'basis_points', negativeResultIsBad: false, showSparkline: true }
+  },
+  {
+    matches: metric => /^(roa|roa %|return on assets|nim|nim %|net interest margin|capital adequacy ratio|car)$/.test(metric),
     presentation: { direction: 'context_dependent', importance: 'supporting', changeUnit: 'basis_points', negativeResultIsBad: false, showSparkline: false }
   },
   {
     matches: metric => /^(expenses|total expenses|operating expenses|employee cost|material cost|cost of materials consumed|cost of goods sold|finance cost|finance costs|interest expense|interest expended)$/.test(metric),
-    presentation: { direction: 'lower_is_better', importance: 'supporting', changeUnit: 'percent', negativeResultIsBad: false, showSparkline: false }
+    presentation: { direction: 'context_dependent', importance: 'supporting', changeUnit: 'percent', negativeResultIsBad: false, showSparkline: true }
   },
   {
     matches: metric => /(borrowings|\bdebt\b|inventory|receivables|debtors|working capital|capex|capital expenditure|fixed assets purchased|cwip|capital work in progress|p\/e|total assets|deposits|advances|loans and advances|loans & advances)/.test(metric),
@@ -182,6 +186,7 @@ export interface StatementPeriodSelection {
   previousPeriod: string | null;
   historyIndices: number[];
   comparisonLabel: string;
+  comparisonBasisLabel: string;
   historyLabel: string;
 }
 
@@ -205,11 +210,11 @@ export const selectStatementPeriods = (
     ? [...compatible].reverse().find(item => item.parsed.canonicalKey === priorCanonical) ?? null
     : null;
 
-  const labels: Record<FinancialStatementKind, { comparison: string; history: string }> = {
-    quarterly: { comparison: 'QoQ · exact prior quarter', history: 'quarterly periods' },
-    annual_flow: { comparison: 'FY change · prior completed FY', history: 'completed FY only' },
-    balance_sheet: { comparison: 'balance change · prior FY', history: 'completed FY balances' },
-    cash_flow: { comparison: 'FY change · prior completed FY', history: 'completed FY only' }
+  const labels: Record<FinancialStatementKind, { comparison: string; basis: string; history: string }> = {
+    quarterly: { comparison: 'QoQ · exact prior quarter', basis: 'vs previous quarter', history: 'quarterly periods' },
+    annual_flow: { comparison: 'FY change · prior completed FY', basis: 'vs previous FY', history: 'completed FY only' },
+    balance_sheet: { comparison: 'balance change · prior FY', basis: 'vs previous FY balance', history: 'completed FY balances' },
+    cash_flow: { comparison: 'FY change · prior completed FY', basis: 'vs previous FY', history: 'completed FY only' }
   };
 
   return {
@@ -219,6 +224,7 @@ export const selectStatementPeriods = (
     previousPeriod: previous?.period ?? null,
     historyIndices: compatible.map(item => item.index),
     comparisonLabel: labels[statementKind].comparison,
+    comparisonBasisLabel: labels[statementKind].basis,
     historyLabel: labels[statementKind].history
   };
 };

@@ -1,41 +1,16 @@
 import React from 'react';
 import type { FinancialStatement } from '../../types';
-import type { GlossaryTerm } from '../../data/glossary';
+import { getStatementGlossaryTerm } from '../../data/statementGlossary';
 import {
+  calculatePeriodChange,
   getMetricPresentation,
-  isGenuinelyNegativeResult,
   parseFinancialPeriod,
   selectStatementPeriods
 } from '../../utils/financialMetrics';
 import type { FinancialStatementKind } from '../../utils/financialMetrics';
 import { ConceptHelp } from './ConceptHelp';
-import { FinancialMetricCell, trendToneFromValues } from './TrendValue';
+import { ChangeIndicator, FinancialMetricCell, trendToneFromValues } from './TrendValue';
 import { Sparkline } from './Sparkline';
-
-const getStatementGlossaryTerm = (metric: string): GlossaryTerm | null => {
-  const normalized = metric.trim().toLowerCase().replace(/\s+/g, ' ');
-  if (['sales', 'revenue', 'revenue from operations', 'total income'].includes(normalized)) return 'revenue';
-  if (['net profit', 'pat', 'profit after tax', 'net income'].includes(normalized)) return 'pat';
-  if (normalized.includes('operating profit margin') || normalized === 'opm %') return 'opm';
-  if (normalized === 'operating profit') return 'operating_profit';
-  if (normalized === 'ebitda') return 'ebitda';
-  if (['eps in rs', 'eps', 'basic eps', 'diluted eps'].includes(normalized)) return 'eps';
-  if (normalized.includes('cash from operating') || normalized.includes('operating cash flow')) return 'cfo';
-  if (normalized.includes('free cash flow')) return 'fcf';
-  if (['capital expenditure', 'capex'].includes(normalized)) return 'capex';
-  if (['borrowings', 'total borrowings', 'debt'].includes(normalized)) return 'borrowings';
-  if (['fixed assets', 'net fixed assets'].includes(normalized)) return 'fixed_assets';
-  if (['net block'].includes(normalized)) return 'net_block';
-  if (['deposits', 'total deposits'].includes(normalized)) return 'deposits';
-  if (['advances', 'loans & advances', 'loans and advances', 'total advances'].includes(normalized)) return 'advances';
-  if (['gross npa', 'gross npa %', 'gnpa', 'gnpa %'].includes(normalized)) return 'gnpa';
-  if (['net npa', 'net npa %', 'nnpa', 'nnpa %'].includes(normalized)) return 'nnpa';
-  if (normalized.includes('receivable') || normalized.includes('debtor')) return 'receivables';
-  if (normalized.includes('inventory')) return 'inventory';
-  if (normalized.includes('capital work in progress') || normalized.includes('cwip')) return 'cwip';
-  if (normalized.includes('working capital')) return 'working_capital';
-  return null;
-};
 
 interface FinancialStatementTableProps {
   statement: FinancialStatement;
@@ -74,8 +49,8 @@ export const FinancialStatementTable: React.FC<FinancialStatementTableProps> = (
               );
             })}
             <th className="financial-trend-heading">
-              <span>History</span>
-              <small>{selection.historyLabel}</small>
+              <span>Change / Trend</span>
+              <small>{selection.comparisonBasisLabel} · historical shape</small>
             </th>
           </tr>
         </thead>
@@ -87,9 +62,8 @@ export const FinancialStatementTable: React.FC<FinancialStatementTableProps> = (
             const currentValue = selection.currentIndex === null ? null : values[selection.currentIndex];
             const previousValue = selection.previousIndex === null ? null : values[selection.previousIndex];
             const historyValues = selection.historyIndices.map(index => values[index]);
-            const latestTone = isGenuinelyNegativeResult(row.metric, currentValue)
-              ? 'negative'
-              : trendToneFromValues(row.metric, currentValue, previousValue);
+            const validHistoryCount = historyValues.filter(value => typeof value === 'number' && Number.isFinite(value)).length;
+            const hasExactChange = calculatePeriodChange(row.metric, currentValue, previousValue) !== null;
             const rowClass = presentation.importance === 'core'
               ? 'financial-row-core'
               : presentation.importance === 'supporting' ? 'financial-row-supporting' : '';
@@ -103,29 +77,38 @@ export const FinancialStatementTable: React.FC<FinancialStatementTableProps> = (
                   const isCellTTM = parseFinancialPeriod(period, statementKind).kind === 'ttm';
                   const isComparisonCurrent = periodIndex === selection.currentIndex;
                   return (
-                    <td key={period} className={`${periodIndex % 2 ? 'statement-col-band' : ''} ${isComparisonCurrent ? `statement-latest-col statement-latest-${latestTone}` : ''} ${isCellTTM ? 'statement-ttm-col' : ''}`}>
+                    <td key={period} className={`${periodIndex % 2 ? 'statement-col-band' : ''} ${isComparisonCurrent ? 'statement-latest-col' : ''} ${isCellTTM ? 'statement-ttm-col' : ''}`}>
                       <FinancialMetricCell
                         metric={row.metric}
                         value={row.values[period]}
-                        previous={previousValue}
-                        currentPeriod={selection.currentPeriod}
-                        previousPeriod={selection.previousPeriod}
-                        comparisonLabel={selection.comparisonLabel}
-                        showChange={isComparisonCurrent && selection.previousIndex !== null}
                       />
                     </td>
                   );
                 })}
                 <td className="financial-sparkline-cell">
-                  {presentation.showSparkline
-                    ? (
+                  <div className="change-trend-stack">
+                    {hasExactChange ? (
+                      <ChangeIndicator
+                        metric={row.metric}
+                        current={currentValue}
+                        previous={previousValue}
+                        currentPeriod={selection.currentPeriod}
+                        previousPeriod={selection.previousPeriod}
+                        comparisonLabel={selection.comparisonLabel}
+                        visibleComparisonLabel={selection.comparisonBasisLabel}
+                        className="change-trend-indicator"
+                      />
+                    ) : (
+                      <span className="change-unavailable">No exact comparison</span>
+                    )}
+                    {validHistoryCount >= 2 ? (
                       <Sparkline
                         values={historyValues}
-                        label={`${row.metric} historical shape (${selection.historyLabel}; excludes TTM)`}
+                        label={`${row.metric} historical shape (${selection.historyLabel}${statementKind === 'quarterly' ? '' : '; TTM excluded'})`}
                         tone={trendToneFromValues(row.metric, currentValue, previousValue)}
                       />
-                    )
-                    : <span className="sparkline-empty" aria-hidden="true">—</span>}
+                    ) : <span className="sparkline-empty" aria-label={`${row.metric} history: not enough comparable data`}>—</span>}
+                  </div>
                 </td>
               </tr>
             );

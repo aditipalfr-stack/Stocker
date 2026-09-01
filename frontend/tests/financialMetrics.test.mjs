@@ -1,11 +1,19 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 
 import {
   calculatePeriodChange,
   getMetricPresentation,
   selectStatementPeriods
 } from '../src/utils/financialMetrics.ts';
+import { getStatementGlossaryTerm } from '../src/data/statementGlossary.ts';
+import {
+  PROVENANCE_STATUS_PRESENTATION,
+  STOCKER_STATUS_GUIDE
+} from '../src/data/statusGuide.ts';
+import { glossary } from '../src/data/glossary.ts';
+import { buildCashFlowAnalysisTable } from '../src/utils/cashFlowAnalysis.ts';
 
 test('A: revenue 100 to 110 is +10.0%', () => {
   const change = calculatePeriodChange('Revenue', 110, 100);
@@ -103,8 +111,115 @@ test('missing values never become zero-valued changes', () => {
   assert.equal(calculatePeriodChange('Revenue', 100, null), null);
 });
 
-test('explicit costs use lower-is-better tone without thresholds', () => {
+test('absolute costs use neutral tone without thresholds', () => {
   const change = calculatePeriodChange('Employee Cost', 90, 100);
   assert.equal(change?.label, '-10.0%');
-  assert.equal(change?.tone, 'positive');
+  assert.equal(change?.tone, 'neutral');
+});
+
+test('UX A: an absolute Employee Cost increase is context-dependent and neutral', () => {
+  const change = calculatePeriodChange('Employee Cost', 120, 100);
+  assert.equal(getMetricPresentation('Employee Cost').direction, 'context_dependent');
+  assert.equal(change?.label, '+20.0%');
+  assert.equal(change?.tone, 'neutral');
+});
+
+test('UX B: Cost-to-Income increase uses bps and lower-is-better tone', () => {
+  const change = calculatePeriodChange('Cost-to-Income', 55, 50);
+  assert.equal(getMetricPresentation('Cost-to-Income').direction, 'lower_is_better');
+  assert.equal(getMetricPresentation('Cost-to-Income %').direction, 'lower_is_better');
+  assert.equal(change?.label, '+500 bps');
+  assert.equal(change?.tone, 'negative');
+});
+
+test('UX C-D: GNPA decrease is positive while Borrowings increase remains neutral', () => {
+  assert.equal(calculatePeriodChange('GNPA %', 2, 2.5)?.tone, 'positive');
+  assert.equal(calculatePeriodChange('Borrowings', 120, 100)?.tone, 'neutral');
+});
+
+test('UX E-F: final-column comparison basis is explicit by statement type', () => {
+  assert.equal(selectStatementPeriods(['Mar 2026', 'Jun 2026'], 'quarterly').comparisonBasisLabel, 'vs previous quarter');
+  assert.equal(selectStatementPeriods(['Mar 2025', 'Mar 2026'], 'annual_flow').comparisonBasisLabel, 'vs previous FY');
+  assert.equal(selectStatementPeriods(['Mar 2025', 'Mar 2026'], 'balance_sheet').comparisonBasisLabel, 'vs previous FY balance');
+});
+
+test('UX G-I: ratio deltas use bps and annual history remains TTM-safe', () => {
+  assert.equal(calculatePeriodChange('OPM %', 20, 18)?.unit, 'basis points');
+  const periods = ['Mar 2024', 'Mar 2025', 'Mar 2026', 'TTM'];
+  const selection = selectStatementPeriods(periods, 'annual_flow');
+  assert.equal(selection.currentPeriod, 'Mar 2026');
+  assert.equal(selection.previousPeriod, 'Mar 2025');
+  assert.deepEqual(selection.historyIndices.map(index => periods[index]), ['Mar 2024', 'Mar 2025', 'Mar 2026']);
+});
+
+test('UX J: expanded row-header help resolves common P&L, balance-sheet, cash-flow and bank rows', () => {
+  const expected = {
+    'Employee Cost': 'employee_cost',
+    'Finance Cost': 'finance_cost',
+    'Profit Before Tax': 'pbt',
+    'Equity Capital': 'equity_capital',
+    'Shareholders Funds': 'net_worth',
+    'Total Assets': 'total_assets',
+    'Cash from Investing Activity': 'investing_cash_flow',
+    'Net Cash Flow': 'net_cash_flow',
+    'Fixed Assets Purchased': 'capex',
+    'NIM %': 'nim',
+    'CASA Ratio': 'casa',
+    'Cost-to-Income': 'cost_to_income',
+    'Credit Cost': 'credit_cost'
+  };
+  for (const [row, glossaryTerm] of Object.entries(expected)) {
+    assert.equal(getStatementGlossaryTerm(row), glossaryTerm, row);
+  }
+});
+
+test('UX K-L: Standardized stays discoverable at low emphasis and key statuses remain explainable', () => {
+  assert.equal(PROVENANCE_STATUS_PRESENTATION.standardized.emphasis, 'low');
+  assert.equal(PROVENANCE_STATUS_PRESENTATION.standardized.glossaryTerm, 'standardized');
+  for (const status of STOCKER_STATUS_GUIDE) {
+    const item = glossary[status.glossaryTerm];
+    assert.ok(item.meaning.length > 0, `${status.label} meaning`);
+    assert.ok(item.whyItMatters.length > 0, `${status.label} implication`);
+    assert.ok(item.userAction?.length > 0, `${status.label} user action`);
+  }
+});
+
+test('UX M: help interactions retain outside-click, Escape and viewport-close handlers', () => {
+  const conceptHelp = readFileSync(new URL('../src/components/ui/ConceptHelp.tsx', import.meta.url), 'utf8');
+  const dataOrigin = readFileSync(new URL('../src/components/ui/DataOriginBadge.tsx', import.meta.url), 'utf8');
+  const statusGuide = readFileSync(new URL('../src/components/ui/StockerStatusGuide.tsx', import.meta.url), 'utf8');
+  for (const source of [conceptHelp, dataOrigin]) {
+    assert.match(source, /pointerdown/);
+    assert.match(source, /Escape/);
+    assert.match(source, /scroll/);
+    assert.match(source, /resize/);
+  }
+  assert.match(statusGuide, /onPointerDown/);
+  assert.match(statusGuide, /Escape/);
+  assert.match(statusGuide, /aria-modal="true"/);
+});
+
+test('UX N: Stocker cash-flow analysis uses metrics as rows and periods as columns', () => {
+  const table = buildCashFlowAnalysisTable([
+    {
+      period: 'Mar 2025', reported_pat_cr: 80, reported_cfo_cr: 100, cfo_to_pat_pct: 125,
+      capex_cr: 30, stocker_derived_fcf_cr: 70, capex_methodology: 'Fixed assets purchased'
+    },
+    {
+      period: 'Mar 2026', reported_pat_cr: 90, reported_cfo_cr: 120, cfo_to_pat_pct: 133.3,
+      capex_cr: 35, stocker_derived_fcf_cr: 85, capex_methodology: 'Fixed assets purchased'
+    }
+  ]);
+  assert.deepEqual(table.periods, ['Mar 2025', 'Mar 2026']);
+  assert.deepEqual(table.rows.map(row => row.key), ['pat', 'cfo', 'cfo_pat', 'capex', 'fcf']);
+  assert.deepEqual(table.rows.find(row => row.key === 'cfo')?.values, [100, 120]);
+  assert.equal(table.rows.find(row => row.key === 'capex')?.origin, 'reported_or_derived');
+  assert.equal(table.rows.find(row => row.key === 'fcf')?.origin, 'stocker_calculation');
+});
+
+test('Change / Trend column keeps the explicit basis beside the change and removes latest-cell duplication', () => {
+  const source = readFileSync(new URL('../src/components/ui/FinancialStatementTable.tsx', import.meta.url), 'utf8');
+  assert.match(source, /Change \/ Trend/);
+  assert.match(source, /visibleComparisonLabel=\{selection\.comparisonBasisLabel\}/);
+  assert.doesNotMatch(source, /showChange=\{isComparisonCurrent/);
 });

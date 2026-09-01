@@ -21,6 +21,7 @@ interface ChangeIndicatorProps {
   currentPeriod?: string | null;
   previousPeriod?: string | null;
   comparisonLabel?: string;
+  visibleComparisonLabel?: string;
   className?: string;
 }
 
@@ -31,6 +32,7 @@ export const ChangeIndicator: React.FC<ChangeIndicatorProps> = ({
   currentPeriod,
   previousPeriod,
   comparisonLabel,
+  visibleComparisonLabel,
   className = ''
 }) => {
   const change = calculatePeriodChange(metric, current, previous);
@@ -58,6 +60,7 @@ export const ChangeIndicator: React.FC<ChangeIndicatorProps> = ({
       <span>{change.label}</span>
       <span aria-hidden="true">{change.arrow}</span>
       {contextual && <span className="change-context">Neutral</span>}
+      {visibleComparisonLabel && <span className="change-basis">{visibleComparisonLabel}</span>}
     </span>
   );
 };
