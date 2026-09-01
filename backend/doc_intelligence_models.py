@@ -77,7 +77,7 @@ class PromiseVsDeliveryItem(BaseModel):
             if "area" not in values or not values.get("area"):
                 values["area"] = values.get("category", "Corporate Strategy")
             if "actual_in_period" not in values or not values.get("actual_in_period"):
-                values["actual_in_period"] = values.get("source_document", "Latest Audited Results")
+                values["actual_in_period"] = values.get("source_document", "Latest Reported Results")
             if "variance_analysis" in values and not values.get("stocker_analysis"):
                 values["stocker_analysis"] = values["variance_analysis"]
             if values.get("status") in ("Not enough data", "Not Enough Data", "Not enough evidence", "Not Enough Evidence"):
@@ -401,7 +401,7 @@ class BusinessOutlookResult(BaseModel):
     management_guidance_items: List[ManagementGuidanceItem] = Field(default_factory=list)
     source_documents_hash: Optional[str] = None
     analysis_version: str = "2.0"
-    staleness_status: str = "fresh"
+    staleness_status: str = "not_checked"
     financial_business_model: str = "GENERAL_CORPORATE"
 
     # Backward-compatible properties / validators

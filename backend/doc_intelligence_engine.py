@@ -52,7 +52,7 @@ def get_company_doc_intelligence(
                     db_data["staleness_status"] = "fresh"
             else:
                 if not db_data.get("staleness_status"):
-                    db_data["staleness_status"] = "fresh"
+                    db_data["staleness_status"] = "not_checked"
 
             doc_intel = CompanyDocumentIntelligence(**db_data)
             _apply_financial_cross_check(doc_intel, financial_analytics)
@@ -412,7 +412,7 @@ def evaluate_management_guidance_vs_actual(
     return evaluated_items
 
 def _apply_financial_cross_check(doc_intel: CompanyDocumentIntelligence, financial_analytics: Optional[Dict[str, Any]]) -> None:
-    """Enriches document intelligence with deterministic audited financial analytics in a sector-aware manner."""
+    """Enriches document intelligence with deterministic financial analytics in a sector-aware manner."""
     if not financial_analytics:
         return
         

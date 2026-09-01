@@ -771,7 +771,7 @@ export interface BusinessOutlookIntelligence {
   management_guidance_items?: ManagementGuidanceItem[];
   source_documents_hash?: string | null;
   analysis_version?: string;
-  staleness_status?: string;
+  staleness_status?: 'fresh' | 'stale' | 'not_analyzed' | 'not_checked';
   financial_business_model?: string;
 }
 

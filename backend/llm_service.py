@@ -86,7 +86,7 @@ from doc_intelligence_models import (
 
 from datetime import datetime, timezone
 
-ANNUAL_REPORT_SUMMARY_PROMPT = """You are an institutional fundamental equity analyst extracting an executive summary from an Audited Annual Report.
+ANNUAL_REPORT_SUMMARY_PROMPT = """You are an institutional fundamental equity analyst extracting an executive summary from a company Annual Report.
 Focus strictly on:
 - Important business developments & strategic priorities
 - Capital expenditure & capacity expansion plans
@@ -228,7 +228,7 @@ Output MUST be a valid JSON object matching this schema:
 SYSTEM_PROMPT = """You are an institutional fundamental equity research analyst extracting rigorous, verifiable qualitative claims, management targets, and execution evidence from official corporate filings (Annual Reports, Concalls, Presentations, Announcements).
 
 CRITICAL RULES:
-1. Work ONLY from the provided document summaries, tagged text chunks, and audited financial tables.
+1. Work ONLY from the provided document summaries, tagged text chunks, and standardized financial statement tables.
 2. STRICT MULTI-DOCUMENT ATTRIBUTION MANDATE:
    - Every input text chunk begins with a tag header: `=== [DOC #N | Title: ... | Type: ... | URL: ... | Page X] ===`.
    - For EVERY extracted qualitative fact, you MUST specify:
@@ -240,7 +240,7 @@ CRITICAL RULES:
 3. QUALITATIVE EXTRACTION & SEPARATION OF RESPONSIBILITIES:
    - Extract management guidance statements, capacity targets, and forward statements verbatim from earlier baseline documents.
    - Extract subsequently reported business outcomes and progress statements from later documents.
-   - DO NOT attempt to compute mathematical CAGR, YoY growth %, margin basis point changes, CFO/PAT ratios, debt variances, or achievement percentages. Code calculates all financial formulas deterministically from structured audited statements.
+   - DO NOT attempt to compute mathematical CAGR, YoY growth %, margin basis point changes, CFO/PAT ratios, debt variances, or achievement percentages. Code calculates all financial formulas deterministically from structured financial statement data.
    - Do NOT populate or compute 'financial_numbers_check'; leave it null or omit it. Deterministic statement checks are performed exclusively by Stocker code.
    - In 'stocker_analysis', summarize the qualitative execution takeaways and operational drivers.
    - For 'source_url_promise', use the baseline document URL. For 'source_url_actual', use the outcome document URL.
@@ -1070,7 +1070,7 @@ def extract_document_intelligence_with_llm(
     Synthesizes company-level fundamental research using:
     - Pre-computed per-document AI summaries
     - Tagged raw excerpt chunks [Doc ID | Title | Type | URL | Page]
-    - 10-year audited financial statements table
+    - 10-year standardized historical financial statements table
     Returns (success, result, message).
     """
     provider_info = get_available_llm_provider()
@@ -1150,7 +1150,7 @@ CORPORATE SECTOR INSTRUCTIONS:
     prompt = f"""Synthesize comprehensive, institutional fundamental equity research for company '{company_name}' ({symbol}).
 
 ======================================================================
-1. REPORTED AUDITED 10-YEAR FINANCIAL STATEMENTS (Screener.in Audited Data)
+1. STANDARDIZED HISTORICAL FINANCIAL STATEMENTS (Standardized Statement Inputs)
 ======================================================================
 {fin_text}
 
@@ -1169,8 +1169,11 @@ SYNTHESIS INSTRUCTIONS:
 ======================================================================
 1. Cross-examine management promises from the baseline document against subsequent outcomes and verified operational milestones.
 2. QUALITATIVE EXTRACTION ONLY: Extract management guidance statements, operational milestones, and reported business events verbatim. Do not attempt mathematical calculations; code computes all financial ratios and achievement rates deterministically.
-3. ATTRIBUTION MANDATE: For EVERY finding, extract the exact source document Title and URL from the corresponding chunk tag where the evidence appears. NEVER default to an Annual Report URL if the quote is from a Concall or Announcement!
-4. Output MUST be valid JSON strictly matching the schema.
+3. PROVENANCE & TRUTH INTEGRITY:
+   - The financial table provides standardized financial-statement inputs; do NOT call them officially verified or audited merely because they are present.
+   - Official verification status is supplied separately by Stocker when available. Do not upgrade provenance through wording.
+4. ATTRIBUTION MANDATE: For EVERY finding, extract the exact source document Title and URL from the corresponding chunk tag where the evidence appears. NEVER default to an Annual Report URL if the quote is from a Concall or Announcement!
+5. Output MUST be valid JSON strictly matching the schema.
 """
 
     try:

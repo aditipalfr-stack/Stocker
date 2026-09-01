@@ -320,9 +320,10 @@ class TestBusinessAnalysisV44(unittest.TestCase):
         self.assertNotEqual(database.DB_PATH, prod_db)
 
     def test_scenario_l_staleness_not_invented_without_current_docs(self):
-        """Scenario L: Cached analysis with stored hash must NOT become stale when current_docs=None."""
+        """Scenario L: Cached analysis without current_docs preserves persisted status or returns neutral not_checked."""
         import database
-        mock_data = {
+        # 1. Analysis with persisted "fresh"
+        mock_data_fresh = {
             "symbol": "TCS",
             "company_name": "Tata Consultancy Services",
             "ai_provider_used": "STORED",
@@ -347,17 +348,43 @@ class TestBusinessAnalysisV44(unittest.TestCase):
             ],
             "management_guidance_items": []
         }
-        database.save_ai_analysis("TCS", "Tata Consultancy Services", mock_data, ai_provider="STORED")
+        database.save_ai_analysis("TCS", "Tata Consultancy Services", mock_data_fresh, ai_provider="STORED")
         
-        # 1. Staleness check without current_docs returns (False, "not_checked")
+        # Staleness check without current_docs returns (False, "not_checked")
         is_stale, reason = database.check_business_analysis_staleness("TCS", current_docs=None)
         self.assertFalse(is_stale)
         self.assertEqual(reason, "not_checked")
         
-        # 2. get_company_doc_intelligence with current_docs=None remains fresh
-        intel = get_company_doc_intelligence("TCS", current_docs=None)
-        self.assertIsNotNone(intel)
-        self.assertEqual(intel.staleness_status, "fresh")
+        # get_company_doc_intelligence with current_docs=None preserves persisted "fresh"
+        intel_fresh = get_company_doc_intelligence("TCS", current_docs=None)
+        self.assertIsNotNone(intel_fresh)
+        self.assertEqual(intel_fresh.staleness_status, "fresh")
+
+        # 2. Analysis without persisted staleness_status -> returns neutral "not_checked" (NOT "fresh" or "stale")
+        mock_data_no_status = {
+            "symbol": "INFY",
+            "company_name": "Infosys Limited",
+            "ai_provider_used": "STORED",
+            "source_documents_hash": "xyz987hash",
+            "analysis_version": "2.0",
+            "evidence_items": [
+                {
+                    "id": "evi_infy_1",
+                    "symbol": "INFY",
+                    "evidence_type": "DEMAND_DRIVER",
+                    "title": "AI Suite",
+                    "normalized_topic": "AI",
+                    "statement": "Topaz AI deals expanding.",
+                    "source_document_title": "FY25 AR",
+                    "source_url": "https://infosys.com/ar25.pdf",
+                    "status": "SUPPORTED"
+                }
+            ]
+        }
+        database.save_ai_analysis("INFY", "Infosys Limited", mock_data_no_status, ai_provider="STORED")
+        intel_no_status = get_company_doc_intelligence("INFY", current_docs=None)
+        self.assertIsNotNone(intel_no_status)
+        self.assertEqual(intel_no_status.staleness_status, "not_checked")
         
         # 3. Supplying genuinely changed current_docs triggers stale
         new_docs = [{"title": "Q1 FY26 Concall", "url": "https://tcs.com/q1fy26.pdf", "period": "Q1 FY26"}]
@@ -475,6 +502,18 @@ class TestBusinessAnalysisV44(unittest.TestCase):
         g_id2 = database.generate_deterministic_guidance_id("TATACOMM", guidance_item)
         self.assertEqual(g_id1, g_id2)
         self.assertTrue(g_id1.startswith("mgi_TATACOMM_"))
+
+    def test_scenario_p_prompts_and_models_use_standardized_not_audited(self):
+        """Scenario P: Prompts and pipeline describe standardized statement inputs without unsupported audited claims."""
+        from llm_service import SYSTEM_PROMPT
+        from doc_intelligence_pipeline import format_financials_for_prompt
+        
+        self.assertIn("standardized financial statement tables", SYSTEM_PROMPT.lower())
+        self.assertNotIn("screener.in audited data", SYSTEM_PROMPT.lower())
+        
+        formatted = format_financials_for_prompt("NONEXISTENT_SYMBOL_XYZ", stock_data={"symbol": "NONEXISTENT_XYZ"})
+        self.assertIn("=== STANDARDIZED 10-YEAR FINANCIAL STATEMENTS", formatted)
+        self.assertNotIn("AUDITED", formatted)
 
 if __name__ == "__main__":
     unittest.main()
