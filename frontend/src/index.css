@@ -326,6 +326,10 @@
 .financial-table td.statement-latest-positive { background: color-mix(in srgb, var(--positive) 6%, var(--card-bg)); }
 .financial-table td.statement-latest-negative { background: color-mix(in srgb, var(--negative) 6%, var(--card-bg)); }
 .latest-label { color: var(--info); }
+.latest-comparison-label { color: var(--text-muted); letter-spacing: 0 !important; text-transform: none !important; }
+.financial-table .statement-ttm-col { background: color-mix(in srgb, var(--text-muted) 5%, var(--card-bg)); }
+.financial-table th.statement-ttm-col { background: color-mix(in srgb, var(--text-muted) 7%, var(--panel-bg)); }
+.ttm-label { color: var(--text-muted); }
 .financial-row-core .financial-metric-name { color: var(--text-primary); font-weight: 800; }
 .financial-row-core td { font-weight: 650; }
 .financial-row-supporting .financial-metric-name { color: var(--text-secondary); font-weight: 700; }

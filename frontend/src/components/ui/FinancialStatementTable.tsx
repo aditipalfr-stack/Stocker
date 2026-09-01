@@ -1,7 +1,13 @@
 import React from 'react';
 import type { FinancialStatement } from '../../types';
 import type { GlossaryTerm } from '../../data/glossary';
-import { getMetricPresentation, isGenuinelyNegativeResult } from '../../utils/financialMetrics';
+import {
+  getMetricPresentation,
+  isGenuinelyNegativeResult,
+  parseFinancialPeriod,
+  selectStatementPeriods
+} from '../../utils/financialMetrics';
+import type { FinancialStatementKind } from '../../utils/financialMetrics';
 import { ConceptHelp } from './ConceptHelp';
 import { FinancialMetricCell, trendToneFromValues } from './TrendValue';
 import { Sparkline } from './Sparkline';
@@ -33,15 +39,18 @@ const getStatementGlossaryTerm = (metric: string): GlossaryTerm | null => {
 
 interface FinancialStatementTableProps {
   statement: FinancialStatement;
-  comparisonLabel?: string;
+  statementKind: FinancialStatementKind;
   businessModel?: string;
 }
 
-export const FinancialStatementTable: React.FC<FinancialStatementTableProps> = ({ statement, comparisonLabel, businessModel }) => {
-  const latestIndex = statement.periods.length - 1;
-  const latestPeriod = statement.periods[latestIndex] || '';
-  const isLatestTTM = latestPeriod.trim().toUpperCase() === 'TTM';
-  const resolvedComparisonLabel = comparisonLabel || (isLatestTTM ? 'vs last completed FY' : 'vs prior period');
+const latestLabelFor = (statementKind: FinancialStatementKind) => {
+  if (statementKind === 'quarterly') return 'Latest quarter';
+  if (statementKind === 'balance_sheet') return 'Latest balance';
+  return 'Latest FY';
+};
+
+export const FinancialStatementTable: React.FC<FinancialStatementTableProps> = ({ statement, statementKind, businessModel }) => {
+  const selection = selectStatementPeriods(statement.periods, statementKind);
 
   return (
     <div className="financial-table-wrap">
@@ -53,19 +62,20 @@ export const FinancialStatementTable: React.FC<FinancialStatementTableProps> = (
               <small>₹ Cr unless noted</small>
             </th>
             {statement.periods.map((period, index) => {
-              const isTTM = period.trim().toUpperCase() === 'TTM';
+              const isTTM = parseFinancialPeriod(period, statementKind).kind === 'ttm';
+              const isComparisonCurrent = index === selection.currentIndex;
               return (
-                <th key={period} className={`${index % 2 ? 'statement-col-band' : ''} ${index === latestIndex ? 'statement-latest-col' : ''}`}>
+                <th key={period} className={`${index % 2 ? 'statement-col-band' : ''} ${isComparisonCurrent ? 'statement-latest-col' : ''} ${isTTM ? 'statement-ttm-col' : ''}`}>
                   <span>{period}{isTTM && <ConceptHelp term="ttm" businessModel={businessModel} />}</span>
-                  {index === latestIndex && (
-                    <small className="latest-label">{isTTM ? 'TTM' : 'Latest'}</small>
-                  )}
+                  {isComparisonCurrent && <small className="latest-label">{latestLabelFor(statementKind)}</small>}
+                  {isComparisonCurrent && <small className="latest-comparison-label">{selection.comparisonLabel}</small>}
+                  {isTTM && <small className="ttm-label">Separate · no FY comparison</small>}
                 </th>
               );
             })}
             <th className="financial-trend-heading">
-              <span>Trend</span>
-              <small>{resolvedComparisonLabel}</small>
+              <span>History</span>
+              <small>{selection.historyLabel}</small>
             </th>
           </tr>
         </thead>
@@ -74,11 +84,12 @@ export const FinancialStatementTable: React.FC<FinancialStatementTableProps> = (
             const presentation = getMetricPresentation(row.metric);
             const glossaryTerm = getStatementGlossaryTerm(row.metric);
             const values = statement.periods.map(period => row.values[period]);
-            const latestValue = values[latestIndex];
-            const previousValue = values[latestIndex - 1];
-            const latestTone = isGenuinelyNegativeResult(row.metric, latestValue)
+            const currentValue = selection.currentIndex === null ? null : values[selection.currentIndex];
+            const previousValue = selection.previousIndex === null ? null : values[selection.previousIndex];
+            const historyValues = selection.historyIndices.map(index => values[index]);
+            const latestTone = isGenuinelyNegativeResult(row.metric, currentValue)
               ? 'negative'
-              : trendToneFromValues(row.metric, latestValue, previousValue);
+              : trendToneFromValues(row.metric, currentValue, previousValue);
             const rowClass = presentation.importance === 'core'
               ? 'financial-row-core'
               : presentation.importance === 'supporting' ? 'financial-row-supporting' : '';
@@ -89,21 +100,31 @@ export const FinancialStatementTable: React.FC<FinancialStatementTableProps> = (
                   <span>{row.metric}{glossaryTerm && <ConceptHelp term={glossaryTerm} businessModel={businessModel} />}</span>
                 </td>
                 {statement.periods.map((period, periodIndex) => {
-                  const isCellTTM = period.trim().toUpperCase() === 'TTM';
+                  const isCellTTM = parseFinancialPeriod(period, statementKind).kind === 'ttm';
+                  const isComparisonCurrent = periodIndex === selection.currentIndex;
                   return (
-                    <td key={period} className={`${periodIndex % 2 ? 'statement-col-band' : ''} ${periodIndex === latestIndex ? `statement-latest-col statement-latest-${isLatestTTM ? 'neutral' : latestTone}` : ''}`}>
+                    <td key={period} className={`${periodIndex % 2 ? 'statement-col-band' : ''} ${isComparisonCurrent ? `statement-latest-col statement-latest-${latestTone}` : ''} ${isCellTTM ? 'statement-ttm-col' : ''}`}>
                       <FinancialMetricCell
                         metric={row.metric}
                         value={row.values[period]}
-                        previous={periodIndex > 0 ? row.values[statement.periods[periodIndex - 1]] : null}
-                        showChange={periodIndex === latestIndex && presentation.direction !== 'neutral' && !isCellTTM}
+                        previous={previousValue}
+                        currentPeriod={selection.currentPeriod}
+                        previousPeriod={selection.previousPeriod}
+                        comparisonLabel={selection.comparisonLabel}
+                        showChange={isComparisonCurrent && selection.previousIndex !== null}
                       />
                     </td>
                   );
                 })}
                 <td className="financial-sparkline-cell">
                   {presentation.showSparkline
-                    ? <Sparkline values={values} label={`${row.metric} trend`} tone={trendToneFromValues(row.metric, latestValue, previousValue)} />
+                    ? (
+                      <Sparkline
+                        values={historyValues}
+                        label={`${row.metric} historical shape (${selection.historyLabel}; excludes TTM)`}
+                        tone={trendToneFromValues(row.metric, currentValue, previousValue)}
+                      />
+                    )
                     : <span className="sparkline-empty" aria-hidden="true">—</span>}
                 </td>
               </tr>

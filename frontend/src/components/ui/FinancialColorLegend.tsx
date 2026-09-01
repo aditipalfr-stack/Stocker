@@ -12,7 +12,7 @@ export const FinancialColorLegend: React.FC = () => (
       <p><span className="legend-mark legend-negative">↓</span><strong>Red</strong> — deterioration or a negative financial result.</p>
       <p><span className="legend-mark legend-warning">!</span><strong>Amber</strong> — caution or an existing risk signal.</p>
       <p><span className="legend-mark legend-neutral">↕</span><strong>Neutral</strong> — direction alone is not enough to judge.</p>
-      <small>Colors explain the observed change; they are not investment advice.</small>
+      <small>Cell changes use the labeled exact comparable period. Sparklines show historical shape only and exclude TTM from completed-FY history. Colors are not investment advice.</small>
     </div>
   </details>
 );

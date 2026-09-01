@@ -18,16 +18,43 @@ interface ChangeIndicatorProps {
   metric: string;
   current: number | null | undefined;
   previous: number | null | undefined;
+  currentPeriod?: string | null;
+  previousPeriod?: string | null;
+  comparisonLabel?: string;
   className?: string;
 }
 
-export const ChangeIndicator: React.FC<ChangeIndicatorProps> = ({ metric, current, previous, className = '' }) => {
+export const ChangeIndicator: React.FC<ChangeIndicatorProps> = ({
+  metric,
+  current,
+  previous,
+  currentPeriod,
+  previousPeriod,
+  comparisonLabel,
+  className = ''
+}) => {
   const change = calculatePeriodChange(metric, current, previous);
   if (!change) return null;
 
-  const contextual = getMetricPresentation(metric).direction === 'context_dependent';
+  const direction = getMetricPresentation(metric).direction;
+  const contextual = direction === 'context_dependent' || direction === 'neutral';
+  const periodDetail = currentPeriod && previousPeriod
+    ? `${currentPeriod} (${formatFinancialValue(metric, current)}) compared with ${previousPeriod} (${formatFinancialValue(metric, previous)})`
+    : null;
+  const accessibleLabel = [
+    comparisonLabel,
+    change.accessibleLabel,
+    periodDetail,
+    `Formula: ${change.formula}`,
+    `Unit: ${change.unit}`
+  ].filter(Boolean).join('. ');
+
   return (
-    <span className={`change-indicator ${toneClasses[change.tone]} ${className}`} aria-label={`${contextual ? 'Context-dependent change: ' : ''}${change.accessibleLabel}`}>
+    <span
+      className={`change-indicator ${toneClasses[change.tone]} ${className}`}
+      aria-label={`${contextual ? 'Context-dependent, neutral interpretation. ' : ''}${accessibleLabel}`}
+      title={accessibleLabel}
+    >
       <span>{change.label}</span>
       <span aria-hidden="true">{change.arrow}</span>
       {contextual && <span className="change-context">Neutral</span>}
@@ -70,11 +97,23 @@ interface FinancialMetricCellProps {
   metric: string;
   value: number | null | undefined;
   previous?: number | null;
+  currentPeriod?: string | null;
+  previousPeriod?: string | null;
+  comparisonLabel?: string;
   showChange?: boolean;
   className?: string;
 }
 
-export const FinancialMetricCell: React.FC<FinancialMetricCellProps> = ({ metric, value, previous, showChange = false, className = '' }) => {
+export const FinancialMetricCell: React.FC<FinancialMetricCellProps> = ({
+  metric,
+  value,
+  previous,
+  currentPeriod,
+  previousPeriod,
+  comparisonLabel,
+  showChange = false,
+  className = ''
+}) => {
   const negativeResult = isGenuinelyNegativeResult(metric, value);
   return (
     <div className={`financial-metric-cell ${className}`}>
@@ -82,7 +121,16 @@ export const FinancialMetricCell: React.FC<FinancialMetricCellProps> = ({ metric
         {formatFinancialValue(metric, value)}
         {negativeResult && <span className="sr-only"> negative financial result</span>}
       </span>
-      {showChange && <ChangeIndicator metric={metric} current={value} previous={previous} />}
+      {showChange && (
+        <ChangeIndicator
+          metric={metric}
+          current={value}
+          previous={previous}
+          currentPeriod={currentPeriod}
+          previousPeriod={previousPeriod}
+          comparisonLabel={comparisonLabel}
+        />
+      )}
     </div>
   );
 };
