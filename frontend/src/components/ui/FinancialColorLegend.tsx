@@ -11,8 +11,8 @@ export const FinancialColorLegend: React.FC = () => (
       <p><span className="legend-mark legend-positive">↑</span><strong>Green</strong> — financially positive improvement.</p>
       <p><span className="legend-mark legend-negative">↓</span><strong>Red</strong> — deterioration or a negative financial result.</p>
       <p><span className="legend-mark legend-warning">!</span><strong>Amber</strong> — caution or an existing risk signal.</p>
-      <p><span className="legend-mark legend-neutral">↕</span><strong>Neutral</strong> — direction alone is not enough to judge.</p>
-      <small>Colors explain the observed change; they are not investment advice.</small>
+      <p><span className="legend-mark legend-neutral">↕</span><strong>Neutral</strong> — direction alone is not enough to judge, including absolute costs and balance-sheet scale.</p>
+      <small>The Change / Trend column names the exact comparison and shows historical shape. TTM is excluded from completed-FY history. Colors are not investment advice.</small>
     </div>
   </details>
 );

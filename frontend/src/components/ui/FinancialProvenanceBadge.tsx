@@ -1,6 +1,8 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { CheckCircle2, FileText, Layers, AlertTriangle, HelpCircle, ExternalLink, X } from 'lucide-react';
 import type { AnalyticValueWithProvenance, AnalyticInputProvenance } from '../../types';
+import { glossary } from '../../data/glossary';
+import { PROVENANCE_STATUS_PRESENTATION, resolveProvenanceStatusKind } from '../../data/statusGuide';
 
 interface FinancialProvenanceBadgeProps {
   provenance?: AnalyticValueWithProvenance | AnalyticInputProvenance | null;
@@ -27,6 +29,23 @@ export const FinancialProvenanceBadge: React.FC<FinancialProvenanceBadgeProps> =
   className = ''
 }) => {
   const [showModal, setShowModal] = useState(false);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const closeRef = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => {
+    if (!showModal) return;
+    const previouslyFocused = document.activeElement as HTMLElement | null;
+    const focusTimer = window.setTimeout(() => closeRef.current?.focus(), 0);
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setShowModal(false);
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => {
+      window.clearTimeout(focusTimer);
+      window.removeEventListener('keydown', onKeyDown);
+      (previouslyFocused || triggerRef.current)?.focus();
+    };
+  }, [showModal]);
 
   if (!provenance) return null;
 
@@ -48,74 +67,71 @@ export const FinancialProvenanceBadge: React.FC<FinancialProvenanceBadgeProps> =
     ? ((provenance as AnalyticValueWithProvenance).inputs || [])
     : [provenance as AnalyticInputProvenance];
 
+  const statusKind = resolveProvenanceStatusKind(quality, hasDiscrepancy);
+  const statusPresentation = PROVENANCE_STATUS_PRESENTATION[statusKind];
+  const glossaryItem = glossary[statusPresentation.glossaryTerm];
+
   let config = {
-    label: 'Standardized',
+    label: statusPresentation.label,
     icon: FileText,
-    badgeClass: 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700',
+    badgeClass: 'bg-transparent text-slate-400 border-transparent hover:border-slate-700 hover:text-slate-300',
     title: 'Standardized statement data from Screener.in',
-    explanation: 'This value comes from Stocker’s standardized Screener financial statement and has not been officially reconciled yet. Standardized does not mean untrustworthy.'
+    explanation: `${glossaryItem.meaning} ${glossaryItem.howStockerUses || ''} ${glossaryItem.userAction || ''}`.trim()
   };
 
-  if (quality === 'discrepant' || hasDiscrepancy) {
+  if (statusKind === 'discrepancy') {
     config = {
       label: 'Discrepancy',
       icon: AlertTriangle,
       badgeClass: 'bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-400 border-amber-300 dark:border-amber-800',
       title: 'Discrepancy detected between exchange filing and standardized statements',
-      explanation: 'Comparable official and standardized values disagree outside Stocker’s verification tolerance. Stocker keeps both visible and flags dependent analytics.'
+      explanation: `${glossaryItem.meaning} ${glossaryItem.howStockerUses || ''} ${glossaryItem.userAction || ''}`.trim()
     };
-  } else if (quality === 'verified') {
+  } else if (statusKind === 'verified') {
     config = {
       label: 'Verified',
       icon: CheckCircle2,
       badgeClass: 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400 border-emerald-300 dark:border-emerald-800',
       title: 'Official filing value reconciled with standardized data',
-      explanation: 'An exact comparable official filing value matched within Stocker’s verification rules. This does not mean Stocker audited the company.'
+      explanation: `${glossaryItem.meaning} ${glossaryItem.howStockerUses || ''} ${glossaryItem.userAction || ''}`.trim()
     };
-  } else if (quality === 'mixed') {
+  } else if (statusKind === 'mixed') {
     config = {
       label: 'Mixed',
       icon: Layers,
       badgeClass: 'bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-400 border-blue-300 dark:border-blue-800',
       title: 'Calculated using a combination of verified and standardized inputs',
-      explanation: 'This calculation combines officially reconciled and standardized inputs, so it is not labelled fully verified.'
+      explanation: `${glossaryItem.meaning} ${glossaryItem.howStockerUses || ''} ${glossaryItem.userAction || ''}`.trim()
     };
-  } else if (quality === 'insufficient') {
+  } else if (statusKind === 'unavailable') {
     config = {
       label: 'Unavailable',
       icon: HelpCircle,
       badgeClass: 'bg-slate-50 dark:bg-slate-900 text-slate-400 border-slate-200 dark:border-slate-800',
       title: 'Required comparable evidence is unavailable',
-      explanation: 'A required input is missing or not safely comparable. Stocker does not replace missing evidence with zero.'
+      explanation: `${glossaryItem.meaning} ${glossaryItem.howStockerUses || ''} ${glossaryItem.userAction || ''}`.trim()
     };
   }
 
   const Icon = config.icon;
-
-  useEffect(() => {
-    if (!showModal) return;
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') setShowModal(false);
-    };
-    window.addEventListener('keydown', onKeyDown);
-    return () => window.removeEventListener('keydown', onKeyDown);
-  }, [showModal]);
+  const showLabel = !(compact && statusPresentation.emphasis === 'low');
 
   return (
     <>
       <button
+        ref={triggerRef}
         type="button"
         onClick={(e) => {
           e.stopPropagation();
           setShowModal(true);
         }}
-        className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium border transition-colors hover:opacity-80 cursor-pointer ${config.badgeClass} ${className}`}
+        className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium border transition-colors cursor-pointer provenance-${statusPresentation.emphasis} ${config.badgeClass} ${className}`}
         title={config.title}
         aria-label={`${config.label} data provenance. Open source details.`}
         aria-expanded={showModal}
       >
         <Icon className="w-2.5 h-2.5 flex-shrink-0" />
-        <span>{config.label}</span>
+        {showLabel ? <span>{config.label}</span> : <span className="sr-only">{config.label}</span>}
       </button>
 
       {showModal && (
@@ -136,13 +152,15 @@ export const FinancialProvenanceBadge: React.FC<FinancialProvenanceBadgeProps> =
           >
             <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-3 mb-3">
               <div className="flex items-center gap-2">
-                <Icon className={`w-4 h-4 ${quality === 'verified' ? 'text-emerald-500' : quality === 'discrepant' ? 'text-amber-500' : 'text-blue-500'}`} />
+                <Icon className={`w-4 h-4 ${statusKind === 'verified' ? 'text-emerald-500' : statusKind === 'discrepancy' ? 'text-amber-500' : 'text-blue-500'}`} />
                 <h4 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Financial Provenance Details</h4>
               </div>
-              <button 
+              <button
+                ref={closeRef}
                 type="button"
                 onClick={() => setShowModal(false)}
                 className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-1 rounded"
+                aria-label="Close financial provenance details"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -151,8 +169,8 @@ export const FinancialProvenanceBadge: React.FC<FinancialProvenanceBadgeProps> =
             <div className="space-y-3 max-h-80 overflow-y-auto pr-1">
               <div className="flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400">
                 <span>Input Quality:</span>
-                <span className={`font-semibold capitalize ${quality === 'verified' ? 'text-emerald-600 dark:text-emerald-400' : quality === 'discrepant' ? 'text-amber-600 dark:text-amber-400' : 'text-slate-700 dark:text-slate-300'}`}>
-                  {quality}
+                <span className={`font-semibold ${statusKind === 'verified' ? 'text-emerald-600 dark:text-emerald-400' : statusKind === 'discrepancy' ? 'text-amber-600 dark:text-amber-400' : 'text-slate-700 dark:text-slate-300'}`}>
+                  {config.label}
                 </span>
               </div>
               <p className="text-[11px] leading-relaxed text-slate-600 dark:text-slate-300">{config.explanation}</p>

@@ -69,33 +69,35 @@ export const ResearchStatusPanel: React.FC<ResearchStatusPanelProps> = ({
     {
       title: 'Financial Data',
       label: status.financial_data === 'ready' ? 'Ready' : status.financial_data === 'stale' ? 'Refresh recommended' : status.financial_data === 'error' ? 'Ingestion error' : 'Not available',
-      tone: status.financial_data === 'ready' ? 'ready' : status.financial_data === 'stale' ? 'warning' : 'pending'
+      tone: status.financial_data === 'ready' ? 'ready' : status.financial_data === 'stale' ? 'warning' : 'pending',
+      concept: status.financial_data === 'ready' ? 'standardized' : status.financial_data === 'stale' ? 'stale' : 'unavailable'
     },
     {
       title: 'Deterministic Analysis',
       label: status.deterministic_analysis === 'ready' ? 'Ready' : 'Waiting for financial data',
-      tone: status.deterministic_analysis === 'ready' ? 'ready' : 'pending'
+      tone: status.deterministic_analysis === 'ready' ? 'ready' : 'pending',
+      concept: status.deterministic_analysis === 'ready' ? 'stocker_calculation' : 'unavailable'
     },
     {
       title: 'Official Verification',
       label: verificationState === 'running' ? 'Checking official figures…' : verificationState === 'error' ? 'Verification could not complete' : status.official_verification === 'verified' ? 'Verified' : status.official_verification === 'discrepancy' ? 'Discrepancy found' : status.official_verification === 'partial' ? 'Partially checked' : 'Not checked',
       tone: verificationState === 'running' ? 'running' : verificationState === 'error' || status.official_verification === 'discrepancy' ? 'warning' : status.official_verification === 'verified' ? 'ready' : 'pending',
       action: verificationState === 'error' && onRetryVerification ? <button onClick={onRetryVerification} className="text-[11px] text-cyan-300 hover:text-cyan-200">Retry</button> : undefined,
-      concept: status.official_verification === 'verified' ? 'verified' : status.official_verification === 'discrepancy' ? 'discrepancy' : status.official_verification === 'not_run' ? 'not_run' : 'standardized'
+      concept: verificationState === 'error' ? 'unavailable' : status.official_verification === 'verified' ? 'verified' : status.official_verification === 'discrepancy' ? 'discrepancy' : status.official_verification === 'not_run' ? 'not_run' : 'standardized'
     },
     {
       title: 'Source Filings',
       label: filingDiscoveryState === 'running' ? 'Searching…' : filingDiscoveryState === 'error' ? 'Discovery could not complete' : status.source_filings === 'ready' ? `${status.filing_count} filing${status.filing_count === 1 ? '' : 's'} found` : status.source_filings === 'partial' ? `${status.filing_count} filing${status.filing_count === 1 ? '' : 's'} found — search incomplete` : status.source_filings === 'error' ? 'Discovery error' : 'Not searched',
       tone: filingDiscoveryState === 'running' ? 'running' : filingDiscoveryState === 'error' || status.source_filings === 'error' ? 'warning' : status.source_filings === 'ready' ? 'ready' : 'pending',
       action: (filingDiscoveryState === 'error' || status.source_filings === 'error') && onRetryFilings ? <button onClick={onRetryFilings} className="text-[11px] text-cyan-300 hover:text-cyan-200">Retry</button> : undefined,
-      concept: status.source_filings === 'not_searched' ? 'not_run' : undefined
+      concept: status.source_filings === 'not_searched' ? 'not_run' : status.source_filings === 'error' ? 'unavailable' : undefined
     },
     {
       title: 'Business Analysis',
       label: businessAnalysisRunning || status.business_analysis === 'running' ? 'Analyzing filings…' : status.business_analysis === 'ready' ? 'Ready' : status.business_analysis === 'stale' ? 'Needs refresh' : status.business_analysis === 'error' ? 'Analysis error' : 'Not run',
       tone: businessAnalysisRunning || status.business_analysis === 'running' ? 'running' : status.business_analysis === 'ready' ? 'ready' : status.business_analysis === 'stale' || status.business_analysis === 'error' ? 'warning' : 'pending',
       action: status.business_analysis !== 'ready' && !businessAnalysisRunning && onRunAnalysis ? <button onClick={onRunAnalysis} className="text-[11px] text-emerald-300 hover:text-emerald-200 flex items-center gap-1"><Sparkles className="w-3 h-3" /> Run Analysis</button> : undefined,
-      concept: status.business_analysis === 'not_run' ? 'not_run' : status.business_analysis === 'stale' ? 'stale' : undefined
+      concept: status.business_analysis === 'not_run' ? 'not_run' : status.business_analysis === 'stale' ? 'stale' : status.business_analysis === 'ready' ? 'ai_interpretation' : status.business_analysis === 'error' ? 'unavailable' : undefined
     },
     {
       title: 'Projection',
@@ -108,7 +110,7 @@ export const ResearchStatusPanel: React.FC<ResearchStatusPanelProps> = ({
       title: 'Investment Score',
       label: status.investment_score === 'provisional' ? 'Provisional — financial analysis only' : status.investment_score === 'evidence_enriched' ? 'Evidence-enriched' : status.investment_score === 'incomplete' ? 'Incomplete research' : 'Not available',
       tone: status.investment_score === 'evidence_enriched' ? 'ready' : status.investment_score === 'incomplete' ? 'warning' : 'pending',
-      concept: status.investment_score === 'evidence_enriched' ? 'evidence_enriched' : status.investment_score === 'unavailable' ? 'unavailable' : 'provisional'
+      concept: status.investment_score === 'evidence_enriched' ? 'evidence_enriched' : status.investment_score === 'unavailable' || status.investment_score === 'incomplete' ? 'unavailable' : 'provisional'
     }
   ];
 

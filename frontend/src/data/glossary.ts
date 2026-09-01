@@ -4,6 +4,7 @@ export interface GlossaryItem {
   whyItMatters: string;
   formula?: string;
   howStockerUses?: string;
+  userAction?: string;
   financialBusinessNote?: string;
   aliases?: string[];
 }
@@ -15,6 +16,33 @@ const glossaryData = {
     whyItMatters: 'Revenue shows the scale and demand trend of the underlying business.',
     howStockerUses: 'Stocker compares exact reporting periods and uses supported annual revenue in growth calculations.',
     aliases: ['sales', 'total income']
+  },
+  expenses: {
+    title: 'Expenses',
+    meaning: 'The operating and other costs charged against income during the period.',
+    whyItMatters: 'Costs should be read alongside revenue and margins: a higher absolute expense can simply reflect a larger business.',
+    howStockerUses: 'Stocker shows the exact-period change neutrally and does not treat a higher absolute expense as automatically bad.',
+    aliases: ['total expenses']
+  },
+  material_cost: {
+    title: 'Material Cost',
+    meaning: 'The cost of raw materials and components consumed to produce goods or services.',
+    whyItMatters: 'It helps explain gross-margin movement, input-price pressure and changes in business scale.',
+    howStockerUses: 'Stocker presents the reported row and its exact-period change neutrally.',
+    aliases: ['cost of materials consumed', 'raw material cost']
+  },
+  employee_cost: {
+    title: 'Employee Cost',
+    meaning: 'Salaries, benefits and other staff-related expenses recognized during the period.',
+    whyItMatters: 'It can reflect hiring, wage inflation, capability investment or operating leverage and therefore needs revenue context.',
+    howStockerUses: 'Stocker presents the absolute change neutrally rather than assuming an increase is negative.',
+    aliases: ['staff cost', 'employee expense']
+  },
+  other_cost: {
+    title: 'Other Cost',
+    meaning: 'Operating costs not grouped into the main material, employee or finance-cost lines.',
+    whyItMatters: 'A large change may explain margin movement, but the source statement should be checked for what is included.',
+    aliases: ['other expenses', 'other operating expenses']
   },
   pat: {
     title: 'PAT / Net Profit',
@@ -29,6 +57,37 @@ const glossaryData = {
     whyItMatters: 'It helps separate operating performance from financing and tax effects.',
     howStockerUses: 'Stocker preserves the source row and uses exact reported periods for operating trend analysis.',
     aliases: ['EBIT', 'operating earnings']
+  },
+  other_income: {
+    title: 'Other Income',
+    meaning: 'Income outside the company’s main operating revenue, such as interest, dividends or asset-related gains.',
+    whyItMatters: 'It can lift reported profit without reflecting core operating growth, and may be recurring or one-off.',
+    aliases: ['non-operating income']
+  },
+  finance_cost: {
+    title: 'Finance Cost / Interest Expense',
+    meaning: 'Interest and related charges incurred on borrowings and other financing obligations.',
+    whyItMatters: 'It affects profit and indicates the cost of funding, but an absolute increase needs to be read with debt and business scale.',
+    howStockerUses: 'Stocker presents the absolute change neutrally; leverage ratios provide separate context.',
+    aliases: ['interest expense', 'interest', 'interest expended']
+  },
+  depreciation: {
+    title: 'Depreciation & Amortisation',
+    meaning: 'The period’s accounting charge for using tangible and intangible assets over their useful lives.',
+    whyItMatters: 'It reduces reported profit without being a current-period cash payment and reflects the asset base being consumed.',
+    aliases: ['depreciation', 'amortisation']
+  },
+  pbt: {
+    title: 'Profit Before Tax / PBT',
+    meaning: 'Profit remaining after operating and finance costs but before income tax.',
+    whyItMatters: 'It separates operating and financing outcomes from the effect of the tax charge.',
+    aliases: ['profit before tax']
+  },
+  tax: {
+    title: 'Tax / Tax Rate',
+    meaning: 'The income-tax charge for the period; when shown as a percentage it is the effective tax rate on pre-tax profit.',
+    whyItMatters: 'Tax can explain the gap between PBT and PAT, while one-off adjustments can make a single period unusual.',
+    aliases: ['tax %', 'effective tax rate']
   },
   eps: {
     title: 'EPS',
@@ -99,6 +158,36 @@ const glossaryData = {
     financialBusinessNote: 'Bank and financial-business CFO is not treated as industrial earnings quality because deposits and lending flows dominate it.',
     aliases: ['cash from operations', 'operating cash flow']
   },
+  investing_cash_flow: {
+    title: 'Cash from Investing Activity',
+    meaning: 'Cash spent on or received from long-term assets, investments and business acquisitions or disposals.',
+    whyItMatters: 'It shows how much cash the company is reinvesting or realizing from assets; a negative value is not automatically bad.',
+    aliases: ['cash flow from investing']
+  },
+  financing_cash_flow: {
+    title: 'Cash from Financing Activity',
+    meaning: 'Cash movements with lenders and shareholders, including debt, share capital, dividends and buybacks.',
+    whyItMatters: 'It explains how the company funds itself and returns capital; direction alone is not a quality verdict.',
+    aliases: ['cash flow from financing']
+  },
+  net_cash_flow: {
+    title: 'Net Cash Flow',
+    meaning: 'The combined change in cash from operating, investing and financing activities during the period.',
+    whyItMatters: 'It reconciles the period’s cash movement, but should be read with the three underlying cash-flow sections.',
+    aliases: ['net increase in cash', 'net change in cash']
+  },
+  dividends: {
+    title: 'Dividends Paid',
+    meaning: 'Cash distributed to shareholders from company resources.',
+    whyItMatters: 'Dividends return capital to owners but also reduce cash retained for debt repayment or reinvestment.',
+    aliases: ['dividend paid', 'equity dividend']
+  },
+  debt_movement: {
+    title: 'Debt Raised / Repaid',
+    meaning: 'Cash received from new borrowing or used to repay existing borrowing during the period.',
+    whyItMatters: 'It explains financing cash flow and changes in leverage, but needs to be read with the ending debt balance.',
+    aliases: ['proceeds from borrowings', 'repayment of borrowings']
+  },
   cfo_pat: {
     title: 'CFO/PAT',
     meaning: 'A comparison of operating cash generated with reported profit after tax.',
@@ -147,6 +236,36 @@ const glossaryData = {
     howStockerUses: 'Stocker keeps the reported balance-sheet value visible and interprets it through the company’s financial business model.',
     aliases: ['debt']
   },
+  equity_capital: {
+    title: 'Equity Capital',
+    meaning: 'The face value of shares issued and recorded as paid-up share capital.',
+    whyItMatters: 'Changes can indicate new share issuance, buybacks, splits or other capital actions; it is not the company’s market value.',
+    aliases: ['share capital', 'paid-up capital']
+  },
+  reserves: {
+    title: 'Reserves',
+    meaning: 'Accumulated profits and other equity reserves retained in the business after distributions and adjustments.',
+    whyItMatters: 'Together with equity capital, reserves form much of shareholders’ funds and absorb losses.',
+    aliases: ['reserves and surplus']
+  },
+  net_worth: {
+    title: 'Shareholders’ Funds / Net Worth',
+    meaning: 'The accounting value attributable to shareholders, generally equity capital plus reserves and eligible adjustments.',
+    whyItMatters: 'It is the capital cushion supporting the business and a denominator for return-on-equity measures.',
+    aliases: ['shareholders funds', 'total equity']
+  },
+  other_liabilities: {
+    title: 'Other Liabilities',
+    meaning: 'Obligations not presented in the main borrowing or operating-liability categories.',
+    whyItMatters: 'The composition matters: it can include payables, provisions, deferred items or other obligations.',
+    aliases: ['other liabilities and provisions']
+  },
+  total_liabilities: {
+    title: 'Total Liabilities',
+    meaning: 'The total claims funding the asset base, including equity where the source statement uses a liabilities-and-equity presentation.',
+    whyItMatters: 'It provides the balancing total for the funding side of the balance sheet; composition matters more than direction alone.',
+    aliases: ['total liabilities and equity']
+  },
   fixed_assets: {
     title: 'Fixed Assets',
     meaning: 'Long-lived operating assets such as plant, equipment and property after the source’s stated adjustments.',
@@ -162,6 +281,31 @@ const glossaryData = {
     financialBusinessNote: 'This industrial expansion comparison is not a core metric for banks and financial institutions.',
     aliases: ['net fixed assets']
   },
+  investments: {
+    title: 'Investments',
+    meaning: 'Financial assets or strategic holdings owned by the company outside the main operating asset lines.',
+    whyItMatters: 'Their liquidity, valuation and purpose can affect financial flexibility and reported income.',
+    aliases: ['financial investments']
+  },
+  other_assets: {
+    title: 'Other Assets',
+    meaning: 'Assets not included in the main fixed-asset, investment, inventory, receivable or cash categories.',
+    whyItMatters: 'The source breakdown should be checked when this balance is large or changes sharply.',
+    aliases: ['other current assets', 'other non-current assets']
+  },
+  total_assets: {
+    title: 'Total Assets',
+    meaning: 'The total accounting resources controlled by the company at the reporting date.',
+    whyItMatters: 'It shows balance-sheet scale, but growth is context-dependent and does not by itself indicate better returns or quality.',
+    howStockerUses: 'Stocker treats the balance change neutrally; bank ROA may use exact consecutive total-asset periods where supported.',
+    aliases: ['assets']
+  },
+  cash_equivalents: {
+    title: 'Cash & Cash Equivalents',
+    meaning: 'Cash and highly liquid short-term holdings available for near-term obligations.',
+    whyItMatters: 'It supports liquidity and financial flexibility, although operational needs and restricted balances matter.',
+    aliases: ['cash and bank balances', 'cash balance']
+  },
   deposits: {
     title: 'Deposits',
     meaning: 'Customer funds held by a bank and generally repayable under the account’s terms.',
@@ -175,6 +319,26 @@ const glossaryData = {
     whyItMatters: 'The loan book drives interest income, while growth and asset quality must be judged together.',
     howStockerUses: 'Stocker uses exact bank statement rows when available and never substitutes a missing value with zero.',
     aliases: ['loan book', 'loans and advances']
+  },
+  nim: {
+    title: 'Net Interest Margin / NIM',
+    meaning: 'The spread between interest earned and interest paid, measured against the bank’s earning assets.',
+    whyItMatters: 'It indicates the profitability of core lending and funding activity, although mix and credit risk also matter.',
+    howStockerUses: 'Stocker presents supported bank NIM evidence as a percentage and compares exact periods in basis points.',
+    aliases: ['net interest margin']
+  },
+  casa: {
+    title: 'CASA Ratio',
+    meaning: 'The share of a bank’s deposits held in current and savings accounts.',
+    whyItMatters: 'CASA deposits are often lower-cost funding, but account mix, pricing and stability should be considered together.',
+    aliases: ['current account savings account ratio']
+  },
+  provisions: {
+    title: 'Provisions',
+    meaning: 'Amounts charged to recognize expected losses or obligations, including loan-loss provisions for lenders.',
+    whyItMatters: 'For banks, provisions reflect credit-loss absorption and can materially affect profit and asset-quality protection.',
+    howStockerUses: 'Bank credit cost is calculated only when explicit provisions and exact comparable advances are available.',
+    aliases: ['provisions and contingencies', 'loan loss provisions']
   },
   gnpa: {
     title: 'GNPA',
@@ -362,6 +526,7 @@ const glossaryData = {
     title: 'Stocker Calculation',
     meaning: 'A value calculated by Stocker from reported financial data using a defined formula.',
     whyItMatters: 'It is not directly reported by the company. Open calculation details to inspect the exact inputs and source.',
+    userAction: 'No action is required, but inspect the formula and inputs before relying on a material conclusion.',
     aliases: ['derived metric', 'calculated metric']
   },
   stocker_projection: {
@@ -374,6 +539,7 @@ const glossaryData = {
     title: 'AI Interpretation',
     meaning: 'An AI-generated reading of source documents and financial context.',
     whyItMatters: 'It can surface useful patterns quickly, but investors should verify important points against cited sources.',
+    userAction: 'Check important findings against the linked filing before making a decision.',
     aliases: ['AI analysis', 'AI summary']
   },
   standardized: {
@@ -381,6 +547,7 @@ const glossaryData = {
     meaning: 'The value comes from Stocker’s standardized Screener financial statement and has not been officially reconciled yet.',
     whyItMatters: 'Standardization makes statements comparable; it does not mean the value is untrustworthy or officially verified.',
     howStockerUses: 'Stocker keeps the source visible and upgrades provenance only after an exact comparable verification.',
+    userAction: 'Usually none. Open source details if official reconciliation is important for your decision.',
     aliases: ['Screener standardized']
   },
   verified: {
@@ -388,6 +555,7 @@ const glossaryData = {
     meaning: 'An exact comparable official filing value matched the standardized value within Stocker’s verification rules.',
     whyItMatters: 'It provides stronger source agreement, but does not mean Stocker audited the company.',
     howStockerUses: 'Stocker records the compared values, period, scope, tolerance and official source.',
+    userAction: 'No action is required. You can open the source details to inspect the official filing match.',
     aliases: ['officially reconciled']
   },
   mixed: {
@@ -395,6 +563,7 @@ const glossaryData = {
     meaning: 'A calculation uses a combination of officially verified and standardized inputs.',
     whyItMatters: 'The output is supported by more than one provenance level and should not be labelled fully verified.',
     howStockerUses: 'Stocker exposes the underlying inputs so each source can be inspected.',
+    userAction: 'No immediate action is required; inspect underlying inputs when the calculation is decision-critical.',
     aliases: ['mixed sources']
   },
   discrepancy: {
@@ -402,6 +571,7 @@ const glossaryData = {
     meaning: 'Comparable official and standardized values disagree outside Stocker’s verification tolerance.',
     whyItMatters: 'The conflict can affect downstream analytics and needs review rather than silent selection.',
     howStockerUses: 'Stocker keeps both values visible, flags the conflict and reduces downstream confidence.',
+    userAction: 'Review the compared values and official filing before relying on affected analytics.',
     aliases: ['source mismatch']
   },
   unavailable: {
@@ -409,6 +579,7 @@ const glossaryData = {
     meaning: 'Required evidence is missing or not safely comparable.',
     whyItMatters: 'Missing information is not the same as zero and should not produce a fabricated metric.',
     howStockerUses: 'Stocker fails closed and displays an unavailable state instead of inventing a value.',
+    userAction: 'Do not treat the value as zero. Retry the relevant data or research step only when an action is offered.',
     aliases: ['not available']
   },
   provisional: {
@@ -416,6 +587,7 @@ const glossaryData = {
     meaning: 'The view currently relies mainly on deterministic financial analysis.',
     whyItMatters: 'Business evidence from filings has not yet fully enriched the conclusion.',
     howStockerUses: 'Stocker keeps provisional status visually distinct from evidence-enriched research.',
+    userAction: 'Run Business Analysis if you want filing-based guidance, risks and execution evidence incorporated.',
     aliases: ['financial analysis only']
   },
   evidence_enriched: {
@@ -423,6 +595,7 @@ const glossaryData = {
     meaning: 'Company filing and business-analysis evidence has been incorporated into the output.',
     whyItMatters: 'It adds forward-looking context while remaining an analysis, not a guarantee.',
     howStockerUses: 'Stocker records lifecycle timestamps and marks dependent outputs stale if evidence changes.',
+    userAction: 'No workflow action is required; still inspect cited evidence and assumptions.',
     aliases: ['research enriched']
   },
   stale: {
@@ -430,6 +603,7 @@ const glossaryData = {
     meaning: 'A dependent input changed after this output was last computed.',
     whyItMatters: 'The saved result may no longer reflect the latest evidence.',
     howStockerUses: 'Stocker asks for a refresh and does not silently present stale work as current.',
+    userAction: 'Use the available refresh action before relying on this output.',
     aliases: ['needs refresh']
   },
   not_run: {
@@ -437,6 +611,7 @@ const glossaryData = {
     meaning: 'That optional research step has not yet been executed.',
     whyItMatters: 'It describes workflow progress, not a negative finding about the company.',
     howStockerUses: 'Stocker shows an explicit action or pending state and does not imply that no evidence exists.',
+    userAction: 'Run or retry the step only if you want that research layer; financial statements remain usable.',
     aliases: ['not searched', 'not run']
   },
   confidence: {
