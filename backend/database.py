@@ -343,7 +343,8 @@ def init_db() -> None:
                     extraction_method TEXT NOT NULL DEFAULT 'llm_structured_extraction',
                     confidence TEXT NOT NULL DEFAULT 'HIGH',
                     status TEXT NOT NULL DEFAULT 'SUPPORTED',
-                    created_at TEXT NOT NULL
+                    created_at TEXT NOT NULL,
+                    evidence_json TEXT DEFAULT '{}'
                 );
             """)
             conn.execute("CREATE INDEX IF NOT EXISTS idx_evi_sym ON document_evidence_items(symbol, evidence_type);")
@@ -372,46 +373,66 @@ def init_db() -> None:
                     actual_reported_period TEXT,
                     actual_reported_source TEXT,
                     comparison_detail TEXT,
-                    created_at TEXT NOT NULL
+                    created_at TEXT NOT NULL,
+                    guidance_json TEXT DEFAULT '{}'
                 );
             """)
             conn.execute("CREATE INDEX IF NOT EXISTS idx_mgi_sym ON management_guidance_items(symbol, metric_or_topic);")
             conn.execute("CREATE INDEX IF NOT EXISTS idx_mgi_status ON management_guidance_items(symbol, status);")
+
+            # Safe schema migrations for preexisting tables
+            try:
+                cur = conn.cursor()
+                evi_cols = {r[1] for r in cur.execute("PRAGMA table_info(document_evidence_items);").fetchall()}
+                if evi_cols and "evidence_json" not in evi_cols:
+                    conn.execute("ALTER TABLE document_evidence_items ADD COLUMN evidence_json TEXT DEFAULT '{}';")
+            except Exception:
+                pass
+
+            try:
+                cur = conn.cursor()
+                mgi_cols = {r[1] for r in cur.execute("PRAGMA table_info(management_guidance_items);").fetchall()}
+                if mgi_cols and "guidance_json" not in mgi_cols:
+                    conn.execute("ALTER TABLE management_guidance_items ADD COLUMN guidance_json TEXT DEFAULT '{}';")
+                if mgi_cols and "source_support_status" not in mgi_cols:
+                    conn.execute("ALTER TABLE management_guidance_items ADD COLUMN source_support_status TEXT NOT NULL DEFAULT 'SUPPORTED';")
+                if mgi_cols and "created_at" not in mgi_cols:
+                    conn.execute("ALTER TABLE management_guidance_items ADD COLUMN created_at TEXT DEFAULT '';")
+            except Exception:
+                pass
     finally:
         conn.close()
 
     # Automatically seed initial registry if empty
     try:
         seed_company_registry()
-        from company_taxonomy_service import bootstrap_existing_taxonomy
-        bootstrap_existing_taxonomy()
-    except Exception:
-        pass
+    except Exception as e:
+        print(f"Notice: Company registry auto-seed skipped or failed: {e}")
 
 # ---------------------------------------------------------
 # DOCUMENT EVIDENCE & GUIDANCE PERSISTENCE HELPERS
 # ---------------------------------------------------------
 
 def generate_deterministic_evidence_id(symbol: str, item: Dict[str, Any]) -> str:
-    """Generates a stable, deterministic ID for an evidence item across Python processes."""
+    """Generates a stable, reproducible SHA-256 fallback ID for document evidence items."""
     clean_sym = symbol.upper().strip()
-    u = str(item.get("source_url") or "").strip()
-    et = str(item.get("evidence_type") or "").strip()
-    top = str(item.get("normalized_topic") or "").strip()
-    tit = str(item.get("title") or "").strip()
-    stm = str(item.get("statement") or "").strip()
-    raw = f"{clean_sym}|{u}|{et}|{top}|{tit}|{stm}"
+    s_url = item.get("source_url") or ""
+    ev_type = item.get("evidence_type") or "OTHER_MATERIAL_EVIDENCE"
+    norm_top = item.get("normalized_topic") or ""
+    title = item.get("title") or ""
+    stmt = item.get("statement") or ""
+    raw = f"{clean_sym}|{s_url}|{ev_type}|{norm_top}|{title}|{stmt}"
     h = hashlib.sha256(raw.encode("utf-8")).hexdigest()[:12]
     return f"evi_{clean_sym}_{h}"
 
 def generate_deterministic_guidance_id(symbol: str, item: Dict[str, Any]) -> str:
-    """Generates a stable, deterministic ID for a guidance item across Python processes."""
+    """Generates a stable, reproducible SHA-256 fallback ID for management guidance items."""
     clean_sym = symbol.upper().strip()
-    mot = str(item.get("metric_or_topic") or "").strip()
-    tp = str(item.get("target_period") or "").strip()
-    gt = str(item.get("guidance_text") or "").strip()
-    sdt = str(item.get("source_document_title") or "").strip()
-    sdu = str(item.get("source_document_url") or "").strip()
+    mot = item.get("metric_or_topic") or ""
+    tp = item.get("target_period") or ""
+    gt = item.get("guidance_text") or ""
+    sdt = item.get("source_document_title") or ""
+    sdu = item.get("source_document_url") or ""
     raw = f"{clean_sym}|{mot}|{tp}|{gt}|{sdt}|{sdu}"
     h = hashlib.sha256(raw.encode("utf-8")).hexdigest()[:12]
     return f"mgi_{clean_sym}_{h}"
@@ -424,43 +445,42 @@ def save_document_evidence_items(symbol: str, items: List[Dict[str, Any]]) -> in
     conn = get_db_connection()
     try:
         cur = conn.cursor()
+        table_cols = {r[1] for r in cur.execute("PRAGMA table_info(document_evidence_items);").fetchall()}
         saved = 0
         for it in items:
             item_id = it.get("id") or generate_deterministic_evidence_id(clean_sym, it)
-            cur.execute("""
-                INSERT INTO document_evidence_items (
-                    id, symbol, evidence_type, title, normalized_topic, statement,
-                    source_document_type, source_document_title, source_url,
-                    source_period, source_date, page, section, evidence_quote,
-                    extraction_method, confidence, status, created_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                ON CONFLICT(id) DO UPDATE SET
-                    evidence_type = excluded.evidence_type,
-                    title = excluded.title,
-                    normalized_topic = excluded.normalized_topic,
-                    statement = excluded.statement,
-                    source_document_type = excluded.source_document_type,
-                    source_document_title = excluded.source_document_title,
-                    source_url = excluded.source_url,
-                    source_period = excluded.source_period,
-                    source_date = excluded.source_date,
-                    page = excluded.page,
-                    section = excluded.section,
-                    evidence_quote = excluded.evidence_quote,
-                    extraction_method = excluded.extraction_method,
-                    confidence = excluded.confidence,
-                    status = excluded.status;
-            """, (
-                item_id, clean_sym, it.get("evidence_type", "OTHER_MATERIAL_EVIDENCE"),
-                it.get("title", ""), it.get("normalized_topic", "General"),
-                it.get("statement", ""), it.get("source_document_type", "annual_report"),
-                it.get("source_document_title", ""), it.get("source_url", ""),
-                it.get("source_period"), it.get("source_date"),
-                it.get("page"), it.get("section"), it.get("evidence_quote"),
-                it.get("extraction_method", "llm_structured_extraction"),
-                it.get("confidence", "HIGH"), it.get("status", "SUPPORTED"),
-                it.get("created_at") or now_str
-            ))
+            row_dict = {
+                "id": item_id,
+                "symbol": clean_sym,
+                "evidence_type": it.get("evidence_type", "OTHER_MATERIAL_EVIDENCE"),
+                "title": it.get("title", ""),
+                "normalized_topic": it.get("normalized_topic", "General"),
+                "statement": it.get("statement", ""),
+                "source_document_type": it.get("source_document_type", "annual_report"),
+                "source_document_title": it.get("source_document_title", ""),
+                "source_url": it.get("source_url", ""),
+                "source_period": it.get("source_period"),
+                "source_date": it.get("source_date"),
+                "page": it.get("page"),
+                "section": it.get("section"),
+                "evidence_quote": it.get("evidence_quote"),
+                "extraction_method": it.get("extraction_method", "llm_structured_extraction"),
+                "confidence": it.get("confidence", "HIGH"),
+                "status": it.get("status", "SUPPORTED"),
+                "created_at": it.get("created_at") or now_str,
+                "evidence_json": json.dumps(it)
+            }
+            cols_to_insert = [k for k in row_dict.keys() if k in table_cols]
+            placeholders = ", ".join(["?"] * len(cols_to_insert))
+            col_names = ", ".join(cols_to_insert)
+            update_clause = ", ".join([f"{c} = excluded.{c}" for c in cols_to_insert if c != "id"])
+            
+            sql = f"""
+                INSERT INTO document_evidence_items ({col_names})
+                VALUES ({placeholders})
+                ON CONFLICT(id) DO UPDATE SET {update_clause};
+            """
+            cur.execute(sql, tuple(row_dict[c] for c in cols_to_insert))
             saved += 1
         conn.commit()
         return saved
@@ -497,48 +517,46 @@ def save_management_guidance_items(symbol: str, items: List[Dict[str, Any]]) -> 
     conn = get_db_connection()
     try:
         cur = conn.cursor()
+        table_cols = {r[1] for r in cur.execute("PRAGMA table_info(management_guidance_items);").fetchall()}
         saved = 0
         for it in items:
             item_id = it.get("id") or generate_deterministic_guidance_id(clean_sym, it)
-            cur.execute("""
-                INSERT INTO management_guidance_items (
-                    id, symbol, metric_or_topic, guidance_text, quantified_value,
-                    quantified_range_min, quantified_range_max, unit, target_period,
-                    direction, source_document_title, source_document_url,
-                    source_date_or_period, confidence, status, source_support_status,
-                    actual_reported_value, actual_reported_period,
-                    actual_reported_source, comparison_detail, created_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                ON CONFLICT(id) DO UPDATE SET
-                    guidance_text = excluded.guidance_text,
-                    quantified_value = excluded.quantified_value,
-                    quantified_range_min = excluded.quantified_range_min,
-                    quantified_range_max = excluded.quantified_range_max,
-                    unit = excluded.unit,
-                    direction = excluded.direction,
-                    source_document_title = excluded.source_document_title,
-                    source_document_url = excluded.source_document_url,
-                    source_date_or_period = excluded.source_date_or_period,
-                    confidence = excluded.confidence,
-                    status = excluded.status,
-                    source_support_status = excluded.source_support_status,
-                    actual_reported_value = excluded.actual_reported_value,
-                    actual_reported_period = excluded.actual_reported_period,
-                    actual_reported_source = excluded.actual_reported_source,
-                    comparison_detail = excluded.comparison_detail;
-            """, (
-                item_id, clean_sym, it.get("metric_or_topic", ""),
-                it.get("guidance_text", ""), it.get("quantified_value"),
-                it.get("quantified_range_min"), it.get("quantified_range_max"),
-                it.get("unit"), it.get("target_period", ""),
-                it.get("direction"), it.get("source_document_title", ""),
-                it.get("source_document_url"), it.get("source_date_or_period"),
-                it.get("confidence", "HIGH"), it.get("status", "INSUFFICIENT_EVIDENCE"),
-                it.get("source_support_status", "SUPPORTED"),
-                it.get("actual_reported_value"), it.get("actual_reported_period"),
-                it.get("actual_reported_source"), it.get("comparison_detail"),
-                it.get("created_at") or now_str
-            ))
+            row_dict = {
+                "id": item_id,
+                "symbol": clean_sym,
+                "metric_or_topic": it.get("metric_or_topic", ""),
+                "guidance_text": it.get("guidance_text", ""),
+                "quantified_value": it.get("quantified_value"),
+                "quantified_range_min": it.get("quantified_range_min"),
+                "quantified_range_max": it.get("quantified_range_max"),
+                "unit": it.get("unit"),
+                "target_period": it.get("target_period", ""),
+                "direction": it.get("direction"),
+                "source_document_title": it.get("source_document_title", ""),
+                "source_document_url": it.get("source_document_url"),
+                "source_date_or_period": it.get("source_date_or_period"),
+                "confidence": it.get("confidence", "HIGH"),
+                "status": it.get("status", "INSUFFICIENT_EVIDENCE"),
+                "source_support_status": it.get("source_support_status", "SUPPORTED"),
+                "actual_reported_value": it.get("actual_reported_value"),
+                "actual_reported_period": it.get("actual_reported_period"),
+                "actual_reported_source": it.get("actual_reported_source"),
+                "comparison_detail": it.get("comparison_detail"),
+                "created_at": it.get("created_at") or now_str,
+                "updated_at": it.get("updated_at") or now_str,
+                "guidance_json": json.dumps(it)
+            }
+            cols_to_insert = [k for k in row_dict.keys() if k in table_cols]
+            placeholders = ", ".join(["?"] * len(cols_to_insert))
+            col_names = ", ".join(cols_to_insert)
+            update_clause = ", ".join([f"{c} = excluded.{c}" for c in cols_to_insert if c != "id"])
+            
+            sql = f"""
+                INSERT INTO management_guidance_items ({col_names})
+                VALUES ({placeholders})
+                ON CONFLICT(id) DO UPDATE SET {update_clause};
+            """
+            cur.execute(sql, tuple(row_dict[c] for c in cols_to_insert))
             saved += 1
         conn.commit()
         return saved
