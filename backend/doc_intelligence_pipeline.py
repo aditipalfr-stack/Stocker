@@ -344,6 +344,8 @@ def get_or_generate_document_summary(symbol: str, company_name: str, doc: Docume
         
     return {}
 
+get_or_create_document_summary = get_or_generate_document_summary
+
 def download_and_extract_pdf(pdf_url: str, symbol: str = "") -> List[Tuple[int, str]]:
     """
     Downloads a PDF document from a direct URL and extracts text page-by-page.
@@ -473,35 +475,7 @@ def run_multi_document_ai_pipeline(
 
     print(f"  Selected working set: {len(candidate_docs)} documents")
 
-    # 2. Tier 1: Generate or Load Pre-Computed Per-Document Executive Summaries
-    precomputed_summaries: List[Dict[str, Any]] = []
-    for doc in candidate_docs:
-        try:
-            summary_dict = get_or_create_document_summary(clean_sym, doc)
-            if summary_dict:
-                precomputed_summaries.append(summary_dict)
-        except Exception as e:
-            print(f"    ⚠️ Warning: Failed Tier 1 summary for {doc.title}: {e}")
-
-    # 3. Compile Tagged Raw Excerpt Chunks from candidate documents
-    tagged_chunks: List[str] = []
-    for idx, doc in enumerate(candidate_docs):
-        try:
-            pages = database.get_document_pages(doc.url)
-            if not pages:
-                content = doc.content_text or ""
-                pages = [(1, content[:3000])]
-            for p_num, p_text in pages[:8]:  # Limit top excerpt pages per document
-                if p_text and len(p_text.strip()) > 50:
-                    tagged_chunks.append(
-                        f"=== [DOC #{idx+1} | Title: {doc.title} | Type: {doc.doc_type} | Period: {doc.period_or_date or 'N/A'} | URL: {doc.url} | Page {p_num}] ===\n{p_text.strip()}\n"
-                    )
-        except Exception as e:
-            print(f"    ⚠️ Failed to extract excerpts for {doc.title}: {e}")
-
-    tagged_all_documents_text = "\n".join(tagged_chunks)
-
-    # 4. Compile Standardized Financials Summary & Retrieve Structured Statements
+    # 2. Compile Standardized Financials Summary & Retrieve Structured Statements
     stock_data = database.get_stock_cache(clean_sym)
     if not stock_data:
         try:
@@ -530,7 +504,7 @@ def run_multi_document_ai_pipeline(
     older_doc_title = older_ar.title if older_ar else None
     older_doc_url = older_ar.url if older_ar else None
 
-    # 2. Tier 1: Generate or retrieve Per-Document AI Summaries (Cached in SQLite)
+    # 3. Tier 1: Generate or retrieve Per-Document AI Summaries (Cached in SQLite)
     # Focus initial LLM summarization on top core filings to prevent HTTP 429 rate limits
     core_docs_for_summary: List[DocumentItem] = []
     if latest_ar: core_docs_for_summary.append(latest_ar)
