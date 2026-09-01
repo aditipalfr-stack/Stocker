@@ -1203,6 +1203,11 @@ SYNTHESIS INSTRUCTIONS:
         if precomputed_document_summaries:
             data_to_parse["document_summaries"] = precomputed_document_summaries
             
+        if "evidence_items" in data_to_parse and isinstance(data_to_parse["evidence_items"], list):
+            for ev in data_to_parse["evidence_items"]:
+                if isinstance(ev, dict) and not ev.get("symbol"):
+                    ev["symbol"] = symbol
+                    
         result = GenericDocumentIntelligenceResult(**data_to_parse)
         
         result = sanitize_and_verify_intelligence_result(

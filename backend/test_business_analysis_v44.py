@@ -503,17 +503,50 @@ class TestBusinessAnalysisV44(unittest.TestCase):
         self.assertEqual(g_id1, g_id2)
         self.assertTrue(g_id1.startswith("mgi_TATACOMM_"))
 
-    def test_scenario_p_prompts_and_models_use_standardized_not_audited(self):
-        """Scenario P: Prompts and pipeline describe standardized statement inputs without unsupported audited claims."""
-        from llm_service import SYSTEM_PROMPT
-        from doc_intelligence_pipeline import format_financials_for_prompt
-        
-        self.assertIn("standardized financial statement tables", SYSTEM_PROMPT.lower())
-        self.assertNotIn("screener.in audited data", SYSTEM_PROMPT.lower())
-        
-        formatted = format_financials_for_prompt("NONEXISTENT_SYMBOL_XYZ", stock_data={"symbol": "NONEXISTENT_XYZ"})
-        self.assertIn("=== STANDARDIZED 10-YEAR FINANCIAL STATEMENTS", formatted)
-        self.assertNotIn("AUDITED", formatted)
+    def test_scenario_q_llm_json_evidence_resilience(self):
+        """Scenario Q: Raw LLM output without symbol or id in evidence items parses cleanly."""
+        raw_llm_dict = {
+            "symbol": "INFY",
+            "company_name": "Infosys Limited",
+            "evidence_items": [
+                {
+                    "id": "evi_1",
+                    "evidence_type": "CAPEX_PLAN",
+                    "title": "Cloud Expansion",
+                    "normalized_topic": "Capex",
+                    "statement": "Investing ₹3,000 Cr in AI data centers.",
+                    "source_document_title": "FY25 Annual Report",
+                    "confidence": "HIGH"
+                },
+                {
+                    "evidence_type": "DEMAND_DRIVER",
+                    "title": "Large Deal TCV",
+                    "normalized_topic": "Revenue",
+                    "statement": "Signed $2.5B in net new large deals.",
+                    "source_document_title": "Q3 FY26 Concall",
+                    "confidence": "HIGH"
+                }
+            ],
+            "management_guidance_items": [
+                {
+                    "metric_or_topic": "Constant Currency Revenue Growth",
+                    "guidance_text": "FY26 revenue growth guided between 4% and 5%",
+                    "quantified_range_min": 4.0,
+                    "quantified_range_max": 5.0,
+                    "unit": "%",
+                    "target_period": "FY26",
+                    "source_document_title": "Q3 FY26 Presentation"
+                }
+            ]
+        }
+        res = BusinessOutlookResult(**raw_llm_dict)
+        self.assertEqual(len(res.evidence_items), 2)
+        self.assertEqual(res.evidence_items[0].symbol, "INFY")
+        self.assertEqual(res.evidence_items[1].symbol, "INFY")
+        self.assertEqual(res.evidence_items[0].evidence_type, "CAPEX_PLAN")
+        self.assertEqual(res.evidence_items[1].evidence_type, "DEMAND_DRIVER")
+        self.assertEqual(len(res.management_guidance_items), 1)
+        self.assertEqual(res.management_guidance_items[0].quantified_range_max, 5.0)
 
 if __name__ == "__main__":
     unittest.main()

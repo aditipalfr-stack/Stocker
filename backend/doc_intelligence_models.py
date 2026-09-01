@@ -323,14 +323,14 @@ DocumentEvidenceType = Literal[
 ]
 
 class DocumentEvidenceItem(BaseModel):
-    id: str = Field(description="Unique stable ID of evidence item")
-    symbol: str = Field(description="NSE/BSE stock symbol")
-    evidence_type: DocumentEvidenceType = Field(description="Strict categorical classification of evidence")
-    title: str = Field(description="Concise, informative title of the evidence claim")
-    normalized_topic: str = Field(description="Standardized topic area e.g. Revenue, OPM, Capex, Loan Growth, Asset Quality")
-    statement: str = Field(description="The exact extracted claim or factual assertion")
+    id: Optional[str] = None
+    symbol: Optional[str] = None
+    evidence_type: DocumentEvidenceType = Field(default="OTHER_MATERIAL_EVIDENCE", description="Strict categorical classification of evidence")
+    title: str = Field(default="Document Evidence", description="Concise, informative title of the evidence claim")
+    normalized_topic: str = Field(default="General", description="Standardized topic area e.g. Revenue, OPM, Capex, Loan Growth, Asset Quality")
+    statement: str = Field(default="", description="The exact extracted claim or factual assertion")
     source_document_type: str = Field(default="annual_report", description="annual_report | concall_transcript | presentation | announcement")
-    source_document_title: str = Field(description="Title of source document")
+    source_document_title: str = Field(default="", description="Title of source document")
     source_url: str = Field(default="", description="Direct URL of source document")
     source_period: Optional[str] = Field(default=None, description="Filing period e.g. FY25, Q3 FY26")
     source_date: Optional[str] = Field(default=None, description="Filing publication date e.g. 2025-01-20")
@@ -342,17 +342,52 @@ class DocumentEvidenceItem(BaseModel):
     status: Literal["SUPPORTED", "UNSUPPORTED", "SUPERSEDED"] = Field(default="SUPPORTED", description="Factual support status")
     created_at: Optional[str] = None
 
+    @model_validator(mode="before")
+    @classmethod
+    def adapt_evidence_item(cls, values: Any) -> Any:
+        if isinstance(values, dict):
+            if "claim" in values and not values.get("statement"):
+                values["statement"] = values["claim"]
+            if "evidence_statement" in values and not values.get("statement"):
+                values["statement"] = values["evidence_statement"]
+            if "topic" in values and not values.get("normalized_topic"):
+                values["normalized_topic"] = values["topic"]
+            if "source_doc" in values and not values.get("source_document_title"):
+                values["source_document_title"] = values["source_doc"]
+            if "source_document" in values and not values.get("source_document_title"):
+                values["source_document_title"] = values["source_document"]
+            if "source_page" in values and not values.get("page"):
+                values["page"] = values["source_page"]
+            if "page_number" in values and not values.get("page"):
+                values["page"] = values["page_number"]
+            if "quote" in values and not values.get("evidence_quote"):
+                values["evidence_quote"] = values["quote"]
+            ev_type = values.get("evidence_type")
+            if isinstance(ev_type, str):
+                normalized = ev_type.upper().strip().replace(" ", "_")
+                valid_types = {
+                    "DEMAND_DRIVER", "PRICING_POWER", "CAPEX_PLAN", "UNIT_ECONOMICS",
+                    "MONETIZATION_ENGINE", "GEOGRAPHIC_EXPANSION", "PRODUCT_LAUNCH",
+                    "REGULATORY_CATALYST", "RISK_FACTOR", "MANAGEMENT_GUIDANCE",
+                    "MANAGEMENT_COMMITMENT", "KPI", "OTHER_MATERIAL_EVIDENCE"
+                }
+                if normalized in valid_types:
+                    values["evidence_type"] = normalized
+                else:
+                    values["evidence_type"] = ev_type
+        return values
+
 class ManagementGuidanceItem(BaseModel):
     id: Optional[str] = None
-    metric_or_topic: str = Field(description="Metric or qualitative topic e.g. Revenue, OPM %, Capex, Loan Growth, Deposits, GNPA")
-    guidance_text: str = Field(description="Verbatim or close management guidance statement")
+    metric_or_topic: str = Field(default="Guidance", description="Metric or qualitative topic e.g. Revenue, OPM %, Capex, Loan Growth, Deposits, GNPA")
+    guidance_text: str = Field(default="", description="Verbatim or close management guidance statement")
     quantified_value: Optional[float] = Field(default=None, description="Point target if explicitly stated")
     quantified_range_min: Optional[float] = Field(default=None, description="Lower bound of guided range")
     quantified_range_max: Optional[float] = Field(default=None, description="Upper bound of guided range")
     unit: Optional[str] = Field(default=None, description="Unit e.g. %, ₹ Cr, bps, MW, stores")
-    target_period: str = Field(description="Target period for guidance e.g. FY26, Q4 FY26, FY27")
+    target_period: str = Field(default="Future Period", description="Target period for guidance e.g. FY26, Q4 FY26, FY27")
     direction: Optional[str] = Field(default=None, description="GROWTH, MARGIN_EXPANSION, CAPEX, MAINTAIN, REDUCTION")
-    source_document_title: str = Field(description="Document where guidance was stated")
+    source_document_title: str = Field(default="", description="Document where guidance was stated")
     source_document_url: Optional[str] = Field(default=None, description="Direct URL of source document")
     source_date_or_period: Optional[str] = Field(default=None, description="Period or date of source filing")
     confidence: Literal["HIGH", "MEDIUM", "LOW"] = Field(default="HIGH")
@@ -362,6 +397,26 @@ class ManagementGuidanceItem(BaseModel):
     actual_reported_period: Optional[str] = None
     actual_reported_source: Optional[str] = None
     comparison_detail: Optional[str] = None
+
+    @model_validator(mode="before")
+    @classmethod
+    def adapt_guidance_item(cls, values: Any) -> Any:
+        if isinstance(values, dict):
+            if "metric" in values and not values.get("metric_or_topic"):
+                values["metric_or_topic"] = values["metric"]
+            if "topic" in values and not values.get("metric_or_topic"):
+                values["metric_or_topic"] = values["topic"]
+            if "statement" in values and not values.get("guidance_text"):
+                values["guidance_text"] = values["statement"]
+            if "target_timeline" in values and not values.get("target_period"):
+                values["target_period"] = values["target_timeline"]
+            if "source_doc" in values and not values.get("source_document_title"):
+                values["source_document_title"] = values["source_doc"]
+            if "source_document" in values and not values.get("source_document_title"):
+                values["source_document_title"] = values["source_document"]
+            if "source_url" in values and not values.get("source_document_url"):
+                values["source_document_url"] = values["source_url"]
+        return values
 
 # ROOT DOCUMENT INTELLIGENCE OBJECT
 class BusinessOutlookResult(BaseModel):
@@ -515,6 +570,14 @@ class BusinessOutlookResult(BaseModel):
                     "what_to_watch_next": ["Upcoming quarterly operational metrics", "Capacity commissioning milestones"],
                     "investor_summary": f"Management execution is tracking as {verdict.lower()} based on verified filings and actual financial metrics."
                 }
+
+            # Ensure symbol is set on evidence items
+            sym = values.get("symbol", "")
+            if "evidence_items" in values and isinstance(values["evidence_items"], list):
+                for item in values["evidence_items"]:
+                    if isinstance(item, dict):
+                        if not item.get("symbol") and sym:
+                            item["symbol"] = sym
         return values
 
 # Backward-compatible model aliases for engine and consumers
