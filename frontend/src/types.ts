@@ -700,6 +700,48 @@ export interface SourceDocumentReference {
   added_at?: string;
 }
 
+export interface DocumentEvidenceItem {
+  id: string;
+  symbol: string;
+  evidence_type: string;
+  title: string;
+  normalized_topic: string;
+  statement: string;
+  source_document_type: string;
+  source_document_title: string;
+  source_url: string;
+  source_period?: string | null;
+  source_date?: string | null;
+  page?: number | null;
+  section?: string | null;
+  evidence_quote?: string | null;
+  extraction_method?: string;
+  confidence?: string;
+  status?: string;
+  created_at?: string | null;
+}
+
+export interface ManagementGuidanceItem {
+  id?: string | null;
+  metric_or_topic: string;
+  guidance_text: string;
+  quantified_value?: number | null;
+  quantified_range_min?: number | null;
+  quantified_range_max?: number | null;
+  unit?: string | null;
+  target_period: string;
+  direction?: string | null;
+  source_document_title: string;
+  source_document_url?: string | null;
+  source_date_or_period?: string | null;
+  confidence?: string;
+  status: 'MET' | 'PARTIALLY_MET' | 'MISSED' | 'NOT_YET_DUE' | 'NOT_COMPARABLE' | 'INSUFFICIENT_EVIDENCE';
+  actual_reported_value?: number | null;
+  actual_reported_period?: string | null;
+  actual_reported_source?: string | null;
+  comparison_detail?: string | null;
+}
+
 export interface BusinessOutlookIntelligence {
   symbol: string;
   company_name: string;
@@ -725,6 +767,12 @@ export interface BusinessOutlookIntelligence {
   verified_facts?: VerifiedFactComparison[];
   operational_kpi_evolution?: InterDocumentKPITrend[];
   guidance_vs_projections?: GuidanceVsProjection[];
+  evidence_items?: DocumentEvidenceItem[];
+  management_guidance_items?: ManagementGuidanceItem[];
+  source_documents_hash?: string | null;
+  analysis_version?: string;
+  staleness_status?: 'fresh' | 'stale' | 'not_analyzed' | 'not_checked';
+  financial_business_model?: string;
 }
 
 export type BusinessAnalysisIntelligence = BusinessOutlookIntelligence;

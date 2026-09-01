@@ -12,6 +12,7 @@ import sqlite3
 import json
 import os
 import re
+import hashlib
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Dict, Any, List, Optional, Tuple
@@ -321,6 +322,61 @@ def init_db() -> None:
                     computed_at TEXT NOT NULL
                 );
             """)
+
+            # 14. Document Evidence Items (V4.4 Document Intelligence 2.0)
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS document_evidence_items (
+                    id TEXT PRIMARY KEY,
+                    symbol TEXT NOT NULL,
+                    evidence_type TEXT NOT NULL,
+                    title TEXT NOT NULL,
+                    normalized_topic TEXT NOT NULL,
+                    statement TEXT NOT NULL,
+                    source_document_type TEXT NOT NULL,
+                    source_document_title TEXT NOT NULL,
+                    source_url TEXT NOT NULL,
+                    source_period TEXT,
+                    source_date TEXT,
+                    page INTEGER,
+                    section TEXT,
+                    evidence_quote TEXT,
+                    extraction_method TEXT NOT NULL DEFAULT 'llm_structured_extraction',
+                    confidence TEXT NOT NULL DEFAULT 'HIGH',
+                    status TEXT NOT NULL DEFAULT 'SUPPORTED',
+                    created_at TEXT NOT NULL
+                );
+            """)
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_evi_sym ON document_evidence_items(symbol, evidence_type);")
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_evi_topic ON document_evidence_items(symbol, normalized_topic);")
+
+            # 15. Management Guidance Items (V4.4 Guidance Tracking Layer)
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS management_guidance_items (
+                    id TEXT PRIMARY KEY,
+                    symbol TEXT NOT NULL,
+                    metric_or_topic TEXT NOT NULL,
+                    guidance_text TEXT NOT NULL,
+                    quantified_value REAL,
+                    quantified_range_min REAL,
+                    quantified_range_max REAL,
+                    unit TEXT,
+                    target_period TEXT NOT NULL,
+                    direction TEXT,
+                    source_document_title TEXT NOT NULL,
+                    source_document_url TEXT,
+                    source_date_or_period TEXT,
+                    confidence TEXT NOT NULL DEFAULT 'HIGH',
+                    status TEXT NOT NULL DEFAULT 'INSUFFICIENT_EVIDENCE',
+                    source_support_status TEXT NOT NULL DEFAULT 'SUPPORTED',
+                    actual_reported_value REAL,
+                    actual_reported_period TEXT,
+                    actual_reported_source TEXT,
+                    comparison_detail TEXT,
+                    created_at TEXT NOT NULL
+                );
+            """)
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_mgi_sym ON management_guidance_items(symbol, metric_or_topic);")
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_mgi_status ON management_guidance_items(symbol, status);")
     finally:
         conn.close()
 
@@ -331,6 +387,224 @@ def init_db() -> None:
         bootstrap_existing_taxonomy()
     except Exception:
         pass
+
+# ---------------------------------------------------------
+# DOCUMENT EVIDENCE & GUIDANCE PERSISTENCE HELPERS
+# ---------------------------------------------------------
+
+def generate_deterministic_evidence_id(symbol: str, item: Dict[str, Any]) -> str:
+    """Generates a stable, deterministic ID for an evidence item across Python processes."""
+    clean_sym = symbol.upper().strip()
+    u = str(item.get("source_url") or "").strip()
+    et = str(item.get("evidence_type") or "").strip()
+    top = str(item.get("normalized_topic") or "").strip()
+    tit = str(item.get("title") or "").strip()
+    stm = str(item.get("statement") or "").strip()
+    raw = f"{clean_sym}|{u}|{et}|{top}|{tit}|{stm}"
+    h = hashlib.sha256(raw.encode("utf-8")).hexdigest()[:12]
+    return f"evi_{clean_sym}_{h}"
+
+def generate_deterministic_guidance_id(symbol: str, item: Dict[str, Any]) -> str:
+    """Generates a stable, deterministic ID for a guidance item across Python processes."""
+    clean_sym = symbol.upper().strip()
+    mot = str(item.get("metric_or_topic") or "").strip()
+    tp = str(item.get("target_period") or "").strip()
+    gt = str(item.get("guidance_text") or "").strip()
+    sdt = str(item.get("source_document_title") or "").strip()
+    sdu = str(item.get("source_document_url") or "").strip()
+    raw = f"{clean_sym}|{mot}|{tp}|{gt}|{sdt}|{sdu}"
+    h = hashlib.sha256(raw.encode("utf-8")).hexdigest()[:12]
+    return f"mgi_{clean_sym}_{h}"
+
+def save_document_evidence_items(symbol: str, items: List[Dict[str, Any]]) -> int:
+    clean_sym = symbol.upper().strip()
+    if not items:
+        return 0
+    now_str = datetime.now(timezone.utc).isoformat()
+    conn = get_db_connection()
+    try:
+        cur = conn.cursor()
+        saved = 0
+        for it in items:
+            item_id = it.get("id") or generate_deterministic_evidence_id(clean_sym, it)
+            cur.execute("""
+                INSERT INTO document_evidence_items (
+                    id, symbol, evidence_type, title, normalized_topic, statement,
+                    source_document_type, source_document_title, source_url,
+                    source_period, source_date, page, section, evidence_quote,
+                    extraction_method, confidence, status, created_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(id) DO UPDATE SET
+                    evidence_type = excluded.evidence_type,
+                    title = excluded.title,
+                    normalized_topic = excluded.normalized_topic,
+                    statement = excluded.statement,
+                    source_document_type = excluded.source_document_type,
+                    source_document_title = excluded.source_document_title,
+                    source_url = excluded.source_url,
+                    source_period = excluded.source_period,
+                    source_date = excluded.source_date,
+                    page = excluded.page,
+                    section = excluded.section,
+                    evidence_quote = excluded.evidence_quote,
+                    extraction_method = excluded.extraction_method,
+                    confidence = excluded.confidence,
+                    status = excluded.status;
+            """, (
+                item_id, clean_sym, it.get("evidence_type", "OTHER_MATERIAL_EVIDENCE"),
+                it.get("title", ""), it.get("normalized_topic", "General"),
+                it.get("statement", ""), it.get("source_document_type", "annual_report"),
+                it.get("source_document_title", ""), it.get("source_url", ""),
+                it.get("source_period"), it.get("source_date"),
+                it.get("page"), it.get("section"), it.get("evidence_quote"),
+                it.get("extraction_method", "llm_structured_extraction"),
+                it.get("confidence", "HIGH"), it.get("status", "SUPPORTED"),
+                it.get("created_at") or now_str
+            ))
+            saved += 1
+        conn.commit()
+        return saved
+    finally:
+        conn.close()
+
+def get_document_evidence_items(symbol: str, evidence_type: Optional[str] = None) -> List[Dict[str, Any]]:
+    clean_sym = symbol.upper().strip()
+    conn = get_db_connection()
+    try:
+        cur = conn.cursor()
+        if evidence_type:
+            cur.execute("""
+                SELECT * FROM document_evidence_items 
+                WHERE symbol = ? AND evidence_type = ?
+                ORDER BY created_at DESC;
+            """, (clean_sym, evidence_type))
+        else:
+            cur.execute("""
+                SELECT * FROM document_evidence_items 
+                WHERE symbol = ?
+                ORDER BY created_at DESC;
+            """, (clean_sym,))
+        rows = cur.fetchall()
+        return [dict(r) for r in rows]
+    finally:
+        conn.close()
+
+def save_management_guidance_items(symbol: str, items: List[Dict[str, Any]]) -> int:
+    clean_sym = symbol.upper().strip()
+    if not items:
+        return 0
+    now_str = datetime.now(timezone.utc).isoformat()
+    conn = get_db_connection()
+    try:
+        cur = conn.cursor()
+        saved = 0
+        for it in items:
+            item_id = it.get("id") or generate_deterministic_guidance_id(clean_sym, it)
+            cur.execute("""
+                INSERT INTO management_guidance_items (
+                    id, symbol, metric_or_topic, guidance_text, quantified_value,
+                    quantified_range_min, quantified_range_max, unit, target_period,
+                    direction, source_document_title, source_document_url,
+                    source_date_or_period, confidence, status, source_support_status,
+                    actual_reported_value, actual_reported_period,
+                    actual_reported_source, comparison_detail, created_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(id) DO UPDATE SET
+                    guidance_text = excluded.guidance_text,
+                    quantified_value = excluded.quantified_value,
+                    quantified_range_min = excluded.quantified_range_min,
+                    quantified_range_max = excluded.quantified_range_max,
+                    unit = excluded.unit,
+                    direction = excluded.direction,
+                    source_document_title = excluded.source_document_title,
+                    source_document_url = excluded.source_document_url,
+                    source_date_or_period = excluded.source_date_or_period,
+                    confidence = excluded.confidence,
+                    status = excluded.status,
+                    source_support_status = excluded.source_support_status,
+                    actual_reported_value = excluded.actual_reported_value,
+                    actual_reported_period = excluded.actual_reported_period,
+                    actual_reported_source = excluded.actual_reported_source,
+                    comparison_detail = excluded.comparison_detail;
+            """, (
+                item_id, clean_sym, it.get("metric_or_topic", ""),
+                it.get("guidance_text", ""), it.get("quantified_value"),
+                it.get("quantified_range_min"), it.get("quantified_range_max"),
+                it.get("unit"), it.get("target_period", ""),
+                it.get("direction"), it.get("source_document_title", ""),
+                it.get("source_document_url"), it.get("source_date_or_period"),
+                it.get("confidence", "HIGH"), it.get("status", "INSUFFICIENT_EVIDENCE"),
+                it.get("source_support_status", "SUPPORTED"),
+                it.get("actual_reported_value"), it.get("actual_reported_period"),
+                it.get("actual_reported_source"), it.get("comparison_detail"),
+                it.get("created_at") or now_str
+            ))
+            saved += 1
+        conn.commit()
+        return saved
+    finally:
+        conn.close()
+
+def get_management_guidance_items(symbol: str) -> List[Dict[str, Any]]:
+    clean_sym = symbol.upper().strip()
+    conn = get_db_connection()
+    try:
+        cur = conn.cursor()
+        cur.execute("""
+            SELECT * FROM management_guidance_items 
+            WHERE symbol = ?
+            ORDER BY created_at DESC;
+        """, (clean_sym,))
+        rows = cur.fetchall()
+        return [dict(r) for r in rows]
+    finally:
+        conn.close()
+
+def compute_source_documents_hash(docs: Optional[List[Any]]) -> str:
+    """Computes a stable deterministic SHA256 hash over candidate source documents."""
+    if not docs:
+        return "empty_corpus"
+    elements = []
+    for d in docs:
+        if isinstance(d, dict):
+            u = str(d.get("url", "")).strip()
+            t = str(d.get("title", "")).strip()
+            p = str(d.get("period") or d.get("period_or_date", "")).strip()
+        else:
+            u = str(getattr(d, "url", "")).strip()
+            t = str(getattr(d, "title", "")).strip()
+            p = str(getattr(d, "period_or_date", "")).strip()
+        elements.append(f"{u}|{t}|{p}")
+    elements.sort()
+    combined = "\n".join(elements)
+    return hashlib.sha256(combined.encode("utf-8")).hexdigest()[:16]
+
+def check_business_analysis_staleness(symbol: str, current_docs: Optional[List[Any]] = None) -> Tuple[bool, str]:
+    """
+    Evaluates whether the stored business analysis intelligence for a company is stale.
+    Returns (is_stale, reason_or_status).
+    
+    If current_docs is None:
+    - do not compare hashes
+    - return (False, "not_checked") if analysis exists, or (True, "not_analyzed") if no analysis exists
+    """
+    clean_sym = symbol.upper().strip()
+    ai_record = get_cached_ai_analysis(clean_sym)
+    if not ai_record:
+        return True, "not_analyzed"
+        
+    stored_hash = ai_record.get("source_documents_hash")
+    if not stored_hash:
+        return True, "missing_documents_hash"
+        
+    if current_docs is None:
+        return False, "not_checked"
+        
+    curr_hash = compute_source_documents_hash(current_docs)
+    if stored_hash != curr_hash:
+        return True, f"source_documents_changed (stored: {stored_hash}, current: {curr_hash})"
+        
+    return False, "fresh"
 
 # ---------------------------------------------------------
 # STOCKS FINANCIALS CACHE HELPERS
@@ -538,6 +812,8 @@ def get_cached_ai_analysis(symbol: str) -> Optional[Dict[str, Any]]:
         return None
     finally:
         conn.close()
+
+get_ai_analysis = get_cached_ai_analysis
 
 def save_source_documents(symbol: str, documents: List[Any]) -> None:
     """Persists discovered and verified source documents into SQLite."""

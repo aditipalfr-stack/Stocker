@@ -77,7 +77,7 @@ class PromiseVsDeliveryItem(BaseModel):
             if "area" not in values or not values.get("area"):
                 values["area"] = values.get("category", "Corporate Strategy")
             if "actual_in_period" not in values or not values.get("actual_in_period"):
-                values["actual_in_period"] = values.get("source_document", "Latest Audited Results")
+                values["actual_in_period"] = values.get("source_document", "Latest Reported Results")
             if "variance_analysis" in values and not values.get("stocker_analysis"):
                 values["stocker_analysis"] = values["variance_analysis"]
             if values.get("status") in ("Not enough data", "Not Enough Data", "Not enough evidence", "Not Enough Evidence"):
@@ -301,6 +301,68 @@ class DocumentSummaryItem(BaseModel):
                 values["capex_or_guidance_highlight"] = values.get("guidance_and_capex")
         return values
 
+DocumentEvidenceType = Literal[
+    "MANAGEMENT_GUIDANCE",
+    "DEMAND_DRIVER",
+    "SUPPLY_DRIVER",
+    "CAPEX_PLAN",
+    "CAPACITY_EXPANSION",
+    "MARGIN_DRIVER",
+    "COST_PRESSURE",
+    "ORDER_BOOK",
+    "CUSTOMER_CONCENTRATION",
+    "GEOGRAPHIC_EXPOSURE",
+    "NEW_PRODUCT",
+    "REGULATORY_RISK",
+    "COMPETITIVE_RISK",
+    "CAPITAL_ALLOCATION",
+    "WORKING_CAPITAL_COMMENTARY",
+    "MANAGEMENT_COMMITMENT",
+    "KPI",
+    "OTHER_MATERIAL_EVIDENCE"
+]
+
+class DocumentEvidenceItem(BaseModel):
+    id: str = Field(description="Unique stable ID of evidence item")
+    symbol: str = Field(description="NSE/BSE stock symbol")
+    evidence_type: DocumentEvidenceType = Field(description="Strict categorical classification of evidence")
+    title: str = Field(description="Concise, informative title of the evidence claim")
+    normalized_topic: str = Field(description="Standardized topic area e.g. Revenue, OPM, Capex, Loan Growth, Asset Quality")
+    statement: str = Field(description="The exact extracted claim or factual assertion")
+    source_document_type: str = Field(default="annual_report", description="annual_report | concall_transcript | presentation | announcement")
+    source_document_title: str = Field(description="Title of source document")
+    source_url: str = Field(default="", description="Direct URL of source document")
+    source_period: Optional[str] = Field(default=None, description="Filing period e.g. FY25, Q3 FY26")
+    source_date: Optional[str] = Field(default=None, description="Filing publication date e.g. 2025-01-20")
+    page: Optional[int] = Field(default=None, description="Verified page number in source filing")
+    section: Optional[str] = Field(default=None, description="Section or chapter name in filing")
+    evidence_quote: Optional[str] = Field(default=None, description="Short supporting quote excerpt from text")
+    extraction_method: str = Field(default="llm_structured_extraction", description="Method of extraction")
+    confidence: Literal["HIGH", "MEDIUM", "LOW"] = Field(default="HIGH", description="Confidence rating")
+    status: Literal["SUPPORTED", "UNSUPPORTED", "SUPERSEDED"] = Field(default="SUPPORTED", description="Factual support status")
+    created_at: Optional[str] = None
+
+class ManagementGuidanceItem(BaseModel):
+    id: Optional[str] = None
+    metric_or_topic: str = Field(description="Metric or qualitative topic e.g. Revenue, OPM %, Capex, Loan Growth, Deposits, GNPA")
+    guidance_text: str = Field(description="Verbatim or close management guidance statement")
+    quantified_value: Optional[float] = Field(default=None, description="Point target if explicitly stated")
+    quantified_range_min: Optional[float] = Field(default=None, description="Lower bound of guided range")
+    quantified_range_max: Optional[float] = Field(default=None, description="Upper bound of guided range")
+    unit: Optional[str] = Field(default=None, description="Unit e.g. %, ₹ Cr, bps, MW, stores")
+    target_period: str = Field(description="Target period for guidance e.g. FY26, Q4 FY26, FY27")
+    direction: Optional[str] = Field(default=None, description="GROWTH, MARGIN_EXPANSION, CAPEX, MAINTAIN, REDUCTION")
+    source_document_title: str = Field(description="Document where guidance was stated")
+    source_document_url: Optional[str] = Field(default=None, description="Direct URL of source document")
+    source_date_or_period: Optional[str] = Field(default=None, description="Period or date of source filing")
+    confidence: Literal["HIGH", "MEDIUM", "LOW"] = Field(default="HIGH")
+    status: Literal["MET", "PARTIALLY_MET", "MISSED", "NOT_YET_DUE", "NOT_COMPARABLE", "INSUFFICIENT_EVIDENCE"] = Field(default="INSUFFICIENT_EVIDENCE")
+    source_support_status: Literal["SUPPORTED", "UNSUPPORTED"] = Field(default="SUPPORTED", description="Whether source document citation is verified in corpus")
+    actual_reported_value: Optional[float] = None
+    actual_reported_period: Optional[str] = None
+    actual_reported_source: Optional[str] = None
+    comparison_detail: Optional[str] = None
+
 # ROOT DOCUMENT INTELLIGENCE OBJECT
 class BusinessOutlookResult(BaseModel):
     symbol: str
@@ -333,6 +395,14 @@ class BusinessOutlookResult(BaseModel):
     verified_facts: List[VerifiedFactComparison] = Field(default_factory=list)
     operational_kpi_evolution: List[InterDocumentKPITrend] = Field(default_factory=list)
     guidance_vs_projections: List[GuidanceVsProjection] = Field(default_factory=list)
+
+    # V2 Document Intelligence & Evidence Layer
+    evidence_items: List[DocumentEvidenceItem] = Field(default_factory=list)
+    management_guidance_items: List[ManagementGuidanceItem] = Field(default_factory=list)
+    source_documents_hash: Optional[str] = None
+    analysis_version: str = "2.0"
+    staleness_status: str = "not_checked"
+    financial_business_model: str = "GENERAL_CORPORATE"
 
     # Backward-compatible properties / validators
     @model_validator(mode="before")

@@ -689,7 +689,13 @@ def get_stock_business_analysis(symbol: str):
             "document_summaries": [],
             "verified_facts": [],
             "operational_kpi_evolution": [],
-            "guidance_vs_projections": []
+            "guidance_vs_projections": [],
+            "evidence_items": [],
+            "management_guidance_items": [],
+            "source_documents_hash": None,
+            "analysis_version": "2.0",
+            "staleness_status": "not_analyzed",
+            "financial_business_model": "GENERAL_CORPORATE"
         }
         
     res_dict = doc_intel.model_dump()
@@ -738,7 +744,13 @@ def get_stock_doc_intelligence(symbol: str):
             "document_summaries": [],
             "verified_facts": [],
             "operational_kpi_evolution": [],
-            "guidance_vs_projections": []
+            "guidance_vs_projections": [],
+            "evidence_items": [],
+            "management_guidance_items": [],
+            "source_documents_hash": None,
+            "analysis_version": "2.0",
+            "staleness_status": "not_analyzed",
+            "financial_business_model": "GENERAL_CORPORATE"
         }
     return doc_intel
 

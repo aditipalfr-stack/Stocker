@@ -102,7 +102,7 @@ def _extract_statement_table(statement_data: Any) -> Tuple[List[str], Dict[str, 
             
     return periods, rows_dict
 
-def format_audited_financials_for_prompt(symbol: str, stock_data: Optional[Dict[str, Any]] = None) -> str:
+def format_financials_for_prompt(symbol: str, stock_data: Optional[Dict[str, Any]] = None) -> str:
     """Formats 10-year P&L, Balance Sheet, Cash Flow, and Quarters into a clean prompt context table."""
     clean_sym = symbol.upper().strip()
     data = stock_data or database.get_stock_cache(clean_sym)
@@ -113,14 +113,14 @@ def format_audited_financials_for_prompt(symbol: str, stock_data: Optional[Dict[
             data = None
             
     if not data:
-        return "Audited financial statements not available in database."
+        return "Standardized financial statements not available in database."
         
     pl_data = data.get("profit_loss") or data.get("profit_and_loss")
     bs_data = data.get("balance_sheet")
     cf_data = data.get("cash_flow")
     q_data = data.get("quarters")
     
-    lines = [f"=== AUDITED 10-YEAR FINANCIAL STATEMENTS ({clean_sym}) ==="]
+    lines = [f"=== STANDARDIZED 10-YEAR FINANCIAL STATEMENTS ({clean_sym}) ==="]
     
     # 1. Annual P&L Summary
     pl_years, pl_rows = _extract_statement_table(pl_data)
@@ -427,7 +427,7 @@ def run_multi_document_ai_pipeline(
     Two-Tier Document Intelligence Pipeline:
     1. Tier 1: Per-Document Summarization with SQLite Caching.
     2. Tier 2: Company-Level Synthesis with strict multi-document attribution,
-       10-year audited financial statement triangulation, and on-demand historical evidence.
+       10-year standardized financial statement triangulation, and on-demand historical evidence.
     """
     clean_sym = symbol.upper().strip()
     print(f"\n==================================================")
@@ -444,6 +444,46 @@ def run_multi_document_ai_pipeline(
     if not candidate_docs:
         raise ValueError(f"No valid source documents found for {clean_sym}")
 
+    print(f"  Selected working set: {len(candidate_docs)} documents")
+
+    # 2. Tier 1: Generate or Load Pre-Computed Per-Document Executive Summaries
+    precomputed_summaries: List[Dict[str, Any]] = []
+    for doc in candidate_docs:
+        try:
+            summary_dict = get_or_create_document_summary(clean_sym, doc)
+            if summary_dict:
+                precomputed_summaries.append(summary_dict)
+        except Exception as e:
+            print(f"    ⚠️ Warning: Failed Tier 1 summary for {doc.title}: {e}")
+
+    # 3. Compile Tagged Raw Excerpt Chunks from candidate documents
+    tagged_chunks: List[str] = []
+    for idx, doc in enumerate(candidate_docs):
+        try:
+            pages = database.get_document_pages(doc.url)
+            if not pages:
+                content = doc.content_text or ""
+                pages = [(1, content[:3000])]
+            for p_num, p_text in pages[:8]:  # Limit top excerpt pages per document
+                if p_text and len(p_text.strip()) > 50:
+                    tagged_chunks.append(
+                        f"=== [DOC #{idx+1} | Title: {doc.title} | Type: {doc.doc_type} | Period: {doc.period_or_date or 'N/A'} | URL: {doc.url} | Page {p_num}] ===\n{p_text.strip()}\n"
+                    )
+        except Exception as e:
+            print(f"    ⚠️ Failed to extract excerpts for {doc.title}: {e}")
+
+    tagged_all_documents_text = "\n".join(tagged_chunks)
+
+    # 4. Compile Standardized Financials Summary & Retrieve Structured Statements
+    stock_data = database.get_stock_cache(clean_sym)
+    if not stock_data:
+        try:
+            stock_data = fetch_stock_from_screener(clean_sym, force_refresh=False)
+        except Exception:
+            stock_data = {}
+            
+    financial_statements_text = format_financials_for_prompt(clean_sym, stock_data=stock_data)
+    
     # Identify primary latest and baseline documents
     latest_ar = next((d for d in candidate_docs if d.doc_type == "annual_report"), candidate_docs[0])
     older_ar = historical_baseline_doc or (documents.annual_reports[1] if len(documents.annual_reports) > 1 else None)
@@ -538,7 +578,18 @@ def run_multi_document_ai_pipeline(
         for d in candidate_docs
     ]
 
-    # 5. LLM Inference / Company-Level Synthesis
+    # 5. Determine Sector Taxonomy & Business Model Routing
+    from company_taxonomy_service import resolve_local_company_taxonomy
+    from financial_engine import classify_financial_business_model
+    
+    tax_info = resolve_local_company_taxonomy(clean_sym, stock_data=stock_data)
+    biz_model = classify_financial_business_model(
+        sector=tax_info.get("sector"),
+        industry=tax_info.get("industry")
+    )
+    docs_hash = database.compute_source_documents_hash(candidate_docs)
+
+    # 6. LLM Inference / Company-Level Synthesis
     if not is_llm_available():
         msg = "AI Analysis Unavailable: Configure GEMINI_API_KEY in .env file."
         status_res = {
@@ -558,11 +609,17 @@ def run_multi_document_ai_pipeline(
             "document_summaries": doc_summaries_list,
             "verified_facts": [],
             "operational_kpi_evolution": [],
-            "guidance_vs_projections": []
+            "guidance_vs_projections": [],
+            "evidence_items": [],
+            "management_guidance_items": [],
+            "source_documents_hash": docs_hash,
+            "analysis_version": "2.0",
+            "staleness_status": "not_analyzed",
+            "financial_business_model": biz_model
         }
         return status_res
 
-    print(f"  • Invoking Gemini for Company-Level Institutional Synthesis...")
+    print(f"  • Invoking Gemini for Company-Level Institutional Synthesis (Business Model: {biz_model})...")
     success, result, message = extract_document_intelligence_with_llm(
         symbol=clean_sym,
         company_name=company_name,
@@ -579,16 +636,31 @@ def run_multi_document_ai_pipeline(
         pl_stmt=pl_stmt,
         quarters_stmt=quarters_stmt,
         bs_stmt=bs_stmt,
-        cf_stmt=cf_stmt
+        cf_stmt=cf_stmt,
+        financial_business_model=biz_model
     )
     if not success or not result:
         raise RuntimeError(f"Multi-document AI extraction failed: {message}")
         
     result.extraction_timestamp = datetime.now(timezone.utc).isoformat()
+    result.source_documents_hash = docs_hash
+    result.analysis_version = "2.0"
+    result.staleness_status = "fresh"
+    result.financial_business_model = biz_model
+    
     output_dict = result.model_dump()
     
     # Save to SQLite Database
     if save_output:
+        # 1. Save structured evidence items
+        if output_dict.get("evidence_items"):
+            database.save_document_evidence_items(clean_sym, output_dict["evidence_items"])
+            
+        # 2. Save structured management guidance items
+        if output_dict.get("management_guidance_items"):
+            database.save_management_guidance_items(clean_sym, output_dict["management_guidance_items"])
+            
+        # 3. Save full institutional analysis
         database.save_ai_analysis(
             symbol=clean_sym,
             company_name=company_name,
