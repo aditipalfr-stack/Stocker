@@ -79,6 +79,15 @@ export const BusinessAnalysisView: React.FC<BusinessAnalysisViewProps> = ({
     }
   }, [activeSubTab, stock.symbol, loadSourceFilings]);
 
+  // When docIntel updates (e.g. after Run Live AI Analysis), automatically invalidate and refetch Source Filings
+  const prevDocIntelTsRef = useRef<string | undefined>(docIntel?.extraction_timestamp);
+  useEffect(() => {
+    if (docIntel?.extraction_timestamp && docIntel.extraction_timestamp !== prevDocIntelTsRef.current) {
+      prevDocIntelTsRef.current = docIntel.extraction_timestamp;
+      loadSourceFilings(stock.symbol, true);
+    }
+  }, [docIntel?.extraction_timestamp, stock.symbol, loadSourceFilings]);
+
   const isAnalyzed = Boolean(
     docIntel && (
       (docIntel.promise_vs_delivery && docIntel.promise_vs_delivery.length > 0) ||

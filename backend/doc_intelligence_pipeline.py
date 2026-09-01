@@ -303,10 +303,19 @@ def get_or_generate_document_summary(symbol: str, company_name: str, doc: Docume
     Reuses stored summaries to minimize repeated LLM token costs.
     """
     clean_sym = symbol.upper().strip()
+    doc_k = getattr(doc, "doc_key", None) or database.compute_canonical_document_key(clean_sym, doc.doc_type, doc.period_or_date, doc.url, doc.title)
+    doc.doc_key = doc_k
     
     # 1. Check SQLite cache
-    cached = database.get_document_summary(doc.url)
+    cached = database.get_document_summary(
+        doc.url,
+        doc_key=doc_k,
+        symbol=clean_sym,
+        doc_type=doc.doc_type,
+        period_or_date=doc.period_or_date
+    )
     if cached and cached.get("key_takeaways"):
+        cached["doc_key"] = doc_k
         return cached
         
     # 2. Download and extract pages
@@ -314,10 +323,32 @@ def get_or_generate_document_summary(symbol: str, company_name: str, doc: Docume
         pages = download_and_extract_pdf(doc.url, symbol=clean_sym)
     except Exception as e:
         print(f"    ⚠️ Could not extract text for {doc.title}: {e}")
-        return {}
+        failed_sum = {
+            "doc_title": doc.title,
+            "doc_url": doc.url,
+            "doc_key": doc_k,
+            "doc_type": doc.doc_type,
+            "period_or_date": doc.period_or_date,
+            "status": "failed",
+            "error": f"Failed to extract document: {e}",
+            "key_takeaways": []
+        }
+        database.save_document_summary(clean_sym, doc.url, doc.title, failed_sum, doc_key=doc_k, doc_type=doc.doc_type, period_or_date=doc.period_or_date)
+        return failed_sum
         
     if not pages:
-        return {}
+        failed_sum = {
+            "doc_title": doc.title,
+            "doc_url": doc.url,
+            "doc_key": doc_k,
+            "doc_type": doc.doc_type,
+            "period_or_date": doc.period_or_date,
+            "status": "failed",
+            "error": "No readable text pages found in filing.",
+            "key_takeaways": []
+        }
+        database.save_document_summary(clean_sym, doc.url, doc.title, failed_sum, doc_key=doc_k, doc_type=doc.doc_type, period_or_date=doc.period_or_date)
+        return failed_sum
         
     # 3. Select high-signal pages for summarization
     is_ar = (doc.doc_type == "annual_report" or len(pages) > 40)
@@ -328,18 +359,35 @@ def get_or_generate_document_summary(symbol: str, company_name: str, doc: Docume
     )
     
     # 4. Generate AI summary
-    summary = summarize_single_document_with_llm(
-        symbol=clean_sym,
-        company_name=company_name,
-        doc_title=doc.title,
-        doc_url=doc.url,
-        doc_type=doc.doc_type,
-        period_or_date=doc.period_or_date,
-        pages=selected_pages
-    )
+    try:
+        summary = summarize_single_document_with_llm(
+            symbol=clean_sym,
+            company_name=company_name,
+            doc_title=doc.title,
+            doc_url=doc.url,
+            doc_type=doc.doc_type,
+            period_or_date=doc.period_or_date,
+            pages=selected_pages
+        )
+    except Exception as e:
+        print(f"    ⚠️ Summarization LLM call failed for {doc.title}: {e}")
+        failed_sum = {
+            "doc_title": doc.title,
+            "doc_url": doc.url,
+            "doc_key": doc_k,
+            "doc_type": doc.doc_type,
+            "period_or_date": doc.period_or_date,
+            "status": "failed",
+            "error": f"AI extraction error: {e}",
+            "key_takeaways": []
+        }
+        database.save_document_summary(clean_sym, doc.url, doc.title, failed_sum, doc_key=doc_k, doc_type=doc.doc_type, period_or_date=doc.period_or_date)
+        return failed_sum
     
     if summary:
-        database.save_document_summary(clean_sym, doc.url, doc.title, summary)
+        summary["doc_key"] = doc_k
+        summary["status"] = "success"
+        database.save_document_summary(clean_sym, doc.url, doc.title, summary, doc_key=doc_k, doc_type=doc.doc_type, period_or_date=doc.period_or_date)
         return summary
         
     return {}
@@ -475,17 +523,7 @@ def run_multi_document_ai_pipeline(
 
     print(f"  Selected working set: {len(candidate_docs)} documents")
 
-    # 2. Compile Standardized Financials Summary & Retrieve Structured Statements
-    stock_data = database.get_stock_cache(clean_sym)
-    if not stock_data:
-        try:
-            stock_data = fetch_stock_from_screener(clean_sym, force_refresh=False)
-        except Exception:
-            stock_data = {}
-            
-    financial_statements_text = format_financials_for_prompt(clean_sym, stock_data=stock_data)
-    
-    # Identify primary latest and baseline documents
+    # 2. Identify primary latest and baseline documents
     latest_ar = next((d for d in candidate_docs if d.doc_type == "annual_report"), candidate_docs[0])
     older_ar = historical_baseline_doc or (documents.annual_reports[1] if len(documents.annual_reports) > 1 else None)
     
@@ -514,11 +552,14 @@ def run_multi_document_ai_pipeline(
     core_docs_for_summary.extend([d for d in candidate_docs if d.doc_type == "announcement"][:2])
     
     # Deduplicate core docs
-    seen_summary_urls = set()
+    seen_summary_keys = set()
     deduped_core_summary_docs = []
     for d in core_docs_for_summary:
-        if d.url not in seen_summary_urls:
-            seen_summary_urls.add(d.url)
+        k = getattr(d, "doc_key", None) or database.compute_canonical_document_key(clean_sym, d.doc_type, d.period_or_date, d.url, d.title)
+        d.doc_key = k
+        if k not in seen_summary_keys and d.url not in seen_summary_keys:
+            seen_summary_keys.add(k)
+            seen_summary_keys.add(d.url)
             deduped_core_summary_docs.append(d)
             
     print(f"  • Generating/Retrieving Per-Document AI Summaries for {len(deduped_core_summary_docs)} core filings...")
@@ -527,10 +568,10 @@ def run_multi_document_ai_pipeline(
     for doc in deduped_core_summary_docs:
         print(f"    - Processing [{doc.doc_type}]: {doc.title}")
         doc_sum = get_or_generate_document_summary(clean_sym, company_name, doc)
-        if doc_sum:
+        if doc_sum and doc_sum.get("status") != "failed":
             doc_summaries_list.append(doc_sum)
 
-    # 3. Extract and compile tagged excerpt chunks from primary documents
+    # 4. Extract and compile tagged excerpt chunks from primary documents
     print(f"  • Assembling Multi-Document Tagged Context...")
     tagged_chunks: List[str] = []
     
@@ -560,7 +601,7 @@ def run_multi_document_ai_pipeline(
 
     tagged_all_documents_text = "\n".join(tagged_chunks)
 
-    # 4. Compile Standardized Financials Summary & Retrieve Structured Statements
+    # 5. Compile Standardized Financials Summary & Retrieve Structured Statements
     stock_data = database.get_stock_cache(clean_sym)
     if not stock_data:
         try:

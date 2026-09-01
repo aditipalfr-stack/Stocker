@@ -255,9 +255,12 @@ class GuidanceVsProjection(BaseModel):
 class DocumentSummaryItem(BaseModel):
     doc_title: str
     doc_url: str
+    doc_key: Optional[str] = None
     doc_type: Optional[str] = None
     period_or_date: Optional[str] = None
     analyzed_at: Optional[str] = None
+    status: Literal["success", "failed"] = "success"
+    error: Optional[str] = None
     key_takeaways: List[str] = Field(default_factory=list, description="3-5 bullet executive takeaways")
     management_tone: Optional[str] = Field(default=None, description="Tone e.g. Confident, Prudent, Cautious, Neutral")
     guidance_and_capex: Optional[str] = Field(default=None, description="Important forward-looking guidance or capex roadmap")

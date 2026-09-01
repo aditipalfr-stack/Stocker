@@ -400,6 +400,26 @@ def init_db() -> None:
                     conn.execute("ALTER TABLE management_guidance_items ADD COLUMN created_at TEXT DEFAULT '';")
             except Exception:
                 pass
+
+            # Safe schema migration for source_documents.doc_key
+            try:
+                cur = conn.cursor()
+                sdocs_cols = {r[1] for r in cur.execute("PRAGMA table_info(source_documents);").fetchall()}
+                if sdocs_cols and "doc_key" not in sdocs_cols:
+                    conn.execute("ALTER TABLE source_documents ADD COLUMN doc_key TEXT;")
+                    conn.execute("CREATE INDEX IF NOT EXISTS idx_docs_key ON source_documents(doc_key);")
+            except Exception:
+                pass
+
+            # Safe schema migration for ai_document_summaries.doc_key
+            try:
+                cur = conn.cursor()
+                sums_cols = {r[1] for r in cur.execute("PRAGMA table_info(ai_document_summaries);").fetchall()}
+                if sums_cols and "doc_key" not in sums_cols:
+                    conn.execute("ALTER TABLE ai_document_summaries ADD COLUMN doc_key TEXT;")
+                    conn.execute("CREATE INDEX IF NOT EXISTS idx_summaries_key ON ai_document_summaries(doc_key);")
+            except Exception:
+                pass
     finally:
         conn.close()
 
@@ -578,6 +598,104 @@ def get_management_guidance_items(symbol: str) -> List[Dict[str, Any]]:
     finally:
         conn.close()
 
+def canonicalize_document_url(url: Optional[str]) -> str:
+    """
+    Cleans and canonicalizes a document URL safely.
+    - Strips leading/trailing whitespace.
+    - Removes harmless URL fragments (#page=1, #...).
+    - Normalizes scheme/host to lowercase.
+    - Normalizes query parameters safely without breaking endpoint semantics.
+    """
+    if not url:
+        return ""
+    clean = str(url).strip()
+    if not clean:
+        return ""
+    # Strip URL fragments
+    if "#" in clean:
+        clean = clean.split("#", 1)[0].strip()
+    try:
+        from urllib.parse import urlparse, parse_qsl, urlencode, urlunparse
+        parsed = urlparse(clean)
+        if parsed.scheme and parsed.netloc:
+            scheme = parsed.scheme.lower()
+            netloc = parsed.netloc.lower()
+            query_tuples = parse_qsl(parsed.query, keep_blank_values=True)
+            if query_tuples:
+                sorted_query = urlencode(sorted(query_tuples))
+            else:
+                sorted_query = parsed.query
+            return urlunparse((scheme, netloc, parsed.path, parsed.params, sorted_query, ""))
+    except Exception:
+        pass
+    return clean
+
+def compute_canonical_document_key(
+    symbol: str,
+    doc_type: str,
+    period_or_date: Optional[str] = None,
+    url: Optional[str] = None,
+    title: Optional[str] = None
+) -> str:
+    """
+    Computes a stable, deterministic canonical document key across processes and sources.
+    Uses normalized symbol, doc_type, and canonical URL (or normalized period/title fallback).
+    """
+    clean_sym = symbol.upper().strip()
+    raw_dt = str(doc_type or "general").lower().strip()
+    if "annual" in raw_dt:
+        dt = "annual_report"
+    elif "concall" in raw_dt:
+        dt = "concall_transcript"
+    elif "presentation" in raw_dt:
+        dt = "presentation"
+    elif "announcement" in raw_dt:
+        dt = "announcement"
+    else:
+        dt = "general"
+        
+    c_url = canonicalize_document_url(url)
+    p_date = (period_or_date or "").strip().upper()
+    norm_title = re.sub(r'\s+', ' ', (title or "").strip().lower())
+    
+    if c_url:
+        raw = f"{clean_sym}|{dt}|{c_url}"
+        h = hashlib.sha256(raw.encode("utf-8")).hexdigest()[:16]
+        return f"doc_{clean_sym}_{dt}_{h}"
+    else:
+        raw = f"{clean_sym}|{dt}|{p_date}|{norm_title}"
+        h = hashlib.sha256(raw.encode("utf-8")).hexdigest()[:16]
+        return f"doc_{clean_sym}_{dt}_{h}"
+
+def compute_canonical_semantic_key(
+    symbol: str,
+    doc_type: str,
+    period_or_date: Optional[str] = None
+) -> Optional[str]:
+    """
+    Computes an unambiguous secondary semantic key (e.g. sem_INFY_annual_report_FY26)
+    for cross-referencing equivalent filings across Screener and exchange discovery.
+    """
+    clean_sym = symbol.upper().strip()
+    raw_dt = str(doc_type or "").lower().strip()
+    if "annual" in raw_dt:
+        dt = "annual_report"
+    elif "concall" in raw_dt:
+        dt = "concall_transcript"
+    elif "presentation" in raw_dt:
+        dt = "presentation"
+    elif "announcement" in raw_dt:
+        dt = "announcement"
+    else:
+        return None
+        
+    p = (period_or_date or "").strip().upper()
+    # Match standard periods like FY26, FY2026, Q3 FY26, Q1 FY25, etc.
+    if re.match(r'^(FY\d{2,4}|Q[1-4]\s*FY\d{2,4}|\d{4}-\d{2}-\d{2})$', p, re.IGNORECASE):
+        norm_p = re.sub(r'\s+', '', p)
+        return f"sem_{clean_sym}_{dt}_{norm_p}"
+    return None
+
 def compute_source_documents_hash(docs: Optional[List[Any]]) -> str:
     """Computes a stable deterministic SHA256 hash over candidate source documents."""
     if not docs:
@@ -749,12 +867,22 @@ def save_cached_document_pages(symbol: str, doc_url: str, pages: List[Tuple[int,
 # PER-DOCUMENT AI SUMMARIES HELPERS
 # ---------------------------------------------------------
 
-def get_document_summary(doc_url: str) -> Optional[Dict[str, Any]]:
-    """Retrieves a single document's cached AI summary by doc_url."""
+def get_document_summary(
+    doc_url: str,
+    doc_key: Optional[str] = None,
+    symbol: Optional[str] = None,
+    doc_type: Optional[str] = None,
+    period_or_date: Optional[str] = None
+) -> Optional[Dict[str, Any]]:
+    """Retrieves a single document's cached AI summary by doc_url, canonical doc_key, or unambiguous semantic identity."""
+    c_url = canonicalize_document_url(doc_url) or doc_url
     conn = get_db_connection()
     try:
         cur = conn.cursor()
-        cur.execute("SELECT summary_json, generated_at FROM ai_document_summaries WHERE doc_url = ?", (doc_url,))
+        cols = {r[1] for r in cur.execute("PRAGMA table_info(ai_document_summaries);").fetchall()}
+        
+        # 1. Look up by exact/canonical URL
+        cur.execute("SELECT summary_json, generated_at FROM ai_document_summaries WHERE doc_url = ? OR doc_url = ?", (doc_url, c_url))
         row = cur.fetchone()
         if row:
             try:
@@ -764,17 +892,59 @@ def get_document_summary(doc_url: str) -> Optional[Dict[str, Any]]:
                 return data
             except Exception:
                 pass
+                
+        # 2. Look up by canonical doc_key if column exists
+        target_key = doc_key
+        if not target_key and symbol:
+            target_key = compute_canonical_document_key(symbol, doc_type or "general", period_or_date, doc_url)
+        if target_key and "doc_key" in cols:
+            cur.execute("SELECT summary_json, generated_at FROM ai_document_summaries WHERE doc_key = ?", (target_key,))
+            row = cur.fetchone()
+            if row:
+                try:
+                    data = json.loads(row["summary_json"])
+                    if "analyzed_at" not in data or not data["analyzed_at"]:
+                        data["analyzed_at"] = row["generated_at"]
+                    return data
+                except Exception:
+                    pass
+                    
+        # 3. Look up by unambiguous semantic identity (symbol + doc_type + period_or_date)
+        if symbol and doc_type and period_or_date:
+            sem_key = compute_canonical_semantic_key(symbol, doc_type, period_or_date)
+            if sem_key:
+                cur.execute("SELECT summary_json, generated_at FROM ai_document_summaries WHERE symbol = ?", (symbol.upper().strip(),))
+                rows = cur.fetchall()
+                for r in rows:
+                    try:
+                        data = json.loads(r["summary_json"])
+                        d_sem = compute_canonical_semantic_key(symbol, data.get("doc_type", ""), data.get("period_or_date", ""))
+                        if d_sem and d_sem == sem_key:
+                            if "analyzed_at" not in data or not data["analyzed_at"]:
+                                data["analyzed_at"] = r["generated_at"]
+                            return data
+                    except Exception:
+                        pass
         return None
     finally:
         conn.close()
 
 def get_document_summaries(symbol: str) -> Dict[str, Dict[str, Any]]:
-    """Returns a dict mapping doc_url -> summary_json dict for a symbol."""
+    """
+    Returns a dict mapping canonical identities (doc_url, canonicalized url, doc_key, semantic_key)
+    to summary_json dicts for a symbol.
+    """
     clean_sym = symbol.upper().strip()
     conn = get_db_connection()
     try:
         cur = conn.cursor()
-        cur.execute("SELECT doc_url, summary_json, generated_at FROM ai_document_summaries WHERE symbol = ?", (clean_sym,))
+        cols = {r[1] for r in cur.execute("PRAGMA table_info(ai_document_summaries);").fetchall()}
+        has_doc_key = "doc_key" in cols
+        
+        if has_doc_key:
+            cur.execute("SELECT doc_url, summary_json, generated_at, doc_key FROM ai_document_summaries WHERE symbol = ?", (clean_sym,))
+        else:
+            cur.execute("SELECT doc_url, summary_json, generated_at FROM ai_document_summaries WHERE symbol = ?", (clean_sym,))
         rows = cur.fetchall()
         res = {}
         for r in rows:
@@ -782,26 +952,76 @@ def get_document_summaries(symbol: str) -> Dict[str, Dict[str, Any]]:
                 data = json.loads(r["summary_json"])
                 if "analyzed_at" not in data or not data["analyzed_at"]:
                     data["analyzed_at"] = r["generated_at"]
-                res[r["doc_url"]] = data
+                
+                raw_url = r["doc_url"]
+                c_url = canonicalize_document_url(raw_url)
+                doc_k = r["doc_key"] if has_doc_key and r["doc_key"] else compute_canonical_document_key(
+                    clean_sym, data.get("doc_type", "general"), data.get("period_or_date"), raw_url, data.get("doc_title")
+                )
+                data["doc_key"] = doc_k
+                data["doc_url"] = raw_url
+                
+                # Map by raw URL
+                res[raw_url] = data
+                # Map by canonicalized URL
+                if c_url:
+                    res[c_url] = data
+                # Map by canonical doc_key
+                if doc_k:
+                    res[doc_k] = data
+                # Map by semantic key if unambiguous
+                sem_key = compute_canonical_semantic_key(clean_sym, data.get("doc_type", ""), data.get("period_or_date", ""))
+                if sem_key:
+                    res[sem_key] = data
             except Exception:
                 pass
         return res
     finally:
         conn.close()
 
-def save_document_summary(symbol: str, doc_url: str, doc_title: str, summary_data: Dict[str, Any]) -> None:
-    """Saves per-document executive summary in SQLite."""
+def save_document_summary(
+    symbol: str,
+    doc_url: str,
+    doc_title: str,
+    summary_data: Dict[str, Any],
+    doc_key: Optional[str] = None,
+    doc_type: Optional[str] = None,
+    period_or_date: Optional[str] = None
+) -> None:
+    """Saves per-document executive summary in SQLite with canonical document key."""
     clean_sym = symbol.upper().strip()
     now_iso = datetime.now(timezone.utc).isoformat()
     if "analyzed_at" not in summary_data or not summary_data["analyzed_at"]:
         summary_data["analyzed_at"] = now_iso
+    c_url = canonicalize_document_url(doc_url) or doc_url
+    
+    dt = doc_type or summary_data.get("doc_type") or "general"
+    p_date = period_or_date or summary_data.get("period_or_date")
+    
+    k = doc_key or summary_data.get("doc_key") or compute_canonical_document_key(clean_sym, dt, p_date, c_url, doc_title)
+    summary_data["doc_key"] = k
+    summary_data["doc_url"] = c_url
+    summary_data["doc_title"] = doc_title
+    if "doc_type" not in summary_data:
+        summary_data["doc_type"] = dt
+    if "period_or_date" not in summary_data and p_date:
+        summary_data["period_or_date"] = p_date
+        
     conn = get_db_connection()
     try:
         with conn:
-            conn.execute("""
-                INSERT OR REPLACE INTO ai_document_summaries (doc_url, symbol, doc_title, summary_json, generated_at)
-                VALUES (?, ?, ?, ?, ?)
-            """, (doc_url, clean_sym, doc_title, json.dumps(summary_data, default=_db_json_serializer), now_iso))
+            cur = conn.cursor()
+            cols = {r[1] for r in cur.execute("PRAGMA table_info(ai_document_summaries);").fetchall()}
+            if "doc_key" in cols:
+                conn.execute("""
+                    INSERT OR REPLACE INTO ai_document_summaries (doc_url, symbol, doc_title, summary_json, generated_at, doc_key)
+                    VALUES (?, ?, ?, ?, ?, ?)
+                """, (c_url, clean_sym, doc_title, json.dumps(summary_data, default=_db_json_serializer), now_iso, k))
+            else:
+                conn.execute("""
+                    INSERT OR REPLACE INTO ai_document_summaries (doc_url, symbol, doc_title, summary_json, generated_at)
+                    VALUES (?, ?, ?, ?, ?)
+                """, (c_url, clean_sym, doc_title, json.dumps(summary_data, default=_db_json_serializer), now_iso))
     finally:
         conn.close()
 
@@ -834,7 +1054,7 @@ def get_cached_ai_analysis(symbol: str) -> Optional[Dict[str, Any]]:
 get_ai_analysis = get_cached_ai_analysis
 
 def save_source_documents(symbol: str, documents: List[Any]) -> None:
-    """Persists discovered and verified source documents into SQLite."""
+    """Persists discovered and verified source documents into SQLite with canonical doc_keys."""
     if not documents:
         return
     clean_sym = symbol.upper().strip()
@@ -842,6 +1062,10 @@ def save_source_documents(symbol: str, documents: List[Any]) -> None:
     conn = get_db_connection()
     try:
         with conn:
+            cur = conn.cursor()
+            cols = {r[1] for r in cur.execute("PRAGMA table_info(source_documents);").fetchall()}
+            has_doc_key = "doc_key" in cols
+            
             for doc in documents:
                 title = getattr(doc, "title", None) or (doc.get("title") if isinstance(doc, dict) else "")
                 url = getattr(doc, "url", None) or (doc.get("url") if isinstance(doc, dict) else "")
@@ -855,19 +1079,40 @@ def save_source_documents(symbol: str, documents: List[Any]) -> None:
                 if not url:
                     continue
                     
-                conn.execute("""
-                    INSERT INTO source_documents (
-                        symbol, title, url, doc_type, period_or_date, discovery_source, actual_source_host, is_valid, added_at
-                    )
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-                    ON CONFLICT(url) DO UPDATE SET
-                        title = excluded.title,
-                        doc_type = excluded.doc_type,
-                        period_or_date = excluded.period_or_date,
-                        discovery_source = excluded.discovery_source,
-                        actual_source_host = excluded.actual_source_host,
-                        is_valid = excluded.is_valid
-                """, (clean_sym, title, url, doc_type, period, discovery, host, is_valid, now_iso))
+                c_url = canonicalize_document_url(url) or url
+                doc_key = getattr(doc, "doc_key", None) or (doc.get("doc_key") if isinstance(doc, dict) else None) or compute_canonical_document_key(
+                    clean_sym, doc_type, period, c_url, title
+                )
+                
+                if has_doc_key:
+                    conn.execute("""
+                        INSERT INTO source_documents (
+                            symbol, title, url, doc_type, period_or_date, discovery_source, actual_source_host, is_valid, added_at, doc_key
+                        )
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        ON CONFLICT(url) DO UPDATE SET
+                            title = excluded.title,
+                            doc_type = excluded.doc_type,
+                            period_or_date = excluded.period_or_date,
+                            discovery_source = excluded.discovery_source,
+                            actual_source_host = excluded.actual_source_host,
+                            is_valid = excluded.is_valid,
+                            doc_key = excluded.doc_key
+                    """, (clean_sym, title, c_url, doc_type, period, discovery, host, is_valid, now_iso, doc_key))
+                else:
+                    conn.execute("""
+                        INSERT INTO source_documents (
+                            symbol, title, url, doc_type, period_or_date, discovery_source, actual_source_host, is_valid, added_at
+                        )
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        ON CONFLICT(url) DO UPDATE SET
+                            title = excluded.title,
+                            doc_type = excluded.doc_type,
+                            period_or_date = excluded.period_or_date,
+                            discovery_source = excluded.discovery_source,
+                            actual_source_host = excluded.actual_source_host,
+                            is_valid = excluded.is_valid
+                    """, (clean_sym, title, c_url, doc_type, period, discovery, host, is_valid, now_iso))
     finally:
         conn.close()
 
@@ -877,22 +1122,37 @@ def get_source_documents(symbol: str, doc_type: Optional[str] = None) -> List[Di
     conn = get_db_connection()
     try:
         cur = conn.cursor()
+        cols = {r[1] for r in cur.execute("PRAGMA table_info(source_documents);").fetchall()}
+        has_doc_key = "doc_key" in cols
+        
+        select_cols = "symbol, title, url, doc_type, period_or_date, discovery_source, actual_source_host, is_valid, added_at"
+        if has_doc_key:
+            select_cols += ", doc_key"
+            
         if doc_type:
-            cur.execute("""
-                SELECT symbol, title, url, doc_type, period_or_date, discovery_source, actual_source_host, is_valid, added_at
+            cur.execute(f"""
+                SELECT {select_cols}
                 FROM source_documents
                 WHERE symbol = ? AND doc_type = ? AND is_valid = 1
                 ORDER BY id DESC
             """, (clean_sym, doc_type))
         else:
-            cur.execute("""
-                SELECT symbol, title, url, doc_type, period_or_date, discovery_source, actual_source_host, is_valid, added_at
+            cur.execute(f"""
+                SELECT {select_cols}
                 FROM source_documents
                 WHERE symbol = ? AND is_valid = 1
                 ORDER BY id DESC
             """, (clean_sym,))
         rows = cur.fetchall()
-        return [dict(r) for r in rows]
+        res = []
+        for r in rows:
+            d = dict(r)
+            if not d.get("doc_key"):
+                d["doc_key"] = compute_canonical_document_key(
+                    clean_sym, d.get("doc_type", "general"), d.get("period_or_date"), d.get("url"), d.get("title")
+                )
+            res.append(d)
+        return res
     finally:
         conn.close()
 

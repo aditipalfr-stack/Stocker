@@ -64,6 +64,9 @@ export interface DocumentItem {
   file_size_bytes?: number | null;
   fetched_date?: string | null;
   checksum_sha256?: string | null;
+  doc_key?: string | null;
+  ai_status?: 'AI_ANALYZED' | 'NOT_SELECTED' | 'PROCESSING_FAILED' | 'NOT_ANALYZED_YET' | null;
+  ai_failure_reason?: string | null;
 }
 
 export interface DocumentDiscoveryDiagnostics {
@@ -642,9 +645,12 @@ export interface GuidanceVsProjection {
 export interface DocumentSummaryItem {
   doc_title: string;
   doc_url: string;
+  doc_key?: string | null;
   doc_type?: string | null;
   period_or_date?: string | null;
   analyzed_at?: string | null;
+  status?: 'success' | 'failed' | null;
+  error?: string | null;
   key_takeaways: string[];
   management_tone?: string | null;
   guidance_and_capex?: string | null;
@@ -782,6 +788,7 @@ export interface SourceFilingsResponse {
   company_name: string;
   documents: DocumentLinks;
   summaries: Record<string, DocumentSummaryItem>;
+  has_company_analysis?: boolean;
 }
 
 export interface CompanySearchResult {

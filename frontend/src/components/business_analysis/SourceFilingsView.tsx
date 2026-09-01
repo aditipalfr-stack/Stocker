@@ -167,9 +167,26 @@ export const SourceFilingsView: React.FC<SourceFilingsViewProps> = ({
         <div className="space-y-4">
           {filteredDocs.length > 0 ? (
             filteredDocs.map((doc, idx) => {
-              const summary: DocumentSummaryItem | undefined = summariesMap[doc.url];
-              const isExpanded = expandedDocUrl === doc.url;
-              const hasAiAnalysis = Boolean(summary && ((summary.key_takeaways && summary.key_takeaways.length > 0) || (summary.extracted_facts && summary.extracted_facts.length > 0)));
+              const getSummaryForDoc = (): DocumentSummaryItem | undefined => {
+                if (doc.doc_key && summariesMap[doc.doc_key]) {
+                  return summariesMap[doc.doc_key];
+                }
+                if (doc.url && summariesMap[doc.url]) {
+                  return summariesMap[doc.url];
+                }
+                const cleanUrl = doc.url ? doc.url.split('#')[0].trim() : '';
+                if (cleanUrl && summariesMap[cleanUrl]) {
+                  return summariesMap[cleanUrl];
+                }
+                return undefined;
+              };
+
+              const summary = getSummaryForDoc();
+              const isFailed = (summary && summary.status === 'failed') || doc.ai_status === 'PROCESSING_FAILED';
+              const isAnalyzed = Boolean(!isFailed && summary && ((summary.key_takeaways && summary.key_takeaways.length > 0) || (summary.extracted_facts && summary.extracted_facts.length > 0)));
+              const isNotSelected = Boolean(!isAnalyzed && !isFailed && (doc.ai_status === 'NOT_SELECTED' || (filingsData?.has_company_analysis && !summary)));
+              const docKeyOrUrl = doc.doc_key || doc.url || `doc_${idx}`;
+              const isExpanded = expandedDocUrl === docKeyOrUrl;
 
               return (
                 <div key={idx} className="glass-panel rounded-2xl p-5 md:p-6 border border-slate-800/90 space-y-4 hover:border-slate-700 transition-all bg-slate-950/80">
@@ -181,10 +198,21 @@ export const SourceFilingsView: React.FC<SourceFilingsViewProps> = ({
                       <div>
                         <h5 className="text-sm font-bold text-white flex items-center gap-2 flex-wrap">
                           <span>{doc.title}</span>
-                          {hasAiAnalysis && (
+                          {isAnalyzed && (
                             <span className="bg-emerald-500/10 text-emerald-400 text-[10px] font-semibold px-2 py-0.5 rounded-full border border-emerald-500/20 flex items-center gap-1">
                               <Sparkles className="w-2.5 h-2.5" />
                               AI Analyzed
+                            </span>
+                          )}
+                          {isFailed && (
+                            <span className="bg-rose-500/10 text-rose-400 text-[10px] font-semibold px-2 py-0.5 rounded-full border border-rose-500/20 flex items-center gap-1">
+                              <AlertTriangle className="w-2.5 h-2.5" />
+                              AI Extraction Failed
+                            </span>
+                          )}
+                          {isNotSelected && (
+                            <span className="bg-slate-900 text-slate-400 text-[10px] font-mono px-2 py-0.5 rounded-full border border-slate-800">
+                              Not in working set
                             </span>
                           )}
                           {summary?.management_tone && (
@@ -200,9 +228,9 @@ export const SourceFilingsView: React.FC<SourceFilingsViewProps> = ({
                     </div>
 
                     <div className="flex items-center gap-2 self-end sm:self-center">
-                      {hasAiAnalysis && (
+                      {isAnalyzed && (
                         <button
-                          onClick={() => setExpandedDocUrl(isExpanded ? null : doc.url)}
+                          onClick={() => setExpandedDocUrl(isExpanded ? null : docKeyOrUrl)}
                           className="text-xs text-cyan-400 hover:text-cyan-300 bg-cyan-500/10 hover:bg-cyan-500/20 border border-cyan-500/20 px-3 py-1.5 rounded-xl font-medium flex items-center gap-1 transition-all"
                         >
                           <span>{isExpanded ? 'Hide AI Details' : 'View AI Findings'}</span>
@@ -224,15 +252,29 @@ export const SourceFilingsView: React.FC<SourceFilingsViewProps> = ({
                     </div>
                   </div>
 
-                  {!hasAiAnalysis && (
+                  {isFailed && (
+                    <p className="text-[11px] text-rose-400/90 border-t border-slate-900 pt-3 flex items-center gap-1.5">
+                      <AlertTriangle className="w-3 h-3 text-rose-400 shrink-0" />
+                      {summary?.error || doc.ai_failure_reason || 'AI extraction attempted but document processing could not be completed.'}
+                    </p>
+                  )}
+
+                  {isNotSelected && (
                     <p className="text-[11px] text-slate-400 border-t border-slate-900 pt-3 flex items-center gap-1.5">
-                      <Sparkles className="w-3 h-3 text-slate-500" />
+                      <FileText className="w-3 h-3 text-slate-500 shrink-0" />
+                      Not included in the current AI working set.
+                    </p>
+                  )}
+
+                  {!isAnalyzed && !isFailed && !isNotSelected && (
+                    <p className="text-[11px] text-slate-400 border-t border-slate-900 pt-3 flex items-center gap-1.5">
+                      <Sparkles className="w-3 h-3 text-slate-500 shrink-0" />
                       Run Analysis to see AI findings for this filing.
                     </p>
                   )}
 
                   {/* Expanded AI Findings Section */}
-                  {isExpanded && summary && (
+                  {isExpanded && isAnalyzed && summary && (
                     <div className="mt-4 pt-4 border-t border-slate-900 space-y-4 bg-slate-950 p-4 rounded-xl border border-slate-800/80">
                       
                       {/* Key Takeaways */}

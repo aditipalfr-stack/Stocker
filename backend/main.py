@@ -758,7 +758,7 @@ def get_stock_doc_intelligence(symbol: str):
 def get_stock_source_filings(symbol: str):
     """
     Returns structured filing archive and per-document AI summaries directly
-    from the persisted document layer without expensive full-detail recalculations.
+    from the canonical persisted document layer without expensive full-detail recalculations.
     """
     clean_sym = symbol.upper().strip()
     company_name = clean_sym
@@ -772,7 +772,7 @@ def get_stock_source_filings(symbol: str):
         if cached:
             company_name = cached.get("company_name", clean_sym)
 
-    # 2. Retrieve persisted source documents
+    # 2. Retrieve persisted source documents (Preferred Canonical Corpus)
     db_docs = database.get_source_documents(clean_sym)
     from models import DocumentLinks, DocumentItem
     doc_links = DocumentLinks()
@@ -787,7 +787,8 @@ def get_stock_source_filings(symbol: str):
                 doc_type=r.get("doc_type", "general"),
                 period_or_date=r.get("period_or_date"),
                 discovery_source=r.get("discovery_source", "Database"),
-                actual_source_host=r.get("actual_source_host", "bseindia.com")
+                actual_source_host=r.get("actual_source_host", "bseindia.com"),
+                doc_key=r.get("doc_key")
             )
             dt = (d_item.doc_type or "").lower()
             if "annual" in dt:
@@ -814,12 +815,44 @@ def get_stock_source_filings(symbol: str):
                 company_name = data.get("company_name", company_name)
     
     summaries = database.get_document_summaries(clean_sym)
+    cached_ai = database.get_cached_ai_analysis(clean_sym)
+    has_company_analysis = bool(cached_ai and (cached_ai.get("what_changed_recently") or cached_ai.get("growth_drivers") or cached_ai.get("promise_vs_delivery")))
+    
+    # Annotate truthful AI status on each document item
+    for group in [doc_links.annual_reports, doc_links.concalls, doc_links.presentations, doc_links.material_announcements]:
+        for doc in group:
+            if not doc.doc_key:
+                doc.doc_key = database.compute_canonical_document_key(clean_sym, doc.doc_type, doc.period_or_date, doc.url, doc.title)
+            
+            # Lookup summary by doc_key, then URL, then semantic key
+            summary = summaries.get(doc.doc_key) or summaries.get(doc.url)
+            if not summary and doc.url:
+                clean_u = database.canonicalize_document_url(doc.url)
+                if clean_u:
+                    summary = summaries.get(clean_u)
+            if not summary and doc.period_or_date:
+                sem_key = database.compute_canonical_semantic_key(clean_sym, doc.doc_type, doc.period_or_date)
+                if sem_key:
+                    summary = summaries.get(sem_key)
+            
+            if summary:
+                if summary.get("status") == "failed":
+                    doc.ai_status = "PROCESSING_FAILED"
+                    doc.ai_failure_reason = summary.get("error", "AI document extraction failed.")
+                else:
+                    doc.ai_status = "AI_ANALYZED"
+            else:
+                if has_company_analysis:
+                    doc.ai_status = "NOT_SELECTED"
+                else:
+                    doc.ai_status = "NOT_ANALYZED_YET"
     
     return {
         "symbol": clean_sym,
         "company_name": company_name,
         "documents": doc_links.model_dump(),
-        "summaries": summaries
+        "summaries": summaries,
+        "has_company_analysis": has_company_analysis
     }
 
 @app.get("/api/stocks/{symbol}/document-summaries")
@@ -886,39 +919,43 @@ def generate_stock_doc_intelligence(symbol: str):
         raise HTTPException(status_code=404, detail=f"Stock {clean_sym} not found on Screener.in")
     detail = build_full_stock_detail(data)
     
-    # Identify concalls and annual reports
-    concalls = detail.documents.concalls or []
-    annual_reports = detail.documents.annual_reports or []
+    # 1. Prefer canonical persisted source_documents from SQLite filing discovery
+    db_docs = database.get_source_documents(clean_sym)
+    from models import DocumentLinks, DocumentItem
+    doc_links = DocumentLinks()
     
-    latest_url = None
-    latest_title = f"{detail.name} Latest Filing"
-    older_url = None
-    older_title = f"{detail.name} Previous Baseline Filing"
-    is_ar = False
-    
-    if concalls:
-        latest_url = concalls[0].url
-        latest_title = concalls[0].title or f"{detail.name} Latest Concall"
-        if len(concalls) > 1:
-            older_url = concalls[1].url
-            older_title = concalls[1].title or f"{detail.name} Previous Concall"
-    elif annual_reports:
-        latest_url = annual_reports[0].url
-        latest_title = annual_reports[0].title or f"{detail.name} Latest Annual Report"
-        is_ar = True
-        if len(annual_reports) > 1:
-            older_url = annual_reports[1].url
-            older_title = annual_reports[1].title or f"{detail.name} Previous Annual Report"
-            
-    if not latest_url:
-        raise HTTPException(status_code=404, detail=f"No PDF filings found under #documents for {clean_sym}")
+    if db_docs:
+        for r in db_docs:
+            d_item = DocumentItem(
+                ticker=clean_sym,
+                company_name=detail.name,
+                title=r.get("title", ""),
+                url=r.get("url", ""),
+                doc_type=r.get("doc_type", "general"),
+                period_or_date=r.get("period_or_date"),
+                discovery_source=r.get("discovery_source", "Database"),
+                actual_source_host=r.get("actual_source_host", "bseindia.com"),
+                doc_key=r.get("doc_key")
+            )
+            dt = (d_item.doc_type or "").lower()
+            if "annual" in dt:
+                doc_links.annual_reports.append(d_item)
+            elif "concall" in dt:
+                doc_links.concalls.append(d_item)
+            elif "presentation" in dt:
+                doc_links.presentations.append(d_item)
+            elif "announcement" in dt:
+                doc_links.material_announcements.append(d_item)
+        documents_to_analyze = doc_links
+    else:
+        documents_to_analyze = detail.documents
         
     try:
         from doc_intelligence_pipeline import run_multi_document_ai_pipeline
         res = run_multi_document_ai_pipeline(
             symbol=clean_sym,
             company_name=detail.name,
-            documents=detail.documents,
+            documents=documents_to_analyze,
             save_output=True
         )
         return res
@@ -928,17 +965,13 @@ def generate_stock_doc_intelligence(symbol: str):
             AIProviderNetworkError,
             AIProviderQuotaError,
             format_ai_error_for_user,
+            map_status_code_for_ai_error
         )
-        if isinstance(e, AIProviderAuthError):
-            status_code = 401
-        elif isinstance(e, AIProviderQuotaError):
-            status_code = 429
-        elif isinstance(e, AIProviderNetworkError):
-            status_code = 503
-        else:
-            status_code = 500
-        safe_detail = format_ai_error_for_user(e, "gemini")
-        raise HTTPException(status_code=status_code, detail=f"AI Document Intelligence generation failed: {safe_detail}")
+        if isinstance(e, (AIProviderAuthError, AIProviderNetworkError, AIProviderQuotaError)):
+            status_code = map_status_code_for_ai_error(e)
+            safe_detail = format_ai_error_for_user(e)
+            raise HTTPException(status_code=status_code, detail=f"AI Document Intelligence generation failed: {safe_detail}")
+        raise HTTPException(status_code=500, detail=f"AI Document Intelligence generation failed: {str(e)}")
 
 @app.post("/api/stocks/{symbol}/project", response_model=ProjectionResult)
 def project_stock_future(symbol: str, assumptions: ProjectionAssumption):

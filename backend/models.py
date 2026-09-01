@@ -62,6 +62,9 @@ class DocumentItem(BaseModel):
     file_size_bytes: Optional[int] = None
     fetched_date: Optional[str] = None
     checksum_sha256: Optional[str] = None
+    doc_key: Optional[str] = None
+    ai_status: Optional[str] = None # "AI_ANALYZED", "NOT_SELECTED", "PROCESSING_FAILED", "NOT_ANALYZED_YET"
+    ai_failure_reason: Optional[str] = None
 
     def model_post_init(self, __context: Any) -> None:
         if not self.title and self.name:
@@ -70,6 +73,18 @@ class DocumentItem(BaseModel):
             self.name = self.title
         if not self.actual_source_url and self.url:
             self.actual_source_url = self.url
+        if not self.doc_key and self.url:
+            try:
+                from database import compute_canonical_document_key
+                self.doc_key = compute_canonical_document_key(
+                    symbol=self.ticker,
+                    doc_type=self.doc_type,
+                    period_or_date=self.period_or_date,
+                    url=self.url,
+                    title=self.title
+                )
+            except Exception:
+                pass
 
 class DocumentDiscoveryDiagnostics(BaseModel):
     target_annual_reports_count: int = 3
@@ -339,6 +354,13 @@ class DiscoverFilingsResponse(BaseModel):
     filing_count: int
     documents_checked_at: str
     research_status: Optional[ResearchLifecycleStatus] = None
+
+class SourceFilingsResponse(BaseModel):
+    symbol: str
+    company_name: str
+    documents: DocumentLinks
+    summaries: Dict[str, Any] = {}
+    has_company_analysis: bool = False
 
 # =============================================================================
 # FINANCIAL VERIFICATION MODELS (PHASE B)
