@@ -18,7 +18,8 @@ import database
 def get_company_doc_intelligence(
     symbol: str, 
     financial_analytics: Optional[Dict[str, Any]] = None,
-    include_document_summaries: bool = True
+    include_document_summaries: bool = True,
+    current_docs: Optional[List[Any]] = None
 ) -> Optional[CompanyDocumentIntelligence]:
     clean_sym = symbol.upper().strip()
     
@@ -43,11 +44,15 @@ def get_company_doc_intelligence(
                 if mg_items:
                     db_data["management_guidance_items"] = mg_items
                     
-            is_stale, stale_reason = database.check_business_analysis_staleness(clean_sym)
-            if is_stale and stale_reason != "not_analyzed":
-                db_data["staleness_status"] = "stale"
+            if current_docs is not None:
+                is_stale, stale_reason = database.check_business_analysis_staleness(clean_sym, current_docs=current_docs)
+                if is_stale and stale_reason != "not_analyzed":
+                    db_data["staleness_status"] = "stale"
+                else:
+                    db_data["staleness_status"] = "fresh"
             else:
-                db_data["staleness_status"] = "fresh"
+                if not db_data.get("staleness_status"):
+                    db_data["staleness_status"] = "fresh"
 
             doc_intel = CompanyDocumentIntelligence(**db_data)
             _apply_financial_cross_check(doc_intel, financial_analytics)
@@ -77,52 +82,51 @@ def get_company_doc_intelligence(
     # If not yet generated, return None (NO mock sample fallback!)
     return None
 
+def _normalize_metric_key(m: str) -> str:
+    return re.sub(r'[^a-z0-9% ]+', '', str(m).lower().strip())
+
 def _extract_metric_from_statement(stmt_data: Any, canonical_aliases: List[str], target_period: str) -> Optional[float]:
-    """Helper to find a numeric value for a given canonical metric list and period in statement rows."""
     if not stmt_data:
         return None
-    
+        
     periods = []
     rows = []
-    
-    if hasattr(stmt_data, "periods") and hasattr(stmt_data, "rows"):
-        periods = list(stmt_data.periods)
-        rows = stmt_data.rows
-    elif isinstance(stmt_data, dict):
+    if isinstance(stmt_data, dict):
         periods = stmt_data.get("periods") or stmt_data.get("years") or []
-        raw_rows = stmt_data.get("rows") or []
-        if isinstance(raw_rows, list):
-            rows = raw_rows
-        elif isinstance(raw_rows, dict):
-            for m_name, vals in raw_rows.items():
-                rows.append({"metric": m_name, "values": {p: v for p, v in zip(periods, vals)} if isinstance(vals, list) else vals})
+        rows = stmt_data.get("rows") or []
+    elif hasattr(stmt_data, "periods") and hasattr(stmt_data, "rows"):
+        periods = stmt_data.periods
+        rows = stmt_data.rows
 
-    # Exact period matching
+    if not periods or not rows:
+        return None
+
+    # Match target period
+    target_clean = target_period.upper().strip()
     matched_period = None
-    target_clean = target_period.upper().replace(" ", "").replace("-", "")
-    t_yr_match = re.search(r'(?:FY|20|MAR|DEC|JUN|SEP)?(\d{2,4})', target_clean)
-    t_yr = t_yr_match.group(1) if t_yr_match else None
-    if t_yr and len(t_yr) == 2:
-        t_yr = "20" + t_yr
-
     for p in periods:
-        p_clean = str(p).upper().replace(" ", "").replace("-", "")
-        if target_clean == p_clean or target_clean in p_clean or p_clean in target_clean:
+        p_clean = str(p).upper().strip()
+        if p_clean == target_clean or target_clean in p_clean or p_clean in target_clean:
             matched_period = p
             break
-        if t_yr:
-            p_yr_match = re.search(r'(?:FY|20|MAR|DEC|JUN|SEP)?(\d{2,4})', p_clean)
-            p_yr = p_yr_match.group(1) if p_yr_match else None
-            if p_yr and len(p_yr) == 2:
-                p_yr = "20" + p_yr
-            if t_yr and p_yr and t_yr == p_yr:
-                matched_period = p
-                break
-                
+            
+    if not matched_period:
+        # Try matching year digits (e.g. FY26 vs 2026 or Mar 2026)
+        yr_m = re.search(r'(?:FY|20)?(\d{2,4})', target_clean)
+        if yr_m:
+            yr_str = yr_m.group(1)
+            if len(yr_str) == 2:
+                yr_str = "20" + yr_str
+            for p in periods:
+                if yr_str in str(p):
+                    matched_period = p
+                    break
+                    
     if not matched_period:
         return None
 
-    # Search rows for exact or strict canonical aliases
+    # Search rows for exact or strict canonical aliases (avoiding loose prefix matching)
+    norm_aliases = [_normalize_metric_key(a) for a in canonical_aliases]
     for r in rows:
         if isinstance(r, dict):
             m_name = r.get("metric", "")
@@ -131,10 +135,9 @@ def _extract_metric_from_statement(stmt_data: Any, canonical_aliases: List[str],
             m_name = getattr(r, "metric", "")
             vals = getattr(r, "values", {})
             
-        m_clean = str(m_name).lower().strip()
-        for alias in canonical_aliases:
-            a_clean = alias.lower().strip()
-            if m_clean == a_clean or m_clean.startswith(a_clean) or a_clean.startswith(m_clean):
+        m_norm = _normalize_metric_key(str(m_name))
+        for a_norm in norm_aliases:
+            if m_norm == a_norm or m_norm in [a_norm + " %", a_norm + "%"] or a_norm in [m_norm + " %", m_norm + "%"]:
                 if isinstance(vals, dict):
                     val = vals.get(matched_period)
                     if isinstance(val, (int, float)):
@@ -154,7 +157,7 @@ CANONICAL_METRIC_DEFINITIONS = {
     },
     "OPM": {
         "topic_keywords": ["opm", "operating profit margin", "ebitda margin", "operating margin"],
-        "statement_metrics": ["opm %", "operating profit margin", "ebitda margin %"],
+        "statement_metrics": ["opm", "opm %", "operating profit margin", "ebitda margin", "ebitda margin %"],
         "source_stmt": "pl",
         "is_lower_better": False
     },
@@ -165,9 +168,9 @@ CANONICAL_METRIC_DEFINITIONS = {
         "is_lower_better": False
     },
     "CAPEX": {
-        "topic_keywords": ["capex", "capital expenditure", "cwip"],
-        "statement_metrics": ["cwip", "capital work in progress", "fixed assets"],
-        "source_stmt": "bs",
+        "topic_keywords": ["capex", "capital expenditure", "capital investment"],
+        "statement_metrics": ["fixed assets purchased", "capital expenditure", "capex"],
+        "source_stmt": "cf",
         "is_lower_better": False
     },
     "ADVANCES": {
@@ -177,9 +180,15 @@ CANONICAL_METRIC_DEFINITIONS = {
         "is_lower_better": False
     },
     "DEPOSITS": {
-        "topic_keywords": ["deposits", "deposit growth", "total deposits", "casa"],
+        "topic_keywords": ["deposits", "deposit growth", "total deposits"],
         "statement_metrics": ["deposits", "total deposits"],
         "source_stmt": "bs",
+        "is_lower_better": False
+    },
+    "CASA_RATIO": {
+        "topic_keywords": ["casa", "casa ratio", "casa %", "current and savings"],
+        "statement_metrics": ["casa %", "casa ratio", "casa percentage", "casa"],
+        "source_stmt": "pl",
         "is_lower_better": False
     },
     "GNPA": {
@@ -225,6 +234,7 @@ def evaluate_management_guidance_vs_actual(
     pl_stmt = financial_statements.get("profit_loss") or financial_statements.get("profit_and_loss") if financial_statements else None
     quarters_stmt = financial_statements.get("quarters") if financial_statements else None
     bs_stmt = financial_statements.get("balance_sheet") if financial_statements else None
+    cf_stmt = financial_statements.get("cash_flow") or financial_statements.get("cash_flows") if financial_statements else None
     
     # Determine latest completed period in statements
     latest_pl_period = None
@@ -285,10 +295,17 @@ def evaluate_management_guidance_vs_actual(
         is_lower_better = matched_canonical["is_lower_better"] if matched_canonical else False
         
         if matched_canonical:
-            tgt_stmt = pl_stmt if matched_canonical["source_stmt"] == "pl" else bs_stmt
-            actual_val = _extract_metric_from_statement(tgt_stmt, matched_canonical["statement_metrics"], target_p)
-            if actual_val is None and quarters_stmt and matched_canonical["source_stmt"] == "pl":
-                actual_val = _extract_metric_from_statement(quarters_stmt, matched_canonical["statement_metrics"], target_p)
+            src = matched_canonical.get("source_stmt", "pl")
+            if src == "pl":
+                actual_val = _extract_metric_from_statement(pl_stmt, matched_canonical["statement_metrics"], target_p)
+                if actual_val is None and quarters_stmt:
+                    actual_val = _extract_metric_from_statement(quarters_stmt, matched_canonical["statement_metrics"], target_p)
+                if actual_val is None and bs_stmt:
+                    actual_val = _extract_metric_from_statement(bs_stmt, matched_canonical["statement_metrics"], target_p)
+            elif src == "bs":
+                actual_val = _extract_metric_from_statement(bs_stmt, matched_canonical["statement_metrics"], target_p)
+            elif src == "cf":
+                actual_val = _extract_metric_from_statement(cf_stmt, matched_canonical["statement_metrics"], target_p)
 
         # 4. Check knowledge facts if statement extraction did not find exact match
         if actual_val is None and knowledge_facts:

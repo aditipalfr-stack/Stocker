@@ -319,5 +319,162 @@ class TestBusinessAnalysisV44(unittest.TestCase):
         prod_db = Path(__file__).parent / "data" / "stocker.db"
         self.assertNotEqual(database.DB_PATH, prod_db)
 
+    def test_scenario_l_staleness_not_invented_without_current_docs(self):
+        """Scenario L: Cached analysis with stored hash must NOT become stale when current_docs=None."""
+        import database
+        mock_data = {
+            "symbol": "TCS",
+            "company_name": "Tata Consultancy Services",
+            "ai_provider_used": "STORED",
+            "source_documents_hash": "abc123hash",
+            "analysis_version": "2.0",
+            "staleness_status": "fresh",
+            "what_changed_recently": [],
+            "growth_drivers": [],
+            "promise_vs_delivery": [],
+            "evidence_items": [
+                {
+                    "id": "evi_tcs_1",
+                    "symbol": "TCS",
+                    "evidence_type": "DEMAND_DRIVER",
+                    "title": "Cloud Migration",
+                    "normalized_topic": "Cloud",
+                    "statement": "Large cloud deal ramped.",
+                    "source_document_title": "FY25 AR",
+                    "source_url": "https://tcs.com/ar25.pdf",
+                    "status": "SUPPORTED"
+                }
+            ],
+            "management_guidance_items": []
+        }
+        database.save_ai_analysis("TCS", "Tata Consultancy Services", mock_data, ai_provider="STORED")
+        
+        # 1. Staleness check without current_docs returns (False, "not_checked")
+        is_stale, reason = database.check_business_analysis_staleness("TCS", current_docs=None)
+        self.assertFalse(is_stale)
+        self.assertEqual(reason, "not_checked")
+        
+        # 2. get_company_doc_intelligence with current_docs=None remains fresh
+        intel = get_company_doc_intelligence("TCS", current_docs=None)
+        self.assertIsNotNone(intel)
+        self.assertEqual(intel.staleness_status, "fresh")
+        
+        # 3. Supplying genuinely changed current_docs triggers stale
+        new_docs = [{"title": "Q1 FY26 Concall", "url": "https://tcs.com/q1fy26.pdf", "period": "Q1 FY26"}]
+        is_stale_new, reason_new = database.check_business_analysis_staleness("TCS", current_docs=new_docs)
+        self.assertTrue(is_stale_new)
+        self.assertIn("source_documents_changed", reason_new)
+        
+        intel_stale = get_company_doc_intelligence("TCS", current_docs=new_docs)
+        self.assertIsNotNone(intel_stale)
+        self.assertEqual(intel_stale.staleness_status, "stale")
+
+    def test_scenario_m_capex_guidance_cannot_use_cwip_or_fixed_assets(self):
+        """Scenario M: Capex guidance strictly rejects CWIP and Fixed Assets closing balances."""
+        guidance = [
+            ManagementGuidanceItem(
+                metric_or_topic="Capex Investment Outlay",
+                guidance_text="Targeting ₹3,000 Cr capex in FY26",
+                quantified_value=3000.0,
+                unit="₹ Cr",
+                target_period="FY26",
+                source_document_title="FY25 Annual Report",
+                source_document_url="https://example.com/ar.pdf"
+            )
+        ]
+        
+        # Case 1: Statement with only Balance Sheet (CWIP = 2500, Fixed Assets = 15000)
+        bs_stmt = {
+            "periods": ["FY25", "FY26"],
+            "rows": [
+                {"metric": "Capital Work in Progress", "values": [2000, 2500]},
+                {"metric": "Fixed Assets", "values": [12000, 15000]}
+            ]
+        }
+        evaluated_bs = evaluate_management_guidance_vs_actual(guidance, financial_statements={"balance_sheet": bs_stmt})
+        self.assertEqual(evaluated_bs[0].status, "INSUFFICIENT_EVIDENCE")
+        self.assertIsNone(evaluated_bs[0].actual_reported_value)
+        
+        # Case 2: Statement with Cash Flow (Fixed Assets Purchased = 3200) -> valid match
+        cf_stmt = {
+            "periods": ["FY25", "FY26"],
+            "rows": [
+                {"metric": "Fixed Assets Purchased", "values": [2500, 3200]}
+            ]
+        }
+        evaluated_cf = evaluate_management_guidance_vs_actual(
+            guidance,
+            financial_statements={"balance_sheet": bs_stmt, "cash_flow": cf_stmt}
+        )
+        self.assertEqual(evaluated_cf[0].status, "MET")
+        self.assertEqual(evaluated_cf[0].actual_reported_value, 3200.0)
+        self.assertEqual(evaluated_cf[0].actual_reported_source, "Financial Statement Data")
+
+    def test_scenario_n_casa_ratio_cannot_map_to_deposits(self):
+        """Scenario N: CASA ratio guidance must NOT compare against Total Deposits row."""
+        guidance = [
+            ManagementGuidanceItem(
+                metric_or_topic="CASA Ratio",
+                guidance_text="Targeting CASA ratio of 45%",
+                quantified_value=45.0,
+                unit="%",
+                target_period="FY26",
+                source_document_title="FY25 Concall",
+                source_document_url="https://example.com/concall.pdf"
+            )
+        ]
+        
+        # Case 1: Bank Balance Sheet with only Deposits / Total Deposits
+        bs_stmt = {
+            "periods": ["FY25", "FY26"],
+            "rows": [
+                {"metric": "Deposits", "values": [180000, 200000]},
+                {"metric": "Total Deposits", "values": [180000, 200000]}
+            ]
+        }
+        evaluated = evaluate_management_guidance_vs_actual(guidance, financial_statements={"balance_sheet": bs_stmt})
+        self.assertEqual(evaluated[0].status, "INSUFFICIENT_EVIDENCE")
+        self.assertIsNone(evaluated[0].actual_reported_value)
+        
+        # Case 2: Statement with explicit CASA % row
+        pl_stmt = {
+            "periods": ["FY25", "FY26"],
+            "rows": [
+                {"metric": "CASA %", "values": [42.0, 46.2]}
+            ]
+        }
+        evaluated_casa = evaluate_management_guidance_vs_actual(
+            guidance,
+            financial_statements={"profit_loss": pl_stmt, "balance_sheet": bs_stmt}
+        )
+        self.assertEqual(evaluated_casa[0].status, "MET")
+        self.assertEqual(evaluated_casa[0].actual_reported_value, 46.2)
+
+    def test_scenario_o_deterministic_evidence_and_guidance_ids(self):
+        """Scenario O: Fallback IDs are stable SHA-256 hashes deterministic across process restarts."""
+        import database
+        evi_item = {
+            "evidence_type": "CAPACITY_EXPANSION",
+            "title": "New Semiconductor Fab",
+            "normalized_topic": "Semiconductor",
+            "statement": "Approved ₹10,000 Cr outlay for Fab 1.",
+            "source_url": "https://example.com/fab.pdf"
+        }
+        id1 = database.generate_deterministic_evidence_id("TATACOMM", evi_item)
+        id2 = database.generate_deterministic_evidence_id("TATACOMM", evi_item)
+        self.assertEqual(id1, id2)
+        self.assertTrue(id1.startswith("evi_TATACOMM_"))
+        
+        guidance_item = {
+            "metric_or_topic": "Revenue Growth",
+            "target_period": "FY26",
+            "guidance_text": "Targeting 20% topline growth",
+            "source_document_title": "Investor Presentation"
+        }
+        g_id1 = database.generate_deterministic_guidance_id("TATACOMM", guidance_item)
+        g_id2 = database.generate_deterministic_guidance_id("TATACOMM", guidance_item)
+        self.assertEqual(g_id1, g_id2)
+        self.assertTrue(g_id1.startswith("mgi_TATACOMM_"))
+
 if __name__ == "__main__":
     unittest.main()

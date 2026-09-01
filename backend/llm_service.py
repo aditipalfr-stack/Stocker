@@ -991,7 +991,14 @@ def sanitize_and_verify_intelligence_result(
             ev.status = "UNSUPPORTED"
             ev.confidence = "LOW"
         if not ev.id:
-            ev.id = f"evi_{symbol}_{idx+1}_{abs(hash(ev.title + ev.statement))}"
+            from database import generate_deterministic_evidence_id
+            ev.id = generate_deterministic_evidence_id(symbol, {
+                "source_url": ev.source_url,
+                "evidence_type": ev.evidence_type,
+                "normalized_topic": ev.normalized_topic,
+                "title": ev.title,
+                "statement": ev.statement
+            })
         sanitized_evidence.append(ev)
     result.evidence_items = sanitized_evidence
 
@@ -1013,6 +1020,15 @@ def sanitize_and_verify_intelligence_result(
             g.confidence = "LOW"
             g.status = "INSUFFICIENT_EVIDENCE"
             g.comparison_detail = "Unverified source filing; guidance cannot be verified against actuals."
+        if not g.id:
+            from database import generate_deterministic_guidance_id
+            g.id = generate_deterministic_guidance_id(symbol, {
+                "metric_or_topic": g.metric_or_topic,
+                "target_period": g.target_period,
+                "guidance_text": g.guidance_text,
+                "source_document_title": g.source_document_title,
+                "source_document_url": g.source_document_url
+            })
         sanitized_guidance.append(g)
     result.management_guidance_items = sanitized_guidance
 

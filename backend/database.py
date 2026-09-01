@@ -12,6 +12,7 @@ import sqlite3
 import json
 import os
 import re
+import hashlib
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Dict, Any, List, Optional, Tuple
@@ -391,6 +392,30 @@ def init_db() -> None:
 # DOCUMENT EVIDENCE & GUIDANCE PERSISTENCE HELPERS
 # ---------------------------------------------------------
 
+def generate_deterministic_evidence_id(symbol: str, item: Dict[str, Any]) -> str:
+    """Generates a stable, deterministic ID for an evidence item across Python processes."""
+    clean_sym = symbol.upper().strip()
+    u = str(item.get("source_url") or "").strip()
+    et = str(item.get("evidence_type") or "").strip()
+    top = str(item.get("normalized_topic") or "").strip()
+    tit = str(item.get("title") or "").strip()
+    stm = str(item.get("statement") or "").strip()
+    raw = f"{clean_sym}|{u}|{et}|{top}|{tit}|{stm}"
+    h = hashlib.sha256(raw.encode("utf-8")).hexdigest()[:12]
+    return f"evi_{clean_sym}_{h}"
+
+def generate_deterministic_guidance_id(symbol: str, item: Dict[str, Any]) -> str:
+    """Generates a stable, deterministic ID for a guidance item across Python processes."""
+    clean_sym = symbol.upper().strip()
+    mot = str(item.get("metric_or_topic") or "").strip()
+    tp = str(item.get("target_period") or "").strip()
+    gt = str(item.get("guidance_text") or "").strip()
+    sdt = str(item.get("source_document_title") or "").strip()
+    sdu = str(item.get("source_document_url") or "").strip()
+    raw = f"{clean_sym}|{mot}|{tp}|{gt}|{sdt}|{sdu}"
+    h = hashlib.sha256(raw.encode("utf-8")).hexdigest()[:12]
+    return f"mgi_{clean_sym}_{h}"
+
 def save_document_evidence_items(symbol: str, items: List[Dict[str, Any]]) -> int:
     clean_sym = symbol.upper().strip()
     if not items:
@@ -401,7 +426,7 @@ def save_document_evidence_items(symbol: str, items: List[Dict[str, Any]]) -> in
         cur = conn.cursor()
         saved = 0
         for it in items:
-            item_id = it.get("id") or f"evi_{clean_sym}_{abs(hash(str(it.get('title')) + str(it.get('statement'))))}"
+            item_id = it.get("id") or generate_deterministic_evidence_id(clean_sym, it)
             cur.execute("""
                 INSERT INTO document_evidence_items (
                     id, symbol, evidence_type, title, normalized_topic, statement,
@@ -474,7 +499,7 @@ def save_management_guidance_items(symbol: str, items: List[Dict[str, Any]]) -> 
         cur = conn.cursor()
         saved = 0
         for it in items:
-            item_id = it.get("id") or f"mgi_{clean_sym}_{abs(hash(str(it.get('metric_or_topic')) + str(it.get('target_period'))))}"
+            item_id = it.get("id") or generate_deterministic_guidance_id(clean_sym, it)
             cur.execute("""
                 INSERT INTO management_guidance_items (
                     id, symbol, metric_or_topic, guidance_text, quantified_value,
@@ -558,6 +583,10 @@ def check_business_analysis_staleness(symbol: str, current_docs: Optional[List[A
     """
     Evaluates whether the stored business analysis intelligence for a company is stale.
     Returns (is_stale, reason_or_status).
+    
+    If current_docs is None:
+    - do not compare hashes
+    - return (False, "not_checked") if analysis exists, or (True, "not_analyzed") if no analysis exists
     """
     clean_sym = symbol.upper().strip()
     ai_record = get_cached_ai_analysis(clean_sym)
@@ -567,6 +596,9 @@ def check_business_analysis_staleness(symbol: str, current_docs: Optional[List[A
     stored_hash = ai_record.get("source_documents_hash")
     if not stored_hash:
         return True, "missing_documents_hash"
+        
+    if current_docs is None:
+        return False, "not_checked"
         
     curr_hash = compute_source_documents_hash(current_docs)
     if stored_hash != curr_hash:
