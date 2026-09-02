@@ -84,7 +84,7 @@ def format_filing_date(date_str: str) -> Optional[str]:
     if not date_str:
         return None
     s = date_str.strip()
-    
+
     # Format 1: ISO date like '2026-08-21' or '2026-08-21T14:30:00'
     m_iso = re.search(r"(\d{4})-(\d{2})-(\d{2})", s)
     if m_iso:
@@ -112,14 +112,14 @@ def format_filing_date(date_str: str) -> Optional[str]:
             return dt.strftime("%d %b %Y")
         except Exception:
             pass
-            
+
     return extract_period_or_date(s)
 
 def extract_period_or_date(text: str) -> Optional[str]:
     """Extracts exact Date (e.g. '24 Jul 2026'), Month-Year with Quarter (e.g. 'Jun 2026 (Q1 FY27)'), or Fiscal Year."""
     if not text:
         return None
-    
+
     # 1. Exact Date with Day Month Year (e.g. '24 Jul 2026', '24-07-2026', '2026-07-24')
     d_match = re.search(r"\b(\d{1,2})[-/ ]+(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*[-/ ]+(\d{4})\b", text, re.IGNORECASE)
     if d_match:
@@ -127,7 +127,7 @@ def extract_period_or_date(text: str) -> Optional[str]:
         month = d_match.group(2).capitalize()
         year = d_match.group(3)
         return f"{day} {month} {year}"
-        
+
     iso_date = re.search(r"\b(\d{4})-(\d{2})-(\d{2})\b", text)
     if iso_date:
         return f"{iso_date.group(3)}/{iso_date.group(2)}/{iso_date.group(1)}"
@@ -146,7 +146,7 @@ def extract_period_or_date(text: str) -> Optional[str]:
         year = int(m_match.group(2))
         yr_short = str(year)[2:]
         next_yr_short = str(year + 1)[2:]
-        
+
         # Standard Indian Financial Year Quarter Mapping
         if month in ("Jun", "June"):
             return f"Jun {year} (Q1 FY{next_yr_short})"
@@ -175,11 +175,11 @@ def extract_period_or_date(text: str) -> Optional[str]:
         if len(yr) == 2:
             yr = f"20{yr}"
         return f"FY{yr}"
-        
+
     y_match = re.search(r"\b(201\d|202\d)\b", text)
     if y_match:
         return f"FY{y_match.group(1)}"
-        
+
     return None
 
 from concurrent.futures import ThreadPoolExecutor
@@ -206,17 +206,17 @@ def verify_document_network_and_content(
     """
     if not url or not title:
         return False, None, "Empty URL or Title"
-        
+
     url_clean = url.strip()
     if url_clean.endswith("#documents") or url_clean.endswith("#") or "/#/" in url_clean or url_clean.startswith("#"):
         return False, None, "Rejected: Fake placeholder or anchor link"
-        
+
     if not url_clean.startswith("http://") and not url_clean.startswith("https://"):
         return False, None, "Rejected: Invalid protocol (must be http/https)"
-        
+
     parsed = urlparse(url_clean)
     host = parsed.netloc.lower()
-    
+
     # Generic homepages are not documents
     path = parsed.path.strip("/")
     if not path or path in ("", "index.html", "home", "company", "investors", "investor-relations"):
@@ -234,26 +234,26 @@ def verify_document_network_and_content(
         with requests.get(url_clean, headers=headers, stream=True, timeout=6, allow_redirects=True) as resp:
             if resp.status_code != 200:
                 return False, None, f"HTTP {resp.status_code} Error"
-                
+
             content_type = resp.headers.get("Content-Type", "").lower()
             content_length = resp.headers.get("Content-Length")
             file_size = int(content_length) if content_length and content_length.isdigit() else None
-            
+
             # Read first 512 bytes
             chunk = resp.raw.read(512)
-            
+
             # Check if an HTML error page is returned instead of a filing
             if b"<html" in chunk.lower() or b"<!doctype html" in chunk.lower() or b"<title>404" in chunk.lower() or b"access denied" in chunk.lower():
                 # Allow only if it's an announcement web page on BSE/NSE
                 if doc_type != "announcement" or "pdf" in url_clean.lower():
                     return False, None, "Rejected: HTML error page returned instead of document"
-                    
+
             # For PDF documents, verify magic bytes (%PDF)
             is_pdf = url_clean.lower().endswith(".pdf") or ".pdf" in url_clean.lower() or "pdf" in content_type
             if is_pdf and doc_type in ("annual_report", "concall_transcript", "presentation"):
                 if not chunk.startswith(b"%PDF") and b"%PDF" not in chunk[:128]:
                     return False, None, "Rejected: File missing valid %PDF magic header"
-                    
+
             return True, file_size, "Verified Live Document"
     except requests.exceptions.Timeout:
         return False, None, "Connection timed out during validation"
@@ -274,7 +274,7 @@ def classify_document_title(raw_title: str, company_name: str = "", period: Opti
     """
     Strict fundamental classification of filing titles:
     Returns (doc_type, formatted_title)
-    doc_type is one of: 
+    doc_type is one of:
       - 'annual_report'
       - 'regulatory_annual_filing'
       - 'concall_transcript'
@@ -286,10 +286,10 @@ def classify_document_title(raw_title: str, company_name: str = "", period: Opti
     if not raw_title:
         return "general", ""
     lower_t = raw_title.lower().strip()
-    
+
     # 1. Negative Guards: Explicit Capital calls / rights notices / routine corporate intimations
     is_capital_call = any(k in lower_t for k in [
-        "partly paid", "call money", "share call", "first and final call", 
+        "partly paid", "call money", "share call", "first and final call",
         "reminder notice", "allotment of", "conversion of partly", "paid-up",
         "forfeiture of shares", "right issue", "rights issue"
     ])
@@ -297,14 +297,14 @@ def classify_document_title(raw_title: str, company_name: str = "", period: Opti
         "loss of share", "duplicate share", "trading window", "closure of trading",
         "newspaper publication", "loss of certificate"
     ])
-    
+
     # 2. Form 20-F / Regulatory Annual Filings (SEC / Foreign Statutory)
     if any(k in lower_t for k in ["20-f", "form 20-f", "form 20 f", "10-k", "form 10-k"]):
         return "regulatory_annual_filing", raw_title
-        
+
     # 3. BRSR / ESG Reports (Must NOT be merged with Annual Report)
     if any(k in lower_t for k in [
-        "business responsibility and sustainability", "brsr", 
+        "business responsibility and sustainability", "brsr",
         "sustainability report", "esg report", "esg factsheet", "sustainability disclosure"
     ]):
         return "brsr_esg", raw_title
@@ -317,7 +317,7 @@ def classify_document_title(raw_title: str, company_name: str = "", period: Opti
         if company_name and len(raw_title) <= 20:
             formatted_title = f"{company_name} {raw_title}"
         return "annual_report", formatted_title
-        
+
     # 5. Earnings Conference Call Transcripts (Strict - no generic 'call' word matches!)
     is_concall = not is_capital_call and (
         "earnings call" in lower_t or
@@ -335,7 +335,7 @@ def classify_document_title(raw_title: str, company_name: str = "", period: Opti
 
     # 6. Investor Presentations & Quarterly Decks
     is_ppt = any(k in lower_t for k in [
-        "investor presentation", "earnings presentation", "investor deck", 
+        "investor presentation", "earnings presentation", "investor deck",
         "analyst presentation", "quarterly presentation", "investor update"
     ]) or (("presentation" in lower_t or "ppt" in lower_t) and not is_capital_call)
     if is_ppt:
@@ -346,17 +346,17 @@ def classify_document_title(raw_title: str, company_name: str = "", period: Opti
 
     # 7. Material Exchange Announcements & Corporate Actions
     if is_capital_call or is_routine_notice or any(k in lower_t for k in [
-        "announcement", "outcome", "board meeting", "filing", "regulation 30", 
-        "press release", "media release", "acquisition", "order", "contract", 
+        "announcement", "outcome", "board meeting", "filing", "regulation 30",
+        "press release", "media release", "acquisition", "order", "contract",
         "intimation", "disclosure", "resignation", "appointment", "update", "clarification"
     ]):
         return "announcement", raw_title
-        
+
     return "general", raw_title
 
 def discover_documents_screener(
-    soup: BeautifulSoup, 
-    symbol: str, 
+    soup: BeautifulSoup,
+    symbol: str,
     company_name: str,
     from_date_dt: Optional[datetime] = None
 ) -> List[DocumentItem]:
@@ -368,32 +368,32 @@ def discover_documents_screener(
     doc_section = soup.find(id="documents")
     if not doc_section:
         return found
-        
+
     from_yr = None
     if from_date_dt:
         from_yr = from_date_dt.year + (from_date_dt.month - 1) / 12.0 + from_date_dt.day / 365.0
-        
+
     for a in doc_section.find_all("a", href=True):
         raw_title = re.sub(r"\s+", " ", a.text).strip()
         raw_title = re.sub(r"\s*from\s+bse\s*", "", raw_title, flags=re.IGNORECASE).strip()
         href = a["href"].strip()
         if not raw_title or not href:
             continue
-            
+
         if not href.startswith("http"):
             href = f"https://www.screener.in{href}"
-            
+
         parsed = urlparse(href)
         host = parsed.netloc.lower()
         is_pdf = href.lower().endswith(".pdf") or ".pdf" in href.lower()
-        
+
         # Check period from anchor or parent element (e.g. <li> or <tr>)
         period = extract_period_or_date(raw_title)
         if not period:
             parent_el = a.find_parent(["li", "tr", "div"])
             if parent_el:
                 period = extract_period_or_date(parent_el.text)
-        
+
         # In incremental mode, skip filings with an explicit date older than the safety window
         if from_yr and period:
             try:
@@ -403,10 +403,10 @@ def discover_documents_screener(
                     continue
             except Exception:
                 pass
-                
+
         doc_type, formatted_title = classify_document_title(raw_title, company_name, period)
         is_valid, _ = validate_document_candidate(formatted_title, href, doc_type, symbol)
-        
+
         found.append(DocumentItem(
             ticker=symbol,
             company_name=company_name,
@@ -421,12 +421,12 @@ def discover_documents_screener(
             is_direct_pdf=is_pdf,
             validation_status="Valid" if is_valid else "Invalid"
         ))
-        
+
     return found
 
 def discover_documents_bse_fallback(
-    symbol: str, 
-    company_name: str, 
+    symbol: str,
+    company_name: str,
     needed_types: List[str],
     from_date_str: Optional[str] = None,
     to_date_str: Optional[str] = None,
@@ -445,16 +445,16 @@ def discover_documents_bse_fallback(
 
     if not scrip_code:
         return found
-        
+
     headers = {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
         "Referer": "https://www.bseindia.com/"
     }
-    
+
     prev_d = from_date_str or ""
     to_d = to_date_str or ""
     api_url = f"https://api.bseindia.com/BseIndiaAPI/api/AnnSubCategoryGetData/w?pageno=1&strCat=-1&strPrevDate={prev_d}&strScrip={scrip_code}&strSearch=P&strToDate={to_d}&strType=C"
-    
+
     try:
         resp = requests.get(api_url, headers=headers, timeout=5)
         if resp.status_code == 200:
@@ -464,21 +464,21 @@ def discover_documents_bse_fallback(
                 headline = item.get("NEWSSUB", "") or item.get("HEADLINE", "")
                 attach_name = item.get("ATTACHMENTNAME", "")
                 dt = item.get("NEWS_DT", "")
-                
+
                 if not attach_name or not headline:
                     continue
-                    
+
                 direct_url = f"https://www.bseindia.com/xml-data/corpfiling/AttachHis/{attach_name}"
                 is_pdf = direct_url.lower().endswith(".pdf")
                 period = format_filing_date(dt) or extract_period_or_date(headline)
-                
+
                 doc_type, formatted_title = classify_document_title(headline, company_name, period)
                 if doc_type == "general":
                     doc_type = "announcement"
-                    
+
                 if needed_types and doc_type not in needed_types and "announcement" not in needed_types:
                     continue
-                    
+
                 is_valid, _ = validate_document_candidate(formatted_title, direct_url, doc_type, symbol)
                 if is_valid:
                     found.append(DocumentItem(
@@ -497,12 +497,12 @@ def discover_documents_bse_fallback(
                     ))
     except Exception:
         pass
-        
+
     return found
 
 def discover_documents_nse_fallback(
-    symbol: str, 
-    company_name: str, 
+    symbol: str,
+    company_name: str,
     needed_types: List[str],
     from_date_str: Optional[str] = None,
     to_date_str: Optional[str] = None,
@@ -523,12 +523,12 @@ def discover_documents_nse_fallback(
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
         "Referer": "https://www.nseindia.com/"
     }
-    
+
     if from_date_str and to_date_str:
         api_url = f"https://www.nseindia.com/api/corporate-announcements?index=equities&symbol={clean_sym}&from_date={from_date_str}&to_date={to_date_str}"
     else:
         api_url = f"https://www.nseindia.com/api/corporate-announcements?index=equities&symbol={clean_sym}"
-        
+
     try:
         session = requests.Session()
         session.get("https://www.nseindia.com", headers=headers, timeout=4)
@@ -540,16 +540,16 @@ def discover_documents_nse_fallback(
                     desc = item.get("desc", "") or item.get("an_dt", "")
                     attach_file = item.get("attchmntFile", "")
                     dt = item.get("an_dt", "")
-                    
+
                     if not desc or not attach_file:
                         continue
                     pdf_url = attach_file if attach_file.startswith("http") else f"https://archives.nseindia.com/corporate/{attach_file}"
                     period = format_filing_date(dt) or extract_period_or_date(desc)
-                    
+
                     doc_type, formatted_title = classify_document_title(desc, company_name, period)
                     if doc_type == "general":
                         doc_type = "announcement"
-                        
+
                     is_valid, _ = validate_document_candidate(formatted_title, pdf_url, doc_type, symbol)
                     if is_valid:
                         found.append(DocumentItem(
@@ -571,8 +571,8 @@ def discover_documents_nse_fallback(
     return found
 
 def discover_documents_company_ir_fallback(
-    symbol: str, 
-    company_name: str, 
+    symbol: str,
+    company_name: str,
     needed_types: List[str],
     from_date_dt: Optional[datetime] = None
 ) -> List[DocumentItem]:
@@ -586,20 +586,20 @@ def discover_documents_company_ir_fallback(
     ir_info = COMPANY_IR_DOMAINS.get(symbol.upper())
     if not ir_info:
         return found
-        
+
     ir_url = ir_info.get("ir_url")
     if not ir_url:
         return found
-        
+
     headers = {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
     }
-    
+
     try:
         resp = requests.get(ir_url, headers=headers, timeout=6)
         if resp.status_code == 200:
             soup = BeautifulSoup(resp.text, "html.parser")
-            
+
             # Filter candidate anchors to relevant filing links (PDFs or filing keywords)
             candidate_anchors: List[Tuple[str, str]] = []
             for a in soup.find_all("a", href=True):
@@ -608,17 +608,17 @@ def discover_documents_company_ir_fallback(
                 if not href or not text or len(text) < 3:
                     continue
                 combined_lower = f"{text} {href}".lower()
-                if (href.lower().endswith(".pdf") or 
+                if (href.lower().endswith(".pdf") or
                     any(kw in combined_lower for kw in ["report", "annual", "presentation", "transcript", "concall", "investor", "financial", "result", "quarter"])):
                     candidate_anchors.append((text, href))
-            
+
             # In incremental mode, limit scan to the newest 20 relevant filing anchors
             scan_anchors = candidate_anchors[:20] if from_date_dt else candidate_anchors
-            
+
             from_yr = None
             if from_date_dt:
                 from_yr = from_date_dt.year + (from_date_dt.month - 1) / 12.0 + from_date_dt.day / 365.0
-                
+
             for text, href in scan_anchors:
                 # Resolve relative URL
                 if href.startswith("/"):
@@ -626,9 +626,9 @@ def discover_documents_company_ir_fallback(
                     href = f"{parsed_domain.scheme}://{parsed_domain.netloc}{href}"
                 elif not href.startswith("http"):
                     href = f"{ir_url.rstrip('/')}/{href}"
-                    
+
                 period = extract_period_or_date(text) or extract_period_or_date(href)
-                
+
                 # Check if this filing is strictly older than the incremental date cutoff
                 if from_yr and period:
                     try:
@@ -639,7 +639,7 @@ def discover_documents_company_ir_fallback(
                             continue
                     except Exception:
                         pass
-                        
+
                 doc_type, formatted_title = classify_document_title(text, company_name, period)
                 if doc_type in ("annual_report", "presentation", "concall_transcript") and (not needed_types or doc_type in needed_types):
                     is_valid, _ = validate_document_candidate(formatted_title, href, doc_type, symbol)
@@ -661,7 +661,7 @@ def discover_documents_company_ir_fallback(
                         ))
     except Exception:
         pass
-        
+
     return found
 
 def execute_document_sourcing_waterfall(
@@ -684,7 +684,7 @@ def execute_document_sourcing_waterfall(
     all_raw_docs: List[DocumentItem] = []
     fallback_sources_used: List[str] = []
     invalid_links_count = 0
-    
+
     # Resolve canonical identifiers from registry if not provided
     if not bse_code or not nse_symbol:
         try:
@@ -700,13 +700,13 @@ def execute_document_sourcing_waterfall(
     # 0. Check previous sync state to establish Date-Window for Incremental Refresh
     sync_state = database.get_document_sync_state(clean_sym, category="all")
     last_checked_at = sync_state.get("last_checked_at") if sync_state else None
-    
+
     from_date_dt: Optional[datetime] = None
     from_date_bse: Optional[str] = None
     to_date_bse: Optional[str] = None
     from_date_nse: Optional[str] = None
     to_date_nse: Optional[str] = None
-    
+
     if last_checked_at:
         try:
             last_dt = datetime.fromisoformat(last_checked_at.replace("Z", "+00:00"))
@@ -735,7 +735,7 @@ def execute_document_sourcing_waterfall(
                             screener_candidates.append(DocumentItem(**item))
                         elif isinstance(item, DocumentItem):
                             screener_candidates.append(item)
-        
+
         # If not cached, attempt lightweight HTML fetch from Screener
         if not screener_candidates:
             try:
@@ -756,18 +756,18 @@ def execute_document_sourcing_waterfall(
     ar_count = sum(1 for d in all_raw_docs if d.doc_type == "annual_report")
     cc_count = sum(1 for d in all_raw_docs if d.doc_type == "concall_transcript")
     ppt_count = sum(1 for d in all_raw_docs if d.doc_type == "presentation")
-    
+
     needed_types = []
     if ar_count < 3: needed_types.append("annual_report")
     if cc_count < 4: needed_types.append("concall_transcript")
     if ppt_count < 4: needed_types.append("presentation")
     needed_types.append("announcement")
-    
+
     # 2. Stage 2: BSE India Fallback (Searching inside the date window)
     if needed_types:
         bse_docs = discover_documents_bse_fallback(
-            clean_sym, 
-            company_name, 
+            clean_sym,
+            company_name,
             needed_types,
             from_date_str=from_date_bse,
             to_date_str=to_date_bse,
@@ -781,8 +781,8 @@ def execute_document_sourcing_waterfall(
     ann_count = sum(1 for d in all_raw_docs if d.doc_type == "announcement")
     if ann_count < 4:
         nse_docs = discover_documents_nse_fallback(
-            clean_sym, 
-            company_name, 
+            clean_sym,
+            company_name,
             ["announcement"],
             from_date_str=from_date_nse,
             to_date_str=to_date_nse,
@@ -791,7 +791,7 @@ def execute_document_sourcing_waterfall(
         if nse_docs:
             fallback_sources_used.append("NSE India")
             all_raw_docs.extend(nse_docs)
-                    
+
     # 4. Stage 4: Company IR Fallback (Real web parsing with incremental cutoff)
     ar_count = sum(1 for d in all_raw_docs if d.doc_type == "annual_report")
     if ar_count < 2:
@@ -811,10 +811,10 @@ def execute_document_sourcing_waterfall(
 
     # 5. Smart Incremental Validation: Skip unchanged, already-verified documents in SQLite
     known_db_docs = {d["url"]: d for d in database.get_source_documents(clean_sym)}
-    
+
     docs_to_validate_network: List[DocumentItem] = []
     already_valid_docs: List[DocumentItem] = []
-    
+
     for doc in deduped_docs:
         norm_url = doc.actual_source_url.strip()
         if norm_url in known_db_docs and known_db_docs[norm_url].get("is_valid") == 1:
@@ -849,7 +849,7 @@ def execute_document_sourcing_waterfall(
                 newly_validated_docs.append(doc)
             else:
                 invalid_links_count += 1
-                
+
     # Persist any newly validated documents into SQLite source_documents table
     if newly_validated_docs:
         try:
@@ -859,7 +859,7 @@ def execute_document_sourcing_waterfall(
 
     # Combine all valid documents (both previously known from DB and newly verified)
     all_valid_combined = already_valid_docs + newly_validated_docs
-    
+
     # Also incorporate any known valid documents from SQLite that may not have been returned in the recent scrape
     seen_combined_urls = {d.url.strip() for d in all_valid_combined}
     for db_url, db_doc in known_db_docs.items():
@@ -891,10 +891,10 @@ def execute_document_sourcing_waterfall(
     concalls = [d for d in all_valid_combined if d.doc_type == "concall_transcript"][:6]
     presentations = [d for d in all_valid_combined if d.doc_type == "presentation"][:6]
     announcements = [d for d in all_valid_combined if d.doc_type == "announcement"][:8]
-    
+
     total_ai_ready = len(annual_reports) + len(concalls) + len(presentations) + len(announcements)
     overall_status = "Ready" if total_ai_ready >= 4 else ("Partial" if total_ai_ready > 0 else "Missing")
-    
+
     diagnostics = DocumentDiscoveryDiagnostics(
         target_annual_reports_count=3,
         annual_reports_found=len(annual_reports),
@@ -909,7 +909,7 @@ def execute_document_sourcing_waterfall(
         ai_ready_documents_count=total_ai_ready,
         overall_status=overall_status
     )
-    
+
     return DocumentLinks(
         annual_reports=annual_reports,
         concalls=concalls,
@@ -920,9 +920,9 @@ def execute_document_sourcing_waterfall(
     )
 
 def discover_historical_document(
-    symbol: str, 
-    company_name: str, 
-    doc_type: str, 
+    symbol: str,
+    company_name: str,
+    doc_type: str,
     period_or_year: str,
     bse_code: Optional[str] = None
 ) -> Optional[DocumentItem]:
@@ -964,10 +964,10 @@ def discover_historical_document(
                     yr = str(item.get("YEAR", "") or item.get("FinYear", "") or "")
                     attach = item.get("ATTACHMENTNAME", "") or item.get("URL", "")
                     heading = item.get("HEADING", "") or f"{company_name} Annual Report {yr}"
-                    
+
                     if not attach:
                         continue
-                        
+
                     # Match target year (e.g. '2021', '21', 'FY21')
                     if target_clean in yr.lower() or target_clean in heading.lower() or period_or_year.lower() in yr.lower():
                         direct_url = attach if attach.startswith("http") else f"https://www.bseindia.com/bseplus/AnnualReport/{scrip_code}/{attach}"
@@ -1010,10 +1010,10 @@ def discover_historical_document(
                         dt = item.get("NEWS_DT", "")
                         if not attach_name or not headline:
                             continue
-                            
+
                         period = format_filing_date(dt) or extract_period_or_date(headline)
                         d_type, f_title = classify_document_title(headline, company_name, period)
-                        
+
                         # Match doc_type and target year/period
                         if (d_type == doc_type or doc_type in d_type):
                             if target_clean in headline.lower() or (period and target_clean in period.lower()) or period_or_year.lower() in headline.lower():
@@ -1059,7 +1059,7 @@ def discover_historical_document(
                             href = f"{parsed_domain.scheme}://{parsed_domain.netloc}{href}"
                         elif not href.startswith("http"):
                             href = f"{ir_url.rstrip('/')}/{href}"
-                            
+
                         period = extract_period_or_date(text) or extract_period_or_date(href)
                         d_type, f_title = classify_document_title(text, company_name, period)
                         if (d_type == doc_type or doc_type in d_type) and (target_clean in text.lower() or target_clean in href.lower()):
@@ -1085,5 +1085,126 @@ def discover_historical_document(
                                 return doc
             except Exception:
                 pass
-                
+
+    return None
+
+def discover_substantive_alternate_source(
+    symbol: str,
+    company_name: str,
+    doc_type: str,
+    doc_subtype: Optional[str] = None,
+    period_or_date: Optional[str] = None,
+    event_key: Optional[str] = None,
+    failed_url: Optional[str] = None
+) -> Optional[DocumentItem]:
+    """
+    On-Demand Live Alternate Filing Discovery:
+    When a primary or convenience URL fails (e.g. Screener 403), this function invokes
+    narrow discovery adapters (Company IR, BSE, NSE) for the EXACT same symbol, doc_type,
+    subtype, and earnings event/quarter.
+
+    Guarantees:
+    - No broad web crawler
+    - Strictly rejects 1-page wrapper notices
+    - Strictly rejects wrong-quarter / wrong-event documents
+    - Persists valid discovered alternate into SQLite
+    """
+    clean_sym = symbol.upper().strip()
+    norm_dt = database.normalize_document_type(doc_type)
+    target_event = event_key or database.derive_earnings_event_key(clean_sym, period_or_date)
+    failed_clean = (failed_url or "").strip().rstrip("/")
+
+    scrip_code = BSE_SCRIP_CODES.get(clean_sym)
+    if not scrip_code:
+        try:
+            reg = database.get_company_by_symbol(clean_sym)
+            if reg and reg.get("bse_code"):
+                scrip_code = str(reg["bse_code"]).strip()
+        except Exception:
+            pass
+
+    # 1. Try Company IR discovery adapter
+    ir_docs = DocumentLinks()
+    try:
+        discover_documents_company_ir_fallback(clean_sym, company_name, scrip_code, ir_docs)
+        cand_list = (ir_docs.concalls or []) + (ir_docs.annual_reports or []) + (ir_docs.presentations or []) + (ir_docs.material_announcements or [])
+        for cand in cand_list:
+            c_url = (cand.url or "").strip().rstrip("/")
+            if not c_url or c_url == failed_clean:
+                continue
+            if database.is_document_wrapper(cand.title, cand.url):
+                continue
+            c_dt = database.normalize_document_type(cand.doc_type, cand.title)
+            if c_dt != norm_dt:
+                continue
+            c_subtype = database.derive_document_subtype(c_dt, cand.title, cand.period_or_date)
+            if doc_subtype and c_subtype != doc_subtype:
+                continue
+            c_ev = database.derive_announcement_event_key(clean_sym, cand.title, cand.period_or_date) if norm_dt == "material_announcements" else database.derive_earnings_event_key(clean_sym, cand.period_or_date, cand.title)
+            if target_event and c_ev and c_ev != target_event and not target_event.endswith("_GENERIC"):
+                continue
+            if not target_event and period_or_date and cand.period_or_date != period_or_date:
+                continue
+            # Found valid Company IR alternate!
+            database.save_source_documents(clean_sym, [cand])
+            return cand
+    except Exception:
+        pass
+
+    # 2. Try BSE discovery adapter
+    bse_docs = DocumentLinks()
+    try:
+        discover_documents_bse_fallback(clean_sym, scrip_code, bse_docs)
+        cand_list = (bse_docs.concalls or []) + (bse_docs.annual_reports or []) + (bse_docs.presentations or []) + (bse_docs.material_announcements or [])
+        for cand in cand_list:
+            c_url = (cand.url or "").strip().rstrip("/")
+            if not c_url or c_url == failed_clean:
+                continue
+            if database.is_document_wrapper(cand.title, cand.url):
+                continue
+            c_dt = database.normalize_document_type(cand.doc_type, cand.title)
+            if c_dt != norm_dt:
+                continue
+            c_subtype = database.derive_document_subtype(c_dt, cand.title, cand.period_or_date)
+            if doc_subtype and c_subtype != doc_subtype:
+                continue
+            c_ev = database.derive_announcement_event_key(clean_sym, cand.title, cand.period_or_date) if norm_dt == "material_announcements" else database.derive_earnings_event_key(clean_sym, cand.period_or_date, cand.title)
+            if target_event and c_ev and c_ev != target_event and not target_event.endswith("_GENERIC"):
+                continue
+            if not target_event and period_or_date and cand.period_or_date != period_or_date:
+                continue
+            # Found valid BSE alternate!
+            database.save_source_documents(clean_sym, [cand])
+            return cand
+    except Exception:
+        pass
+
+    # 3. Try NSE discovery adapter
+    nse_docs = DocumentLinks()
+    try:
+        discover_documents_nse_fallback(clean_sym, nse_docs)
+        cand_list = (nse_docs.concalls or []) + (nse_docs.annual_reports or []) + (nse_docs.presentations or []) + (nse_docs.material_announcements or [])
+        for cand in cand_list:
+            c_url = (cand.url or "").strip().rstrip("/")
+            if not c_url or c_url == failed_clean:
+                continue
+            if database.is_document_wrapper(cand.title, cand.url):
+                continue
+            c_dt = database.normalize_document_type(cand.doc_type, cand.title)
+            if c_dt != norm_dt:
+                continue
+            c_subtype = database.derive_document_subtype(c_dt, cand.title, cand.period_or_date)
+            if doc_subtype and c_subtype != doc_subtype:
+                continue
+            c_ev = database.derive_announcement_event_key(clean_sym, cand.title, cand.period_or_date) if norm_dt == "material_announcements" else database.derive_earnings_event_key(clean_sym, cand.period_or_date, cand.title)
+            if target_event and c_ev and c_ev != target_event and not target_event.endswith("_GENERIC"):
+                continue
+            if not target_event and period_or_date and cand.period_or_date != period_or_date:
+                continue
+            # Found valid NSE alternate!
+            database.save_source_documents(clean_sym, [cand])
+            return cand
+    except Exception:
+        pass
+
     return None

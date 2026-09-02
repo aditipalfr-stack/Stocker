@@ -78,7 +78,7 @@ class TestCanonicalSourceFilingsV44(unittest.TestCase):
         # Find the canonical AR
         self.assertEqual(len(docs["annual_reports"]), 1)
         canonical_doc = docs["annual_reports"][0]
-        
+
         # Verify canonical URL was sanitized and doc_key exists
         self.assertTrue(canonical_doc["doc_key"])
         self.assertEqual(canonical_doc["ai_status"], "AI_ANALYZED")
@@ -159,7 +159,7 @@ class TestCanonicalSourceFilingsV44(unittest.TestCase):
 
         resp = main.get_stock_source_filings(sym)
         ars = resp["documents"]["annual_reports"]
-        
+
         ar_26 = next(a for a in ars if a["period_or_date"] == "FY26")
         ar_25 = next(a for a in ars if a["period_or_date"] == "FY25")
 
@@ -213,7 +213,7 @@ class TestCanonicalSourceFilingsV44(unittest.TestCase):
 
         resp = main.get_stock_source_filings(sym)
         self.assertTrue(resp["has_company_analysis"])
-        
+
         ars = resp["documents"]["annual_reports"]
         anns = resp["documents"]["material_announcements"]
 
@@ -302,11 +302,11 @@ class TestCanonicalSourceFilingsV44(unittest.TestCase):
         AI working set prioritizes AR > 20-F > Concalls > PPTs ahead of BRSR.
         """
         from document_sourcing import classify_document_title
-        
+
         ar_type, _ = classify_document_title("Notice Of 32Nd Annual General Meeting And Annual Report 2025-26")
         brsr_type, _ = classify_document_title("Business Responsibility and Sustainability Reporting (BRSR)")
         f20_type, _ = classify_document_title("Filing Of Annual Report In The Form 20-F For The Year Ended March 31, 2026.")
-        
+
         self.assertEqual(ar_type, "annual_report")
         self.assertEqual(brsr_type, "brsr_esg")
         self.assertEqual(f20_type, "regulatory_annual_filing")
@@ -323,7 +323,7 @@ class TestCanonicalSourceFilingsV44(unittest.TestCase):
                 DocumentItem(ticker="TESTSYM", title="Concall Q1 FY27", url="https://bse.com/cc1.pdf", doc_type="concall_transcript", period_or_date="Q1 FY27")
             ],
             presentations=[
-                DocumentItem(ticker="TESTSYM", title="Investor Presentation", url="https://bse.com/ppt1.pdf", doc_type="presentation", period_or_date="Jul 2026")
+                DocumentItem(ticker="TESTSYM", title="Investor Presentation Q1 FY27", url="https://bse.com/ppt1.pdf", doc_type="presentation", period_or_date="Q1 FY27")
             ],
             brsr_reports=[
                 DocumentItem(ticker="TESTSYM", title="BRSR 2026", url="https://bse.com/brsr26.pdf", doc_type="brsr_esg", period_or_date="18 Jul 2026")
@@ -332,7 +332,7 @@ class TestCanonicalSourceFilingsV44(unittest.TestCase):
 
         working_set = doc_intelligence_pipeline.select_default_document_working_set(doc_links)
         ws_types = [d.doc_type for d in working_set]
-        
+
         self.assertIn("annual_report", ws_types)
         self.assertIn("regulatory_annual_filing", ws_types)
         self.assertIn("concall_transcript", ws_types)
@@ -449,7 +449,7 @@ class TestCanonicalSourceFilingsV44(unittest.TestCase):
         resp = main.get_stock_source_filings(sym)
         ars = resp["documents"]["annual_reports"]
         reg_20f = resp["documents"]["regulatory_annual_filings"]
-        
+
         self.assertEqual(len(ars), 1)
         self.assertEqual(len(reg_20f), 1)
         self.assertEqual(ars[0]["doc_type"], "annual_report")
@@ -543,7 +543,7 @@ class TestCanonicalSourceFilingsV44(unittest.TestCase):
         resp = main.get_stock_source_filings(sym)
         ccs = resp["documents"]["concalls"]
         ppts = resp["documents"]["presentations"]
-        
+
         self.assertEqual(len(ccs), 1)
         self.assertEqual(len(ppts), 1)
         self.assertNotEqual(ccs[0]["doc_type"], ppts[0]["doc_type"])
@@ -600,7 +600,7 @@ class TestCanonicalSourceFilingsV44(unittest.TestCase):
                 DocumentItem(ticker="TESTSYM", title="Concall Q1 FY27", url="https://bse.com/cc1.pdf", doc_type="concall_transcript", period_or_date="Q1 FY27")
             ],
             presentations=[
-                DocumentItem(ticker="TESTSYM", title="Investor Presentation", url="https://bse.com/ppt1.pdf", doc_type="presentation", period_or_date="Jul 2026")
+                DocumentItem(ticker="TESTSYM", title="Investor Presentation Q1 FY27", url="https://bse.com/ppt1.pdf", doc_type="presentation", period_or_date="Q1 FY27")
             ],
             brsr_reports=[
                 DocumentItem(ticker="TESTSYM", title="BRSR 2026", url="https://bse.com/brsr26.pdf", doc_type="brsr_esg", period_or_date="18 Jul 2026")
@@ -608,7 +608,7 @@ class TestCanonicalSourceFilingsV44(unittest.TestCase):
         )
         ws = doc_intelligence_pipeline.select_default_document_working_set(doc_links)
         types = [d.doc_type for d in ws]
-        
+
         self.assertIn("annual_report", types)
         self.assertIn("regulatory_annual_filing", types)
         self.assertIn("concall_transcript", types)
@@ -645,7 +645,7 @@ class TestCanonicalSourceFilingsV44(unittest.TestCase):
 
         resp = main.get_stock_source_filings(sym)
         canonical_ar = resp["documents"]["annual_reports"][0]
-        
+
         self.assertEqual(canonical_ar["period_or_date"], "18 Jul 2026")
         self.assertEqual(canonical_ar["sort_timestamp"], "2026-07-18")
         self.assertIn("Screener.in", canonical_ar["discovered_sources"])
@@ -876,8 +876,14 @@ class TestCanonicalSourceFilingsV44(unittest.TestCase):
             "key_takeaways": ["Net profit up 15%"],
             "management_tone": "Confident"
         }
-        database.save_document_summary(sym, url, doc.title, summary_payload, doc_type="concall_transcript", period_or_date="Q1 FY26")
-        
+        sample_pages = [(1, "Official transcript text: Net profit up 15%.")]
+        c_hash = database.compute_document_content_hash(sample_pages)
+        database.save_cached_document_pages(sym, url, sample_pages)
+        database.save_document_summary(
+            sym, url, doc.title, summary_payload,
+            doc_type="concall_transcript", period_or_date="Q1 FY26", content_hash=c_hash
+        )
+
         # Calling get_or_generate_document_summary should return the cached summary immediately
         summary = doc_intelligence_pipeline.get_or_generate_document_summary(sym, "Test Corp", doc)
         self.assertEqual(summary["key_takeaways"], ["Net profit up 15%"])
@@ -887,8 +893,15 @@ class TestCanonicalSourceFilingsV44(unittest.TestCase):
         """18. If 1 doc is cached and 1 doc is not, cached doc is reused."""
         sym = "TESTSYM_A18"
         url_cached = "https://bse.com/cached.pdf"
-        database.save_document_summary(sym, url_cached, "Cached Doc", {"key_takeaways": ["Cached fact"], "management_tone": "Neutral"})
-        
+        sample_pages = [(1, "Official text: Cached fact.")]
+        c_hash = database.compute_document_content_hash(sample_pages)
+        database.save_cached_document_pages(sym, url_cached, sample_pages)
+        database.save_document_summary(
+            sym, url_cached, "Cached Doc",
+            {"key_takeaways": ["Cached fact"], "management_tone": "Neutral"},
+            content_hash=c_hash
+        )
+
         doc_cached = DocumentItem(ticker=sym, title="Cached Doc", url=url_cached, doc_type="concall_transcript", period_or_date="Q1 FY26")
         res = doc_intelligence_pipeline.get_or_generate_document_summary(sym, "Test Corp", doc_cached)
         self.assertEqual(res["key_takeaways"], ["Cached fact"])
@@ -986,7 +999,7 @@ class TestCanonicalSourceFilingsV44(unittest.TestCase):
         resp = main.get_stock_source_filings(sym)
         ccs = resp["documents"]["concalls"]
         selected = [c for c in ccs if c["selected_for_ai"]]
-        
+
         # Must select exactly 4 distinct quarters: Q1 FY27 (one version), Q4 FY26, Q3 FY26, Q2 FY26
         self.assertEqual(len(selected), 4)
         selected_periods = [c["period_or_date"] for c in selected]
@@ -1011,7 +1024,7 @@ class TestCanonicalSourceFilingsV44(unittest.TestCase):
         resp = main.get_stock_source_filings(sym)
         ppts = resp["documents"]["presentations"]
         selected = [p for p in ppts if p["selected_for_ai"]]
-        
+
         self.assertEqual(len(selected), 4)
         selected_periods = [p["period_or_date"] for p in selected]
         self.assertEqual(selected_periods.count("Jul 2026"), 1)
@@ -1034,7 +1047,7 @@ class TestCanonicalSourceFilingsV44(unittest.TestCase):
         anns = resp["documents"]["material_announcements"]
         selected = [a for a in anns if a["selected_for_ai"]]
         selected.sort(key=lambda x: x["ai_priority"])
-        
+
         # M&A (Score 30) should be prioritized ahead of Credit Rating (Score 25) and Litigation (Score 15)
         self.assertEqual(selected[0]["url"], "https://bse.com/mna.pdf")
         self.assertEqual(selected[1]["url"], "https://bse.com/rating.pdf")
@@ -1048,15 +1061,15 @@ class TestCanonicalSourceFilingsV44(unittest.TestCase):
         sym = "TESTSYM_UNPACK"
         test_pages = [(1, "Management Discussion and Analysis. Capex plan of 500 Cr."), (2, "Financial statements balance sheet.")]
         database.save_cached_document_pages(sym, "https://bse.com/sample_ar.pdf", test_pages)
-        
+
         pages, reasons = doc_intelligence_pipeline.select_relevant_sections(test_pages, is_full_annual_report=False)
         self.assertIsInstance(pages, list)
         self.assertIsInstance(reasons, dict)
         self.assertEqual(len(pages), 2)
-        
+
         # Test full get_or_generate_document_summary path with mocked LLM to ensure unpacking works end-to-end
         doc = DocumentItem(ticker=sym, title="Sample AR", url="https://bse.com/sample_ar.pdf", doc_type="annual_report", period_or_date="FY2026")
-        
+
         with unittest.mock.patch("doc_intelligence_pipeline.download_and_extract_pdf", return_value=test_pages), \
              unittest.mock.patch("doc_intelligence_pipeline.summarize_single_document_with_llm") as mock_llm:
             mock_llm.return_value = {
@@ -1083,12 +1096,12 @@ class TestCanonicalSourceFilingsV44(unittest.TestCase):
         database.save_source_documents(sym, docs)
         resp = main.get_stock_source_filings(sym)
         ppts = resp["documents"]["presentations"]
-        
+
         q1 = next(p for p in ppts if p["url"] == "https://bse.com/ppt_q1.pdf")
         q2 = next(p for p in ppts if p["url"] == "https://bse.com/ppt_q2.pdf")
         agm = next(p for p in ppts if p["url"] == "https://bse.com/agm.pdf")
         strat = next(p for p in ppts if p["url"] == "https://bse.com/strategy.pdf")
-        
+
         self.assertTrue(q1["selected_for_ai"])
         self.assertTrue(q2["selected_for_ai"])
         self.assertFalse(agm["selected_for_ai"])
@@ -1109,7 +1122,7 @@ class TestCanonicalSourceFilingsV44(unittest.TestCase):
         resp = main.get_stock_source_filings(sym)
         anns = resp["documents"]["material_announcements"]
         selected = [a for a in anns if a["selected_for_ai"]]
-        
+
         # Only 1 board meeting outcome is selected; credit rating is also selected (2 distinct events)
         self.assertEqual(len(selected), 2)
         bm_selected = [a for a in selected if "Board Meeting" in a["title"]]
@@ -1135,12 +1148,12 @@ class TestCanonicalSourceFilingsV44(unittest.TestCase):
             discovery_source="BSE"
         )
         database.save_source_documents(sym, [doc_failed, doc_substantive])
-        
+
         def mock_download(url, *args, **kwargs):
             if "fail403" in url:
                 return []
             return [(1, "Official substantive conference call text. Revenue grew 16%.")]
-            
+
         with unittest.mock.patch("doc_intelligence_pipeline.download_and_extract_pdf", side_effect=mock_download), \
              unittest.mock.patch("doc_intelligence_pipeline.summarize_single_document_with_llm") as mock_llm:
             mock_llm.return_value = {
@@ -1155,6 +1168,182 @@ class TestCanonicalSourceFilingsV44(unittest.TestCase):
             self.assertEqual(summary["key_takeaways"], ["Revenue grew 16%"])
             # Verified that source aliases recorded the failed convenience URL
             self.assertIn(doc_failed.url, summary.get("source_aliases", []))
+
+    def test_32_generic_investor_presentation_without_quarter_classified_other_and_excluded(self):
+        """Generic 'Investor Presentation' without quarter or earnings evidence is other_presentation and excluded from working set."""
+        sym = "TESTSYM_PPT_GENERIC"
+        docs = [
+            DocumentItem(ticker=sym, title="Investor Presentation", url="https://bse.com/gen_ppt.pdf", doc_type="presentation", period_or_date=""),
+            DocumentItem(ticker=sym, title="Corporate Presentation", url="https://bse.com/corp_ppt.pdf", doc_type="presentation", period_or_date=""),
+            DocumentItem(ticker=sym, title="Q1 FY27 Investor Presentation", url="https://bse.com/q1_fy27.pdf", doc_type="presentation", period_or_date="Q1 FY27")
+        ]
+        database.save_source_documents(sym, docs)
+        resp = main.get_stock_source_filings(sym)
+        ppts = resp["documents"]["presentations"]
+
+        gen = next(p for p in ppts if p["url"] == "https://bse.com/gen_ppt.pdf")
+        corp = next(p for p in ppts if p["url"] == "https://bse.com/corp_ppt.pdf")
+        q1 = next(p for p in ppts if p["url"] == "https://bse.com/q1_fy27.pdf")
+
+        self.assertEqual(gen["doc_subtype"], "other_presentation")
+        self.assertFalse(gen["selected_for_ai"])
+        self.assertIn("General / unresolved presentation retained in archive", gen["selection_reason"])
+
+        self.assertEqual(corp["doc_subtype"], "investor_day_presentation")
+        self.assertFalse(corp["selected_for_ai"])
+
+        self.assertEqual(q1["doc_subtype"], "earnings_presentation")
+        self.assertTrue(q1["selected_for_ai"])
+
+    def test_33_unresolved_physical_url_cannot_occupy_quarterly_slot(self):
+        """Presentations with unresolved / generic events cannot occupy quarterly slots."""
+        sym = "TESTSYM_PPT_NO_SLOT"
+        docs = [
+            DocumentItem(ticker=sym, title="Investor Presentation Presentation", url="https://bse.com/deck_unres.pdf", doc_type="presentation", period_or_date="")
+        ]
+        database.save_source_documents(sym, docs)
+        resp = main.get_stock_source_filings(sym)
+        ppts = resp["documents"]["presentations"]
+        self.assertEqual(len(ppts), 1)
+        self.assertFalse(ppts[0]["selected_for_ai"])
+
+    def test_34_exactly_four_distinct_resolved_earnings_events_selected(self):
+        """Working set selects exactly latest 4 distinct resolved quarters when 6 are available."""
+        sym = "TESTSYM_PPT_6Q"
+        docs = [
+            DocumentItem(ticker=sym, title="Earnings Presentation Q1 FY25", url="https://bse.com/ppt_25q1.pdf", doc_type="presentation", period_or_date="Q1 FY25"),
+            DocumentItem(ticker=sym, title="Earnings Presentation Q2 FY25", url="https://bse.com/ppt_25q2.pdf", doc_type="presentation", period_or_date="Q2 FY25"),
+            DocumentItem(ticker=sym, title="Earnings Presentation Q3 FY25", url="https://bse.com/ppt_25q3.pdf", doc_type="presentation", period_or_date="Q3 FY25"),
+            DocumentItem(ticker=sym, title="Earnings Presentation Q4 FY25", url="https://bse.com/ppt_25q4.pdf", doc_type="presentation", period_or_date="Q4 FY25"),
+            DocumentItem(ticker=sym, title="Earnings Presentation Q1 FY26", url="https://bse.com/ppt_26q1.pdf", doc_type="presentation", period_or_date="Q1 FY26"),
+            DocumentItem(ticker=sym, title="Earnings Presentation Q2 FY26", url="https://bse.com/ppt_26q2.pdf", doc_type="presentation", period_or_date="Q2 FY26"),
+        ]
+        database.save_source_documents(sym, docs)
+        resp = main.get_stock_source_filings(sym)
+        ppts = resp["documents"]["presentations"]
+        selected = [p for p in ppts if p["selected_for_ai"]]
+        self.assertEqual(len(selected), 4)
+        selected_quarters = {p["period_or_date"] for p in selected}
+        # The 4 newest quarters are selected
+        self.assertEqual(selected_quarters, {"Q2 FY26", "Q1 FY26", "Q4 FY25", "Q3 FY25"})
+
+    def test_35_alternate_source_recovery_via_on_demand_adapter_discovery(self):
+        """When downloading convenience URL fails and DB has no alternate, on-demand adapter discovers and extracts the official filing."""
+        import doc_intelligence_pipeline
+        sym = "ICICIBANK"
+        doc_failed = DocumentItem(
+            ticker=sym,
+            title="Concall Transcript Q2 FY26",
+            url="https://screener.in/icici_fail403.pdf",
+            doc_type="concall_transcript",
+            period_or_date="Q2 FY26",
+            discovery_source="Screener"
+        )
+        # Only doc_failed is initially stored in DB
+        database.save_source_documents(sym, [doc_failed])
+
+        discovered_alternate = DocumentItem(
+            ticker=sym,
+            title="Official ICICI Bank Earnings Conference Call Transcript Q2-2026",
+            url="https://www.icicibank.com/managed-assets/docs/investor/earnings-call-transcript-q2-2026.pdf",
+            doc_type="concall_transcript",
+            period_or_date="Q2 FY26",
+            discovery_source="Company IR Direct"
+        )
+
+        def mock_download(url, *args, **kwargs):
+            if "icici_fail403" in url:
+                return []
+            return [(1, "Official ICICI conference call text. NIM at 4.25%, Advances grew 15%.")]
+
+        with unittest.mock.patch("doc_intelligence_pipeline.download_and_extract_pdf", side_effect=mock_download), \
+             unittest.mock.patch("document_sourcing.discover_substantive_alternate_source", return_value=discovered_alternate) as mock_disc, \
+             unittest.mock.patch("doc_intelligence_pipeline.summarize_single_document_with_llm") as mock_llm:
+            mock_llm.return_value = {
+                "doc_title": discovered_alternate.title,
+                "doc_url": discovered_alternate.url,
+                "doc_type": "concall_transcript",
+                "period_or_date": "Q2 FY26",
+                "key_takeaways": ["NIM at 4.25%", "Advances grew 15%"]
+            }
+            summary = doc_intelligence_pipeline.get_or_generate_document_summary(sym, "ICICI Bank Ltd", doc_failed)
+            mock_disc.assert_called_once()
+            self.assertEqual(summary["key_takeaways"], ["NIM at 4.25%", "Advances grew 15%"])
+            self.assertIn(doc_failed.url, summary.get("source_aliases", []))
+            self.assertEqual(summary["status"], "success")
+
+    def test_36_alternate_source_recovery_rejects_wrong_event_or_quarter(self):
+        """Alternate discovery rejects candidates matching wrong event/quarter."""
+        import document_sourcing
+        sym = "TESTSYM_WRONG_Q"
+        wrong_quarter_doc = DocumentItem(
+            ticker=sym,
+            title="Earnings Transcript Q4 FY24",  # Wrong quarter for Q2 FY26
+            url="https://bse.com/wrong_q4.pdf",
+            doc_type="concall_transcript",
+            period_or_date="Q4 FY24",
+            discovery_source="BSE"
+        )
+
+        def mock_bse(s, scrip, docs):
+            docs.concalls = [wrong_quarter_doc]
+
+        with unittest.mock.patch("document_sourcing.discover_documents_bse_fallback", side_effect=mock_bse):
+            cand = document_sourcing.discover_substantive_alternate_source(
+                symbol=sym,
+                company_name="Test Corp",
+                doc_type="concall_transcript",
+                doc_subtype="earnings_transcript",
+                period_or_date="Q2 FY26",
+                failed_url="https://screener.in/fail.pdf"
+            )
+            self.assertIsNone(cand)
+
+    def test_37_alternate_source_recovery_rejects_wrapper_notices(self):
+        """Alternate discovery rejects 1-page wrapper notices."""
+        import document_sourcing
+        sym = "TESTSYM_WRAP"
+        wrapper_doc = DocumentItem(
+            ticker=sym,
+            title="Audio Recording Link and Intimation of Concall",
+            url="https://bse.com/wrapper.pdf",
+            doc_type="concall_transcript",
+            period_or_date="Q2 FY26",
+            discovery_source="BSE"
+        )
+
+        def mock_bse(s, scrip, docs):
+            docs.concalls = [wrapper_doc]
+
+        with unittest.mock.patch("document_sourcing.discover_documents_bse_fallback", side_effect=mock_bse):
+            cand = document_sourcing.discover_substantive_alternate_source(
+                symbol=sym,
+                company_name="Test Corp",
+                doc_type="concall_transcript",
+                doc_subtype="earnings_transcript",
+                period_or_date="Q2 FY26",
+                failed_url="https://screener.in/fail.pdf"
+            )
+            self.assertIsNone(cand)
+
+    def test_38_alternate_source_recovery_failure_sets_failed_status(self):
+        """When alternate discovery yields nothing, get_or_generate_document_summary returns failed status."""
+        import doc_intelligence_pipeline
+        sym = "TESTSYM_FAIL_ALL"
+        doc_failed = DocumentItem(
+            ticker=sym,
+            title="Concall Transcript Q2 FY26",
+            url="https://screener.in/fail_completely.pdf",
+            doc_type="concall_transcript",
+            period_or_date="Q2 FY26",
+            discovery_source="Screener"
+        )
+
+        with unittest.mock.patch("doc_intelligence_pipeline.download_and_extract_pdf", return_value=[]), \
+             unittest.mock.patch("document_sourcing.discover_substantive_alternate_source", return_value=None):
+            summary = doc_intelligence_pipeline.get_or_generate_document_summary(sym, "Test Corp", doc_failed)
+            self.assertEqual(summary["status"], "failed")
+            self.assertEqual(summary["key_takeaways"], [])
 
 if __name__ == '__main__':
     unittest.main()

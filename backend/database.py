@@ -45,7 +45,7 @@ def init_db() -> None:
                     updated_at TEXT NOT NULL
                 );
             """)
-            
+
             # 2. Sourced & Verified Documents Repository
             conn.execute("""
                 CREATE TABLE IF NOT EXISTS source_documents (
@@ -516,7 +516,7 @@ def save_document_evidence_items(symbol: str, items: List[Dict[str, Any]]) -> in
             placeholders = ", ".join(["?"] * len(cols_to_insert))
             col_names = ", ".join(cols_to_insert)
             update_clause = ", ".join([f"{c} = excluded.{c}" for c in cols_to_insert if c != "id"])
-            
+
             sql = f"""
                 INSERT INTO document_evidence_items ({col_names})
                 VALUES ({placeholders})
@@ -536,13 +536,13 @@ def get_document_evidence_items(symbol: str, evidence_type: Optional[str] = None
         cur = conn.cursor()
         if evidence_type:
             cur.execute("""
-                SELECT * FROM document_evidence_items 
+                SELECT * FROM document_evidence_items
                 WHERE symbol = ? AND evidence_type = ?
                 ORDER BY created_at DESC;
             """, (clean_sym, evidence_type))
         else:
             cur.execute("""
-                SELECT * FROM document_evidence_items 
+                SELECT * FROM document_evidence_items
                 WHERE symbol = ?
                 ORDER BY created_at DESC;
             """, (clean_sym,))
@@ -592,7 +592,7 @@ def save_management_guidance_items(symbol: str, items: List[Dict[str, Any]]) -> 
             placeholders = ", ".join(["?"] * len(cols_to_insert))
             col_names = ", ".join(cols_to_insert)
             update_clause = ", ".join([f"{c} = excluded.{c}" for c in cols_to_insert if c != "id"])
-            
+
             sql = f"""
                 INSERT INTO management_guidance_items ({col_names})
                 VALUES ({placeholders})
@@ -611,7 +611,7 @@ def get_management_guidance_items(symbol: str) -> List[Dict[str, Any]]:
     try:
         cur = conn.cursor()
         cur.execute("""
-            SELECT * FROM management_guidance_items 
+            SELECT * FROM management_guidance_items
             WHERE symbol = ?
             ORDER BY created_at DESC;
         """, (clean_sym,))
@@ -636,7 +636,7 @@ def canonicalize_document_url(url: Optional[str]) -> str:
     # Strip URL fragments
     if "#" in clean:
         clean = clean.split("#", 1)[0].strip()
-        
+
     # BSE AnnPdfOpen normalization
     if "bseindia.com" in clean.lower() and "annpdfopen.aspx" in clean.lower():
         try:
@@ -649,12 +649,12 @@ def canonicalize_document_url(url: Optional[str]) -> str:
                 clean = f"https://www.bseindia.com/xml-data/corpfiling/AttachHis/{filename}"
         except Exception:
             pass
-            
+
     # Normalize bseindia.com protocol and subdomain
     if "bseindia.com" in clean.lower():
         clean = re.sub(r"^http://", "https://", clean)
         clean = re.sub(r"^https://bseindia\.com", "https://www.bseindia.com", clean)
-        
+
     try:
         from urllib.parse import urlparse, parse_qsl, urlencode, urlunparse
         parsed = urlparse(clean)
@@ -684,51 +684,51 @@ def normalize_document_type(raw_type: Optional[str], title: str = "") -> str:
     """
     t_clean = (title or "").lower().strip()
     rt_clean = str(raw_type or "").lower().strip()
-    
+
     # 1. 20-F / Regulatory Annual Filing
     if any(k in t_clean for k in ["20-f", "form 20-f", "form 20 f", "10-k", "form 10-k"]) or rt_clean in ("regulatory_annual_filing", "20-f", "form_20_f"):
         return "regulatory_annual_filing"
-        
+
     # 2. BRSR / ESG Reports
     if any(k in t_clean for k in [
-        "brsr", "business responsibility and sustainability", "sustainability report", 
+        "brsr", "business responsibility and sustainability", "sustainability report",
         "esg report", "esg factsheet", "sustainability disclosure"
     ]) or rt_clean in ("brsr_esg", "brsr", "esg"):
         return "brsr_esg"
-        
+
     # 3. Concall Transcripts
     if "concall" in rt_clean or "transcript" in rt_clean or any(k in t_clean for k in [
         "earnings call", "conference call", "concall transcript", "earnings conference", "call transcript"
     ]) or ("transcript" in t_clean and not any(w in t_clean for w in ["share", "transfer", "notice", "court", "tribunal"])):
         return "concall_transcript"
-        
+
     # 4. Investor Presentations
     if "presentation" in rt_clean or "ppt" in rt_clean or any(k in t_clean for k in [
-        "investor presentation", "earnings presentation", "investor deck", "analyst presentation", 
+        "investor presentation", "earnings presentation", "investor deck", "analyst presentation",
         "quarterly presentation", "investor update", "presentation", "ppt"
     ]):
         return "presentation"
-        
+
     # 5. Annual Reports (Excluding BRSR and 20-F)
     if "annual" in rt_clean or any(k in t_clean for k in [
         "annual report", "integrated report", "integrated annual report", "annual accounts", "annual general meeting and annual report"
     ]):
         return "annual_report"
-        
+
     # 6. Material Announcements
     if "announcement" in rt_clean or any(k in t_clean for k in [
-        "announcement", "outcome", "board meeting", "filing", "regulation 30", "press release", 
+        "announcement", "outcome", "board meeting", "filing", "regulation 30", "press release",
         "media release", "disclosure", "intimation", "allotment", "credit rating"
     ]):
         return "announcement"
-        
+
     return "general"
 
-def derive_document_subtype(doc_type: str, title: str = "") -> str:
+def derive_document_subtype(doc_type: str, title: str = "", period_or_date: Optional[str] = None) -> str:
     """Derives specific structural subtype of the document for metadata and filtering."""
     t_clean = (title or "").lower().strip()
     norm_dt = normalize_document_type(doc_type, title)
-    
+
     if norm_dt == "regulatory_annual_filing":
         return "20-f" if "20-f" in t_clean else "regulatory_annual"
     if norm_dt == "brsr_esg":
@@ -744,9 +744,18 @@ def derive_document_subtype(doc_type: str, title: str = "") -> str:
     if norm_dt == "presentation":
         if any(k in t_clean for k in ["agm", "annual general meeting", "general meeting"]):
             return "agm_presentation"
-        if any(k in t_clean for k in ["investor day", "analyst meet", "analyst day", "strategy presentation", "thematic"]):
+        if any(k in t_clean for k in ["investor day", "analyst meet", "analyst day", "strategy presentation", "strategy update", "thematic", "corporate presentation"]):
             return "investor_day_presentation"
-        return "earnings_presentation"
+        # Deterministically check for explicit quarterly/earnings indicators in title or period
+        p_clean = (period_or_date or "").lower().strip()
+        combined_text = f"{t_clean} {p_clean}"
+        has_earnings_indicator = bool(re.search(
+            r'\b(q[1-4]|quarter|financial results|earnings|performance review|quarter ended|half year|h[12]|annual results|fy\s*\d{2,4}|20\d\d[-/]\d{2})\b',
+            combined_text
+        ))
+        if has_earnings_indicator:
+            return "earnings_presentation"
+        return "other_presentation"
     if norm_dt == "announcement":
         if "board meeting" in t_clean or "outcome" in t_clean:
             return "board_outcome"
@@ -767,7 +776,7 @@ def derive_announcement_event_key(symbol: str, title: str, period_or_date: Optio
     clean_sym = symbol.upper().strip()
     t_clean = (title or "").lower().strip()
     p_clean = (period_or_date or "").strip()
-    
+
     # 1. Credit Rating Action (e.g. CRISIL, ICRA, CARE, India Ratings)
     if "rating" in t_clean or "credit rating" in t_clean:
         agency = "rating"
@@ -801,13 +810,13 @@ def derive_announcement_event_key(symbol: str, title: str, period_or_date: Optio
 def extract_normalized_fiscal_year(period_or_date: Optional[str], title: str = "") -> str:
     """Extracts a normalized fiscal year key (e.g. FY2026, FY2025) from filing date or title."""
     combined = f"{period_or_date or ''} {title or ''}".strip()
-    
+
     # 1. Match FY2026, FY26, FY 2026, FY 26
     m_fy = re.search(r'\bFY\s*(\d{2,4})\b', combined, re.IGNORECASE)
     if m_fy:
         raw_yr = int(m_fy.group(1))
         return f"FY{raw_yr if raw_yr > 1000 else 2000 + raw_yr}"
-        
+
     # 2. Match 2025-26, 2025-2026, 2025–26
     m_range = re.search(r'\b(\d{4})\s*[-–]\s*(\d{2,4})\b', combined)
     if m_range:
@@ -815,17 +824,17 @@ def extract_normalized_fiscal_year(period_or_date: Optional[str], title: str = "
         yr2 = int(m_range.group(2))
         fy_yr = yr2 if yr2 > 1000 else int(str(yr1)[:2] + str(yr2).zfill(2))
         return f"FY{fy_yr}"
-        
+
     # 3. Match March 31, 2026 or March 2026
     m_mar = re.search(r'March[a-z]*\s*(?:\d{1,2}\s*,?\s*)?(\d{4})', combined, re.IGNORECASE)
     if m_mar:
         return f"FY{m_mar.group(1)}"
-        
+
     # 4. Match year only in title: 'Annual Report 2026'
     m_yr = re.search(r'\b(20\d{2})\b', combined)
     if m_yr:
         return f"FY{m_yr.group(1)}"
-        
+
     return "UNKNOWN_FY"
 
 def derive_earnings_event_key(symbol: str, period_or_date: Optional[str], title: str = "") -> str:
@@ -835,7 +844,7 @@ def derive_earnings_event_key(symbol: str, period_or_date: Optional[str], title:
     """
     clean_sym = symbol.upper().strip()
     combined = f"{period_or_date or ''} {title or ''}".strip()
-    
+
     # 1. Match explicit Quarter + FY: 'Q1 FY27', 'Q4 FY26', 'Q1-2027', 'Q1 FY2027'
     m_q = re.search(r'Q([1-4])\s*(?:FY|[-–])?\s*(\d{2,4})', combined, re.IGNORECASE)
     if m_q:
@@ -843,7 +852,7 @@ def derive_earnings_event_key(symbol: str, period_or_date: Optional[str], title:
         raw_yr = int(m_q.group(2))
         fy_yr = raw_yr if raw_yr > 1000 else 2000 + raw_yr
         return f"event_{clean_sym}_Q{q_num}FY{str(fy_yr)[-2:]}"
-        
+
     # 2. Match Month + Year for Indian reporting cycle:
     # Jun/Jul/Aug earnings calls -> Q1 of following FY (e.g. Jul 2026 -> Q1 FY27)
     # Sep/Oct/Nov earnings calls -> Q2 of following FY (e.g. Oct 2025 -> Q2 FY26)
@@ -861,7 +870,7 @@ def derive_earnings_event_key(symbol: str, period_or_date: Optional[str], title:
             return f"event_{clean_sym}_Q3FY{str(yr if mon != 'dec' else yr + 1)[-2:]}"
         elif mon in ["mar", "apr", "may"]:
             return f"event_{clean_sym}_Q4FY{str(yr)[-2:]}"
-            
+
     # 3. Match exact text date: '18 Jul 2026', '23 Jul 2026'
     m_dmy = re.search(r'\d{1,2}[-/ ]+(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*[-/ ,]+(\d{4})', combined, re.IGNORECASE)
     if m_dmy:
@@ -875,7 +884,7 @@ def derive_earnings_event_key(symbol: str, period_or_date: Optional[str], title:
             return f"event_{clean_sym}_Q3FY{str(yr if mon != 'dec' else yr + 1)[-2:]}"
         elif mon in ["mar", "apr", "may"]:
             return f"event_{clean_sym}_Q4FY{str(yr)[-2:]}"
-            
+
     return f"event_{clean_sym}_GENERIC"
 
 def is_document_wrapper(title: str, url: str = "", text_content: Optional[str] = None, page_count: Optional[int] = None) -> bool:
@@ -891,10 +900,10 @@ def is_document_wrapper(title: str, url: str = "", text_content: Optional[str] =
         "call with media on financial results for the quarter"
     ]):
         return True
-        
+
     fp_text = text_content
     p_cnt = page_count
-    
+
     if fp_text is None and url:
         try:
             cached_pages = get_cached_document_pages(url)
@@ -903,16 +912,16 @@ def is_document_wrapper(title: str, url: str = "", text_content: Optional[str] =
                 fp_text = cached_pages[0][1]
         except Exception:
             pass
-            
+
     if p_cnt is not None and p_cnt <= 2 and fp_text:
         fp_lower = fp_text.lower()
         if any(w in fp_lower for w in [
-            "transcripts of the call", "transcripts are available", "available on website", 
+            "transcripts of the call", "transcripts are available", "available on website",
             "please find link", "web-link", "web link", "link for audio", "available at https",
             "please find attached", "we wish to inform that", "we inform that", "enclosed herewith"
         ]):
             return True
-            
+
     return False
 
 def parse_document_sort_timestamp(period_or_date: Optional[str], title: str = "") -> str:
@@ -928,7 +937,7 @@ def parse_document_sort_timestamp(period_or_date: Optional[str], title: str = ""
     combined = f"{period_or_date or ''} {title or ''}".strip()
     if not combined:
         return "1970-01-01"
-        
+
     # 1. Exact ISO: YYYY-MM-DD
     m_iso = re.search(r'(\d{4})-(\d{2})-(\d{2})', combined)
     if m_iso:
@@ -993,7 +1002,7 @@ def parse_document_sort_timestamp(period_or_date: Optional[str], title: str = ""
         raw_yr = int(m_fy.group(1))
         fy_yr = raw_yr if raw_yr > 1000 else 2000 + raw_yr
         return f"{fy_yr}-03-31"
-        
+
     m_fy_range = re.search(r'(\d{4})\s*[-–]\s*(\d{2,4})', combined)
     if m_fy_range:
         yr1 = int(m_fy_range.group(1))
@@ -1024,10 +1033,10 @@ def deduplicate_document_records(documents: List[Any], symbol: str) -> List[Dict
     """
     if not documents:
         return []
-    
+
     clean_sym = symbol.upper().strip()
     canonical_map: Dict[str, Dict[str, Any]] = {}
-    
+
     for doc in documents:
         if isinstance(doc, dict):
             raw_title = str(doc.get("title") or doc.get("name") or "").strip()
@@ -1063,18 +1072,18 @@ def deduplicate_document_records(documents: List[Any], symbol: str) -> List[Dict
             is_subst = getattr(doc, "is_substantive", True)
             is_wrap = getattr(doc, "is_wrapper", False)
             ai_elig = getattr(doc, "ai_eligible", True)
-            
+
         if not raw_url:
             continue
-            
+
         c_url = canonicalize_document_url(raw_url) or raw_url
         norm_dt = normalize_document_type(raw_dt, raw_title)
-        subtype = derive_document_subtype(norm_dt, raw_title)
+        subtype = derive_document_subtype(norm_dt, raw_title, p_date)
         wrapper = is_wrap or is_document_wrapper(raw_title, c_url)
-        
+
         if discovery and discovery not in sources:
             sources.append(discovery)
-            
+
         # Determine canonical group identity per category (Fail-Closed on Unknown / Generic):
         if norm_dt == "annual_report":
             fy = extract_normalized_fiscal_year(p_date, raw_title)
@@ -1108,31 +1117,31 @@ def deduplicate_document_records(documents: List[Any], symbol: str) -> List[Dict
                 group_key = f"PPT_{clean_sym}_PHYSICAL_{c_url}"
         else:
             group_key = f"ANN_{clean_sym}_{c_url}"
-            
+
         event_key_val = ev_k or (derive_earnings_event_key(clean_sym, p_date, raw_title) if norm_dt in ("concall_transcript", "presentation") else None)
         if event_key_val == f"event_{clean_sym}_GENERIC":
             event_key_val = None
-        
+
         if group_key in canonical_map:
             existing = canonical_map[group_key]
             # Merge discovery sources
             for s in sources:
                 if s and s not in existing["discovered_sources"]:
                     existing["discovered_sources"].append(s)
-                    
+
             # Record alias if title or URL is different
             if raw_title and raw_title != existing["title"] and raw_title not in existing["source_aliases"]:
                 existing["source_aliases"].append(raw_title)
             if raw_url and raw_url != existing["url"] and raw_url not in existing["source_aliases"]:
                 existing["source_aliases"].append(raw_url)
-                
+
             # Date enrichment: Inherit exact/stronger date from alias
             curr_ts = existing.get("sort_timestamp") or parse_document_sort_timestamp(existing.get("period_or_date"), existing["title"])
             new_ts = parse_document_sort_timestamp(p_date, raw_title)
             if new_ts != "1970-01-01" and (curr_ts == "1970-01-01" or (curr_ts.endswith("-03-31") and not new_ts.endswith("-03-31")) or (p_date and len(str(p_date)) > len(str(existing.get("period_or_date") or "")))):
                 existing["period_or_date"] = p_date
                 existing["sort_timestamp"] = new_ts
-                
+
             # Category-specific representation preferences:
             if norm_dt == "annual_report":
                 # Prefer official exchange title and direct host
@@ -1158,7 +1167,7 @@ def deduplicate_document_records(documents: List[Any], symbol: str) -> List[Dict
                     existing["title"] = raw_title
                     existing["url"] = c_url
                     existing["discovery_source"] = discovery
-                    
+
             # Recompute canonical doc_key
             existing["doc_key"] = compute_canonical_document_key(
                 clean_sym, existing["doc_type"], existing.get("period_or_date"), existing["url"], existing["title"]
@@ -1193,7 +1202,7 @@ def deduplicate_document_records(documents: List[Any], symbol: str) -> List[Dict
                 "ai_eligible": not wrapper and ai_elig and is_valid in (1, True, "1", "Valid"),
                 "sort_timestamp": sort_ts
             }
-            
+
     res = list(canonical_map.values())
     res.sort(key=lambda x: (x.get("sort_timestamp") or "1970-01-01", x.get("title", "")), reverse=True)
     return res
@@ -1211,11 +1220,11 @@ def compute_canonical_document_key(
     """
     clean_sym = symbol.upper().strip()
     dt = normalize_document_type(doc_type, title or "")
-        
+
     c_url = canonicalize_document_url(url)
     p_date = (period_or_date or "").strip().upper()
     norm_title = re.sub(r'\s+', ' ', (title or "").strip().lower())
-    
+
     if c_url:
         raw = f"{clean_sym}|{dt}|{c_url}"
         h = hashlib.sha256(raw.encode("utf-8")).hexdigest()[:16]
@@ -1238,7 +1247,7 @@ def compute_canonical_semantic_key(
     dt = normalize_document_type(doc_type)
     if dt == "general":
         return None
-        
+
     p = (period_or_date or "").strip().upper()
     # Match standard periods like FY26, FY2026, Q3 FY26, Q1 FY25, etc.
     if re.match(r'^(FY\d{2,4}|Q[1-4]\s*FY\d{2,4}|\d{4}-\d{2}-\d{2})$', p, re.IGNORECASE):
@@ -1269,7 +1278,7 @@ def check_business_analysis_staleness(symbol: str, current_docs: Optional[List[A
     """
     Evaluates whether the stored business analysis intelligence for a company is stale.
     Returns (is_stale, reason_or_status).
-    
+
     If current_docs is None:
     - do not compare hashes
     - return (False, "not_checked") if analysis exists, or (True, "not_analyzed") if no analysis exists
@@ -1278,18 +1287,18 @@ def check_business_analysis_staleness(symbol: str, current_docs: Optional[List[A
     ai_record = get_cached_ai_analysis(clean_sym)
     if not ai_record:
         return True, "not_analyzed"
-        
+
     stored_hash = ai_record.get("source_documents_hash")
     if not stored_hash:
         return True, "missing_documents_hash"
-        
+
     if current_docs is None:
         return False, "not_checked"
-        
+
     curr_hash = compute_source_documents_hash(current_docs)
     if stored_hash != curr_hash:
         return True, f"source_documents_changed (stored: {stored_hash}, current: {curr_hash})"
-        
+
     return False, "fresh"
 
 # ---------------------------------------------------------
@@ -1350,8 +1359,8 @@ def save_stock_cache(symbol: str, name: str, sector: str, industry: str, data: D
         conn.close()
 
 def record_projection_computation_state(
-    symbol: str, 
-    fin_data_version: Optional[str] = None, 
+    symbol: str,
+    fin_data_version: Optional[str] = None,
     doc_intel_version: Optional[str] = None
 ) -> None:
     """Records the exact financial data and business analysis versions used in the latest projection computation."""
@@ -1444,21 +1453,21 @@ def find_substantive_alternate_source(
         select_cols = "title, url, doc_type, period_or_date, discovery_source, actual_source_host"
         if has_aliases:
             select_cols += ", source_aliases"
-            
+
         cur.execute(f"""
             SELECT {select_cols}
             FROM source_documents
             WHERE symbol = ?
         """, (clean_sym,))
         rows = cur.fetchall()
-        
+
         candidates = []
         for r in rows:
             all_urls = []
             primary_u = (r["url"] or "").strip().rstrip("/")
             if primary_u and primary_u != failed_clean:
                 all_urls.append((primary_u, r["discovery_source"]))
-                
+
             raw_aliases = r["source_aliases"] if has_aliases and r["source_aliases"] else None
             if raw_aliases:
                 try:
@@ -1471,7 +1480,7 @@ def find_substantive_alternate_source(
                                 all_urls.append((clean_a, disc_name))
                 except Exception:
                     pass
-                    
+
             for cand_url, cand_disc in all_urls:
                 if is_document_wrapper(r["title"], cand_url):
                     continue
@@ -1486,10 +1495,10 @@ def find_substantive_alternate_source(
                     continue
                 if not event_key and period_or_date and r["period_or_date"] != period_or_date:
                     continue
-                    
+
                 disc = (cand_disc or "").lower()
                 host = (r["actual_source_host"] or "").lower()
-                
+
                 # Score by source preference:
                 # 1. Company IR (score 3)
                 # 2. BSE/NSE (score 2)
@@ -1503,17 +1512,46 @@ def find_substantive_alternate_source(
                     pref_score = 1
                 else:
                     pref_score = 0
-                    
+
                 cand_dict = dict(r)
                 cand_dict["url"] = cand_url
                 candidates.append((pref_score, cand_dict))
-            
+
         if candidates:
             candidates.sort(key=lambda x: x[0], reverse=True)
             return candidates[0][1]
         return None
     finally:
         conn.close()
+
+def compute_document_content_hash(pages_or_text: Any) -> str:
+    """
+    Computes a deterministic SHA-256 fingerprint from extracted document pages, text, or raw bytes.
+    Normalizes whitespace across lines and pages to ensure consistency.
+    """
+    if not pages_or_text:
+        return ""
+    if isinstance(pages_or_text, str):
+        normalized = " ".join(pages_or_text.split())
+        return hashlib.sha256(normalized.encode("utf-8")).hexdigest()
+    if isinstance(pages_or_text, (bytes, bytearray)):
+        return hashlib.sha256(pages_or_text).hexdigest()
+    if isinstance(pages_or_text, list):
+        normalized_parts = []
+        for item in pages_or_text:
+            if isinstance(item, (tuple, list)) and len(item) >= 2:
+                p_num, p_text = item[0], item[1]
+                clean = " ".join(str(p_text or "").split())
+                normalized_parts.append(f"P{p_num}:{clean}")
+            elif isinstance(item, dict):
+                p_num = item.get("page") or item.get("page_num") or 0
+                clean = " ".join(str(item.get("text") or item.get("text_content") or "").split())
+                normalized_parts.append(f"P{p_num}:{clean}")
+            elif isinstance(item, str):
+                normalized_parts.append(" ".join(item.split()))
+        content_str = "\n".join(normalized_parts)
+        return hashlib.sha256(content_str.encode("utf-8")).hexdigest()
+    return ""
 
 def get_document_summary(
     doc_url: str,
@@ -1534,17 +1572,17 @@ def get_document_summary(
     try:
         cur = conn.cursor()
         cols = {r[1] for r in cur.execute("PRAGMA table_info(ai_document_summaries);").fetchall()}
-        
+
         def _check_and_enrich_row(row_dict: Dict[str, Any]) -> Optional[Dict[str, Any]]:
             try:
                 data = json.loads(row_dict["summary_json"])
                 if "analyzed_at" not in data or not data["analyzed_at"]:
                     data["analyzed_at"] = row_dict.get("generated_at")
-                    
+
                 c_hash = row_dict.get("content_hash") or data.get("content_hash")
                 s_ver = row_dict.get("extraction_schema_version") or data.get("extraction_schema_version")
                 p_ver = row_dict.get("extraction_prompt_version") or data.get("extraction_prompt_version")
-                
+
                 # Check version and hash freshness constraints
                 if expected_schema_version and (not s_ver or s_ver != expected_schema_version):
                     return None
@@ -1552,13 +1590,20 @@ def get_document_summary(
                     return None
                 if expected_content_hash and (not c_hash or c_hash != expected_content_hash):
                     return None
-                    
+
                 data["content_hash"] = c_hash
                 data["extraction_schema_version"] = s_ver
                 data["extraction_prompt_version"] = p_ver
                 data["provider"] = row_dict.get("provider") or data.get("provider")
                 data["model"] = row_dict.get("model") or data.get("model")
-                data["cache_status"] = "CACHED_CURRENT"
+
+                if c_hash and expected_content_hash and c_hash == expected_content_hash:
+                    data["cache_status"] = "CURRENT_CONTENT_VERIFIED"
+                elif c_hash and s_ver and p_ver:
+                    data["cache_status"] = "CURRENT_VERSION_CONTENT_UNCHECKED"
+                else:
+                    data["cache_status"] = "LEGACY_STALE"
+
                 return data
             except Exception:
                 return None
@@ -1569,14 +1614,14 @@ def get_document_summary(
             select_cols += ", content_hash, extraction_schema_version, extraction_prompt_version, provider, model"
         if "doc_key" in cols:
             select_cols += ", doc_key"
-            
+
         cur.execute(f"SELECT {select_cols} FROM ai_document_summaries WHERE doc_url = ? OR doc_url = ?", (doc_url, c_url))
         row = cur.fetchone()
         if row:
             res = _check_and_enrich_row(dict(row))
             if res is not None:
                 return res
-                
+
         # 2. Look up by canonical doc_key if column exists
         target_key = doc_key
         if not target_key and symbol:
@@ -1588,7 +1633,7 @@ def get_document_summary(
                 res = _check_and_enrich_row(dict(row))
                 if res is not None:
                     return res
-                    
+
         # 3. Look up by unambiguous semantic identity (symbol + doc_type + period_or_date)
         if symbol and doc_type and period_or_date:
             sem_key = compute_canonical_semantic_key(symbol, doc_type, period_or_date)
@@ -1616,13 +1661,13 @@ def get_document_summaries(symbol: str) -> Dict[str, Dict[str, Any]]:
         cur = conn.cursor()
         cols = {r[1] for r in cur.execute("PRAGMA table_info(ai_document_summaries);").fetchall()}
         has_doc_key = "doc_key" in cols
-        
+
         select_cols = "doc_url, summary_json, generated_at"
         if has_doc_key:
             select_cols += ", doc_key"
         if "content_hash" in cols:
             select_cols += ", content_hash, extraction_schema_version, extraction_prompt_version, provider, model"
-            
+
         cur.execute(f"SELECT {select_cols} FROM ai_document_summaries WHERE symbol = ?", (clean_sym,))
         rows = cur.fetchall()
         res = {}
@@ -1631,7 +1676,7 @@ def get_document_summaries(symbol: str) -> Dict[str, Dict[str, Any]]:
                 data = json.loads(r["summary_json"])
                 if "analyzed_at" not in data or not data["analyzed_at"]:
                     data["analyzed_at"] = r["generated_at"]
-                
+
                 raw_url = r["doc_url"]
                 c_url = canonicalize_document_url(raw_url)
                 doc_k = r["doc_key"] if has_doc_key and r["doc_key"] else compute_canonical_document_key(
@@ -1639,20 +1684,22 @@ def get_document_summaries(symbol: str) -> Dict[str, Dict[str, Any]]:
                 )
                 data["doc_key"] = doc_k
                 data["doc_url"] = raw_url
-                
+
                 if "content_hash" in cols:
                     data["content_hash"] = r["content_hash"] or data.get("content_hash")
                     data["extraction_schema_version"] = r["extraction_schema_version"] or data.get("extraction_schema_version")
                     data["extraction_prompt_version"] = r["extraction_prompt_version"] or data.get("extraction_prompt_version")
                     data["provider"] = r["provider"] or data.get("provider")
                     data["model"] = r["model"] or data.get("model")
-                
+
                 # Assign status badge for UI
-                if data.get("extraction_schema_version") and data.get("extraction_prompt_version"):
-                    data["cache_status"] = "CACHED_CURRENT"
+                if data.get("extraction_schema_version") and data.get("extraction_prompt_version") and data.get("content_hash"):
+                    data["cache_status"] = "CURRENT_CONTENT_VERIFIED"
+                elif data.get("extraction_schema_version") and data.get("extraction_prompt_version"):
+                    data["cache_status"] = "CURRENT_VERSION_CONTENT_UNCHECKED"
                 else:
                     data["cache_status"] = "LEGACY_STALE"
-                
+
                 # Map by raw URL
                 res[raw_url] = data
                 # Map by canonicalized URL
@@ -1691,17 +1738,17 @@ def save_document_summary(
     if "analyzed_at" not in summary_data or not summary_data["analyzed_at"]:
         summary_data["analyzed_at"] = now_iso
     c_url = canonicalize_document_url(doc_url) or doc_url
-    
+
     dt = doc_type or summary_data.get("doc_type") or "general"
     p_date = period_or_date or summary_data.get("period_or_date")
-    
+
     k = doc_key or summary_data.get("doc_key") or compute_canonical_document_key(clean_sym, dt, p_date, c_url, doc_title)
     c_hash = content_hash or summary_data.get("content_hash")
     s_ver = extraction_schema_version or summary_data.get("extraction_schema_version") or "4.4"
     p_ver = extraction_prompt_version or summary_data.get("extraction_prompt_version") or "4.4.1"
     prov = provider or summary_data.get("provider")
     mod = model or summary_data.get("model") or summary_data.get("model_version")
-    
+
     summary_data["doc_key"] = k
     summary_data["doc_url"] = c_url
     summary_data["doc_title"] = doc_title
@@ -1715,7 +1762,7 @@ def save_document_summary(
         summary_data["doc_type"] = dt
     if "period_or_date" not in summary_data and p_date:
         summary_data["period_or_date"] = p_date
-        
+
     conn = get_db_connection()
     try:
         with conn:
@@ -1756,8 +1803,8 @@ def get_cached_ai_analysis(symbol: str) -> Optional[Dict[str, Any]]:
     try:
         cur = conn.cursor()
         cur.execute("""
-            SELECT intelligence_json, ai_provider, model_version, prompt_tokens, source_documents_count, generated_at 
-            FROM ai_analysis_cache 
+            SELECT intelligence_json, ai_provider, model_version, prompt_tokens, source_documents_count, generated_at
+            FROM ai_analysis_cache
             WHERE symbol = ?
         """, (clean_sym,))
         row = cur.fetchone()
@@ -1780,7 +1827,7 @@ def save_source_documents(symbol: str, documents: List[Any]) -> None:
     clean_sym = symbol.upper().strip()
     now_iso = datetime.now(timezone.utc).isoformat()
     deduped = deduplicate_document_records(documents, clean_sym)
-    
+
     conn = get_db_connection()
     try:
         with conn:
@@ -1789,7 +1836,7 @@ def save_source_documents(symbol: str, documents: List[Any]) -> None:
             has_doc_key = "doc_key" in cols
             has_sources = "discovered_sources" in cols
             has_aliases = "source_aliases" in cols
-            
+
             for doc in deduped:
                 title = doc.get("title", "")
                 url = doc.get("url", "")
@@ -1803,10 +1850,10 @@ def save_source_documents(symbol: str, documents: List[Any]) -> None:
                 doc_key = doc.get("doc_key") or compute_canonical_document_key(
                     clean_sym, doc_type, period, url, title
                 )
-                
+
                 if not url:
                     continue
-                    
+
                 if has_doc_key and has_sources and has_aliases:
                     conn.execute("""
                         INSERT INTO source_documents (
@@ -1869,7 +1916,7 @@ def get_source_documents(symbol: str, doc_type: Optional[str] = None) -> List[Di
         has_doc_key = "doc_key" in cols
         has_sources = "discovered_sources" in cols
         has_aliases = "source_aliases" in cols
-        
+
         select_cols = "symbol, title, url, doc_type, period_or_date, discovery_source, actual_source_host, is_valid, added_at"
         if has_doc_key:
             select_cols += ", doc_key"
@@ -1877,7 +1924,7 @@ def get_source_documents(symbol: str, doc_type: Optional[str] = None) -> List[Di
             select_cols += ", discovered_sources"
         if has_aliases:
             select_cols += ", source_aliases"
-            
+
         cur.execute(f"""
             SELECT {select_cols}
             FROM source_documents
@@ -1899,9 +1946,9 @@ def get_source_documents(symbol: str, doc_type: Optional[str] = None) -> List[Di
                 except Exception:
                     d["source_aliases"] = []
             raw_list.append(d)
-            
+
         deduped = deduplicate_document_records(raw_list, clean_sym)
-        
+
         if doc_type:
             target_norm = normalize_document_type(doc_type)
             return [d for d in deduped if d.get("doc_type") == target_norm]
@@ -1910,10 +1957,10 @@ def get_source_documents(symbol: str, doc_type: Optional[str] = None) -> List[Di
         conn.close()
 
 def save_ai_analysis(
-    symbol: str, 
-    company_name: str, 
-    intelligence_data: Dict[str, Any], 
-    ai_provider: str, 
+    symbol: str,
+    company_name: str,
+    intelligence_data: Dict[str, Any],
+    ai_provider: str,
     model_version: str = "gemini-3.6-flash",
     prompt_tokens: int = 0,
     source_docs_count: int = 0
@@ -1930,7 +1977,7 @@ def save_ai_analysis(
     intelligence_data["extraction_timestamp"] = now_iso
     intelligence_data["ai_provider_used"] = ai_provider
     intelligence_data["model_version"] = model_version
-    
+
     conn = get_db_connection()
     try:
         with conn:
@@ -1948,18 +1995,18 @@ def save_ai_analysis(
                     source_documents_count = excluded.source_documents_count,
                     generated_at = excluded.generated_at
             """, (
-                clean_sym, 
-                company_name, 
-                json.dumps(intelligence_data, default=_db_json_serializer), 
-                ai_provider, 
-                model_version, 
-                prompt_tokens, 
-                source_docs_count, 
+                clean_sym,
+                company_name,
+                json.dumps(intelligence_data, default=_db_json_serializer),
+                ai_provider,
+                model_version,
+                prompt_tokens,
+                source_docs_count,
                 now_iso
             ))
     finally:
         conn.close()
-        
+
     return now_iso
 
 # ---------------------------------------------------------
@@ -1973,9 +2020,9 @@ def get_document_sources_checked_at(symbol: str) -> Optional[str]:
     try:
         cur = conn.cursor()
         cur.execute("""
-            SELECT last_checked_at FROM document_sync_state 
-            WHERE symbol = ? 
-            ORDER BY last_checked_at DESC 
+            SELECT last_checked_at FROM document_sync_state
+            WHERE symbol = ?
+            ORDER BY last_checked_at DESC
             LIMIT 1
         """, (clean_sym,))
         row = cur.fetchone()
@@ -1992,8 +2039,8 @@ def get_document_sync_state(symbol: str, category: str = "all") -> Optional[Dict
     try:
         cur = conn.cursor()
         cur.execute("""
-            SELECT symbol, category, last_checked_at, last_filing_date 
-            FROM document_sync_state 
+            SELECT symbol, category, last_checked_at, last_filing_date
+            FROM document_sync_state
             WHERE symbol = ? AND category = ?
         """, (clean_sym, category))
         row = cur.fetchone()
@@ -2004,9 +2051,9 @@ def get_document_sync_state(symbol: str, category: str = "all") -> Optional[Dict
         conn.close()
 
 def update_document_sync_state(
-    symbol: str, 
-    category: str = "all", 
-    checked_at: Optional[str] = None, 
+    symbol: str,
+    category: str = "all",
+    checked_at: Optional[str] = None,
     last_filing_date: Optional[str] = None
 ) -> None:
     """Updates the last_checked_at timestamp when trusted external sources are checked."""
@@ -2037,7 +2084,7 @@ def save_company_knowledge_facts(symbol: str, facts: List[Dict[str, Any]], clear
     clean_sym = symbol.upper().strip()
     if not facts:
         return 0
-        
+
     now_iso = datetime.now(timezone.utc).isoformat()
     conn = get_db_connection()
     inserted_count = 0
@@ -2046,7 +2093,7 @@ def save_company_knowledge_facts(symbol: str, facts: List[Dict[str, Any]], clear
             if clear_doc_urls:
                 for u in clear_doc_urls:
                     conn.execute("DELETE FROM company_knowledge_facts WHERE symbol = ? AND doc_url = ?", (clean_sym, u))
-            
+
             for f in facts:
                 doc_url = f.get("doc_url", "")
                 doc_title = f.get("doc_title", "Official Filing")
@@ -2091,18 +2138,18 @@ def get_company_knowledge_facts(symbol: str, category: Optional[str] = None, met
         cur = conn.cursor()
         query = "SELECT * FROM company_knowledge_facts WHERE symbol = ?"
         params = [clean_sym]
-        
+
         if category:
             query += " AND category = ?"
             params.append(category)
         if metric_name:
             query += " AND metric_name LIKE ?"
             params.append(f"%{metric_name}%")
-            
+
         query += " ORDER BY id ASC"
         cur.execute(query, tuple(params))
         rows = cur.fetchall()
-        
+
         results = []
         for r in rows:
             try:
@@ -2127,7 +2174,7 @@ def get_company_knowledge_facts(symbol: str, category: Optional[str] = None, met
             item["source_page"] = r["source_page"]
             item["extracted_at"] = r["extracted_at"]
             results.append(item)
-            
+
         return results
     finally:
         conn.close()
@@ -2163,7 +2210,7 @@ def find_existing_company_row(
     5. Exact Company Name
     """
     cur = conn.cursor()
-    
+
     # 1. ISIN Precedence
     clean_isin = (isin or "").strip().upper()
     if clean_isin:
@@ -2171,12 +2218,12 @@ def find_existing_company_row(
         row = cur.fetchone()
         if row:
             return row
-            
+
     # 2. NSE Symbol Precedence
     clean_nse = (nse_symbol or "").strip().upper()
     if clean_nse:
         cur.execute("""
-            SELECT * FROM company_registry 
+            SELECT * FROM company_registry
             WHERE (nse_symbol IS NOT NULL AND nse_symbol != '' AND nse_symbol = ? COLLATE NOCASE)
                OR symbol = ? COLLATE NOCASE
             LIMIT 1
@@ -2184,7 +2231,7 @@ def find_existing_company_row(
         row = cur.fetchone()
         if row:
             return row
-            
+
     # 3. BSE Code Precedence
     clean_bse = str(bse_code or "").strip()
     if clean_bse:
@@ -2192,20 +2239,20 @@ def find_existing_company_row(
         row = cur.fetchone()
         if row:
             return row
-            
+
     # 4. Canonical Symbol
     clean_sym = symbol.strip().upper()
     if clean_sym:
         cur.execute("""
-            SELECT * FROM company_registry 
-            WHERE symbol = ? COLLATE NOCASE 
+            SELECT * FROM company_registry
+            WHERE symbol = ? COLLATE NOCASE
                OR (nse_symbol IS NOT NULL AND nse_symbol != '' AND nse_symbol = ? COLLATE NOCASE)
             LIMIT 1
         """, (clean_sym, clean_sym))
         row = cur.fetchone()
         if row:
             return row
-            
+
     # 5. Exact Company Name
     clean_name = (company_name or "").strip()
     if clean_name and len(clean_name) >= 3:
@@ -2226,7 +2273,7 @@ def _merge_aliases(existing_aliases_json: Optional[str], incoming_aliases: Any) 
                 existing_list = parsed
         except Exception:
             pass
-            
+
     incoming_list = []
     if isinstance(incoming_aliases, list):
         incoming_list = incoming_aliases
@@ -2236,7 +2283,7 @@ def _merge_aliases(existing_aliases_json: Optional[str], incoming_aliases: Any) 
             incoming_list = parsed if isinstance(parsed, list) else [parsed]
         except Exception:
             incoming_list = [incoming_aliases]
-            
+
     combined = []
     seen = set()
     for a in existing_list + incoming_list:
@@ -2255,7 +2302,7 @@ def upsert_company_registry_item(item: Dict[str, Any]) -> int:
     clean_sym = item.get("symbol", "").upper().strip()
     if not clean_sym:
         raise ValueError("Cannot upsert company registry item without a symbol")
-        
+
     company_name = (item.get("company_name") or clean_sym).strip()
     raw_nse = item.get("nse_symbol")
     nse_symbol = raw_nse.upper().strip() if raw_nse else None
@@ -2265,7 +2312,7 @@ def upsert_company_registry_item(item: Dict[str, Any]) -> int:
     sector = item.get("sector")
     industry = item.get("industry")
     incoming_aliases = item.get("aliases", [])
-    
+
     in_universe_val = item.get("in_universe")
     is_active_val = item.get("is_active")
     source = item.get("source", "manual")
@@ -2274,7 +2321,7 @@ def upsert_company_registry_item(item: Dict[str, Any]) -> int:
     identity_source_name = item.get("identity_source_name")
     identity_source_url = item.get("identity_source_url")
     identity_verified_at = item.get("identity_verified_at")
-    
+
     conn = get_db_connection()
     try:
         with conn:
@@ -2286,12 +2333,12 @@ def upsert_company_registry_item(item: Dict[str, Any]) -> int:
                 symbol=clean_sym,
                 company_name=company_name
             )
-            
+
             if existing:
                 existing_dict = dict(existing)
                 row_id = existing_dict["id"]
                 merged_aliases_json = _merge_aliases(existing_dict.get("aliases"), incoming_aliases)
-                
+
                 # Determine updated field values
                 up_name = company_name if company_name and company_name != clean_sym else (existing_dict.get("company_name") or company_name)
                 up_nse = nse_symbol or existing_dict.get("nse_symbol")
@@ -2300,7 +2347,7 @@ def upsert_company_registry_item(item: Dict[str, Any]) -> int:
                 up_exchange = exchange or existing_dict.get("exchange")
                 up_sector = sector if sector and sector not in ("Broad Market", "Unclassified") else (existing_dict.get("sector") or sector or "Unclassified")
                 up_industry = industry if industry and industry not in ("Indian Equities", "Unclassified") else (existing_dict.get("industry") or industry or "Unclassified")
-                
+
                 up_in_uni = (1 if in_universe_val else 0) if in_universe_val is not None else existing_dict.get("in_universe")
                 up_is_act = (1 if is_active_val else 0) if is_active_val is not None else existing_dict.get("is_active")
                 up_source = source if source in ("NSE", "BSE", "nse_master", "bse_master") else (existing_dict.get("source") or source)
@@ -2308,7 +2355,7 @@ def upsert_company_registry_item(item: Dict[str, Any]) -> int:
                 up_id_name = identity_source_name or existing_dict.get("identity_source_name")
                 up_id_url = identity_source_url or existing_dict.get("identity_source_url")
                 up_id_verif = identity_verified_at or existing_dict.get("identity_verified_at")
-                
+
                 conn.execute("""
                     UPDATE company_registry
                     SET company_name = ?,
@@ -2342,7 +2389,7 @@ def upsert_company_registry_item(item: Dict[str, Any]) -> int:
                 is_act = 1 if is_active_val is not False else 0
                 sec_val = sector or "Unclassified"
                 ind_val = industry or "Unclassified"
-                
+
                 cur = conn.execute("""
                     INSERT INTO company_registry (
                         symbol, company_name, nse_symbol, bse_code, isin,
@@ -2370,7 +2417,7 @@ def get_company_by_symbol(symbol: str) -> Optional[Dict[str, Any]]:
     try:
         cur = conn.cursor()
         cur.execute("""
-            SELECT * FROM company_registry 
+            SELECT * FROM company_registry
             WHERE symbol = ? COLLATE NOCASE OR nse_symbol = ? COLLATE NOCASE OR bse_code = ?
             LIMIT 1
         """, (clean_sym, clean_sym, clean_sym))
@@ -2397,7 +2444,7 @@ def get_company_by_name(company_name: str) -> Optional[Dict[str, Any]]:
     try:
         cur = conn.cursor()
         cur.execute("""
-            SELECT * FROM company_registry 
+            SELECT * FROM company_registry
             WHERE company_name = ? COLLATE NOCASE
             LIMIT 1
         """, (clean_name,))
@@ -2424,7 +2471,7 @@ def get_company_by_bse_code(bse_code: str) -> Optional[Dict[str, Any]]:
     try:
         cur = conn.cursor()
         cur.execute("""
-            SELECT * FROM company_registry 
+            SELECT * FROM company_registry
             WHERE bse_code = ?
             LIMIT 1
         """, (clean_bse,))
@@ -2460,13 +2507,13 @@ def get_universe_companies(active_only: bool = True) -> List[Dict[str, Any]]:
         cur = conn.cursor()
         if active_only:
             cur.execute("""
-                SELECT * FROM company_registry 
+                SELECT * FROM company_registry
                 WHERE in_universe = 1 AND is_active = 1
                 ORDER BY symbol ASC
             """)
         else:
             cur.execute("""
-                SELECT * FROM company_registry 
+                SELECT * FROM company_registry
                 ORDER BY symbol ASC
             """)
         rows = cur.fetchall()
@@ -2513,35 +2560,35 @@ def search_local_registry(query: str, limit: int = 20) -> List[Dict[str, Any]]:
     clean_q = query.strip()
     if not clean_q:
         return []
-        
+
     conn = get_db_connection()
     try:
         cur = conn.cursor()
         pattern = f"%{clean_q}%"
-        
+
         # Extract alphanumeric search tokens (omitting common noise words)
         tokens = [
-            t for t in re.split(r"[\s\(\),.-]+", clean_q) 
+            t for t in re.split(r"[\s\(\),.-]+", clean_q)
             if len(t) >= 3 and t.lower() not in {"ltd", "limited", "pvt", "private", "corp", "corporation", "inc", "co", "the", "and", "india"}
         ]
-        
+
         token_clauses = []
         token_params = [pattern, pattern, pattern, pattern, pattern]
         for t in tokens:
             token_clauses.append("(company_name LIKE ? OR aliases LIKE ? OR symbol LIKE ?)")
             token_params.extend([f"%{t}%", f"%{t}%", f"%{t}%"])
-            
+
         where_sql = "symbol LIKE ? OR company_name LIKE ? OR nse_symbol LIKE ? OR aliases LIKE ? OR bse_code LIKE ?"
         if token_clauses:
             where_sql += " OR " + " OR ".join(token_clauses)
-            
+
         order_params = [clean_q, clean_q, clean_q, f"{clean_q}%", f"{clean_q}%", limit]
-        
+
         cur.execute(f"""
             SELECT * FROM company_registry
             WHERE {where_sql}
-            ORDER BY 
-                CASE 
+            ORDER BY
+                CASE
                     WHEN symbol = ? COLLATE NOCASE THEN 1
                     WHEN nse_symbol = ? COLLATE NOCASE THEN 2
                     WHEN company_name = ? COLLATE NOCASE THEN 3
@@ -2582,7 +2629,7 @@ def seed_company_registry(seed_records: Optional[List[Dict[str, Any]]] = None) -
         from data_seed import SEED_REGISTRY_COMPANIES, COMPANY_METADATA
 
     records_to_seed = list(seed_records or SEED_REGISTRY_COMPANIES)
-    
+
     # Check cached stocks in stocks_cache.json as one-time legacy bootstrap migration
     # Note: cache-derived legacy identities have UNVERIFIED exchange fields (nse_symbol=None, exchange=None)
     cache_file = DB_PATH.parent / "stocks_cache.json"
@@ -2633,7 +2680,7 @@ def seed_company_registry(seed_records: Optional[List[Dict[str, Any]]] = None) -
                 id_src_name = rec.get("identity_source_name") or (source if source == "seed_reference" else None)
                 id_src_url = rec.get("identity_source_url")
                 id_ver_at = rec.get("identity_verified_at")
-                
+
                 existing = find_existing_company_row(
                     conn,
                     isin=isin,
@@ -2642,7 +2689,7 @@ def seed_company_registry(seed_records: Optional[List[Dict[str, Any]]] = None) -
                     symbol=sym,
                     company_name=name
                 )
-                
+
                 if existing:
                     # Do NOT overwrite in_universe or is_active if user modified them!
                     # Only update canonical identity metadata and merge aliases
@@ -2669,7 +2716,7 @@ def seed_company_registry(seed_records: Optional[List[Dict[str, Any]]] = None) -
                     aliases_json = _merge_aliases(None, aliases)
                     in_uni = 1 if rec.get("in_universe", True) else 0
                     is_act = 1 if rec.get("is_active", True) else 0
-                    
+
                     conn.execute("""
                         INSERT INTO company_registry (
                             symbol, company_name, nse_symbol, bse_code, isin,
@@ -2722,7 +2769,7 @@ def upgrade_company_authoritative_identity(symbol: str, official_data: Dict[str,
     clean_sym = symbol.strip().upper()
     if not clean_sym:
         return False
-        
+
     conn = get_db_connection()
     try:
         with conn:
@@ -2734,16 +2781,16 @@ def upgrade_company_authoritative_identity(symbol: str, official_data: Dict[str,
                 symbol=clean_sym,
                 company_name=official_data.get("company_name")
             )
-            
+
             now_iso = datetime.now(timezone.utc).isoformat()
             incoming_source = official_data.get("source", "verified_official")
             incoming_tier = SOURCE_PRECEDENCE_TIER.get(incoming_source, 50)
-            
+
             if existing:
                 row_id = existing["id"]
                 existing_source = existing["source"] or "local"
                 existing_tier = SOURCE_PRECEDENCE_TIER.get(existing_source, 10)
-                
+
                 # Check if incoming tier is high enough to upgrade
                 if incoming_tier >= existing_tier:
                     final_source = incoming_source
@@ -2766,11 +2813,11 @@ def upgrade_company_authoritative_identity(symbol: str, official_data: Dict[str,
                     id_src_name = existing["identity_source_name"]
                     id_src_url = existing["identity_source_url"]
                     id_ver_at = existing["identity_verified_at"]
-                
+
                 # Merge aliases without losing existing ones
                 incoming_aliases = official_data.get("aliases", [])
                 merged_aliases_json = _merge_aliases(existing["aliases"], incoming_aliases)
-                
+
                 conn.execute("""
                     UPDATE company_registry
                     SET company_name = ?,
@@ -2807,11 +2854,11 @@ def save_financial_verification_records(records: List[Dict[str, Any]]) -> int:
     """
     if not records:
         return 0
-        
+
     conn = get_db_connection()
     now_iso = datetime.now(timezone.utc).isoformat()
     saved_count = 0
-    
+
     try:
         with conn:
             for rec in records:
@@ -2821,7 +2868,7 @@ def save_financial_verification_records(records: List[Dict[str, Any]]) -> int:
                 period = rec.get("period", "")
                 canon_period = rec.get("canonical_period", period).strip()
                 scope = rec.get("scope", "Consolidated").capitalize().strip()
-                
+
                 scr_val = rec.get("screener_value")
                 off_val = rec.get("official_value")
                 var_abs = rec.get("variance_abs")
@@ -2836,14 +2883,14 @@ def save_financial_verification_records(records: List[Dict[str, Any]]) -> int:
                 off_doc_id = rec.get("official_document_id")
                 notes = rec.get("notes")
                 ver_at = rec.get("verified_at") or now_iso
-                
+
                 # Check for existing record
                 cur = conn.execute("""
                     SELECT id FROM financial_verification_records
                     WHERE symbol = ? AND canonical_period = ? AND canonical_metric = ? AND scope = ?
                 """, (sym, canon_period, canon_metric, scope))
                 row = cur.fetchone()
-                
+
                 if row:
                     conn.execute("""
                         UPDATE financial_verification_records
@@ -2917,13 +2964,13 @@ def get_financial_verification_summary(symbol: str) -> Dict[str, Any]:
     clean_sym = symbol.strip().upper()
     company = get_company_by_symbol(clean_sym) or {}
     records = get_financial_verification_records(clean_sym, limit=100)
-    
+
     total = len(records)
     verified = sum(1 for r in records if r.get("status") == "VERIFIED")
     discrepancy = sum(1 for r in records if r.get("status") == "DISCREPANCY")
     not_comparable = sum(1 for r in records if r.get("status") == "NOT_COMPARABLE")
     missing_source = sum(1 for r in records if r.get("status") in ("OFFICIAL_SOURCE_MISSING", "SCREENER_VALUE_MISSING", "INSUFFICIENT_EVIDENCE"))
-    
+
     if discrepancy > 0:
         overall_status = "DISCREPANCY"
     elif verified > 0 and discrepancy == 0:
@@ -2934,15 +2981,15 @@ def get_financial_verification_summary(symbol: str) -> Dict[str, Any]:
         overall_status = "OFFICIAL_SOURCE_MISSING"
     else:
         overall_status = "UNVERIFIED"
-        
+
     confidence = round(verified / total, 2) if total > 0 else 0.0
     if discrepancy > 0:
         confidence = max(0.0, round(1.0 - (discrepancy / max(total, 1)), 2))
-        
+
     last_verified = None
     if records:
         last_verified = max((r.get("verified_at") or "") for r in records)
-        
+
     return {
         "symbol": clean_sym,
         "overall_status": overall_status,
@@ -2986,7 +3033,7 @@ def save_canonical_financial_facts(
         with conn:
             # 1. Clear prior facts for this symbol
             conn.execute("DELETE FROM canonical_financial_facts WHERE symbol = ?", (clean_sym,))
-            
+
             # 2. Insert new canonical facts
             for f in facts:
                 conn.execute("""
@@ -3023,7 +3070,7 @@ def save_canonical_financial_facts(
                     input_financial_version,
                     verification_version
                 ))
-                
+
             # 3. Upsert truth header state
             conn.execute("""
                 INSERT INTO canonical_financial_truth_state (
@@ -3079,10 +3126,10 @@ def get_canonical_financial_facts(symbol: str) -> Optional[Dict[str, Any]]:
         st_row = cur.fetchone()
         if not st_row:
             return None
-            
+
         cur.execute("SELECT * FROM canonical_financial_facts WHERE symbol = ? ORDER BY id ASC", (clean_sym,))
         fact_rows = cur.fetchall()
-        
+
         facts = []
         for r in fact_rows:
             facts.append({
@@ -3108,7 +3155,7 @@ def get_canonical_financial_facts(symbol: str) -> Optional[Dict[str, Any]]:
                 "verified_at": r["verified_at"],
                 "computed_at": r["computed_at"]
             })
-            
+
         coverage = {
             "symbol": clean_sym,
             "target_facts_count": st_row["target_facts_count"],
@@ -3122,7 +3169,7 @@ def get_canonical_financial_facts(symbol: str) -> Optional[Dict[str, Any]]:
             "coverage_pct": st_row["coverage_pct"],
             "overall_truth_state": st_row["overall_truth_state"]
         }
-        
+
         return {
             "symbol": clean_sym,
             "facts": facts,

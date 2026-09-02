@@ -1,5 +1,6 @@
 import sys
 import os
+import json
 import tempfile
 import shutil
 import unittest
@@ -40,7 +41,7 @@ class TestBusinessAnalysisV44(unittest.TestCase):
         self.db_path = os.path.join(self.temp_dir, "test_stocker.db")
         self.prev_db_path = os.environ.get("STOCKER_DB_PATH")
         os.environ["STOCKER_DB_PATH"] = self.db_path
-        
+
         import database
         database.DB_PATH = Path(self.db_path)
         database.init_db()
@@ -217,14 +218,14 @@ class TestBusinessAnalysisV44(unittest.TestCase):
             "periods": ["FY25", "FY26"],
             "rows": [{"metric": "Sales", "values": [1200, 1500]}]
         }
-        
+
         sanitized = sanitize_and_verify_intelligence_result(
             result=raw_result,
             symbol="INFY",
             candidate_documents_meta=candidate_docs,
             pl_stmt=pl_stmt
         )
-        
+
         guidance = sanitized.management_guidance_items[0]
         self.assertEqual(guidance.source_support_status, "UNSUPPORTED")
         self.assertEqual(guidance.confidence, "LOW")
@@ -267,7 +268,7 @@ class TestBusinessAnalysisV44(unittest.TestCase):
         """Scenario I: V4.3 taxonomy classification and Bank routing API remain strictly preserved."""
         from company_taxonomy_service import normalize_classification
         from financial_engine import classify_financial_business_model
-        
+
         sec, ind, sub_ind, state = normalize_classification(
             sector="Financial Services",
             industry="Banks",
@@ -276,11 +277,11 @@ class TestBusinessAnalysisV44(unittest.TestCase):
         self.assertEqual(sec, "Financial Services")
         self.assertEqual(ind, "Banks")
         self.assertEqual(state, "COMPLETE")
-        
+
         # Test original V4.3 API contract (sector=..., industry=...)
         model = classify_financial_business_model(sector=sec, industry=ind)
         self.assertEqual(model, "BANK")
-        
+
         corp_model = classify_financial_business_model(sector="Information Technology", industry="IT Services")
         self.assertEqual(corp_model, "GENERAL_CORPORATE")
 
@@ -311,7 +312,7 @@ class TestBusinessAnalysisV44(unittest.TestCase):
             "management_guidance_items": []
         }
         database.save_ai_analysis("HEROMOTOCO", "Hero MotoCorp Limited", mock_data, ai_provider="STORED_CACHE")
-        
+
         result = get_company_doc_intelligence("HEROMOTOCO")
         self.assertIsNotNone(result)
         self.assertEqual(result.symbol, "HEROMOTOCO")
@@ -355,12 +356,12 @@ class TestBusinessAnalysisV44(unittest.TestCase):
             "management_guidance_items": []
         }
         database.save_ai_analysis("TCS", "Tata Consultancy Services", mock_data_fresh, ai_provider="STORED")
-        
+
         # Staleness check without current_docs returns (False, "not_checked")
         is_stale, reason = database.check_business_analysis_staleness("TCS", current_docs=None)
         self.assertFalse(is_stale)
         self.assertEqual(reason, "not_checked")
-        
+
         # get_company_doc_intelligence with current_docs=None preserves persisted "fresh"
         intel_fresh = get_company_doc_intelligence("TCS", current_docs=None)
         self.assertIsNotNone(intel_fresh)
@@ -391,13 +392,13 @@ class TestBusinessAnalysisV44(unittest.TestCase):
         intel_no_status = get_company_doc_intelligence("INFY", current_docs=None)
         self.assertIsNotNone(intel_no_status)
         self.assertEqual(intel_no_status.staleness_status, "not_checked")
-        
+
         # 3. Supplying genuinely changed current_docs triggers stale
         new_docs = [{"title": "Q1 FY26 Concall", "url": "https://tcs.com/q1fy26.pdf", "period": "Q1 FY26"}]
         is_stale_new, reason_new = database.check_business_analysis_staleness("TCS", current_docs=new_docs)
         self.assertTrue(is_stale_new)
         self.assertIn("source_documents_changed", reason_new)
-        
+
         intel_stale = get_company_doc_intelligence("TCS", current_docs=new_docs)
         self.assertIsNotNone(intel_stale)
         self.assertEqual(intel_stale.staleness_status, "stale")
@@ -415,7 +416,7 @@ class TestBusinessAnalysisV44(unittest.TestCase):
                 source_document_url="https://example.com/ar.pdf"
             )
         ]
-        
+
         # Case 1: Statement with only Balance Sheet (CWIP = 2500, Fixed Assets = 15000)
         bs_stmt = {
             "periods": ["FY25", "FY26"],
@@ -427,7 +428,7 @@ class TestBusinessAnalysisV44(unittest.TestCase):
         evaluated_bs = evaluate_management_guidance_vs_actual(guidance, financial_statements={"balance_sheet": bs_stmt})
         self.assertEqual(evaluated_bs[0].status, "INSUFFICIENT_EVIDENCE")
         self.assertIsNone(evaluated_bs[0].actual_reported_value)
-        
+
         # Case 2: Statement with Cash Flow (Fixed Assets Purchased = 3200) -> valid match
         cf_stmt = {
             "periods": ["FY25", "FY26"],
@@ -456,7 +457,7 @@ class TestBusinessAnalysisV44(unittest.TestCase):
                 source_document_url="https://example.com/concall.pdf"
             )
         ]
-        
+
         # Case 1: Bank Balance Sheet with only Deposits / Total Deposits
         bs_stmt = {
             "periods": ["FY25", "FY26"],
@@ -468,7 +469,7 @@ class TestBusinessAnalysisV44(unittest.TestCase):
         evaluated = evaluate_management_guidance_vs_actual(guidance, financial_statements={"balance_sheet": bs_stmt})
         self.assertEqual(evaluated[0].status, "INSUFFICIENT_EVIDENCE")
         self.assertIsNone(evaluated[0].actual_reported_value)
-        
+
         # Case 2: Statement with explicit CASA % row
         pl_stmt = {
             "periods": ["FY25", "FY26"],
@@ -497,7 +498,7 @@ class TestBusinessAnalysisV44(unittest.TestCase):
         id2 = database.generate_deterministic_evidence_id("TATACOMM", evi_item)
         self.assertEqual(id1, id2)
         self.assertTrue(id1.startswith("evi_TATACOMM_"))
-        
+
         guidance_item = {
             "metric_or_topic": "Revenue Growth",
             "target_period": "FY26",
@@ -594,7 +595,7 @@ class TestBusinessAnalysisV44(unittest.TestCase):
         )
         candidate_docs = [{"title": "Q1 FY27 Concall", "url": "https://bse.com/cc.pdf", "type": "concall_transcript"}]
         database.save_cached_document_pages("TESTBANK", "https://bse.com/cc.pdf", [(8, "Reported NIM was 4.36% with 8 bps from tax refund interest.")])
-        
+
         sanitized = sanitize_and_verify_intelligence_result(
             result=raw_res,
             symbol="TESTBANK",
@@ -822,19 +823,19 @@ class TestBusinessAnalysisV44(unittest.TestCase):
     def test_currency_actual_extraction_context_and_units(self):
         """Actual currency/absolute value extraction requires explicit currency/unit context and normalizes units."""
         from financial_engine import extract_guidance_actual_value
-        
+
         # 1. FY26 capex was ₹6,000 Cr -> 6000
         self.assertEqual(extract_guidance_actual_value("FY26 capex was ₹6,000 Cr", "cr"), 6000.0)
-        
+
         # 2. FY2026 capex was ₹9,000 Cr -> 9000
         self.assertEqual(extract_guidance_actual_value("FY2026 capex was ₹9,000 Cr", "cr"), 9000.0)
-        
+
         # 3. FY26 without an amount -> no actual extracted (None)
         self.assertIsNone(extract_guidance_actual_value("FY26 capex planning was initiated without final spending", "cr"))
-        
+
         # 4. unrelated number before amount does not win
         self.assertEqual(extract_guidance_actual_value("In Q1 FY26 across 26 facilities, capex was ₹6,000 Cr", "cr"), 6000.0)
-        
+
         # 5. incompatible currency units fail closed unless deterministic conversion exists
         # Incompatible USD fails closed
         self.assertIsNone(extract_guidance_actual_value("FY26 capex was $50 million", "cr"))
@@ -1112,7 +1113,7 @@ class TestBusinessAnalysisV44(unittest.TestCase):
     def test_bank_kpi_identity_and_evolution_trajectory_requires_two_periods(self):
         """Inter-document KPI trends strictly require >=2 periods and omit single data points."""
         from financial_engine import build_inter_document_kpi_trends
-        
+
         # Single period: omitted
         single_doc_facts = [
             {"metric_name": "Net Interest Margin (NIM)", "value": 4.36, "unit": "%", "period_or_date": "Q1 FY26"}
@@ -1134,7 +1135,7 @@ class TestBusinessAnalysisV44(unittest.TestCase):
     def test_bank_kpi_lower_is_better_trajectory_directionality(self):
         """For lower-is-better metrics (GNPA, NNPA, Credit Cost), decreasing values are 'Improving'."""
         from financial_engine import build_inter_document_kpi_trends
-        
+
         gnpa_facts = [
             {"metric_name": "Gross NPA", "value": 2.15, "unit": "%", "period_or_date": "Q1 FY26"},
             {"metric_name": "GNPA Ratio", "value": 1.97, "unit": "%", "period_or_date": "Q2 FY26"}
@@ -1143,40 +1144,145 @@ class TestBusinessAnalysisV44(unittest.TestCase):
         self.assertEqual(len(trends), 1)
         self.assertEqual(trends[0]["trajectory"], "Improving")
 
-    def test_ai_document_summary_cache_lineage_and_version_invalidation(self):
-        """Database summary retrieval invalidates when extraction schema or prompt version changes."""
-        sym = "TESTSYM_LINEAGE"
-        url = "https://bse.com/sample_doc.pdf"
-        title = "Sample Q1 FY26 Deck"
-        payload = {"key_takeaways": ["Sample bullet point"]}
-        
-        # Save with version 4.4 / 4.4.1
+    def test_1_same_hash_and_same_versions_reuses_cache(self):
+        """Unchanged PDF text hash + same schema/prompt versions reuses cached summary without LLM extraction."""
+        import doc_intelligence_pipeline
+        sym = "TESTSYM_CACHE_OK"
+        doc = DocumentItem(
+            ticker=sym,
+            title="Q1 FY26 Earnings Call Transcript",
+            url="https://bse.com/cc_q1.pdf",
+            doc_type="concall_transcript",
+            period_or_date="Q1 FY26"
+        )
+        sample_pages = [(1, "Official transcript text for Q1 FY26. Management reports 18% loan growth.")]
+        content_hash = database.compute_document_content_hash(sample_pages)
+
+        # Pre-seed cache with matching content hash & current versions
         database.save_document_summary(
-            sym, url, title, payload,
-            content_hash="abc123hash",
+            sym, doc.url, doc.title,
+            {"key_takeaways": ["18% loan growth in Q1 FY26"]},
+            doc_key=doc.doc_key,
+            doc_type=doc.doc_type,
+            period_or_date=doc.period_or_date,
+            content_hash=content_hash,
             extraction_schema_version="4.4",
             extraction_prompt_version="4.4.1"
         )
 
-        # Retrieval with exact matching version succeeds
-        summary_ok = database.get_document_summary(
+        with unittest.mock.patch("doc_intelligence_pipeline.download_and_extract_pdf", return_value=sample_pages), \
+             unittest.mock.patch("doc_intelligence_pipeline.summarize_single_document_with_llm") as mock_llm:
+            summary = doc_intelligence_pipeline.get_or_generate_document_summary(sym, "Test Corp", doc)
+            # LLM was NOT called
+            mock_llm.assert_not_called()
+            self.assertEqual(summary["key_takeaways"], ["18% loan growth in Q1 FY26"])
+            self.assertEqual(doc.cache_status, "CURRENT_CONTENT_VERIFIED")
+
+    def test_2_changed_content_hash_rejects_cache_and_reextracts(self):
+        """When document content changes (different hash), cached summary is rejected and re-extracted via LLM."""
+        import doc_intelligence_pipeline
+        sym = "TESTSYM_CACHE_CHANGED"
+        doc = DocumentItem(
+            ticker=sym,
+            title="Q1 FY26 Investor Presentation",
+            url="https://bse.com/ppt_q1.pdf",
+            doc_type="presentation",
+            period_or_date="Q1 FY26"
+        )
+        old_pages = [(1, "Old presentation draft.")]
+        old_hash = database.compute_document_content_hash(old_pages)
+        database.save_document_summary(
+            sym, doc.url, doc.title,
+            {"key_takeaways": ["Old draft takeaway"]},
+            content_hash=old_hash,
+            extraction_schema_version="4.4",
+            extraction_prompt_version="4.4.1"
+        )
+
+        # New PDF text content
+        new_pages = [(1, "Updated revised presentation. NIM expanded to 4.45%.")]
+        new_hash = database.compute_document_content_hash(new_pages)
+        self.assertNotEqual(old_hash, new_hash)
+
+        with unittest.mock.patch("doc_intelligence_pipeline.download_and_extract_pdf", return_value=new_pages), \
+             unittest.mock.patch("doc_intelligence_pipeline.summarize_single_document_with_llm") as mock_llm:
+            mock_llm.return_value = {
+                "doc_title": doc.title,
+                "doc_url": doc.url,
+                "doc_type": doc.doc_type,
+                "period_or_date": doc.period_or_date,
+                "key_takeaways": ["NIM expanded to 4.45%"]
+            }
+            summary = doc_intelligence_pipeline.get_or_generate_document_summary(sym, "Test Corp", doc)
+            # LLM was called due to content hash mismatch
+            mock_llm.assert_called_once()
+            self.assertEqual(summary["key_takeaways"], ["NIM expanded to 4.45%"])
+            self.assertEqual(summary["content_hash"], new_hash)
+            self.assertEqual(doc.cache_status, "CURRENT_CONTENT_VERIFIED")
+
+    def test_3_missing_or_null_content_hash_not_labeled_cached_current(self):
+        """Legacy cached summary rows without content_hash are labeled LEGACY_STALE, not CURRENT_CONTENT_VERIFIED."""
+        sym = "TESTSYM_LEGACY_NULL_HASH"
+        url = "https://bse.com/legacy_doc.pdf"
+        title = "Legacy Document"
+
+        # Insert summary with null content_hash
+        conn = database.get_db_connection()
+        try:
+            with conn:
+                conn.execute("""
+                    INSERT OR REPLACE INTO ai_document_summaries (
+                        doc_url, symbol, doc_title, summary_json, generated_at,
+                        content_hash, extraction_schema_version, extraction_prompt_version
+                    ) VALUES (?, ?, ?, ?, ?, NULL, '4.4', '4.4.1')
+                """, (url, sym, title, json.dumps({"key_takeaways": ["Legacy bullet"]}), "2026-01-01T00:00:00Z"))
+        finally:
+            conn.close()
+
+        summaries = database.get_document_summaries(sym)
+        self.assertIn(url, summaries)
+        self.assertNotEqual(summaries[url]["cache_status"], "CURRENT_CONTENT_VERIFIED")
+        self.assertEqual(summaries[url]["cache_status"], "CURRENT_VERSION_CONTENT_UNCHECKED")
+
+    def test_4_changed_prompt_version_rejects_cache(self):
+        """When extraction prompt version changes, cached summary is invalidated."""
+        sym = "TESTSYM_PROMPT_STALE"
+        url = "https://bse.com/doc_prompt.pdf"
+        database.save_document_summary(
+            sym, url, "Prompt Test Doc",
+            {"key_takeaways": ["Test bullet"]},
+            content_hash="valid_hash_123",
+            extraction_schema_version="4.4",
+            extraction_prompt_version="4.0.0"  # Older prompt
+        )
+        res = database.get_document_summary(
             doc_url=url,
             symbol=sym,
             expected_schema_version="4.4",
             expected_prompt_version="4.4.1",
-            expected_content_hash="abc123hash"
+            expected_content_hash="valid_hash_123"
         )
-        self.assertIsNotNone(summary_ok)
-        self.assertEqual(summary_ok["content_hash"], "abc123hash")
+        self.assertIsNone(res)
 
-        # Retrieval with mismatched schema version invalidates (returns None)
-        summary_stale = database.get_document_summary(
+    def test_5_changed_schema_version_rejects_cache(self):
+        """When extraction schema version changes, cached summary is invalidated."""
+        sym = "TESTSYM_SCHEMA_STALE"
+        url = "https://bse.com/doc_schema.pdf"
+        database.save_document_summary(
+            sym, url, "Schema Test Doc",
+            {"key_takeaways": ["Test bullet"]},
+            content_hash="valid_hash_123",
+            extraction_schema_version="3.0",  # Older schema
+            extraction_prompt_version="4.4.1"
+        )
+        res = database.get_document_summary(
             doc_url=url,
             symbol=sym,
-            expected_schema_version="5.0",
-            expected_prompt_version="4.4.1"
+            expected_schema_version="4.4",
+            expected_prompt_version="4.4.1",
+            expected_content_hash="valid_hash_123"
         )
-        self.assertIsNone(summary_stale)
+        self.assertIsNone(res)
 
 if __name__ == "__main__":
     unittest.main()

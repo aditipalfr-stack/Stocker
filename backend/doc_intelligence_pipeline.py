@@ -69,10 +69,10 @@ def _extract_statement_table(statement_data: Any) -> Tuple[List[str], Dict[str, 
     """Extracts periods/years list and metric->values mapping from either dict or FinancialStatement model."""
     if not statement_data:
         return [], {}
-        
+
     periods: List[str] = []
     rows_dict: Dict[str, List[Any]] = {}
-    
+
     # Check if Pydantic model
     if hasattr(statement_data, "periods") and hasattr(statement_data, "rows"):
         periods = list(statement_data.periods)
@@ -82,11 +82,11 @@ def _extract_statement_table(statement_data: Any) -> Tuple[List[str], Dict[str, 
             if metric_name and isinstance(vals, dict):
                 rows_dict[metric_name] = [vals.get(p) for p in periods]
         return periods, rows_dict
-        
+
     if isinstance(statement_data, dict):
         periods = statement_data.get("periods") or statement_data.get("years") or []
         raw_rows = statement_data.get("rows", {})
-        
+
         if isinstance(raw_rows, dict):
             return periods, raw_rows
         elif isinstance(raw_rows, list):
@@ -99,7 +99,7 @@ def _extract_statement_table(statement_data: Any) -> Tuple[List[str], Dict[str, 
                     elif m and isinstance(v, list):
                         rows_dict[m] = v
             return periods, rows_dict
-            
+
     return periods, rows_dict
 
 def format_financials_for_prompt(symbol: str, stock_data: Optional[Dict[str, Any]] = None) -> str:
@@ -111,17 +111,17 @@ def format_financials_for_prompt(symbol: str, stock_data: Optional[Dict[str, Any
             data = fetch_stock_from_screener(clean_sym, force_refresh=False)
         except Exception:
             data = None
-            
+
     if not data:
         return "Standardized financial statements not available in database."
-        
+
     pl_data = data.get("profit_loss") or data.get("profit_and_loss")
     bs_data = data.get("balance_sheet")
     cf_data = data.get("cash_flow")
     q_data = data.get("quarters")
-    
+
     lines = [f"=== STANDARDIZED 10-YEAR FINANCIAL STATEMENTS ({clean_sym}) ==="]
-    
+
     # 1. Annual P&L Summary
     pl_years, pl_rows = _extract_statement_table(pl_data)
     if pl_years:
@@ -130,7 +130,7 @@ def format_financials_for_prompt(symbol: str, stock_data: Optional[Dict[str, Any
         opm = pl_rows.get("OPM %", []) or pl_rows.get("OPM", [])
         pat = pl_rows.get("Net Profit", []) or pl_rows.get("PAT", [])
         eps = pl_rows.get("EPS in Rs", []) or pl_rows.get("EPS", [])
-        
+
         lines.append("\n[Annual Performance (₹ in Crores)]")
         header = f"{'Metric':<18} | " + " | ".join(f"{str(y):>8}" for y in pl_years[-6:])
         lines.append(header)
@@ -140,7 +140,7 @@ def format_financials_for_prompt(symbol: str, stock_data: Optional[Dict[str, Any
         if opm: lines.append(f"{'OPM %':<18} | " + " | ".join(f"{str(v or '-'):>8}" for v in opm[-6:]))
         if pat: lines.append(f"{'Net Profit':<18} | " + " | ".join(f"{str(v or '-'):>8}" for v in pat[-6:]))
         if eps: lines.append(f"{'EPS (₹)':<18} | " + " | ".join(f"{str(v or '-'):>8}" for v in eps[-6:]))
-        
+
     # 2. Balance Sheet Summary
     bs_years, bs_rows = _extract_statement_table(bs_data)
     if bs_years:
@@ -150,7 +150,7 @@ def format_financials_for_prompt(symbol: str, stock_data: Optional[Dict[str, Any
         fa = bs_rows.get("Fixed Assets", [])
         cwip = bs_rows.get("CWIP", [])
         tot_a = bs_rows.get("Total Assets", [])
-        
+
         lines.append("\n[Balance Sheet Position (₹ in Crores)]")
         header = f"{'Metric':<18} | " + " | ".join(f"{str(y):>8}" for y in bs_years[-6:])
         lines.append(header)
@@ -161,7 +161,7 @@ def format_financials_for_prompt(symbol: str, stock_data: Optional[Dict[str, Any
         if fa: lines.append(f"{'Fixed Assets':<18} | " + " | ".join(f"{str(v or '-'):>8}" for v in fa[-6:]))
         if cwip: lines.append(f"{'CWIP':<18} | " + " | ".join(f"{str(v or '-'):>8}" for v in cwip[-6:]))
         if tot_a: lines.append(f"{'Total Assets':<18} | " + " | ".join(f"{str(v or '-'):>8}" for v in tot_a[-6:]))
-        
+
     # 3. Cash Flow Generation
     cf_years, cf_rows = _extract_statement_table(cf_data)
     if cf_years:
@@ -169,7 +169,7 @@ def format_financials_for_prompt(symbol: str, stock_data: Optional[Dict[str, Any
         cfi = cf_rows.get("Cash from Investing Activity", []) or cf_rows.get("CFI", [])
         cff = cf_rows.get("Cash from Financing Activity", []) or cf_rows.get("CFF", [])
         fa_purch = cf_rows.get("Fixed assets purchased", []) or cf_rows.get("Capex", [])
-        
+
         lines.append("\n[Cash Flow Generation (₹ in Crores)]")
         header = f"{'Metric':<18} | " + " | ".join(f"{str(y):>8}" for y in cf_years[-6:])
         lines.append(header)
@@ -178,7 +178,7 @@ def format_financials_for_prompt(symbol: str, stock_data: Optional[Dict[str, Any
         if fa_purch: lines.append(f"{'Capex Outlay':<18} | " + " | ".join(f"{str(v or '-'):>8}" for v in fa_purch[-6:]))
         if cfi: lines.append(f"{'Cash from Inv':<18} | " + " | ".join(f"{str(v or '-'):>8}" for v in cfi[-6:]))
         if cff: lines.append(f"{'Cash from Fin':<18} | " + " | ".join(f"{str(v or '-'):>8}" for v in cff[-6:]))
-        
+
     # 4. Recent Quarterly Trend
     q_periods, q_rows = _extract_statement_table(q_data)
     if q_periods:
@@ -186,7 +186,7 @@ def format_financials_for_prompt(symbol: str, stock_data: Optional[Dict[str, Any
         q_op = q_rows.get("Operating Profit", []) or q_rows.get("EBITDA", [])
         q_opm = q_rows.get("OPM %", []) or q_rows.get("OPM", [])
         q_pat = q_rows.get("Net Profit", []) or q_rows.get("PAT", [])
-        
+
         lines.append("\n[Recent Quarterly Performance (₹ in Crores)]")
         header = f"{'Metric':<18} | " + " | ".join(f"{str(q):>8}" for q in q_periods[-6:])
         lines.append(header)
@@ -195,7 +195,7 @@ def format_financials_for_prompt(symbol: str, stock_data: Optional[Dict[str, Any
         if q_op: lines.append(f"{'Qtr EBITDA':<18} | " + " | ".join(f"{str(v or '-'):>8}" for v in q_op[-6:]))
         if q_opm: lines.append(f"{'Qtr OPM %':<18} | " + " | ".join(f"{str(v or '-'):>8}" for v in q_opm[-6:]))
         if q_pat: lines.append(f"{'Qtr PAT':<18} | " + " | ".join(f"{str(v or '-'):>8}" for v in q_pat[-6:]))
-        
+
     return "\n".join(lines)
 
 # Backward-compatibility alias
@@ -209,7 +209,7 @@ def calculate_announcement_materiality(title: str, text: str = "") -> Tuple[int,
     Routine items (score < 10) are retained in the archive only.
     """
     combined = f"{title or ''} {text or ''}".lower()
-    
+
     # 1. Immediate Exclusions / Routine compliance (Score 0)
     if any(k in combined for k in [
         "trading window", "newspaper publication", "loss of share", "duplicate share",
@@ -218,7 +218,7 @@ def calculate_announcement_materiality(title: str, text: str = "") -> Tuple[int,
         "scrutinizer", "postal ballot", "general meeting intimation", "procedural"
     ]):
         return (0, "Routine procedural / compliance announcement")
-        
+
     if any(k in combined for k in ["acquisition", "amalgamation", "merger", "takeover", "slump sale", "divestment"]):
         return (30, "M&A / Acquisition / Divestment")
     if any(k in combined for k in ["penalty", "regulatory action", "rbi order", "sebi order", "adjudication", "warning letter"]):
@@ -232,8 +232,8 @@ def calculate_announcement_materiality(title: str, text: str = "") -> Tuple[int,
     if any(k in combined for k in ["fund raise", "qip", "bonds", "notes issuance", "senior notes", "capital raise", "rights issue", "preferential issue"]):
         return (20, "Capital raise / Debt financing")
     if any(k in combined for k in [
-        "appointment of managing director", "resignation of managing director", 
-        "appointment of ceo", "resignation of ceo", 
+        "appointment of managing director", "resignation of managing director",
+        "appointment of ceo", "resignation of ceo",
         "appointment of cfo", "resignation of cfo",
         "appointment of executive director", "resignation of executive director",
         "key managerial personnel"
@@ -245,7 +245,7 @@ def calculate_announcement_materiality(title: str, text: str = "") -> Tuple[int,
         return (15, "Material litigation / Court order")
     if any(k in combined for k in ["profit warning", "material update", "business update"]):
         return (15, "Material business update")
-        
+
     # Default for other announcements
     return (5, "General corporate disclosure")
 
@@ -261,7 +261,7 @@ def assign_working_set_metadata(documents: DocumentLinks) -> List[DocumentItem]:
     5. Material Announcements: Maximum 3-5 high-materiality announcements (M&A, Capex, Reg/Rating/C-Suite)
     6. BRSR / ESG: 0 by default (archive only, on-demand/ESG escalation only)
     7. Routine notices / Wrappers: 0 (archive only)
-    
+
     Returns the list of selected DocumentItems sorted by ai_priority (1..N).
     """
     selected_items: List[DocumentItem] = []
@@ -269,8 +269,8 @@ def assign_working_set_metadata(documents: DocumentLinks) -> List[DocumentItem]:
 
     def is_substantive_eligible(d: DocumentItem) -> bool:
         return (
-            getattr(d, "ai_eligible", True) 
-            and not getattr(d, "is_wrapper", False) 
+            getattr(d, "ai_eligible", True)
+            and not getattr(d, "is_wrapper", False)
             and getattr(d, "is_substantive", True)
             and getattr(d, "is_valid", 1) in (1, True, "1", "Valid")
         )
@@ -321,10 +321,10 @@ def assign_working_set_metadata(documents: DocumentLinks) -> List[DocumentItem]:
     # 3. CONCALL TRANSCRIPTS: Latest 4 DISTINCT earnings events (prefer substantive analyst/investor)
     ccs = documents.concalls or []
     sorted_ccs = sorted(ccs, key=lambda x: (getattr(x, "sort_timestamp", None) or "1970-01-01", x.title), reverse=True)
-    
+
     seen_cc_events: Set[str] = set()
     selected_cc_urls: Set[str] = set()
-    
+
     # First pass: pick ONE preferred substantive analyst/investor transcript per distinct event
     for d in sorted_ccs:
         if not is_substantive_eligible(d):
@@ -332,10 +332,10 @@ def assign_working_set_metadata(documents: DocumentLinks) -> List[DocumentItem]:
         subtype = getattr(d, "doc_subtype", None)
         if subtype == "media_call_transcript":
             continue
-            
+
         ev_key = getattr(d, "event_key", None)
-        effective_event = ev_key if (ev_key and "GENERIC" not in ev_key) else f"PHYSICAL_EVENT_{d.url}"
-        
+        effective_event = ev_key if (ev_key and not ev_key.endswith("_GENERIC")) else f"PHYSICAL_EVENT_{d.url}"
+
         if effective_event not in seen_cc_events and len(seen_cc_events) < 4:
             seen_cc_events.add(effective_event)
             selected_cc_urls.add(d.url)
@@ -346,7 +346,7 @@ def assign_working_set_metadata(documents: DocumentLinks) -> List[DocumentItem]:
             d.selected_for_ai = True
             d.ai_priority = priority_counter
             priority_counter += 1
-            d.selection_reason = f"{d.period_or_date or 'Recent'} earnings transcript"
+            d.selection_reason = f"{d.period_or_date or 'Recent'} earnings conference call transcript"
             selected_items.append(d)
         elif getattr(d, "doc_subtype", None) == "media_call_transcript":
             d.selected_for_ai = False
@@ -358,7 +358,7 @@ def assign_working_set_metadata(documents: DocumentLinks) -> List[DocumentItem]:
             d.selection_reason = "Wrapper notification; substantive transcript resolved"
         else:
             ev_key = getattr(d, "event_key", None)
-            effective_event = ev_key if (ev_key and "GENERIC" not in ev_key) else None
+            effective_event = ev_key if (ev_key and not ev_key.endswith("_GENERIC")) else None
             d.selected_for_ai = False
             d.ai_priority = None
             if effective_event and effective_event in seen_cc_events:
@@ -369,28 +369,37 @@ def assign_working_set_metadata(documents: DocumentLinks) -> List[DocumentItem]:
     # 4. INVESTOR PRESENTATIONS: Latest 4 DISTINCT earnings events (EARNINGS_PRESENTATION only)
     ppts = documents.presentations or []
     sorted_ppts = sorted(ppts, key=lambda x: (getattr(x, "sort_timestamp", None) or "1970-01-01", x.title), reverse=True)
-    
+
     seen_ppt_events: Set[str] = set()
     selected_ppt_urls: Set[str] = set()
-    
+
     for d in sorted_ppts:
         if not is_substantive_eligible(d):
             continue
-        subtype = getattr(d, "doc_subtype", None) or database.derive_document_subtype("presentation", d.title)
+        subtype = getattr(d, "doc_subtype", None) or database.derive_document_subtype("presentation", d.title, d.period_or_date)
         d.doc_subtype = subtype
         # ONLY earnings_presentation enters the default quarterly working set
         if subtype != "earnings_presentation":
             continue
-            
+
         ev_key = getattr(d, "event_key", None)
-        effective_event = ev_key if (ev_key and "GENERIC" not in ev_key) else f"PHYSICAL_PPT_{d.url}"
-        
-        if effective_event not in seen_ppt_events and len(seen_ppt_events) < 4:
-            seen_ppt_events.add(effective_event)
+        if not ev_key or ev_key.endswith("_GENERIC"):
+            sym = getattr(d, "ticker", None) or getattr(d, "symbol", None) or ""
+            derived_ev = database.derive_earnings_event_key(sym, d.period_or_date, d.title)
+            if derived_ev and not derived_ev.endswith("_GENERIC"):
+                ev_key = derived_ev
+                d.event_key = ev_key
+
+        # Must strictly have resolved non-generic event key (NO physical URL fallback)
+        if not ev_key or ev_key.endswith("_GENERIC"):
+            continue
+
+        if ev_key not in seen_ppt_events and len(seen_ppt_events) < 4:
+            seen_ppt_events.add(ev_key)
             selected_ppt_urls.add(d.url)
-            
+
     for d in sorted_ppts:
-        subtype = getattr(d, "doc_subtype", None) or database.derive_document_subtype("presentation", d.title)
+        subtype = getattr(d, "doc_subtype", None) or database.derive_document_subtype("presentation", d.title, d.period_or_date)
         d.doc_subtype = subtype
         if d.url in selected_ppt_urls:
             d.selected_for_ai = True
@@ -406,16 +415,22 @@ def assign_working_set_metadata(documents: DocumentLinks) -> List[DocumentItem]:
             d.selected_for_ai = False
             d.ai_priority = None
             d.selection_reason = "Strategy / Investor Day presentation retained in archive"
+        elif subtype in ("other_presentation", "unknown_presentation"):
+            d.selected_for_ai = False
+            d.ai_priority = None
+            d.selection_reason = "General / unresolved presentation retained in archive (requires quarterly earnings event resolution for AI working set)"
         elif getattr(d, "is_wrapper", False):
             d.selected_for_ai = False
             d.ai_priority = None
             d.selection_reason = "Wrapper notification"
         else:
             ev_key = getattr(d, "event_key", None)
-            effective_event = ev_key if (ev_key and "GENERIC" not in ev_key) else None
+            effective_event = ev_key if (ev_key and not ev_key.endswith("_GENERIC")) else None
             d.selected_for_ai = False
             d.ai_priority = None
-            if effective_event and effective_event in seen_ppt_events:
+            if not effective_event:
+                d.selection_reason = "Unresolved earnings event presentation retained in archive"
+            elif effective_event in seen_ppt_events:
                 d.selection_reason = "Secondary presentation for already selected earnings quarter"
             else:
                 d.selection_reason = "Older than default 4-quarter presentation window"
@@ -424,7 +439,7 @@ def assign_working_set_metadata(documents: DocumentLinks) -> List[DocumentItem]:
     anns = documents.material_announcements or []
     scored_anns = []
     seen_ann_events: Set[str] = set()
-    
+
     for d in anns:
         score, reason = calculate_announcement_materiality(d.title)
         sort_ts = getattr(d, "sort_timestamp", None) or getattr(d, "period_or_date", "") or "1970-01-01"
@@ -433,7 +448,7 @@ def assign_working_set_metadata(documents: DocumentLinks) -> List[DocumentItem]:
         d.materiality_score = score
         d.materiality_level = "HIGH" if score >= 10 else ("MEDIUM" if score >= 5 else "ROUTINE")
         d.materiality_reason = reason
-        
+
         # Determine distinct material event identity
         sym = getattr(d, "ticker", "") or getattr(d, "symbol", "") or ""
         event_key = database.derive_announcement_event_key(sym, d.title, d.period_or_date)
@@ -441,10 +456,10 @@ def assign_working_set_metadata(documents: DocumentLinks) -> List[DocumentItem]:
 
     # Filter eligible high-materiality announcements (score >= 10)
     high_mat_anns = [
-        item for item in scored_anns 
+        item for item in scored_anns
         if item[1] >= 10 and is_substantive_eligible(item[0])
     ]
-    
+
     # Sort deterministically:
     # 1. materiality score descending
     # 2. publication / sort timestamp descending
@@ -453,7 +468,7 @@ def assign_working_set_metadata(documents: DocumentLinks) -> List[DocumentItem]:
         key=lambda x: (x[1], x[3], x[4]),
         reverse=True
     )
-    
+
     # Event-aware suppression: Pick highest-ranked announcement per distinct material event (up to 5 events)
     selected_high_mat_docs = []
     selected_high_mat_urls = set()
@@ -463,7 +478,7 @@ def assign_working_set_metadata(documents: DocumentLinks) -> List[DocumentItem]:
             seen_ann_events.add(ev_key)
             selected_high_mat_docs.append(item)
             selected_high_mat_urls.add(doc_obj.url)
-    
+
     # Assign priority in ranked materiality order
     for d, score, reason, sort_ts, stable_key, ev_key in selected_high_mat_docs:
         d.selected_for_ai = True
@@ -471,7 +486,7 @@ def assign_working_set_metadata(documents: DocumentLinks) -> List[DocumentItem]:
         priority_counter += 1
         d.selection_reason = f"High-materiality: {reason}"
         selected_items.append(d)
-        
+
     # Mark unselected announcements
     for d, score, reason, sort_ts, stable_key, ev_key in scored_anns:
         if d.url not in selected_high_mat_urls:
@@ -527,8 +542,8 @@ def select_default_document_working_set(documents: DocumentLinks) -> List[Docume
     return assign_working_set_metadata(documents)
 
 def fetch_historical_evidence_document(
-    symbol: str, 
-    doc_type: str, 
+    symbol: str,
+    doc_type: str,
     period_or_year: str,
     all_available_documents: Optional[DocumentLinks] = None,
     company_name: str = ""
@@ -539,7 +554,7 @@ def fetch_historical_evidence_document(
     Executes live waterfall discovery if not already present in memory or SQLite.
     """
     clean_sym = symbol.upper().strip()
-    
+
     # 1. Search in all_available_documents if provided
     if all_available_documents:
         pool = []
@@ -551,11 +566,11 @@ def fetch_historical_evidence_document(
             pool = all_available_documents.presentations
         else:
             pool = all_available_documents.material_announcements
-            
+
         for doc in pool:
             if period_or_year.lower() in (doc.period_or_date or "").lower() or period_or_year.lower() in (doc.title or "").lower():
                 return doc
-                
+
     # 2. Check SQLite source_documents table
     conn = database.get_db_connection()
     try:
@@ -583,7 +598,7 @@ def fetch_historical_evidence_document(
             )
     finally:
         conn.close()
-        
+
     # 3. Live On-Demand Discovery Waterfall via document_sourcing
     try:
         import document_sourcing
@@ -594,52 +609,43 @@ def fetch_historical_evidence_document(
             return discovered
     except Exception as e:
         print(f"Notice: Live historical document discovery error for {clean_sym}: {e}")
-        
+
     return None
 
 def get_or_generate_document_summary(symbol: str, company_name: str, doc: DocumentItem) -> Dict[str, Any]:
     """
     Retrieves the document's cached AI summary from SQLite or extracts and generates it via Gemini.
-    Validates cache schema/prompt freshness.
-    Implements deterministic Alternate Source Recovery if convenience PDF download fails.
+    Strictly verifies content hash against extracted document text to prevent stale cache reuse on changed PDF content.
+    Implements deterministic Alternate Source Recovery (stored corpus + on-demand discovery) if convenience PDF download fails.
     """
     from llm_service import EXTRACTION_SCHEMA_VERSION, EXTRACTION_PROMPT_VERSION
+    import document_sourcing
+
     clean_sym = symbol.upper().strip()
     doc_k = getattr(doc, "doc_key", None) or database.compute_canonical_document_key(clean_sym, doc.doc_type, doc.period_or_date, doc.url, doc.title)
     doc.doc_key = doc_k
-    
-    # 1. Check SQLite cache with freshness version verification
-    cached = database.get_document_summary(
-        doc.url,
-        doc_key=doc_k,
-        symbol=clean_sym,
-        doc_type=doc.doc_type,
-        period_or_date=doc.period_or_date,
-        expected_schema_version=EXTRACTION_SCHEMA_VERSION,
-        expected_prompt_version=EXTRACTION_PROMPT_VERSION
-    )
-    if cached and cached.get("key_takeaways"):
-        cached["doc_key"] = doc_k
-        doc.cache_status = "CACHED_CURRENT"
-        return cached
-        
-    # 2. Download and extract pages with Alternate Source Recovery
+
+    # 1. Download and extract pages (reusing local SQLite page cache to avoid network download if already cached)
     pages = None
     download_err = None
     original_url = doc.url
     active_url = doc.url
-    
+
     try:
         pages = download_and_extract_pdf(active_url, symbol=clean_sym)
     except Exception as e:
         download_err = e
         print(f"    ⚠️ Could not extract text for {doc.title} from {active_url}: {e}")
-        
-    # If initial URL download failed, attempt alternate source recovery
+
+    # If initial URL download failed, attempt Alternate Source Recovery:
+    # 1. First search existing canonical aliases/stored corpus in SQLite
+    # 2. If no valid alternate exists in DB, invoke on-demand adapter discovery for exact symbol+event+subtype
     if not pages:
         norm_dt = database.normalize_document_type(doc.doc_type, doc.title)
-        subtype = getattr(doc, "doc_subtype", None) or database.derive_document_subtype(norm_dt, doc.title)
+        subtype = getattr(doc, "doc_subtype", None) or database.derive_document_subtype(norm_dt, doc.title, doc.period_or_date)
         ev_key = getattr(doc, "event_key", None)
+
+        # 1. Check existing stored database corpus
         alt_doc = database.find_substantive_alternate_source(
             symbol=clean_sym,
             doc_type=norm_dt,
@@ -650,7 +656,7 @@ def get_or_generate_document_summary(symbol: str, company_name: str, doc: Docume
         )
         if alt_doc and alt_doc.get("url"):
             alt_url = alt_doc["url"]
-            print(f"    🔄 Attempting Alternate Source Recovery for {doc.title}: {alt_url}")
+            print(f"    🔄 Attempting Alternate Source Recovery from stored corpus for {doc.title}: {alt_url}")
             try:
                 pages = download_and_extract_pdf(alt_url, symbol=clean_sym)
                 if pages:
@@ -665,9 +671,41 @@ def get_or_generate_document_summary(symbol: str, company_name: str, doc: Docume
                         doc.discovered_sources.append(alt_doc["discovery_source"])
                     print(f"    ✅ Alternate Source Recovery Succeeded for {doc.title} via {alt_url}")
             except Exception as e_alt:
-                print(f"    ⚠️ Alternate Source Recovery also failed for {doc.title}: {e_alt}")
+                print(f"    ⚠️ Alternate Source Recovery from stored corpus failed for {doc.title}: {e_alt}")
                 download_err = e_alt
-                
+
+        # 2. If still no pages, invoke on-demand live alternate filing discovery
+        if not pages:
+            print(f"    🔎 Invoking On-Demand Live Alternate Filing Discovery for {doc.title} ({doc.period_or_date})...")
+            try:
+                disc_alt = document_sourcing.discover_substantive_alternate_source(
+                    symbol=clean_sym,
+                    company_name=company_name,
+                    doc_type=norm_dt,
+                    doc_subtype=subtype,
+                    period_or_date=doc.period_or_date,
+                    event_key=ev_key,
+                    failed_url=original_url
+                )
+                if disc_alt and disc_alt.url:
+                    alt_url = disc_alt.url
+                    print(f"    🔄 Attempting extraction from on-demand discovered alternate for {doc.title}: {alt_url}")
+                    pages = download_and_extract_pdf(alt_url, symbol=clean_sym)
+                    if pages:
+                        active_url = alt_url
+                        if not doc.source_aliases:
+                            doc.source_aliases = []
+                        if original_url not in doc.source_aliases:
+                            doc.source_aliases.append(original_url)
+                        if not doc.discovered_sources:
+                            doc.discovered_sources = []
+                        if disc_alt.discovery_source and disc_alt.discovery_source not in doc.discovered_sources:
+                            doc.discovered_sources.append(disc_alt.discovery_source)
+                        print(f"    ✅ On-Demand Alternate Recovery Succeeded for {doc.title} via {alt_url}")
+            except Exception as e_disc:
+                print(f"    ⚠️ On-Demand Alternate Discovery failed for {doc.title}: {e_disc}")
+                download_err = e_disc
+
     if not pages:
         print(f"    ⚠️ Skipping summary for {doc.title}: No text extracted from {active_url}")
         failed_sum = {
@@ -682,16 +720,41 @@ def get_or_generate_document_summary(symbol: str, company_name: str, doc: Docume
         }
         database.save_document_summary(clean_sym, doc.url, doc.title, failed_sum, doc_key=doc_k, doc_type=doc.doc_type, period_or_date=doc.period_or_date)
         return failed_sum
-        
-    # 3. Select high-signal pages for summarization
+
+    # 2. Compute deterministic content hash from extracted pages
+    current_content_hash = database.compute_document_content_hash(pages)
+
+    # 3. Check SQLite cache with exact content hash and extraction version verification
+    cached = database.get_document_summary(
+        active_url,
+        doc_key=doc_k,
+        symbol=clean_sym,
+        doc_type=doc.doc_type,
+        period_or_date=doc.period_or_date,
+        expected_content_hash=current_content_hash,
+        expected_schema_version=EXTRACTION_SCHEMA_VERSION,
+        expected_prompt_version=EXTRACTION_PROMPT_VERSION
+    )
+    if cached and cached.get("key_takeaways"):
+        cached["doc_key"] = doc_k
+        cached["content_hash"] = current_content_hash
+        doc.content_hash = current_content_hash
+        doc.cache_status = "CURRENT_CONTENT_VERIFIED"
+        if doc.source_aliases:
+            cached["source_aliases"] = list(doc.source_aliases)
+        if doc.discovered_sources:
+            cached["discovered_sources"] = list(doc.discovered_sources)
+        return cached
+
+    # 4. Select high-signal pages for summarization
     is_ar = (doc.doc_type == "annual_report" or len(pages) > 40)
     selected_pages, _ = select_relevant_sections(
-        pages, 
+        pages,
         is_full_annual_report=is_ar,
         max_pages_to_select=20 if is_ar else 15
     )
-    
-    # 4. Generate AI summary
+
+    # 5. Generate AI summary
     try:
         summary = summarize_single_document_with_llm(
             symbol=clean_sym,
@@ -716,17 +779,33 @@ def get_or_generate_document_summary(symbol: str, company_name: str, doc: Docume
         }
         database.save_document_summary(clean_sym, doc.url, doc.title, failed_sum, doc_key=doc_k, doc_type=doc.doc_type, period_or_date=doc.period_or_date)
         return failed_sum
-    
+
     if summary:
         summary["doc_key"] = doc_k
+        summary["content_hash"] = current_content_hash
+        summary["extraction_schema_version"] = EXTRACTION_SCHEMA_VERSION
+        summary["extraction_prompt_version"] = EXTRACTION_PROMPT_VERSION
         summary["status"] = "success"
+        doc.content_hash = current_content_hash
+        doc.cache_status = "CURRENT_CONTENT_VERIFIED"
         if doc.source_aliases:
             summary["source_aliases"] = list(doc.source_aliases)
         if doc.discovered_sources:
             summary["discovered_sources"] = list(doc.discovered_sources)
-        database.save_document_summary(clean_sym, doc.url, doc.title, summary, doc_key=doc_k, doc_type=doc.doc_type, period_or_date=doc.period_or_date)
+        database.save_document_summary(
+            clean_sym,
+            doc.url,
+            doc.title,
+            summary,
+            doc_key=doc_k,
+            doc_type=doc.doc_type,
+            period_or_date=doc.period_or_date,
+            content_hash=current_content_hash,
+            extraction_schema_version=EXTRACTION_SCHEMA_VERSION,
+            extraction_prompt_version=EXTRACTION_PROMPT_VERSION
+        )
         return summary
-        
+
     return {}
 
 get_or_create_document_summary = get_or_generate_document_summary
@@ -739,10 +818,10 @@ def download_and_extract_pdf(pdf_url: str, symbol: str = "") -> List[Tuple[int, 
     cached_pages = database.get_cached_document_pages(pdf_url)
     if cached_pages:
         return cached_pages
-        
+
     url_hash = hashlib.md5(pdf_url.encode()).hexdigest()
     cache_file = PDF_CACHE_DIR / f"{url_hash}.json"
-    
+
     if cache_file.exists():
         try:
             with open(cache_file, "r", encoding="utf-8") as f:
@@ -753,31 +832,31 @@ def download_and_extract_pdf(pdf_url: str, symbol: str = "") -> List[Tuple[int, 
                 return pages
         except Exception:
             pass
-            
+
     resp = requests.get(pdf_url, headers=HEADERS, timeout=45)
     if resp.status_code != 200:
         raise ValueError(f"Failed to download PDF from {pdf_url}. Status code: {resp.status_code}")
-        
+
     reader = pypdf.PdfReader(io.BytesIO(resp.content))
     pages: List[Tuple[int, str]] = []
     cache_list = []
-    
+
     for idx, page in enumerate(reader.pages):
         text = page.extract_text() or ""
         clean_text = re.sub(r"[ \t]+", " ", text)
         page_num = idx + 1
         pages.append((page_num, clean_text))
         cache_list.append({"page": page_num, "text": clean_text})
-        
+
     if symbol:
         database.save_cached_document_pages(symbol, pdf_url, pages)
-        
+
     try:
         with open(cache_file, "w", encoding="utf-8") as f:
             json.dump(cache_list, f)
     except Exception:
         pass
-        
+
     return pages
 
 def select_relevant_sections(
@@ -787,24 +866,24 @@ def select_relevant_sections(
 ) -> Tuple[List[Tuple[int, str]], Dict[int, List[str]]]:
     """Filters high-signal pages from heavy filings based on fundamental themes."""
     total_pages = len(all_pages)
-    
+
     if not is_full_annual_report and total_pages <= 50:
         return all_pages, {p: ["Full Document"] for p, _ in all_pages}
-        
+
     selected_page_indices: Set[int] = set()
     page_reasons: Dict[int, List[str]] = {}
-    
+
     compiled_patterns = {
         theme: [re.compile(r"\b" + re.escape(kw) + r"\b", re.IGNORECASE) for kw in kws]
         for theme, kws in FUNDAMENTAL_THEMES.items()
     }
-    
+
     for page_num, text in all_pages:
         for theme, patterns in compiled_patterns.items():
             if any(p.search(text) for p in patterns):
                 selected_page_indices.add(page_num)
                 page_reasons.setdefault(page_num, []).append(theme)
-                
+
     # Add adjacent context pages
     context_pages = set()
     for p in selected_page_indices:
@@ -812,9 +891,9 @@ def select_relevant_sections(
             context_pages.add(p - 1)
         if p < total_pages:
             context_pages.add(p + 1)
-            
+
     final_selected_indices = selected_page_indices.union(context_pages)
-    
+
     if len(final_selected_indices) > max_pages_to_select:
         scored_pages = sorted(
             list(selected_page_indices),
@@ -831,7 +910,7 @@ def select_relevant_sections(
             if len(kept_indices) < max_pages_to_select and (p + 1) in context_pages and (p + 1) not in kept_indices:
                 kept_indices.add(p + 1)
         final_selected_indices = kept_indices
-        
+
     if not final_selected_indices:
         # Fallback: keep first few pages if no keyword matched
         final_selected_indices = set(range(1, min(total_pages + 1, max_pages_to_select + 1)))
@@ -841,7 +920,7 @@ def select_relevant_sections(
     sorted_pages = [
         (p, text) for p, text in all_pages if p in final_selected_indices
     ]
-    
+
     return sorted_pages, page_reasons
 
 def deduplicate_synthesized_findings(output_dict: Dict[str, Any]) -> Dict[str, Any]:
@@ -852,7 +931,7 @@ def deduplicate_synthesized_findings(output_dict: Dict[str, Any]) -> Dict[str, A
     """
     if not output_dict or not isinstance(output_dict, dict):
         return output_dict
-        
+
     # 1. Deduplicate verified_facts
     if "verified_facts" in output_dict and isinstance(output_dict["verified_facts"], list):
         seen_facts = set()
@@ -949,7 +1028,7 @@ def deduplicate_synthesized_findings(output_dict: Dict[str, Any]) -> Dict[str, A
             else:
                 deduped_evidence.append(ev)
         output_dict["evidence_items"] = deduped_evidence
-            
+
     return output_dict
 
 def run_multi_document_ai_pipeline(
@@ -969,14 +1048,14 @@ def run_multi_document_ai_pipeline(
     print(f"\n==================================================")
     print(f"  RUNNING MULTI-DOCUMENT AI PIPELINE: {company_name} ({clean_sym})")
     print(f"==================================================")
-    
+
     # 1. Select the target default working set (3Y AR, 6Q CC, 6Q PPT, 8 Ann)
     candidate_docs = select_default_document_working_set(documents)
-    
+
     # If a specific historical baseline doc is requested for Promise vs Delivery, prepend or include it
     if historical_baseline_doc and historical_baseline_doc.url not in [d.url for d in candidate_docs]:
         candidate_docs.append(historical_baseline_doc)
-        
+
     if not candidate_docs:
         raise ValueError(f"No valid source documents found for {clean_sym}")
 
@@ -986,12 +1065,12 @@ def run_multi_document_ai_pipeline(
     latest_ar = next((d for d in candidate_docs if d.doc_type == "annual_report"), None)
     if not latest_ar:
         latest_ar = next((d for d in candidate_docs if d.doc_type == "regulatory_annual_filing"), candidate_docs[0] if candidate_docs else None)
-        
+
     older_ar = historical_baseline_doc
     if not older_ar and latest_ar:
         ar_candidates = [d for d in candidate_docs if d.doc_type == "annual_report" and getattr(d, "doc_key", None) != getattr(latest_ar, "doc_key", None) and d.url != latest_ar.url]
         older_ar = ar_candidates[0] if ar_candidates else None
-    
+
     latest_doc_title = latest_ar.title if latest_ar else ""
     latest_doc_url = latest_ar.url if latest_ar else ""
     older_doc_title = older_ar.title if older_ar else None
@@ -1008,10 +1087,10 @@ def run_multi_document_ai_pipeline(
             seen_summary_keys.add(k)
             seen_summary_keys.add(d.url)
             deduped_core_summary_docs.append(d)
-            
+
     print(f"  • Generating/Retrieving Per-Document AI Summaries for {len(deduped_core_summary_docs)} AI Working Set filings...")
     doc_summaries_list: List[Dict[str, Any]] = []
-    
+
     for doc in deduped_core_summary_docs:
         print(f"    - Processing [{doc.doc_type}]: {doc.title}")
         doc_sum = get_or_generate_document_summary(clean_sym, company_name, doc)
@@ -1021,7 +1100,7 @@ def run_multi_document_ai_pipeline(
     # 4. Extract and compile tagged excerpt chunks from primary documents
     print(f"  • Assembling Multi-Document Tagged Context...")
     tagged_chunks: List[str] = []
-    
+
     # Documents selected for primary excerpt chunks
     selected_for_excerpts: List[DocumentItem] = []
     if latest_ar: selected_for_excerpts.append(latest_ar)
@@ -1031,13 +1110,13 @@ def run_multi_document_ai_pipeline(
     selected_for_excerpts.extend(concalls_to_include)
     ppts_to_include = [d for d in candidate_docs if d.doc_type == "presentation"][:1]
     selected_for_excerpts.extend(ppts_to_include)
-    
+
     for idx, doc in enumerate(selected_for_excerpts):
         try:
             pages = download_and_extract_pdf(doc.url, symbol=clean_sym)
             is_ar = (doc.doc_type == "annual_report" or len(pages) > 40)
             sel_pages, _ = select_relevant_sections(pages, is_full_annual_report=is_ar, max_pages_to_select=18 if is_ar else 12)
-            
+
             for p_num, p_text in sel_pages:
                 if p_text.strip():
                     tagged_chunks.append(
@@ -1055,13 +1134,13 @@ def run_multi_document_ai_pipeline(
             stock_data = fetch_stock_from_screener(clean_sym, force_refresh=False)
         except Exception:
             stock_data = {}
-            
+
     financial_statements_text = format_financials_for_prompt(clean_sym, stock_data=stock_data)
     pl_stmt = (stock_data.get("profit_loss") or stock_data.get("profit_and_loss")) if stock_data else None
     quarters_stmt = stock_data.get("quarters") if stock_data else None
     bs_stmt = stock_data.get("balance_sheet") if stock_data else None
     cf_stmt = stock_data.get("cash_flow") if stock_data else None
-    
+
     candidate_meta = [
         {"title": d.title, "url": d.url, "type": d.doc_type, "period": d.period_or_date}
         for d in candidate_docs
@@ -1070,7 +1149,7 @@ def run_multi_document_ai_pipeline(
     # 5. Determine Sector Taxonomy & Business Model Routing
     from company_taxonomy_service import resolve_local_company_taxonomy
     from financial_engine import classify_financial_business_model
-    
+
     tax_info = resolve_local_company_taxonomy(clean_sym, stock_data=stock_data)
     biz_model = classify_financial_business_model(
         sector=tax_info.get("sector"),
@@ -1130,24 +1209,24 @@ def run_multi_document_ai_pipeline(
     )
     if not success or not result:
         raise RuntimeError(f"Multi-document AI extraction failed: {message}")
-        
+
     result.extraction_timestamp = datetime.now(timezone.utc).isoformat()
     result.source_documents_hash = docs_hash
     result.analysis_version = "2.0"
     result.staleness_status = "fresh"
     output_dict = result.model_dump()
     output_dict = deduplicate_synthesized_findings(output_dict)
-    
+
     # Save to SQLite Database
     if save_output:
         # 1. Save structured evidence items
         if output_dict.get("evidence_items"):
             database.save_document_evidence_items(clean_sym, output_dict["evidence_items"])
-            
+
         # 2. Save structured management guidance items
         if output_dict.get("management_guidance_items"):
             database.save_management_guidance_items(clean_sym, output_dict["management_guidance_items"])
-            
+
         # 3. Save full institutional analysis
         database.save_ai_analysis(
             symbol=clean_sym,
@@ -1157,13 +1236,13 @@ def run_multi_document_ai_pipeline(
             model_version=output_dict.get("model_version", "gemini-3.6-flash"),
             source_docs_count=len(candidate_docs)
         )
-        
+
         # Save legacy JSON file for backward-compatibility
         out_file = GENERATED_DIR / f"{clean_sym}.json"
         with open(out_file, "w", encoding="utf-8") as f:
             json.dump(output_dict, f, indent=2)
         print(f"  ✓ Saved multi-document AI extracted intelligence to SQLite & {out_file}")
-        
+
     return output_dict
 
 def run_generic_document_pipeline(
@@ -1182,5 +1261,5 @@ def run_generic_document_pipeline(
     )
     if older_doc_url:
         docs.annual_reports.append(DocumentItem(title=older_doc_title or "Baseline Doc", url=older_doc_url, doc_type="annual_report"))
-        
+
     return run_multi_document_ai_pipeline(symbol, company_name, docs, save_output=save_output)
