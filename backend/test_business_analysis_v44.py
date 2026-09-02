@@ -773,6 +773,52 @@ class TestBusinessAnalysisV44(unittest.TestCase):
         self.assertNotEqual(res["status"], "Delivered")
         self.assertIn("Above Guidance Range", res["stocker_analysis"])
 
+    def test_range_parser_unit_tightening_and_year_guards(self):
+        """Range parser requires explicit metric units (%, bps, currency) and rejects bare year/period ranges."""
+        from financial_engine import parse_explicit_guidance_range
+        # 1. FY2025-2026 strategy -> NOT range guidance
+        self.assertIsNone(parse_explicit_guidance_range("FY2025-2026 corporate strategy"))
+        # 2. Annual Report 2025-26 -> NOT range guidance
+        self.assertIsNone(parse_explicit_guidance_range("Annual Report 2025-26"))
+        self.assertIsNone(parse_explicit_guidance_range("FY25-26 targets"))
+        # 3. NIM 4.2%-4.4% -> valid range
+        self.assertEqual(parse_explicit_guidance_range("NIM 4.2%-4.4%"), (4.2, 4.4, "%"))
+        self.assertEqual(parse_explicit_guidance_range("between 4.2% and 4.4%"), (4.2, 4.4, "%"))
+        # 4. Credit cost 80-100 bps -> valid range
+        self.assertEqual(parse_explicit_guidance_range("Credit cost 80-100 bps"), (80.0, 100.0, "bps"))
+        # Currency range
+        self.assertEqual(parse_explicit_guidance_range("Capex of ₹8,000–₹10,000 Cr"), (8000.0, 10000.0, "cr"))
+
+    def test_promise_vs_delivery_capex_below_range_not_automatically_delivered(self):
+        """Capex below guided range (₹6,000 Cr vs ₹8,000-₹10,000 Cr) is NOT automatically Delivered."""
+        item = {
+            "area": "Capital Expenditure",
+            "management_promise": "Targeted capex of ₹8,000–₹10,000 Cr in FY26",
+            "promised_in_period": "FY25",
+            "actual_outcome": "Reported capex was ₹6,000 Cr in FY26",
+            "actual_in_period": "FY26",
+            "source_url_promise": "https://bse.com/ar25.pdf",
+            "source_url_actual": "https://bse.com/ar26.pdf"
+        }
+        res = verify_promise_vs_delivery_item(item, pl_stmt=None, quarters_stmt=None, current_year=2026.5)
+        self.assertNotEqual(res["status"], "Delivered")
+        self.assertIn("Below Guidance Range", res["stocker_analysis"])
+
+    def test_promise_vs_delivery_credit_cost_below_range_favorable_delivered(self):
+        """Credit cost below range (0.60% vs 0.8%-1.0%) is deterministically favorable (Delivered)."""
+        item = {
+            "area": "Credit Cost Guidance",
+            "management_promise": "Credit cost expected 0.8% - 1.0% in FY26",
+            "promised_in_period": "FY25",
+            "actual_outcome": "Reported credit cost of 0.60% in FY26",
+            "actual_in_period": "FY26",
+            "source_url_promise": "https://bse.com/ar25.pdf",
+            "source_url_actual": "https://bse.com/ar26.pdf"
+        }
+        res = verify_promise_vs_delivery_item(item, pl_stmt=None, quarters_stmt=None, current_year=2026.5)
+        self.assertEqual(res["status"], "Delivered")
+        self.assertIn("Favorable Below Range", res["stocker_analysis"])
+
     def test_promise_vs_delivery_range_cost_metric_above_range_missed(self):
         """Credit Cost range 0.8% - 1.0% with 1.20% actual is MISSED (unfavorable cost overrun)."""
         item = {

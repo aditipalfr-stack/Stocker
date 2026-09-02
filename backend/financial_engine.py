@@ -1,4 +1,4 @@
-from typing import Dict, List, Any, Optional
+from typing import Dict, List, Any, Optional, Tuple
 import math
 import re
 from models import FinancialStatement, FinancialRow
@@ -968,6 +968,50 @@ def parse_filing_period_to_year(period_str: Optional[str]) -> Optional[float]:
 
     return None
 
+def parse_explicit_guidance_range(text: str) -> Optional[Tuple[float, float, str]]:
+    """
+    Parses explicit management guidance ranges.
+    Returns (min_val, max_val, unit) or None.
+    Supported units: '%', 'bps', 'cr' (or other currency amounts).
+    Strictly guards against fiscal year and date ranges (e.g. '2025-26', 'FY2025-2026').
+    """
+    if not text:
+        return None
+    s = text.lower().strip()
+    
+    # 1. Strip out pure year/period ranges e.g. FY2025-26, 2025-2026, FY25-FY26, 2025-26
+    s_clean = re.sub(r'\b(?:fy\s*)?20\d\d\s*[-–/]\s*(?:20\d\d|\d{2})\b', '', s)
+    s_clean = re.sub(r'\bfy\s*\d{2}\s*[-–/]\s*\d{2}\b', '', s_clean)
+
+    # 2. Basis points range: e.g. '80-100 bps', '80 to 100 bps', 'between 80 and 100 bps'
+    m_bps = re.search(r'(?:between\s+)?(\d+(?:\.\d+)?)\s*(?:bps)?\s*(?:to|-|and|–)\s*(\d+(?:\.\d+)?)\s*bps\b', s_clean)
+    if m_bps:
+        v1, v2 = float(m_bps.group(1)), float(m_bps.group(2))
+        return (min(v1, v2), max(v1, v2), 'bps')
+
+    # 3. Percentage range: e.g. '4.2% - 4.4%', '4.2 to 4.4%', 'between 4.2% and 4.4%'
+    m_pct = re.search(r'(?:between\s+)?(\d+(?:\.\d+)?)\s*%\s*(?:to|-|and|–)\s*(\d+(?:\.\d+)?)\s*%', s_clean)
+    if not m_pct:
+        m_pct = re.search(r'(?:between\s+)?(\d+(?:\.\d+)?)\s*(?:to|-|and|–)\s*(\d+(?:\.\d+)?)\s*%', s_clean)
+    if m_pct:
+        v1, v2 = float(m_pct.group(1)), float(m_pct.group(2))
+        # Extra guard: percentage guidance values should not be 4-digit years (> 1900)
+        if v1 < 1000 and v2 < 1000:
+            return (min(v1, v2), max(v1, v2), '%')
+
+    # 4. Explicit Currency / Amount Range: e.g. '₹8,000–₹10,000 Cr', '8,000 - 10,000 crore'
+    m_curr = re.search(r'(?:₹|rs\.?|inr)?\s*([\d,]+(?:\.\d+)?)\s*(?:cr|crore|billion|lakh)?\s*(?:to|-|and|–)\s*(?:₹|rs\.?|inr)?\s*([\d,]+(?:\.\d+)?)\s*(cr|crore|billion|lakh)\b', s_clean)
+    if m_curr:
+        try:
+            v1 = float(m_curr.group(1).replace(',', ''))
+            v2 = float(m_curr.group(2).replace(',', ''))
+            unit = m_curr.group(3).lower()
+            return (min(v1, v2), max(v1, v2), unit)
+        except ValueError:
+            pass
+
+    return None
+
 def verify_promise_vs_delivery_item(
     item: Dict[str, Any],
     pl_stmt: Optional[Any] = None,
@@ -1086,9 +1130,8 @@ def verify_promise_vs_delivery_item(
     y_sales = _extract_metric_dict(pl_stmt, "Sales") or _extract_metric_dict(pl_stmt, "Revenue")
     y_opm = _extract_metric_dict(pl_stmt, "OPM %") or _extract_metric_dict(pl_stmt, "OPM")
 
-    # 6. Check Range Target (e.g. "between 4.2% and 4.4%", "4.2% - 4.4%", "4.2 to 4.4%")
-    m_range = re.search(r'(\d+(?:\.\d+)?)\s*(?:%|bps)?\s*(?:to|-|and|–)\s*(\d+(?:\.\d+)?)\s*(%|bps)?', prom_lower)
-    # Check Point Target (e.g. "10% growth", "15% revenue growth", "target of 10%")
+    # 6. Check Range Target (Requires explicit unit %, bps, or currency; rejects bare year pairs)
+    range_parsed = parse_explicit_guidance_range(prom_lower)
     m_growth = re.search(r'(\d+(?:\.\d+)?)\s*%\s*(?:revenue|sales|growth|cagr|margin|loan|deposit|advances)', prom_lower)
 
     outcome_text = f"{item.get('actual_outcome', '')} {item.get('actual_quote', '')}"
@@ -1099,48 +1142,72 @@ def verify_promise_vs_delivery_item(
         "in line with guidance trajectory", "ahead of schedule"
     ])
 
-    if m_range and not m_growth:
-        r_min = float(m_range.group(1))
-        r_max = float(m_range.group(2))
-        if r_min > r_max:
-            r_min, r_max = r_max, r_min
+    if range_parsed and not m_growth:
+        r_min, r_max, r_unit = range_parsed
+        unit_label = "%" if r_unit == "%" else (f" {r_unit}" if r_unit != "%" else "")
         
-        # Check if actual outcome quotes a value
-        m_act_val = re.search(r'(\d+(?:\.\d+)?)\s*%', outcome_text)
-        if m_act_val:
-            act_v = float(m_act_val.group(1))
-            res["financial_numbers_check"] = f"Guided Range: {r_min}%–{r_max}%; Reported: {act_v}%."
+        # Extract reported number from outcome
+        act_v = None
+        if r_unit == "%":
+            m_act = re.search(r'(\d+(?:\.\d+)?)\s*%', outcome_text)
+            if m_act:
+                act_v = float(m_act.group(1))
+        elif r_unit == "bps":
+            m_act_bps = re.search(r'(\d+(?:\.\d+)?)\s*bps\b', outcome_text)
+            if m_act_bps:
+                act_v = float(m_act_bps.group(1))
+            else:
+                m_act_pct = re.search(r'(\d+(?:\.\d+)?)\s*%', outcome_text)
+                if m_act_pct:
+                    act_v = float(m_act_pct.group(1)) * 100.0
+        else: # Currency e.g. cr, crore
+            m_act_curr = re.search(r'(?:₹|rs\.?|inr)?\s*([\d,]+(?:\.\d+)?)\s*(?:cr|crore|billion|lakh)?', outcome_text)
+            if m_act_curr and m_act_curr.group(1):
+                try:
+                    act_v = float(m_act_curr.group(1).replace(',', ''))
+                except ValueError:
+                    pass
+
+        if act_v is not None:
+            res["financial_numbers_check"] = f"Guided Range: {r_min}{unit_label}–{r_max}{unit_label}; Reported: {act_v}{unit_label}."
             
-            is_cost_or_risk_metric = any(kw in prom_lower for kw in [
-                "credit cost", "cost of risk", "npa", "gnpa", "nnpa", "slippage",
-                "cost-to-income", "cost to income", "opex", "expense", "debt", "leverage", "capex"
+            is_unambiguous_lower_better = any(kw in prom_lower for kw in [
+                "credit cost", "cost of risk", "gross npa", "gnpa", "net npa", "nnpa", "slippage",
+                "cost-to-income", "cost to income"
             ])
+            is_capex = any(kw in prom_lower for kw in ["capex", "capital expenditure", "outlay", "plant investment"])
             
             if target_yr is not None and target_yr > curr_yr:
                 if has_milestone_on_track:
                     res["status"] = "On Track"
-                    res["stocker_analysis"] = f"Interim Progress On Track: Stated target range ({r_min}%–{r_max}%) matures in the future ({target_yr:.0f}); interim execution remains on schedule."
+                    res["stocker_analysis"] = f"Interim Progress On Track: Stated target range ({r_min}{unit_label}–{r_max}{unit_label}) matures in the future ({target_yr:.0f}); interim execution remains on schedule."
                 else:
                     res["status"] = "Not Yet Measurable"
-                    res["stocker_analysis"] = f"Future Target: Stated range ({r_min}%–{r_max}%) matures in {target_timeline or f'FY{int(target_yr)}'}."
+                    res["stocker_analysis"] = f"Future Target: Stated range ({r_min}{unit_label}–{r_max}{unit_label}) matures in {target_timeline or f'FY{int(target_yr)}'}."
             elif r_min <= act_v <= r_max:
                 res["status"] = "Delivered"
-                res["stocker_analysis"] = f"Within Guidance Range: Reported {act_v}% fell within management guided range of {r_min}% to {r_max}%."
+                res["stocker_analysis"] = f"Within Guidance Range: Reported {act_v}{unit_label} fell within management guided range of {r_min}{unit_label} to {r_max}{unit_label}."
             elif act_v < r_min:
-                if is_cost_or_risk_metric:
+                if is_unambiguous_lower_better:
                     res["status"] = "Delivered"
-                    res["stocker_analysis"] = f"Favorable Below Range: Reported {act_v}% improved below guided cost/risk minimum of {r_min}%."
+                    res["stocker_analysis"] = f"Favorable Below Range: Reported {act_v}{unit_label} improved below guided maximum/corridor ({r_min}{unit_label}–{r_max}{unit_label})."
+                elif is_capex:
+                    res["status"] = "Not Enough Evidence"
+                    res["stocker_analysis"] = f"Below Guidance Range: Reported capex of {act_v}{unit_label} was below guided range ({r_min}{unit_label}–{r_max}{unit_label}). Lower capex may reflect project delays, scope revisions, or capital discipline and is not automatically classified as delivered."
                 else:
                     res["status"] = "Missed"
-                    res["stocker_analysis"] = f"Below Guidance Range: Reported {act_v}% fell below guided range minimum of {r_min}%."
+                    res["stocker_analysis"] = f"Below Guidance Range: Reported {act_v}{unit_label} fell below guided range minimum of {r_min}{unit_label}."
             else:  # act_v > r_max
-                if is_cost_or_risk_metric:
+                if is_unambiguous_lower_better:
                     res["status"] = "Missed"
-                    res["stocker_analysis"] = f"Above Guidance Range (Unfavorable): Reported {act_v}% exceeded guided upper limit of {r_max}% for cost/risk metric."
+                    res["stocker_analysis"] = f"Above Guidance Range (Unfavorable): Reported {act_v}{unit_label} exceeded guided upper limit of {r_max}{unit_label}."
+                elif is_capex:
+                    res["status"] = "Not Enough Evidence"
+                    res["stocker_analysis"] = f"Above Guidance Range: Reported capex of {act_v}{unit_label} exceeded guided range ({r_min}{unit_label}–{r_max}{unit_label}). Higher capex may reflect accelerated expansion or cost overruns."
                 else:
                     # Going above an explicit upper bound is NOT automatically Delivered unless explicitly directionally known
                     res["status"] = "Not Enough Evidence"
-                    res["stocker_analysis"] = f"Above Guidance Range: Reported {act_v}% exceeded upper limit of guided range ({r_min}%–{r_max}%). Guidance was bounded; higher outcome reported without deterministic directional classification."
+                    res["stocker_analysis"] = f"Above Guidance Range: Reported {act_v}{unit_label} exceeded upper limit of guided range ({r_min}{unit_label}–{r_max}{unit_label}). Guidance was bounded; higher outcome reported without deterministic directional classification."
             return res
 
     if m_growth:
