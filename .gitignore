@@ -28,4 +28,6 @@ backend/data/doc_intelligence_generated/
 *.db-wal
 *.db-shm
 
-
+# Build Outputs
+dist/
+frontend/dist/
