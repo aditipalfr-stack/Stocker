@@ -166,7 +166,7 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
           </div>
 
           <div className="p-3.5 rounded-2xl bg-slate-950/60 border border-slate-800">
-            <span className="text-xs text-slate-400 font-medium"><ConceptHelp term="fcf" label="Top FCF Yield" /></span>
+            <span className="text-xs text-slate-400 font-medium"><ConceptHelp term="fcf_yield" label="Top FCF Yield" /></span>
             <div className="text-xl font-bold text-primary mt-0.5">
               {formatPercent(highestFcfYieldStock?.fcf_yield_pct)}
             </div>
@@ -376,7 +376,7 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
                 </th>
                 <th {...sortHeaderProps('fcf_yield_pct')}>
                   <div className="flex items-center gap-1">
-                    <ConceptHelp term="fcf" label="FCF Yield" />
+                    <ConceptHelp term="fcf_yield" label="FCF Yield" />
                     {sortIndicator('fcf_yield_pct')}
                   </div>
                 </th>

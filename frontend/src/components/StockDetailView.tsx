@@ -774,21 +774,21 @@ export const StockDetailView: React.FC<StockDetailViewProps> = ({
         {/* 8 Primary Financial Ratio Cards */}
         <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-3 font-mono">
           <div className="bg-slate-950/60 p-3 rounded-xl border border-slate-800/80 text-center">
-            <span className="text-[10px] text-slate-500 uppercase font-sans block"><ConceptHelp term="pe" label="Stock P/E" /></span>
+            <span className="text-[10px] text-slate-500 uppercase font-sans block"><ConceptHelp term="pe" label="Stock P/E" businessModel={businessModel} sector={stock.sector} industry={stock.industry} /></span>
             <span className="text-sm font-bold text-slate-100">{formatMultiple(stock.ratios.stock_pe)}</span>
           </div>
           <div className="bg-slate-950/60 p-3 rounded-xl border border-slate-800/80 text-center">
-            <span className="text-[10px] text-slate-500 uppercase font-sans block"><ConceptHelp term="roce" label="ROCE" /></span>
+            <span className="text-[10px] text-slate-500 uppercase font-sans block"><ConceptHelp term="roce" label="ROCE" businessModel={businessModel} sector={stock.sector} industry={stock.industry} /></span>
             <span className="text-sm font-bold text-emerald-400">{formatPercent(stock.ratios.roce_pct)}</span>
           </div>
           <div className="bg-slate-950/60 p-3 rounded-xl border border-slate-800/80 text-center">
-            <span className="text-[10px] text-slate-500 uppercase font-sans block"><ConceptHelp term="roe" label="ROE" /></span>
+            <span className="text-[10px] text-slate-500 uppercase font-sans block"><ConceptHelp term="roe" label="ROE" businessModel={businessModel} sector={stock.sector} industry={stock.industry} /></span>
             <span className="text-sm font-bold text-cyan-400">{formatPercent(stock.ratios.roe_pct)}</span>
           </div>
           <div className="bg-slate-950/60 p-3 rounded-xl border border-slate-800/80 text-center relative group">
             <div className="flex items-center justify-center gap-1">
               <span className="text-[10px] text-slate-500 uppercase font-sans block">
-                <ConceptHelp term="fcf" label="FCF Yield" businessModel={businessModel} onCalculationDetails={() => setSelectedFormulaKey('free_cash_flow')} />
+                <ConceptHelp term="fcf_yield" label="FCF Yield" businessModel={businessModel} sector={stock.sector} industry={stock.industry} onCalculationDetails={() => setSelectedFormulaKey('free_cash_flow')} />
               </span>
             </div>
             <span className="text-sm font-bold text-teal-400">{formatPercent(stock.ratios.fcf_yield_pct)}</span>
@@ -796,7 +796,7 @@ export const StockDetailView: React.FC<StockDetailViewProps> = ({
           <div className="bg-slate-950/60 p-3 rounded-xl border border-slate-800/80 text-center relative group">
             <div className="flex items-center justify-center gap-1">
               <span className="text-[10px] text-slate-500 uppercase font-sans block">
-                <ConceptHelp term="sales_cagr" label="3Y Sales CAGR" onCalculationDetails={() => setSelectedFormulaKey('sales_cagr_3yr')} />
+                <ConceptHelp term="sales_cagr" label="3Y Sales CAGR" businessModel={businessModel} sector={stock.sector} industry={stock.industry} onCalculationDetails={() => setSelectedFormulaKey('sales_cagr_3yr')} />
               </span>
             </div>
             <span className="text-sm font-bold text-slate-100">
@@ -806,7 +806,7 @@ export const StockDetailView: React.FC<StockDetailViewProps> = ({
           <div className="bg-slate-950/60 p-3 rounded-xl border border-slate-800/80 text-center relative group">
             <div className="flex items-center justify-center gap-1">
               <span className="text-[10px] text-slate-500 uppercase font-sans block">
-                <ConceptHelp term="cfo_pat" label="CFO / PAT (5Y)" businessModel={businessModel} onCalculationDetails={() => setSelectedFormulaKey('cfo_to_pat_5yr')} />
+                <ConceptHelp term="cfo_pat" label="CFO / PAT (5Y)" businessModel={businessModel} sector={stock.sector} industry={stock.industry} onCalculationDetails={() => setSelectedFormulaKey('cfo_to_pat_5yr')} />
               </span>
             </div>
             <span className="text-sm font-bold text-emerald-400">
@@ -816,13 +816,13 @@ export const StockDetailView: React.FC<StockDetailViewProps> = ({
           <div className="bg-slate-950/60 p-3 rounded-xl border border-slate-800/80 text-center relative group">
             <div className="flex items-center justify-center gap-1">
               <span className="text-[10px] text-slate-500 uppercase font-sans block">
-                <ConceptHelp term="debt_equity" label="Debt / Equity" onCalculationDetails={() => setSelectedFormulaKey('debt_to_equity')} />
+                <ConceptHelp term="debt_equity" label="Debt / Equity" businessModel={businessModel} sector={stock.sector} industry={stock.industry} onCalculationDetails={() => setSelectedFormulaKey('debt_to_equity')} />
               </span>
             </div>
             <span className="text-sm font-bold text-slate-100">{isFiniteNumber(stock.ratios.debt_to_equity) ? `${stock.ratios.debt_to_equity}x` : '—'}</span>
           </div>
           <div className="bg-slate-950/60 p-3 rounded-xl border border-slate-800/80 text-center">
-            <span className="text-[10px] text-slate-500 uppercase font-sans block">Div Yield</span>
+            <span className="text-[10px] text-slate-500 uppercase font-sans block"><ConceptHelp term="dividend_yield" label="Div Yield" businessModel={businessModel} sector={stock.sector} industry={stock.industry} /></span>
             <span className="text-sm font-bold text-slate-100">{formatPercent(stock.ratios.dividend_yield_pct)}</span>
           </div>
         </div>
@@ -938,11 +938,13 @@ export const StockDetailView: React.FC<StockDetailViewProps> = ({
                         term="deposits"
                         label={`Deposits: ${formatCrores(bankDeposits)}${isFiniteNumber(bankDepositGrowthYoY) ? ` (${bankDepositGrowthYoY > 0 ? '+' : ''}${bankDepositGrowthYoY}% YoY)` : ''}`}
                         businessModel={businessModel}
+                        sector={stock.sector}
+                        industry={stock.industry}
                       />
                     </span>
                   </div>
                   <p className="text-[11px] text-slate-400 leading-tight">
-                    <ConceptHelp term="cd_ratio" label={`CD Ratio: ${isFiniteNumber(bankCdRatio) ? `${bankCdRatio}%` : '—'}`} businessModel={businessModel} /> | <ConceptHelp term="roa" label={`ROA: ${isFiniteNumber(bankRoa) ? `${bankRoa}%` : '—'}`} businessModel={businessModel} /> | <ConceptHelp term="gnpa" label={`GNPA: ${formatPercent(bankGnpa)}`} businessModel={businessModel} />
+                    <ConceptHelp term="cd_ratio" label={`CD Ratio: ${isFiniteNumber(bankCdRatio) ? `${bankCdRatio}%` : '—'}`} businessModel={businessModel} sector={stock.sector} industry={stock.industry} /> | <ConceptHelp term="roa" label={`ROA: ${isFiniteNumber(bankRoa) ? `${bankRoa}%` : '—'}`} businessModel={businessModel} sector={stock.sector} industry={stock.industry} /> | <ConceptHelp term="gnpa" label={`GNPA: ${formatPercent(bankGnpa)}`} businessModel={businessModel} sector={stock.sector} industry={stock.industry} />
                   </p>
                 </div>
               </>
@@ -1514,12 +1516,12 @@ export const StockDetailView: React.FC<StockDetailViewProps> = ({
             </div>
           </div>
 
-          <StatementSummaryStrip items={statementSummary} businessModel={businessModel} />
+          <StatementSummaryStrip items={statementSummary} businessModel={businessModel} sector={stock.sector} industry={stock.industry} />
 
           {/* Render selected statement */}
-          {financialSubTab === 'quarters' && <FinancialStatementTable statement={stock.quarters} statementKind="quarterly" businessModel={businessModel} />}
-          {financialSubTab === 'pl' && <FinancialStatementTable statement={stock.profit_loss} statementKind="annual_flow" businessModel={businessModel} />}
-          {financialSubTab === 'balance_sheet' && <FinancialStatementTable statement={stock.balance_sheet} statementKind="balance_sheet" businessModel={businessModel} />}
+          {financialSubTab === 'quarters' && <FinancialStatementTable statement={stock.quarters} statementKind="quarterly" businessModel={businessModel} sector={stock.sector} industry={stock.industry} />}
+          {financialSubTab === 'pl' && <FinancialStatementTable statement={stock.profit_loss} statementKind="annual_flow" businessModel={businessModel} sector={stock.sector} industry={stock.industry} />}
+          {financialSubTab === 'balance_sheet' && <FinancialStatementTable statement={stock.balance_sheet} statementKind="balance_sheet" businessModel={businessModel} sector={stock.sector} industry={stock.industry} />}
           {financialSubTab === 'cash_flow' && (
             <div className="space-y-6">
               {isFinancialBusiness && (
@@ -1540,7 +1542,7 @@ export const StockDetailView: React.FC<StockDetailViewProps> = ({
                   <DataOriginBadge origin="reported_fact" />
                 </div>
                 <p className="text-[11px] text-slate-400">Company cash-flow rows standardized for consistent period-by-period reading.</p>
-                <FinancialStatementTable statement={stock.cash_flow} statementKind="cash_flow" businessModel={businessModel} />
+                <FinancialStatementTable statement={stock.cash_flow} statementKind="cash_flow" businessModel={businessModel} sector={stock.sector} industry={stock.industry} />
               </section>
 
               {/* Free Cash Flow Reconciliation & Capex Methodology Breakdown (General Corporate only) */}
@@ -1564,6 +1566,8 @@ export const StockDetailView: React.FC<StockDetailViewProps> = ({
                     <StockerCashFlowAnalysisTable
                       trends={stock.analytics.cash_flow_quality.fcf_trends}
                       businessModel={businessModel}
+                      sector={stock.sector}
+                      industry={stock.industry}
                       onCalculationDetails={() => setSelectedFormulaKey('free_cash_flow')}
                     />
                   </div>

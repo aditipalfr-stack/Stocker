@@ -214,7 +214,7 @@ export const StockComparison: React.FC<StockComparisonProps> = ({
 
             {/* FCF Yield */}
             <tr className="hover:bg-slate-900/50">
-              <td className="py-3 px-4 sticky left-0 bg-slate-950 font-sans text-slate-400"><ConceptHelp term="fcf" label="FCF Yield %" /></td>
+              <td className="py-3 px-4 sticky left-0 bg-slate-950 font-sans text-slate-400"><ConceptHelp term="fcf_yield" label="FCF Yield %" /></td>
               {comparisonData.map(item => (
                 <td key={item.symbol} className="py-3 px-6 text-center font-bold">
                   {directionalValue('fcf_yield_pct', item.fcf_yield_pct, formatPercent(item.fcf_yield_pct))}

@@ -1,4 +1,4 @@
-export interface GlossaryItem {
+interface GlossarySeed {
   title: string;
   meaning: string;
   whyItMatters: string;
@@ -9,7 +9,54 @@ export interface GlossaryItem {
   aliases?: string[];
 }
 
-const glossaryData = {
+export interface FormulaInput {
+  label: string;
+  meaning: string;
+}
+
+export interface PracticalExample {
+  inputs: string[];
+  calculation: string;
+  takeaway: string;
+}
+
+export type SectorApplicability = 'BANK' | 'NBFC_LENDER' | 'INSURANCE' | 'OTHER_FINANCIAL' | 'FINANCIAL_BUSINESS' | 'MANUFACTURING' | 'ASSET_LIGHT' | 'ALL';
+
+export interface SectorNote {
+  context: string;
+  note: string;
+  appliesTo?: SectorApplicability[];
+}
+
+export interface FinancialConceptGuide {
+  term: string;
+  title: string;
+  shortLabel: string;
+  plainEnglish: string;
+  whyItMatters: string;
+  formula?: string;
+  formulaInputs?: FormulaInput[];
+  interpretation: string[];
+  practicalExample?: PracticalExample;
+  commonMistake?: string;
+  sectorNotes?: SectorNote[];
+  stockerUsage: string;
+  relatedTerms?: string[];
+  userAction?: string;
+  aliases?: string[];
+  /** Compatibility aliases for the existing status and provenance surfaces. */
+  meaning: string;
+  howStockerUses?: string;
+  financialBusinessNote?: string;
+}
+
+type GuideEnhancement = Partial<Pick<
+  FinancialConceptGuide,
+  'shortLabel' | 'plainEnglish' | 'formula' | 'formulaInputs' | 'interpretation' |
+  'practicalExample' | 'commonMistake' | 'sectorNotes' | 'stockerUsage' | 'relatedTerms'
+>>;
+
+const glossarySeeds = {
   revenue: {
     title: 'Revenue',
     meaning: 'The income earned from selling goods or services before expenses are deducted.',
@@ -57,6 +104,13 @@ const glossaryData = {
     whyItMatters: 'It helps separate operating performance from financing and tax effects.',
     howStockerUses: 'Stocker preserves the source row and uses exact reported periods for operating trend analysis.',
     aliases: ['EBIT', 'operating earnings']
+  },
+  ebit: {
+    title: 'EBIT',
+    meaning: 'Earnings before interest and tax: operating profit after depreciation and amortisation, before financing and tax.',
+    whyItMatters: 'It shows operating earnings after charging for the use of long-lived assets and is often used in return and coverage ratios.',
+    howStockerUses: 'Stocker explains EBIT where a metric calls for it, but preserves the source statement’s own Operating Profit or EBITDA label rather than silently treating them as identical.',
+    aliases: ['earnings before interest and tax']
   },
   other_income: {
     title: 'Other Income',
@@ -124,7 +178,7 @@ const glossaryData = {
     title: 'QoQ',
     meaning: 'Quarter-on-quarter compares a result with the immediately previous quarter.',
     whyItMatters: 'It highlights recent momentum, but seasonal businesses should be judged carefully.',
-    formula: '(Current quarter ÷ Previous quarter − 1) × 100',
+    formula: '(Current quarter − Previous quarter) ÷ |Previous quarter| × 100',
     howStockerUses: 'Stocker calculates QoQ only when the exact immediately preceding quarter exists; it never substitutes a nearby period.',
     aliases: ['quarter on quarter']
   },
@@ -132,7 +186,7 @@ const glossaryData = {
     title: 'YoY',
     meaning: 'Year-on-year compares a period with the same period one year earlier.',
     whyItMatters: 'It reduces seasonal distortion and shows how the business changed over a full year.',
-    formula: '(Current period ÷ Same period last year − 1) × 100',
+    formula: '(Current period − Same period last year) ÷ |Same period last year| × 100',
     howStockerUses: 'Stocker requires the exact same fiscal quarter one year earlier.',
     aliases: ['year on year']
   },
@@ -206,6 +260,15 @@ const glossaryData = {
     financialBusinessNote: 'Industrial free-cash-flow logic is not applied to banks or other financial businesses; their operating cash and regulatory capital economics are different.',
     aliases: ['free cash flow', 'FCF yield']
   },
+  fcf_yield: {
+    title: 'FCF Yield',
+    meaning: 'Free cash flow expressed as a percentage of the company’s equity market value.',
+    whyItMatters: 'It connects cash generation with the price investors currently pay, but depends heavily on the quality and sustainability of FCF.',
+    formula: 'Free cash flow ÷ market capitalisation × 100',
+    howStockerUses: 'Stocker displays this ratio only when it is provided in the supported ratio data; the current frontend does not derive it from a mismatched FCF period and live market cap.',
+    financialBusinessNote: 'Corporate FCF yield is not a primary bank valuation metric.',
+    aliases: ['free cash flow yield']
+  },
   capex: {
     title: 'Capex',
     meaning: 'Money spent to buy, build, or improve long-term assets such as plants and equipment.',
@@ -228,6 +291,15 @@ const glossaryData = {
     whyItMatters: 'It shows how much financial leverage the company uses and how exposed it may be to debt risk.',
     formula: 'Total borrowings ÷ Shareholders’ equity',
     aliases: ['D/E', 'debt to equity']
+  },
+  interest_coverage: {
+    title: 'Interest Coverage',
+    meaning: 'The number of times operating earnings cover the period’s interest cost.',
+    whyItMatters: 'It helps show how much operating-profit cushion exists before lenders’ interest claims become difficult to meet.',
+    formula: 'EBIT ÷ Interest expense',
+    howStockerUses: 'Stocker displays the standardized ratio when supplied by the financial source; it does not currently recompute this ratio in frontend analytics.',
+    financialBusinessNote: 'Not a primary bank metric: interest is a core operating input for banks rather than simply a corporate financing charge.',
+    aliases: ['times interest earned']
   },
   borrowings: {
     title: 'Borrowings',
@@ -410,6 +482,22 @@ const glossaryData = {
     howStockerUses: 'Stocker calculates this ratio only when explicit bank operating expenses and complete net income items are present.',
     aliases: ['cost to income ratio', 'cost income ratio']
   },
+  capital_adequacy: {
+    title: 'Capital Adequacy Ratio',
+    meaning: 'A bank’s eligible regulatory capital measured against risk-weighted assets.',
+    whyItMatters: 'It indicates the regulatory loss-absorbing cushion supporting the bank’s risk-taking and growth.',
+    formula: 'Eligible regulatory capital ÷ Risk-weighted assets × 100',
+    howStockerUses: 'Stocker explains an explicitly reported capital-adequacy row when present; the current bank engine does not derive it from balance-sheet totals.',
+    aliases: ['CAR', 'CRAR', 'capital to risk-weighted assets ratio']
+  },
+  cet1: {
+    title: 'CET1 Ratio',
+    meaning: 'A bank’s highest-quality common equity capital measured against risk-weighted assets.',
+    whyItMatters: 'It focuses on the capital most readily available to absorb losses while the bank remains operating.',
+    formula: 'Common Equity Tier 1 capital ÷ Risk-weighted assets × 100',
+    howStockerUses: 'Stocker explains an explicitly reported CET1 ratio when present; it does not estimate regulatory adjustments or risk-weighted assets.',
+    aliases: ['common equity tier 1', 'CET 1']
+  },
   roce: {
     title: 'ROCE',
     meaning: 'Return on capital employed measures operating returns from the long-term capital in the business.',
@@ -423,6 +511,33 @@ const glossaryData = {
     meaning: 'Short-term money tied up in day-to-day operations, such as inventory and customer dues.',
     whyItMatters: 'Rapidly rising working capital can consume cash even when reported profit is growing.',
     aliases: ['net working capital']
+  },
+  current_ratio: {
+    title: 'Current Ratio',
+    meaning: 'A snapshot of current assets available for each rupee of current liabilities.',
+    whyItMatters: 'It is one liquidity clue for normal corporates, but the quality and timing of inventory, receivables and payables matter.',
+    formula: 'Current assets ÷ Current liabilities',
+    howStockerUses: 'Stocker explains this ratio when exposed by a source row; it is not currently a core Stocker-calculated analytics output.',
+    financialBusinessNote: 'Not a primary bank liquidity metric; banks are better assessed with regulatory and funding-liquidity measures.',
+    aliases: ['working capital ratio']
+  },
+  net_profit_margin: {
+    title: 'Net Profit Margin',
+    meaning: 'The share of revenue left as profit after operating costs, interest and tax.',
+    whyItMatters: 'It links bottom-line profit to business scale and helps separate growth from profitability.',
+    formula: 'PAT ÷ Revenue × 100',
+    howStockerUses: 'For general corporates, Stocker’s DuPont analysis calculates latest completed-FY PAT divided by same-period revenue when both are positive and available.',
+    financialBusinessNote: 'Not a primary profitability ratio for banks; Stocker emphasizes ROA, ROE, NIM, asset quality and operating efficiency.',
+    aliases: ['PAT margin', 'net margin']
+  },
+  asset_turnover: {
+    title: 'Asset Turnover',
+    meaning: 'The amount of revenue generated for each rupee of assets used by the business.',
+    whyItMatters: 'It shows whether an asset base is being used productively and is one driver of ROE in DuPont analysis.',
+    formula: 'Revenue ÷ Total assets',
+    howStockerUses: 'For general corporates, Stocker divides latest completed-FY revenue by the matching latest total-assets balance; it does not substitute a missing balance with zero.',
+    financialBusinessNote: 'Not a primary bank efficiency metric because financial assets are the bank’s revenue-producing inventory; Stocker uses bank ROA instead.',
+    aliases: ['total asset turnover']
   },
   receivables: {
     title: 'Receivables',
@@ -443,6 +558,47 @@ const glossaryData = {
     formula: 'Share price ÷ Earnings per share',
     howStockerUses: 'Stocker displays current P/E and may use a separately labelled exit P/E as a scenario assumption.',
     aliases: ['price earnings', 'PE ratio']
+  },
+  pb: {
+    title: 'P/B',
+    meaning: 'Price-to-book compares the market price of one share with its accounting book value per share.',
+    whyItMatters: 'It shows how the market values the equity base, but asset quality and sustainable returns determine whether a high or low multiple is justified.',
+    formula: 'Share price ÷ Book value per share',
+    howStockerUses: 'Stocker can explain P/B where it is exposed, but the current core overview does not calculate a separate P/B value.',
+    aliases: ['price to book', 'price book ratio']
+  },
+  ev_ebitda: {
+    title: 'EV/EBITDA',
+    meaning: 'A whole-business valuation multiple comparing enterprise value with EBITDA.',
+    whyItMatters: 'It helps compare operating businesses with different mixes of debt and equity, while still ignoring capex and working-capital needs.',
+    formula: 'Enterprise value ÷ EBITDA',
+    howStockerUses: 'Stocker explains EV/EBITDA when exposed; it is not currently a core Stocker-calculated analytics output.',
+    financialBusinessNote: 'Usually not a primary bank valuation metric because debt and interest are part of bank operations.',
+    aliases: ['enterprise value to EBITDA']
+  },
+  dividend_yield: {
+    title: 'Dividend Yield',
+    meaning: 'Annual dividend per share expressed as a percentage of the current share price.',
+    whyItMatters: 'It shows the cash distribution rate at today’s price, but says nothing by itself about sustainability or total return.',
+    formula: 'Annual dividend per share ÷ Share price × 100',
+    howStockerUses: 'Stocker displays the standardized current dividend-yield ratio supplied with market data.',
+    aliases: ['dividend yield %']
+  },
+  revenue_growth: {
+    title: 'Revenue Growth',
+    meaning: 'The percentage change in sales between two exactly comparable periods.',
+    whyItMatters: 'It shows expansion or contraction in business scale, but growth is valuable only when economics, cash generation and capital needs also make sense.',
+    formula: '(Current revenue ÷ Comparable prior revenue − 1) × 100',
+    howStockerUses: 'Stocker calculates growth only from exact comparable periods and leaves the result unavailable when the required prior period is absent or unsuitable.',
+    aliases: ['sales growth']
+  },
+  profit_growth: {
+    title: 'Profit Growth',
+    meaning: 'The percentage change in PAT between two exactly comparable periods.',
+    whyItMatters: 'It shows how bottom-line earnings changed, but one-offs, tax, leverage and a weak comparison base can distort a single period.',
+    formula: '(Current PAT − Comparable prior PAT) ÷ |Comparable prior PAT| × 100',
+    howStockerUses: 'Stocker uses exact comparable PAT periods and fails closed when the prior value cannot support a meaningful percentage calculation.',
+    aliases: ['PAT growth', 'net profit growth']
   },
   dcf: {
     title: 'DCF',
@@ -522,6 +678,14 @@ const glossaryData = {
     whyItMatters: 'It helps investors judge management’s forecasting discipline and execution record.',
     aliases: ['execution track record']
   },
+  reported_fact: {
+    title: 'Reported Fact',
+    meaning: 'A number or statement presented by the company or another named source, rather than calculated or inferred by Stocker.',
+    whyItMatters: 'It separates source evidence from Stocker calculations and AI interpretation, while still requiring attention to period, scope and provenance.',
+    howStockerUses: 'Stocker labels reported inputs and retains their source and period so downstream calculations can be inspected.',
+    userAction: 'Check the source, reporting period and standalone/consolidated scope when the fact is decision-critical.',
+    aliases: ['reported data', 'source fact']
+  },
   stocker_calculation: {
     title: 'Stocker Calculation',
     meaning: 'A value calculated by Stocker from reported financial data using a defined formula.',
@@ -551,8 +715,8 @@ const glossaryData = {
     aliases: ['Screener standardized']
   },
   verified: {
-    title: 'Verified',
-    meaning: 'An exact comparable official filing value matched the standardized value within Stocker’s verification rules.',
+    title: 'Officially Verified',
+    meaning: 'An exact comparable official exchange-filing value matched the standardized value within Stocker’s verification rules.',
     whyItMatters: 'It provides stronger source agreement, but does not mean Stocker audited the company.',
     howStockerUses: 'Stocker records the compared values, period, scope, tolerance and official source.',
     userAction: 'No action is required. You can open the source details to inspect the official filing match.',
@@ -620,10 +784,834 @@ const glossaryData = {
     whyItMatters: 'Lower confidence means the conclusion needs more caution or better source evidence.',
     aliases: ['confidence score']
   }
-} satisfies Record<string, GlossaryItem>;
+} satisfies Record<string, GlossarySeed>;
 
-export type GlossaryTerm = keyof typeof glossaryData;
+export type GlossaryTerm = keyof typeof glossarySeeds;
 
-export const glossary: Record<GlossaryTerm, GlossaryItem> = glossaryData;
+const compareInContext = [
+  'Compare the latest value with the company’s own multi-year history.',
+  'Compare with companies that have a similar business model and sector economics.',
+  'Investigate what changed; one number is never a complete investment verdict.'
+];
 
-export const glossaryEntries = Object.entries(glossary) as Array<[GlossaryTerm, GlossaryItem]>;
+const nonBankFinancialFailClosedNote: SectorNote = {
+  context: 'NBFC, insurance and other financial businesses',
+  note: 'Stocker’s specialized bank engine runs only for businesses classified BANK. For this business model, use only explicitly reported sector disclosures; specialized derived analytics are not yet available.',
+  appliesTo: ['NBFC_LENDER', 'INSURANCE', 'OTHER_FINANCIAL']
+};
+
+const glossaryEnhancements: Partial<Record<GlossaryTerm, GuideEnhancement>> = {
+  revenue: {
+    shortLabel: 'Revenue / Sales',
+    plainEnglish: 'The money earned from customers before any expenses are deducted.',
+    interpretation: [
+      'Growing revenue can show rising demand, pricing or acquisitions—but growth alone is not automatically good.',
+      'Flat or falling revenue needs context: check volumes, prices, currency, disposals and industry cycles.',
+      'Prefer growth accompanied by stable or improving margins and cash conversion.'
+    ],
+    practicalExample: {
+      inputs: ['Prior-year revenue = ₹100 Cr', 'Current-year revenue = ₹120 Cr'],
+      calculation: '(₹120 Cr ÷ ₹100 Cr − 1) × 100 = 20% growth',
+      takeaway: 'The business sold 20% more in rupee terms; this does not yet tell us whether profit or cash improved.'
+    },
+    commonMistake: 'Treating revenue growth as value creation without checking margins, cash flow and the capital needed to produce it.',
+    relatedTerms: ['Revenue Growth', 'OPM', 'CFO']
+  },
+  expenses: {
+    plainEnglish: 'The costs charged against income during the period.',
+    interpretation: [
+      'Higher expenses are not automatically bad if revenue grows faster or the spending builds future capability.',
+      'Falling expenses are not automatically good if service, maintenance, talent or growth investment is being cut.',
+      'Read absolute cost changes with revenue growth and margin movement.'
+    ],
+    practicalExample: {
+      inputs: ['Revenue rises from ₹100 Cr to ₹130 Cr', 'Expenses rise from ₹80 Cr to ₹96 Cr'],
+      calculation: 'Operating surplus rises from ₹20 Cr to ₹34 Cr',
+      takeaway: 'Expenses increased, yet economics improved because revenue grew faster.'
+    },
+    commonMistake: 'Colouring every expense increase red without considering business scale, inflation or the return on that spending.'
+  },
+  operating_profit: {
+    shortLabel: 'Operating Profit',
+    interpretation: [
+      'Improving operating profit is useful when it comes from repeatable core operations.',
+      'Compare growth with revenue and OPM to separate scale from margin improvement.',
+      'Check the source label because some statements use Operating Profit as EBITDA while others use an EBIT-like definition.'
+    ],
+    commonMistake: 'Assuming every source defines “Operating Profit” identically.',
+    sectorNotes: [{ context: 'Banks', note: 'Industrial operating-profit and EBITDA concepts are not primary bank metrics.', appliesTo: ['BANK', 'FINANCIAL_BUSINESS'] }]
+  },
+  ebitda: {
+    plainEnglish: 'Core operating earnings before interest, tax, depreciation and amortisation.',
+    formula: 'Revenue − operating expenses excluding depreciation and amortisation',
+    formulaInputs: [
+      { label: 'Revenue', meaning: 'Income from the main business for the period.' },
+      { label: 'Eligible operating expenses', meaning: 'Core costs, excluding interest, tax, depreciation and amortisation.' }
+    ],
+    interpretation: [
+      'Rising EBITDA can reflect growth or stronger operating margins.',
+      'Compare EBITDA margin and cash flow; EBITDA is not cash available to shareholders.',
+      'Asset-heavy businesses may require large capex even when EBITDA looks strong.'
+    ],
+    practicalExample: {
+      inputs: ['Revenue = ₹100 Cr', 'Eligible operating expenses = ₹75 Cr'],
+      calculation: 'EBITDA = ₹100 Cr − ₹75 Cr = ₹25 Cr',
+      takeaway: 'The core business generated ₹25 Cr before financing, tax and non-cash asset charges.'
+    },
+    commonMistake: 'Calling EBITDA “cash flow”; it ignores working capital, interest, tax and capital expenditure.',
+    sectorNotes: [{ context: 'Banks', note: 'EBITDA is generally not a primary bank metric because interest is part of core operations.', appliesTo: ['BANK', 'FINANCIAL_BUSINESS'] }]
+  },
+  ebit: {
+    formula: 'EBITDA − depreciation − amortisation',
+    formulaInputs: [
+      { label: 'EBITDA', meaning: 'Operating earnings before non-cash asset-use charges.' },
+      { label: 'Depreciation and amortisation', meaning: 'The period’s accounting charge for using tangible and intangible assets.' }
+    ],
+    interpretation: ['Higher and improving EBIT can signal stronger operating economics.', 'Compare EBIT margin across history and close peers.', 'Check one-offs and whether maintenance capex is materially above depreciation.'],
+    practicalExample: {
+      inputs: ['EBITDA = ₹25 Cr', 'Depreciation and amortisation = ₹5 Cr'],
+      calculation: 'EBIT = ₹25 Cr − ₹5 Cr = ₹20 Cr',
+      takeaway: 'Operations earned ₹20 Cr after accounting for asset use, before interest and tax.'
+    },
+    commonMistake: 'Using EBITDA and EBIT interchangeably in formulas such as ROCE or interest coverage.',
+    sectorNotes: [{ context: 'Banks', note: 'Not a primary bank profit measure; bank income and funding costs are structured differently.', appliesTo: ['BANK', 'FINANCIAL_BUSINESS'] }]
+  },
+  opm: {
+    shortLabel: 'Operating Margin / OPM',
+    plainEnglish: 'How much operating profit remains from every ₹100 of sales.',
+    formulaInputs: [
+      { label: 'Operating profit', meaning: 'The source’s core operating-profit row for the same period.' },
+      { label: 'Sales', meaning: 'Revenue for that exact period.' }
+    ],
+    interpretation: ['A rising margin can reflect pricing, mix or operating leverage; a falling margin can reflect costs, pricing pressure or investment.', 'Compare the same margin definition over time and with same-sector peers.', 'Cyclical peaks and temporary cost cuts can make one period look unusually strong.'],
+    practicalExample: {
+      inputs: ['Sales = ₹100 Cr', 'Operating profit = ₹20 Cr'],
+      calculation: 'OPM = ₹20 Cr ÷ ₹100 Cr × 100 = 20%',
+      takeaway: '₹20 of operating profit remained for every ₹100 of sales.'
+    },
+    commonMistake: 'Comparing companies whose “operating profit” rows use different definitions.',
+    sectorNotes: [{ context: 'Banks', note: 'OPM is not a primary bank margin; use NIM and cost-to-income with asset-quality context.', appliesTo: ['BANK', 'FINANCIAL_BUSINESS'] }]
+  },
+  pbt: {
+    shortLabel: 'PBT',
+    formula: 'Operating and other income − operating costs − finance costs − depreciation/amortisation',
+    interpretation: ['Higher PBT is generally positive when recurring and supported by operations.', 'Compare PBT with EBIT to see the effect of financing.', 'Read unusual other income or exceptional items before extrapolating.'],
+    practicalExample: {
+      inputs: ['EBIT and other pre-finance income = ₹25 Cr', 'Finance cost = ₹5 Cr'],
+      calculation: 'PBT = ₹25 Cr − ₹5 Cr = ₹20 Cr',
+      takeaway: '₹20 Cr remained before income tax.'
+    },
+    commonMistake: 'Assuming PBT growth came from core operations when other income or exceptional items drove it.'
+  },
+  pat: {
+    shortLabel: 'PAT / Net Profit',
+    interpretation: ['Growing PAT is useful when it is repeatable and backed by cash.', 'Compare PAT growth with revenue growth and margins.', 'Check tax changes, other income, exceptional items and leverage before calling improvement structural.'],
+    practicalExample: {
+      inputs: ['PBT = ₹20 Cr', 'Tax = ₹5 Cr'],
+      calculation: 'PAT = ₹20 Cr − ₹5 Cr = ₹15 Cr',
+      takeaway: '₹15 Cr is the period’s bottom-line profit after tax.'
+    },
+    commonMistake: 'Treating one-off gains or an unusually low tax charge as recurring operating progress.',
+    relatedTerms: ['EPS', 'Net Profit Margin', 'CFO/PAT']
+  },
+  eps: {
+    shortLabel: 'EPS',
+    formulaInputs: [
+      { label: 'Profit attributable to equity holders', meaning: 'Profit belonging to ordinary shareholders after relevant adjustments.' },
+      { label: 'Weighted-average shares', meaning: 'Shares outstanding weighted for issuances, buybacks or splits during the period.' }
+    ],
+    interpretation: ['Rising EPS can reflect profit growth, buybacks or both.', 'Dilution can make EPS grow more slowly than total profit.', 'Negative or volatile EPS makes P/E difficult to interpret.'],
+    practicalExample: {
+      inputs: ['Profit attributable to shareholders = ₹100 Cr', 'Weighted-average shares = 10 Cr'],
+      calculation: 'EPS = ₹100 Cr ÷ 10 Cr shares = ₹10 per share',
+      takeaway: 'Each weighted-average share represents ₹10 of earnings.'
+    },
+    commonMistake: 'Using ending shares instead of weighted-average shares, or ignoring diluted EPS when options or convertibles matter.'
+  },
+  equity_capital: {
+    plainEnglish: 'The face-value amount of issued, paid-up shares shown in accounting equity—not the market value of those shares.',
+    interpretation: ['An increase can reflect new shares, conversions or employee plans.', 'A split can change share count and face value without creating economic value.', 'Read it together with reserves and total net worth.'],
+    commonMistake: 'Confusing paid-up equity capital with market capitalisation.'
+  },
+  reserves: {
+    interpretation: ['Growing reserves often reflect retained profits, but other reserve movements can also matter.', 'Negative or eroding reserves can weaken the equity cushion.', 'Read the notes for revaluation, securities premium and other adjustments.'],
+    commonMistake: 'Assuming every reserve is freely distributable cash.'
+  },
+  net_worth: {
+    formula: 'Equity capital + reserves (subject to reported adjustments)',
+    formulaInputs: [
+      { label: 'Equity capital', meaning: 'Paid-up face value of issued shares.' },
+      { label: 'Reserves', meaning: 'Accumulated earnings and other equity reserves.' }
+    ],
+    interpretation: ['A stronger net-worth base can absorb losses and fund growth.', 'Growth in net worth is best assessed with the returns earned on it.', 'Large write-offs or losses can reduce the cushion.'],
+    practicalExample: {
+      inputs: ['Equity capital = ₹10 Cr', 'Reserves = ₹90 Cr'],
+      calculation: 'Net worth = ₹10 Cr + ₹90 Cr = ₹100 Cr',
+      takeaway: 'The accounting shareholder capital base is ₹100 Cr before any source-specific adjustments.'
+    },
+    commonMistake: 'Treating book net worth as the market value of the company.'
+  },
+  borrowings: {
+    interpretation: ['More debt can fund productive growth or raise financial risk; direction alone is not a verdict.', 'Compare debt with equity, cash flow, interest coverage and maturity timing.', 'For banks, deposits and borrowings are operating funding sources and need bank-specific context.'],
+    commonMistake: 'Calling all liabilities “debt,” or treating bank borrowings like industrial-company leverage.',
+    sectorNotes: [{ context: 'Banks', note: 'Borrowings are only part of funding; deposits, liquidity and regulatory capital are more informative together.', appliesTo: ['BANK', 'FINANCIAL_BUSINESS'] }]
+  },
+  total_assets: {
+    interpretation: ['Asset growth shows a larger balance sheet, not automatically better economics.', 'Compare growth with ROA or asset turnover and inspect asset quality.', 'For banks, loan mix, NPAs and capital support matter alongside total assets.'],
+    practicalExample: {
+      inputs: ['Cash = ₹10 Cr', 'Receivables = ₹20 Cr', 'Inventory = ₹20 Cr', 'Long-term assets = ₹50 Cr'],
+      calculation: 'Total assets = ₹100 Cr',
+      takeaway: 'The company controls ₹100 Cr of accounting resources; their quality and productivity still need assessment.'
+    },
+    commonMistake: 'Assuming a bigger asset base automatically creates more shareholder value.'
+  },
+  working_capital: {
+    formula: 'Current assets − Current liabilities',
+    formulaInputs: [
+      { label: 'Current assets', meaning: 'Assets expected to turn into cash or be used within the operating cycle.' },
+      { label: 'Current liabilities', meaning: 'Obligations expected to be settled within the operating cycle.' }
+    ],
+    interpretation: ['Rising working capital can support growth but may consume cash.', 'Negative working capital can be risky or a sign of a strong customer-funded model.', 'Track receivable, inventory and payable days rather than judging the total alone.'],
+    practicalExample: {
+      inputs: ['Current assets = ₹80 Cr', 'Current liabilities = ₹50 Cr'],
+      calculation: 'Working capital = ₹80 Cr − ₹50 Cr = ₹30 Cr',
+      takeaway: '₹30 Cr is tied up net in short-term operating balances.'
+    },
+    commonMistake: 'Assuming positive is always good and negative is always bad; business model and operating cycle matter.',
+    sectorNotes: [{ context: 'Banks', note: 'Industrial working-capital analysis is not a primary bank framework.', appliesTo: ['BANK', 'FINANCIAL_BUSINESS'] }]
+  },
+  cwip: {
+    shortLabel: 'CWIP',
+    interpretation: ['Rising CWIP can signal expansion, but it produces no output until commissioned.', 'A persistent balance can indicate delays, cost overruns or stalled projects.', 'Compare with completed fixed assets, capex disclosures and expected commissioning.'],
+    practicalExample: {
+      inputs: ['Factory project spent to date = ₹40 Cr', 'Project is not ready for use'],
+      calculation: '₹40 Cr remains in CWIP until commissioning',
+      takeaway: 'Capital is committed but is not yet part of the productive net block.'
+    },
+    commonMistake: 'Treating every large CWIP balance as guaranteed future growth.',
+    sectorNotes: [
+      { context: 'Manufacturing', note: 'CWIP and commissioning schedules can be especially important for capacity-led growth.', appliesTo: ['MANUFACTURING'] },
+      { context: 'Banks', note: 'CWIP is not a primary bank analytical metric.', appliesTo: ['BANK', 'FINANCIAL_BUSINESS'] }
+    ]
+  },
+  cfo: {
+    shortLabel: 'CFO',
+    interpretation: ['Positive and improving CFO can support profit quality over time.', 'One year can move because customers pay earlier, inventory changes or suppliers are paid later.', 'Compare cumulative CFO with cumulative PAT across matched periods.'],
+    practicalExample: {
+      inputs: ['Cash collected from operations = ₹130 Cr', 'Operating cash payments = ₹100 Cr'],
+      calculation: 'CFO = ₹130 Cr − ₹100 Cr = ₹30 Cr',
+      takeaway: 'Normal operations added ₹30 Cr of cash during the period.'
+    },
+    commonMistake: 'Treating a single strong CFO year as permanently repeatable without examining working-capital movements.',
+    sectorNotes: [{ context: 'Banks', note: 'CFO is not an industrial earnings-quality metric for banks because deposits and lending flows dominate it.', appliesTo: ['BANK', 'FINANCIAL_BUSINESS'] }]
+  },
+  investing_cash_flow: {
+    shortLabel: 'CFI',
+    interpretation: ['Negative CFI can reflect productive capex or acquisitions, so negative is not automatically bad.', 'Positive CFI can come from asset or investment sales and is not automatically good.', 'Read the component lines and strategy behind the cash movement.'],
+    practicalExample: {
+      inputs: ['Equipment purchase = ₹30 Cr outflow', 'Asset sale = ₹5 Cr inflow'],
+      calculation: 'CFI = −₹30 Cr + ₹5 Cr = −₹25 Cr',
+      takeaway: 'The company invested ₹25 Cr net during the period.'
+    },
+    commonMistake: 'Judging the sign without checking what was bought or sold.'
+  },
+  financing_cash_flow: {
+    shortLabel: 'CFF',
+    interpretation: ['Positive CFF often means new debt or equity funding exceeded repayments and distributions.', 'Negative CFF may reflect debt repayment, dividends or buybacks.', 'Compare the components with leverage, liquidity and reinvestment needs.'],
+    practicalExample: {
+      inputs: ['New borrowing = ₹20 Cr', 'Debt repaid = ₹8 Cr', 'Dividend paid = ₹2 Cr'],
+      calculation: 'CFF = ₹20 Cr − ₹8 Cr − ₹2 Cr = ₹10 Cr',
+      takeaway: 'Financing sources added ₹10 Cr net.'
+    },
+    commonMistake: 'Calling positive financing cash flow healthy without checking whether it came from necessary borrowing or dilution.'
+  },
+  capex: {
+    formula: 'Reported capex magnitude; if absent: Δ fixed assets + depreciation + Δ CWIP',
+    formulaInputs: [
+      { label: 'Reported capex', meaning: 'Absolute value of an exact fixed-assets-purchased or capex cash-flow row, used first when available.' },
+      { label: 'Derived alternative', meaning: 'Current fixed assets − prior fixed assets + current depreciation + current CWIP − prior CWIP.' }
+    ],
+    interpretation: ['Capex can maintain assets or create growth; the purpose matters.', 'High capex can depress near-term FCF while building future capacity.', 'Compare spending with commissioning, utilization and future returns.'],
+    practicalExample: {
+      inputs: ['Cash paid for plant and equipment = ₹25 Cr'],
+      calculation: 'Capex = ₹25 Cr',
+      takeaway: '₹25 Cr was reinvested in long-lived operating assets.'
+    },
+    commonMistake: 'Treating all capex as growth capex or assuming a derived figure is as certain as a directly reported line.',
+    stockerUsage: 'For general corporates, Stocker first uses the absolute value of a directly reported capex/fixed-assets-purchased line. If absent, it may derive capex as change in fixed assets + depreciation + change in CWIP, and labels confidence.',
+    sectorNotes: [
+      { context: 'Manufacturing', note: 'Capex, commissioning and utilization are often central to the investment case.', appliesTo: ['MANUFACTURING'] },
+      { context: 'Banks', note: 'Industrial capex is not a primary bank analytical metric.', appliesTo: ['BANK', 'FINANCIAL_BUSINESS'] }
+    ]
+  },
+  fcf: {
+    shortLabel: 'FCF',
+    formulaInputs: [
+      { label: 'CFO', meaning: 'Cash from normal operations for the same period.' },
+      { label: 'Capex', meaning: 'Cash spent on long-lived assets; Stocker may use a reported or explicitly derived amount.' }
+    ],
+    interpretation: ['Positive FCF can fund debt reduction, distributions or reinvestment, but one year may be noisy.', 'Negative FCF can signal stress or deliberate growth investment.', 'Compare the multi-year pattern and the confidence of capex inputs.'],
+    practicalExample: {
+      inputs: ['CFO = ₹100 Cr', 'Capex = ₹30 Cr'],
+      calculation: 'FCF = ₹100 Cr − ₹30 Cr = ₹70 Cr',
+      takeaway: '₹70 Cr remained after operations and capital spending.'
+    },
+    commonMistake: 'Assuming FCF is reported directly or applying industrial FCF logic to a bank.',
+    stockerUsage: 'Stocker calculates period FCF for general corporates as CFO minus capex. Capex is reported when available; otherwise the labelled balance-sheet derivation is used. Missing inputs stay unavailable.',
+    sectorNotes: [{ context: 'Banks and financial businesses', note: 'Corporate FCF is not a primary bank metric and Stocker does not apply this calculation to financial-business routing.', appliesTo: ['BANK', 'FINANCIAL_BUSINESS'] }],
+    relatedTerms: ['CFO', 'Capex', 'FCF Confidence']
+  },
+  fcf_yield: {
+    formulaInputs: [
+      { label: 'Free cash flow', meaning: 'Sustainable corporate FCF for a clearly defined period.' },
+      { label: 'Market capitalisation', meaning: 'Current equity market value at the selected price.' }
+    ],
+    interpretation: ['Higher can indicate more cash generation relative to price, but it is not automatically cheap.', 'Check whether FCF is recurring and whether capex or working capital temporarily inflated it.', 'Compare consistent periods and same-sector capital intensity.'],
+    practicalExample: {
+      inputs: ['Free cash flow = ₹50 Cr', 'Market capitalisation = ₹1,000 Cr'],
+      calculation: 'FCF yield = ₹50 Cr ÷ ₹1,000 Cr × 100 = 5%',
+      takeaway: 'Annual FCF equals 5% of the current equity market value.'
+    },
+    commonMistake: 'Using one unusually strong FCF year or applying corporate FCF yield to a bank.',
+    sectorNotes: [{ context: 'Banks and financial businesses', note: 'Corporate FCF yield is not a primary bank metric.', appliesTo: ['BANK', 'FINANCIAL_BUSINESS'] }]
+  },
+  cfo_pat: {
+    shortLabel: 'CFO/PAT',
+    formula: 'Cumulative CFO over 5 exact common completed FYs ÷ cumulative PAT over those same FYs × 100',
+    formulaInputs: [
+      { label: 'Cumulative 5Y CFO', meaning: 'Sum of operating cash flow across five exactly matched completed fiscal years.' },
+      { label: 'Cumulative 5Y PAT', meaning: 'Sum of positive PAT across those same five completed fiscal years.' }
+    ],
+    interpretation: ['Higher sustained conversion generally means accounting profit is better supported by cash.', 'Below 100% is not automatically poor: working-capital investment and business cycles matter.', 'Read the cumulative multi-year result instead of overreacting to one year.'],
+    practicalExample: {
+      inputs: ['PAT = ₹100 Cr', 'CFO = ₹80 Cr'],
+      calculation: 'CFO/PAT = ₹80 Cr ÷ ₹100 Cr × 100 = 80%',
+      takeaway: '₹80 of cash was generated for every ₹100 of accounting profit.'
+    },
+    commonMistake: 'Comparing unmatched years, dividing averages instead of matched cumulative totals, or applying the ratio to banks.',
+    stockerUsage: 'Stocker’s headline figure sums CFO and PAT across exactly five common completed fiscal years, requires cumulative PAT above zero and leaves missing evidence unavailable.',
+    sectorNotes: [{ context: 'Banks and financial businesses', note: 'Not a primary earnings-quality metric because customer funding and lending flows dominate operating cash flow.', appliesTo: ['BANK', 'FINANCIAL_BUSINESS'] }]
+  },
+  roce: {
+    shortLabel: 'ROCE',
+    plainEnglish: 'How much operating profit a normal corporate generates for every ₹100 of long-term capital employed in the business.',
+    formula: 'EBIT ÷ capital employed × 100',
+    formulaInputs: [
+      { label: 'EBIT', meaning: 'Operating profit after depreciation/amortisation, before interest and tax.' },
+      { label: 'Capital employed', meaning: 'Long-term operating capital; commonly equity + debt, or total assets − current liabilities.' }
+    ],
+    interpretation: ['Generally, consistently higher ROCE is positive.', 'Compare with the company’s own history, same-sector peers and estimated cost of capital.', 'A value that improves because capital temporarily falls deserves investigation.'],
+    practicalExample: {
+      inputs: ['EBIT = ₹20 Cr', 'Capital employed = ₹100 Cr'],
+      calculation: 'ROCE = ₹20 Cr ÷ ₹100 Cr × 100 = 20%',
+      takeaway: 'For every ₹100 of long-term capital, the business generated ₹20 of operating profit.'
+    },
+    commonMistake: 'Confusing ROCE with ROE, mixing EBIT with after-tax profit, or applying a universal “good” threshold across sectors.',
+    stockerUsage: 'Stocker currently displays the standardized ROCE ratio supplied with source market data; it does not recompute the overview value from statement rows. The formula shown here is the common analytical definition.',
+    sectorNotes: [
+      { context: 'Banks and financial businesses', note: 'ROCE is generally not a primary bank metric; Stocker emphasizes ROA, ROE, asset quality, funding and capital adequacy.', appliesTo: ['BANK', 'FINANCIAL_BUSINESS'] },
+      { context: 'Manufacturing', note: 'Compare returns through a full capex and utilization cycle; newly commissioned assets can temporarily lower ROCE.', appliesTo: ['MANUFACTURING'] },
+      { context: 'Asset-light businesses', note: 'ROCE can naturally be high because relatively little accounting capital is required.', appliesTo: ['ASSET_LIGHT'] }
+    ],
+    relatedTerms: ['EBIT', 'ROE', 'Asset Turnover']
+  },
+  roe: {
+    shortLabel: 'ROE',
+    plainEnglish: 'How much profit the company generated for every ₹100 of shareholder capital.',
+    formulaInputs: [
+      { label: 'PAT', meaning: 'Profit after tax for the period.' },
+      { label: 'Average shareholder equity', meaning: 'Usually opening equity plus closing equity, divided by two.' }
+    ],
+    interpretation: ['Generally, higher sustainable ROE is better, but compare history and close peers.', 'Improving ROE is stronger when profit grows without excessive leverage.', 'A shrinking equity base or buyback can raise ROE even if operating economics do not improve.'],
+    practicalExample: {
+      inputs: ['Net Profit = ₹15 Cr', 'Average Equity = ₹100 Cr'],
+      calculation: 'ROE = ₹15 Cr ÷ ₹100 Cr × 100 = 15%',
+      takeaway: 'For every ₹100 of shareholder capital, the company generated ₹15 profit.'
+    },
+    commonMistake: 'Ignoring leverage distortion: more debt can boost ROE while also increasing financial risk.',
+    stockerUsage: 'For bank analytics, Stocker calculates PAT divided by the average of exact consecutive year-end shareholder equity. The general overview also displays a standardized source ROE; missing values remain unavailable.',
+    sectorNotes: [nonBankFinancialFailClosedNote],
+    relatedTerms: ['PAT', 'Net Worth', 'ROCE', 'Debt/Equity']
+  },
+  roa: {
+    shortLabel: 'ROA',
+    formula: 'PAT ÷ average total assets across exact consecutive year-ends × 100',
+    formulaInputs: [
+      { label: 'PAT', meaning: 'Profit after tax for the completed fiscal year.' },
+      { label: 'Average total assets', meaning: 'Prior year-end total assets plus current year-end total assets, divided by two.' }
+    ],
+    interpretation: ['Generally, higher sustained ROA means more profit from the asset base.', 'Compare only with similar business models because required asset intensity differs.', 'For banks, read ROA with credit risk, leverage and capital adequacy.'],
+    practicalExample: {
+      inputs: ['PAT = ₹10 Cr', 'Prior assets = ₹900 Cr', 'Current assets = ₹1,100 Cr'],
+      calculation: 'Average assets = ₹1,000 Cr; ROA = ₹10 Cr ÷ ₹1,000 Cr × 100 = 1%',
+      takeaway: 'The business generated ₹1 profit for every ₹100 of average assets.'
+    },
+    commonMistake: 'Using only closing assets when the metric is meant to use an average, or comparing a bank directly with an asset-light software company.',
+    stockerUsage: 'Stocker’s bank engine requires matching completed-FY PAT and direct total assets for two exact consecutive year-ends; otherwise ROA is unavailable.',
+    sectorNotes: [nonBankFinancialFailClosedNote]
+  },
+  asset_turnover: {
+    formulaInputs: [
+      { label: 'Revenue', meaning: 'Latest completed-FY sales.' },
+      { label: 'Total assets', meaning: 'Matching latest total-assets balance in Stocker’s current DuPont calculation.' }
+    ],
+    interpretation: ['Higher can mean assets are used more intensively, but margin and asset age matter.', 'Improvement can come from revenue growth or a smaller asset base.', 'Compare with similar asset intensity and accounting policies.'],
+    practicalExample: {
+      inputs: ['Revenue = ₹150 Cr', 'Total assets = ₹100 Cr'],
+      calculation: 'Asset turnover = ₹150 Cr ÷ ₹100 Cr = 1.5×',
+      takeaway: 'Each ₹1 of assets supported ₹1.50 of annual revenue.'
+    },
+    commonMistake: 'Assuming higher is always better without checking margins, maintenance capex and asset age.'
+  },
+  debt_equity: {
+    shortLabel: 'Debt/Equity',
+    formula: 'Total borrowings ÷ (equity capital + reserves)',
+    formulaInputs: [
+      { label: 'Total borrowings', meaning: 'The supported Borrowings balance for the period.' },
+      { label: 'Equity capital + reserves', meaning: 'Stocker’s calculated total equity/net-worth denominator.' }
+    ],
+    interpretation: ['Lower often means more balance-sheet flexibility for normal corporates, but context matters.', 'Rising leverage can be sensible if returns comfortably exceed financing costs and cash flow is resilient.', 'Compare with same-sector peers, interest coverage, maturities and business cyclicality.'],
+    practicalExample: {
+      inputs: ['Borrowings = ₹40 Cr', 'Equity capital + reserves = ₹100 Cr'],
+      calculation: 'Debt/Equity = ₹40 Cr ÷ ₹100 Cr = 0.40×',
+      takeaway: 'The company has ₹0.40 of borrowings for every ₹1 of accounting equity.'
+    },
+    commonMistake: 'Using total liabilities as debt, or applying industrial debt/equity intuition to a bank.',
+    stockerUsage: 'Stocker calculates this as Borrowings divided by Equity Capital plus Reserves for the same balance-sheet period. In the current engine, if one equity component row is absent but the other exists, the absent component contributes zero; the resulting denominator must still be positive.',
+    sectorNotes: [{ context: 'Banks', note: 'Not a primary bank leverage metric; deposits are operating funding and regulatory capital ratios are more relevant.', appliesTo: ['BANK', 'FINANCIAL_BUSINESS'] }]
+  },
+  interest_coverage: {
+    formulaInputs: [
+      { label: 'EBIT', meaning: 'Operating profit after depreciation, before interest and tax.' },
+      { label: 'Interest expense', meaning: 'Financing cost for the same period.' }
+    ],
+    interpretation: ['Higher generally means a larger operating-profit cushion for interest.', 'Deterioration can come from lower EBIT, more debt or higher rates.', 'Cyclical companies need a cushion across weak years, not just a peak-year reading.'],
+    practicalExample: {
+      inputs: ['EBIT = ₹30 Cr', 'Interest expense = ₹5 Cr'],
+      calculation: 'Interest coverage = ₹30 Cr ÷ ₹5 Cr = 6×',
+      takeaway: 'Operating profit covered interest six times in that period.'
+    },
+    commonMistake: 'Using EBITDA without saying so, or relying on one strong year in a cyclical business.'
+  },
+  current_ratio: {
+    formulaInputs: [
+      { label: 'Current assets', meaning: 'Short-term assets such as cash, inventory and receivables.' },
+      { label: 'Current liabilities', meaning: 'Obligations due within the short-term operating cycle.' }
+    ],
+    interpretation: ['A higher ratio can indicate more liquidity, but excessive inventory or slow receivables may be poor-quality cover.', 'A lower ratio can signal pressure or an efficient customer-funded operating model.', 'Compare with the company’s cash cycle and sector norms.'],
+    practicalExample: {
+      inputs: ['Current assets = ₹150 Cr', 'Current liabilities = ₹100 Cr'],
+      calculation: 'Current ratio = ₹150 Cr ÷ ₹100 Cr = 1.5×',
+      takeaway: 'The company reports ₹1.50 of current assets for each ₹1 of current liabilities.'
+    },
+    commonMistake: 'Treating every current asset as equally liquid or imposing one universal safe ratio.'
+  },
+  net_profit_margin: {
+    formulaInputs: [
+      { label: 'PAT', meaning: 'Profit after all operating costs, finance costs and tax.' },
+      { label: 'Revenue', meaning: 'Sales for the same completed fiscal year.' }
+    ],
+    interpretation: ['Higher and improving margins can reflect pricing, mix or efficiency.', 'Compare history and sector peers; structurally different businesses have different normal margins.', 'Check whether tax, other income or exceptional items drove the change.'],
+    practicalExample: {
+      inputs: ['PAT = ₹10 Cr', 'Revenue = ₹100 Cr'],
+      calculation: 'Net profit margin = ₹10 Cr ÷ ₹100 Cr × 100 = 10%',
+      takeaway: '₹10 of bottom-line profit remained for each ₹100 of revenue.'
+    },
+    commonMistake: 'Comparing margins across unrelated sectors or treating one-off gains as operating improvement.'
+  },
+  pe: {
+    shortLabel: 'P/E',
+    formulaInputs: [
+      { label: 'Share price', meaning: 'Current market price per share.' },
+      { label: 'EPS', meaning: 'Earnings per share for the chosen trailing or forward period.' }
+    ],
+    interpretation: ['A higher P/E can reflect stronger expected growth or quality—or excessive optimism.', 'A lower P/E can indicate value—or weak, cyclical or declining earnings.', 'Compare the same earnings period, growth outlook, quality and sector.'],
+    practicalExample: {
+      inputs: ['Share price = ₹200', 'EPS = ₹10'],
+      calculation: 'P/E = ₹200 ÷ ₹10 = 20×',
+      takeaway: 'Investors are paying ₹20 for each ₹1 of current annual earnings.'
+    },
+    commonMistake: 'Calling a low P/E cheap without checking whether earnings are temporarily high, declining or negative.'
+  },
+  pb: {
+    formulaInputs: [
+      { label: 'Share price', meaning: 'Current market price per share.' },
+      { label: 'Book value per share', meaning: 'Accounting shareholder equity divided by shares.' }
+    ],
+    interpretation: ['Higher P/B can be justified by durable high returns, growth or valuable intangibles.', 'Lower P/B can signal undervaluation or concern about asset quality and returns.', 'Especially useful for financials and asset-heavy businesses, with careful asset-quality checks.'],
+    practicalExample: {
+      inputs: ['Share price = ₹150', 'Book value per share = ₹100'],
+      calculation: 'P/B = ₹150 ÷ ₹100 = 1.5×',
+      takeaway: 'The market values each ₹1 of accounting book equity at ₹1.50.'
+    },
+    commonMistake: 'Assuming below book value is automatically cheap without questioning asset quality and sustainable ROE.'
+  },
+  ev_ebitda: {
+    formulaInputs: [
+      { label: 'Enterprise value', meaning: 'Market cap plus debt minus cash under the chosen definition.' },
+      { label: 'EBITDA', meaning: 'Operating earnings before interest, tax, depreciation and amortisation.' }
+    ],
+    interpretation: ['Lower can imply a cheaper operating-business valuation, but growth, quality and capex needs matter.', 'Compare companies with similar accounting and business models.', 'Check leases, minority interests, cash definition and cyclicality.'],
+    practicalExample: {
+      inputs: ['Enterprise value = ₹500 Cr', 'EBITDA = ₹50 Cr'],
+      calculation: 'EV/EBITDA = ₹500 Cr ÷ ₹50 Cr = 10×',
+      takeaway: 'The whole operating business is valued at ten times current EBITDA.'
+    },
+    commonMistake: 'Ignoring maintenance capex or applying EV/EBITDA to banks where debt and interest are operational.'
+  },
+  dividend_yield: {
+    formulaInputs: [
+      { label: 'Annual dividend per share', meaning: 'Cash dividends attributable to one share over the selected year.' },
+      { label: 'Share price', meaning: 'Current market price used as the denominator.' }
+    ],
+    interpretation: ['Higher yield can be attractive only if earnings and cash flow support the dividend.', 'A falling share price can mechanically raise yield.', 'Compare payout, reinvestment needs, balance-sheet strength and dividend history.'],
+    practicalExample: {
+      inputs: ['Annual dividend per share = ₹4', 'Share price = ₹200'],
+      calculation: 'Dividend yield = ₹4 ÷ ₹200 × 100 = 2%',
+      takeaway: 'The annual cash dividend equals 2% of today’s share price.'
+    },
+    commonMistake: 'Chasing the highest yield without checking whether the dividend is sustainable.'
+  },
+  revenue_growth: {
+    formulaInputs: [
+      { label: 'Current revenue', meaning: 'Revenue in the latest selected period.' },
+      { label: 'Comparable prior revenue', meaning: 'Revenue in the exact previous quarter, prior-year quarter or fiscal year.' }
+    ],
+    interpretation: ['Positive growth expands scale but is not automatically good.', 'Negative growth may be temporary, cyclical or structural.', 'Read growth with margins, cash conversion and capital employed.'],
+    practicalExample: {
+      inputs: ['Current revenue = ₹120 Cr', 'Comparable prior revenue = ₹100 Cr'],
+      calculation: '(₹120 Cr ÷ ₹100 Cr − 1) × 100 = 20%',
+      takeaway: 'Revenue increased 20% across the exact comparison.'
+    },
+    commonMistake: 'Comparing mismatched periods or ignoring acquisition- and currency-driven growth.'
+  },
+  profit_growth: {
+    formulaInputs: [
+      { label: 'Current PAT', meaning: 'Net profit in the latest selected period.' },
+      { label: 'Comparable prior PAT', meaning: 'Net profit in the exact prior comparison period.' }
+    ],
+    interpretation: ['Positive growth is more convincing when revenue, margins and cash support it.', 'A weak or negative base can make percentage growth misleading or unavailable.', 'Separate recurring operations from tax and exceptional-item effects.'],
+    practicalExample: {
+      inputs: ['Current PAT = ₹15 Cr', 'Comparable prior PAT = ₹12 Cr'],
+      calculation: '(₹15 Cr ÷ ₹12 Cr − 1) × 100 = 25%',
+      takeaway: 'Net profit increased 25% across the exact comparison.'
+    },
+    commonMistake: 'Extrapolating a rebound from an unusually weak base as a normal growth rate.'
+  },
+  sales_cagr: {
+    shortLabel: 'Revenue CAGR',
+    formula: '(Ending revenue ÷ starting revenue)^(1 ÷ exact years) − 1, then × 100',
+    formulaInputs: [
+      { label: 'Ending revenue', meaning: 'Revenue at the latest completed annual endpoint.' },
+      { label: 'Starting revenue', meaning: 'Revenue at the exact completed annual base endpoint.' },
+      { label: 'Exact years', meaning: 'Elapsed fiscal-year intervals between the endpoints.' }
+    ],
+    interpretation: ['Higher CAGR shows faster compounded expansion, not the path taken between endpoints.', 'Compare with margins and capital needs.', 'CAGR can hide volatility and acquisitions.'],
+    practicalExample: {
+      inputs: ['Starting revenue = ₹100 Cr', 'Ending revenue after 3 years = ₹133.1 Cr'],
+      calculation: '(₹133.1 Cr ÷ ₹100 Cr)^(1/3) − 1 = 10% CAGR',
+      takeaway: 'Revenue grew at an average compounded pace of 10% a year.'
+    },
+    commonMistake: 'Dividing total percentage growth by years, including TTM as a completed FY, or ignoring the endpoint path.',
+    stockerUsage: 'Stocker uses exact positive completed-FY endpoints three, five or ten years apart; TTM is excluded and insufficient endpoints produce no value.'
+  },
+  pat_cagr: {
+    shortLabel: 'Profit CAGR',
+    formulaInputs: [
+      { label: 'Ending PAT', meaning: 'PAT at the latest completed annual endpoint.' },
+      { label: 'Starting PAT', meaning: 'Positive PAT at the exact annual base endpoint.' },
+      { label: 'Exact years', meaning: 'Elapsed fiscal-year intervals between endpoints.' }
+    ],
+    interpretation: ['Higher sustained profit CAGR can be positive when backed by revenue and cash.', 'Compare profit CAGR with revenue CAGR to understand margin effects.', 'Negative or near-zero starting profit can make CAGR unavailable or misleading.'],
+    practicalExample: {
+      inputs: ['Starting PAT = ₹10 Cr', 'Ending PAT after 3 years = ₹13.31 Cr'],
+      calculation: '(₹13.31 Cr ÷ ₹10 Cr)^(1/3) − 1 = 10% CAGR',
+      takeaway: 'PAT compounded at 10% per year between the endpoints.'
+    },
+    commonMistake: 'Using CAGR across a loss-making or near-zero base as though it were a normal comparable percentage.',
+    stockerUsage: 'Stocker uses exact positive completed-FY PAT endpoints three, five or ten years apart; TTM is excluded and a non-positive or missing endpoint produces no CAGR.'
+  },
+  qoq: {
+    formulaInputs: [{ label: 'Current / previous quarter', meaning: 'The latest quarter and its exact immediately preceding fiscal quarter.' }],
+    interpretation: ['Useful for recent momentum.', 'Seasonality can make adjacent quarters structurally different.', 'Read with YoY and several-quarter history.'],
+    practicalExample: {
+      inputs: ['Current quarter revenue = ₹110 Cr', 'Previous quarter revenue = ₹100 Cr'],
+      calculation: '(₹110 Cr ÷ ₹100 Cr − 1) × 100 = 10% QoQ',
+      takeaway: 'Revenue increased 10% from the immediately previous quarter.'
+    },
+    commonMistake: 'Calling seasonal quarter-to-quarter movement a lasting trend.'
+  },
+  yoy: {
+    formulaInputs: [{ label: 'Current / prior-year period', meaning: 'The selected period and the exact same fiscal period one year earlier.' }],
+    interpretation: ['Usually better than QoQ for seasonal businesses.', 'One-off events can still distort either period.', 'Use several YoY observations to judge direction.'],
+    practicalExample: {
+      inputs: ['Current quarter PAT = ₹12 Cr', 'Same quarter last year PAT = ₹10 Cr'],
+      calculation: '(₹12 Cr ÷ ₹10 Cr − 1) × 100 = 20% YoY',
+      takeaway: 'PAT increased 20% versus the same fiscal quarter last year.'
+    },
+    commonMistake: 'Comparing with an adjacent quarter or mismatching fiscal-quarter identities.'
+  },
+  deposits: {
+    interpretation: ['Growth can support lending, but deposit cost and stability matter.', 'A larger low-cost and granular base can improve funding resilience.', 'Fast loan growth without matching stable funding can pressure liquidity.'],
+    practicalExample: {
+      inputs: ['Savings deposits = ₹60 Cr', 'Term and other deposits = ₹140 Cr'],
+      calculation: 'Total deposits = ₹200 Cr',
+      takeaway: 'Customers provide ₹200 Cr of repayable funding to the bank.'
+    },
+    commonMistake: 'Treating deposits as ordinary corporate revenue or judging growth without funding cost and liquidity.',
+    sectorNotes: [nonBankFinancialFailClosedNote]
+  },
+  advances: {
+    interpretation: ['Growth can increase interest income, but underwriting quality matters.', 'Compare advances growth with deposits, capital, GNPA/NNPA and credit cost.', 'Very rapid growth can hide seasoning risk that appears later.'],
+    practicalExample: {
+      inputs: ['Retail advances = ₹70 Cr', 'Corporate advances = ₹30 Cr'],
+      calculation: 'Total advances = ₹100 Cr',
+      takeaway: 'The bank has extended ₹100 Cr of customer credit before relevant adjustments.'
+    },
+    commonMistake: 'Calling the fastest loan growth automatically best without checking risk, pricing and capital support.',
+    sectorNotes: [nonBankFinancialFailClosedNote]
+  },
+  nim: {
+    shortLabel: 'NIM',
+    formula: 'Net interest income ÷ average earning assets × 100',
+    formulaInputs: [
+      { label: 'Net interest income', meaning: 'Interest earned minus interest expended for the period.' },
+      { label: 'Average earning assets', meaning: 'Average loans and other assets that earn interest under the bank’s reported definition.' }
+    ],
+    interpretation: ['Higher or improving NIM can be favorable, but loan mix, credit risk and funding costs matter.', 'A high NIM may compensate for a riskier loan book.', 'Compare the same bank definition through rate cycles and with close peers.'],
+    practicalExample: {
+      inputs: ['Net interest income = ₹4 Cr', 'Average earning assets = ₹100 Cr'],
+      calculation: 'NIM = ₹4 Cr ÷ ₹100 Cr × 100 = 4%',
+      takeaway: 'The bank earned ₹4 of net interest income for every ₹100 of average earning assets.'
+    },
+    commonMistake: 'Treating the highest NIM as automatically best without checking credit risk, loan mix and funding stability.',
+    stockerUsage: 'Stocker currently presents a supported reported NIM row and compares exact periods in basis points; the bank engine does not derive NIM from incomplete earning-asset data.',
+    sectorNotes: [nonBankFinancialFailClosedNote]
+  },
+  casa: {
+    shortLabel: 'CASA',
+    formula: '(Current-account deposits + savings-account deposits) ÷ total deposits × 100',
+    formulaInputs: [
+      { label: 'Current and savings deposits', meaning: 'Deposits in current accounts and savings accounts.' },
+      { label: 'Total deposits', meaning: 'The bank’s complete deposit base for the same date.' }
+    ],
+    interpretation: ['Higher CASA can improve the funding profile, but it is not sufficient alone.', 'Pricing on savings balances and deposit stability still matter.', 'Compare with funding cost, growth and liquidity.'],
+    practicalExample: {
+      inputs: ['Current + savings deposits = ₹40 Cr', 'Total deposits = ₹100 Cr'],
+      calculation: 'CASA = ₹40 Cr ÷ ₹100 Cr × 100 = 40%',
+      takeaway: '₹40 of every ₹100 in deposits is in current or savings accounts.'
+    },
+    commonMistake: 'Assuming all CASA funding is free or that a high ratio guarantees a high NIM.',
+    stockerUsage: 'Stocker explains and displays an exact reported CASA row when available; it does not reconstruct missing account categories.',
+    sectorNotes: [nonBankFinancialFailClosedNote]
+  },
+  gnpa: {
+    shortLabel: 'GNPA',
+    formula: 'Gross non-performing advances ÷ gross advances × 100 (reported bank definition)',
+    formulaInputs: [
+      { label: 'Gross non-performing advances', meaning: 'Loans classified as non-performing before eligible provisions.' },
+      { label: 'Gross advances', meaning: 'Gross loan book under the bank’s reporting definition.' }
+    ],
+    interpretation: ['Lower and declining GNPA is generally better.', 'Read changes with write-offs, slippages, restructuring and loan growth.', 'Compare portfolios with similar risk mix and seasoning.'],
+    practicalExample: {
+      inputs: ['Gross NPA = ₹3 Cr', 'Gross advances = ₹100 Cr'],
+      calculation: 'GNPA ratio = ₹3 Cr ÷ ₹100 Cr × 100 = 3%',
+      takeaway: '₹3 of every ₹100 of gross advances is classified non-performing.'
+    },
+    commonMistake: 'Assuming a falling ratio always means recoveries improved; write-offs or fast loan growth can also reduce it.',
+    stockerUsage: 'For BANK analytics, Stocker uses the latest exact reported GNPA percentage row, preferring the latest quarterly statement and falling back to the latest annual P&L; it does not infer GNPA from provisions or another label.',
+    sectorNotes: [nonBankFinancialFailClosedNote]
+  },
+  nnpa: {
+    shortLabel: 'NNPA',
+    formula: 'Net non-performing advances ÷ net advances × 100 (reported bank definition)',
+    formulaInputs: [
+      { label: 'Net non-performing advances', meaning: 'Non-performing advances remaining after eligible provisions and adjustments.' },
+      { label: 'Net advances', meaning: 'Advance base after the applicable reported adjustments.' }
+    ],
+    interpretation: ['Lower and declining NNPA is generally better.', 'The gap between GNPA and NNPA reflects provisioning and definition effects.', 'Read with provision coverage, credit cost and write-offs.'],
+    practicalExample: {
+      inputs: ['Net NPA = ₹1 Cr', 'Net advances = ₹100 Cr'],
+      calculation: 'NNPA ratio = ₹1 Cr ÷ ₹100 Cr × 100 = 1%',
+      takeaway: '₹1 of every ₹100 of net advances remains non-performing after eligible provisions.'
+    },
+    commonMistake: 'Subtracting provisions from GNPA percentages to invent NNPA; denominators and regulatory adjustments differ.',
+    stockerUsage: 'For BANK analytics, Stocker uses the latest exact reported NNPA percentage row, preferring the latest quarterly statement and falling back to the latest annual P&L; it never derives NNPA from GNPA.',
+    sectorNotes: [nonBankFinancialFailClosedNote]
+  },
+  cd_ratio: {
+    shortLabel: 'CD Ratio',
+    formulaInputs: [
+      { label: 'Advances', meaning: 'Latest supported bank loan/advance balance.' },
+      { label: 'Deposits', meaning: 'Latest supported customer-deposit balance for the same period.' }
+    ],
+    interpretation: ['A higher ratio means more deposits are deployed as loans.', 'Too high can pressure liquidity; too low can indicate under-deployment, but no single universal cutoff fits every bank.', 'Read with liquidity, funding mix, loan quality and business strategy.'],
+    practicalExample: {
+      inputs: ['Advances = ₹80 Cr', 'Deposits = ₹100 Cr'],
+      calculation: 'CD ratio = ₹80 Cr ÷ ₹100 Cr × 100 = 80%',
+      takeaway: 'The bank has ₹80 of advances for every ₹100 of deposits.'
+    },
+    commonMistake: 'Treating one fixed CD-ratio range as ideal for every bank and every liquidity environment.',
+    sectorNotes: [nonBankFinancialFailClosedNote]
+  },
+  credit_cost: {
+    shortLabel: 'Credit Cost',
+    formulaInputs: [
+      { label: 'Provisions', meaning: 'Exact annual provisions and contingencies row used by Stocker.' },
+      { label: 'Average gross advances', meaning: 'Prior plus current exact consecutive year-end advances, divided by two.' }
+    ],
+    interpretation: ['Lower is generally better when underwriting and provision coverage remain sound.', 'A temporary increase may reflect prudent recognition or a stressed loan book.', 'Compare through a credit cycle and with GNPA/NNPA, write-offs and loan growth.'],
+    practicalExample: {
+      inputs: ['Provisions = ₹2 Cr', 'Average gross advances = ₹100 Cr'],
+      calculation: 'Credit cost = ₹2 Cr ÷ ₹100 Cr × 100 = 2%',
+      takeaway: 'The period’s provisions equal ₹2 for every ₹100 of average gross advances.'
+    },
+    commonMistake: 'Treating low credit cost as proof of asset quality without checking whether provisions are adequate.',
+    stockerUsage: 'For BANK analytics, Stocker calculates provisions divided by average advances from two exact consecutive completed year-ends, aligned with the P&L period; missing inputs make the result unavailable.',
+    sectorNotes: [nonBankFinancialFailClosedNote]
+  },
+  cost_to_income: {
+    shortLabel: 'Cost-to-Income',
+    formula: 'Bank operating expenses ÷ total net income × 100; total net income = NII + other income',
+    formulaInputs: [
+      { label: 'Operating expenses', meaning: 'An explicit total bank operating-expense row; partial staff cost is not substituted.' },
+      { label: 'Total net income', meaning: 'NII + other income, or interest earned − interest expended + other income when every input is explicit.' }
+    ],
+    interpretation: ['Lower generally indicates better operating efficiency.', 'A temporary rise may reflect worthwhile branch, technology or distribution investment.', 'Compare the same definition, operating model and growth stage.'],
+    practicalExample: {
+      inputs: ['Operating expenses = ₹40 Cr', 'NII + other income = ₹100 Cr'],
+      calculation: 'Cost-to-income = ₹40 Cr ÷ ₹100 Cr × 100 = 40%',
+      takeaway: '₹40 of operating cost was incurred for every ₹100 of net income.'
+    },
+    commonMistake: 'Using only employee cost as total operating expenses or assuming any increase is automatically deterioration.',
+    stockerUsage: 'For BANK analytics, Stocker calculates this only with an explicit total operating-expense row and complete net-income inputs; it fails closed on ambiguous partial rows.',
+    sectorNotes: [nonBankFinancialFailClosedNote]
+  },
+  capital_adequacy: {
+    formulaInputs: [
+      { label: 'Eligible regulatory capital', meaning: 'Capital recognized under the applicable banking rules.' },
+      { label: 'Risk-weighted assets', meaning: 'Assets and exposures weighted for regulatory risk.' }
+    ],
+    interpretation: ['A larger cushion can support resilience and growth, but capital quality matters.', 'Compare with regulatory requirements, management buffers and portfolio risk.', 'Rapid growth can consume capital even when profit rises.'],
+    practicalExample: {
+      inputs: ['Eligible regulatory capital = ₹15 Cr', 'Risk-weighted assets = ₹100 Cr'],
+      calculation: 'Capital adequacy = ₹15 Cr ÷ ₹100 Cr × 100 = 15%',
+      takeaway: 'The bank holds ₹15 of eligible regulatory capital for every ₹100 of risk-weighted assets.'
+    },
+    commonMistake: 'Dividing capital by total assets; the denominator is risk-weighted assets and regulatory definitions matter.',
+    sectorNotes: [nonBankFinancialFailClosedNote]
+  },
+  cet1: {
+    formulaInputs: [
+      { label: 'CET1 capital', meaning: 'Common equity after applicable regulatory deductions.' },
+      { label: 'Risk-weighted assets', meaning: 'Regulatory risk-weighted exposures.' }
+    ],
+    interpretation: ['Higher generally means a larger highest-quality capital cushion.', 'Compare with regulatory minima, management buffers and growth plans.', 'The total capital ratio can be higher because it includes other capital layers.'],
+    practicalExample: {
+      inputs: ['CET1 capital = ₹12 Cr', 'Risk-weighted assets = ₹100 Cr'],
+      calculation: 'CET1 ratio = ₹12 Cr ÷ ₹100 Cr × 100 = 12%',
+      takeaway: '₹12 of highest-quality common equity supports every ₹100 of risk-weighted assets.'
+    },
+    commonMistake: 'Treating CET1 as the same as total capital adequacy or ordinary book equity divided by assets.',
+    sectorNotes: [nonBankFinancialFailClosedNote]
+  },
+  reported_fact: {
+    shortLabel: 'Reported Fact',
+    plainEnglish: 'A number or statement taken from standardized reported financial statements or a named company disclosure—not calculated or inferred by Stocker.',
+    interpretation: ['Start with the source, period, units and standalone/consolidated scope.', 'Reported does not mean officially verified or audited by Stocker.', 'An official fact can override a standardized figure only after strict comparability is proven.'],
+    stockerUsage: 'Stocker labels reported facts with their source, claim type and period. Official and standardized figures are reconciled only when company, security, period, scope, metric, unit and currency are compatible.'
+  },
+  stocker_calculation: {
+    interpretation: ['The value is deterministic, not AI-generated.', 'Its reliability depends on the formula, exact inputs and their provenance.', 'Missing inputs should produce unavailable—not zero.'],
+    stockerUsage: 'Stocker exposes the formula, input values, periods and sources for supported calculated metrics.'
+  },
+  ai_interpretation: {
+    interpretation: ['Use it to find patterns and questions quickly.', 'Verify decision-critical claims against cited evidence.', 'It is separate from reported facts and deterministic Stocker calculations.'],
+    stockerUsage: 'Stocker labels AI interpretation distinctly and links it to supporting evidence where available.'
+  },
+  management_guidance: {
+    interpretation: ['It is a forward statement or target, not a reported outcome.', 'Read the exact wording, period, range and conditions.', 'Later delivery is evaluated against the stated target semantics and compatible actual evidence.'],
+    stockerUsage: 'Stocker labels verbatim forward statements or targets from company primary evidence as Management Guidance and keeps them separate from reported facts, projections and AI interpretation.'
+  },
+  stocker_projection: {
+    interpretation: ['It is a scenario, not a company promise or reported fact.', 'Review the assumptions and evidence confidence.', 'Stress-test outcomes rather than relying on a single point estimate.'],
+    stockerUsage: 'Stocker labels forward DCF scenarios and intrinsic-value estimates as Stocker Projections, separate from deterministic historical calculations.'
+  },
+  standardized: { interpretation: ['Comparable formatting helps analysis.', 'Standardized is not the same as officially reconciled.', 'Inspect source details when exact provenance matters.'] },
+  verified: { shortLabel: 'Verified', interpretation: ['Stronger source agreement than standardized-only data.', 'Officially Verified does not mean Stocker audited the company.', 'Check period, scope, units, currency and tolerance for material decisions.'] },
+  mixed: { interpretation: ['Some inputs have stronger provenance than others.', 'The result should not be described as fully verified.', 'Inspect the weakest material input.'] },
+  discrepancy: { interpretation: ['Do not silently choose one conflicting value.', 'Downstream analytics may have reduced confidence.', 'Review the official and standardized values before relying on the result.'] },
+  provisional: { interpretation: ['The workflow is usable but not fully evidence-enriched.', 'Treat conclusions as an earlier research stage.', 'Run the offered research step if filing context matters.'] },
+  evidence_enriched: { interpretation: ['More filing context is included.', 'It remains analysis rather than a guarantee.', 'Inspect cited evidence and assumptions.'] },
+  stale: { interpretation: ['A dependent input has changed.', 'The saved output may no longer describe current evidence.', 'Refresh before relying on it.'] },
+  unavailable: { shortLabel: 'Insufficient Evidence', interpretation: ['Unavailable is not zero.', 'The required evidence is missing or unsafe to compare.', 'Avoid filling the gap with an assumption unless explicitly modelling a scenario.'] }
+};
+
+const defaultInterpretation = (seed: GlossarySeed): string[] => [
+  seed.whyItMatters,
+  ...compareInContext.slice(0, 2)
+];
+
+export const glossary = Object.fromEntries(
+  (Object.entries(glossarySeeds) as Array<[GlossaryTerm, GlossarySeed]>).map(([term, seed]) => {
+    const enhancement = glossaryEnhancements[term];
+    const stockerUsage = enhancement?.stockerUsage
+      ?? seed.howStockerUses
+      ?? 'Stocker keeps this concept tied to the displayed source, period and business context; it does not invent a missing value.';
+    const plainEnglish = enhancement?.plainEnglish ?? seed.meaning;
+    const sectorNotes = enhancement?.sectorNotes ?? (seed.financialBusinessNote ? [{
+      context: 'Banks and financial businesses',
+      note: seed.financialBusinessNote,
+      appliesTo: ['BANK', 'FINANCIAL_BUSINESS'] as SectorApplicability[]
+    }] : undefined);
+    return [term, {
+      ...seed,
+      ...enhancement,
+      term,
+      shortLabel: enhancement?.shortLabel ?? seed.title,
+      plainEnglish,
+      meaning: plainEnglish,
+      interpretation: enhancement?.interpretation ?? defaultInterpretation(seed),
+      sectorNotes,
+      stockerUsage,
+      howStockerUses: stockerUsage
+    } satisfies FinancialConceptGuide];
+  })
+) as Record<GlossaryTerm, FinancialConceptGuide>;
+
+export const glossaryEntries = Object.entries(glossary) as Array<[GlossaryTerm, FinancialConceptGuide]>;
+
+export const getFinancialConceptGuide = (term: string): FinancialConceptGuide | null =>
+  Object.prototype.hasOwnProperty.call(glossary, term) ? glossary[term as GlossaryTerm] : null;
+
+export interface ConceptGuideContext {
+  businessModel?: string;
+  sector?: string;
+  industry?: string;
+}
+
+const financialModels = new Set(['BANK', 'NBFC_LENDER', 'INSURANCE', 'OTHER_FINANCIAL']);
+
+export const deriveSectorApplicability = ({ businessModel, sector, industry }: ConceptGuideContext): Set<SectorApplicability> => {
+  const contexts = new Set<SectorApplicability>(['ALL']);
+  if (businessModel === 'BANK') contexts.add('BANK');
+  if (businessModel === 'NBFC_LENDER') contexts.add('NBFC_LENDER');
+  if (businessModel === 'INSURANCE') contexts.add('INSURANCE');
+  if (businessModel === 'OTHER_FINANCIAL') contexts.add('OTHER_FINANCIAL');
+  if (financialModels.has(businessModel || '')) contexts.add('FINANCIAL_BUSINESS');
+  const taxonomy = `${sector || ''} ${industry || ''}`.toLowerCase();
+  if (/manufactur|industrial|auto|chemical|cement|steel|metal|textile|capital goods|engineering/.test(taxonomy)) contexts.add('MANUFACTURING');
+  if (/software|it services|consult|platform|digital service|asset management|broking/.test(taxonomy)) contexts.add('ASSET_LIGHT');
+  return contexts;
+};
+
+export const getRelevantSectorNotes = (
+  guide: FinancialConceptGuide,
+  context: ConceptGuideContext = {}
+): SectorNote[] => {
+  const notes = guide.sectorNotes ?? [];
+  const hasContext = Boolean(context.businessModel || context.sector || context.industry);
+  if (!hasContext) return notes;
+  const applicable = deriveSectorApplicability(context);
+  return notes.filter(note => !note.appliesTo?.length || note.appliesTo.some(value => applicable.has(value)));
+};

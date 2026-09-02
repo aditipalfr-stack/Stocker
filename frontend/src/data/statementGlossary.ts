@@ -12,6 +12,7 @@ export const getStatementGlossaryTerm = (metric: string): GlossaryTerm | null =>
   if (['other cost', 'other expenses', 'other operating expenses'].includes(normalized)) return 'other_cost';
   if (normalized === 'operating profit') return 'operating_profit';
   if (normalized === 'ebitda') return 'ebitda';
+  if (normalized === 'ebit' || normalized === 'earnings before interest and tax') return 'ebit';
   if (normalized.includes('operating profit margin') || normalized === 'opm' || normalized === 'opm %') return 'opm';
   if (['other income', 'non-operating income'].includes(normalized)) return 'other_income';
   if (['interest', 'interest expense', 'interest expended', 'finance cost', 'finance costs'].includes(normalized)) return 'finance_cost';
@@ -55,8 +56,14 @@ export const getStatementGlossaryTerm = (metric: string): GlossaryTerm | null =>
   if (normalized.includes('provision')) return 'provisions';
   if (normalized.includes('cost to income') || normalized.includes('cost-to-income')) return 'cost_to_income';
   if (normalized.includes('credit cost')) return 'credit_cost';
+  if (normalized.includes('capital adequacy') || normalized === 'car' || normalized === 'crar') return 'capital_adequacy';
+  if (normalized.includes('cet1') || normalized.includes('common equity tier 1')) return 'cet1';
   if (normalized.includes('credit deposit ratio') || normalized === 'cd ratio' || normalized === 'c/d ratio') return 'cd_ratio';
   if (normalized.includes('working capital')) return 'working_capital';
+  if (normalized.includes('current ratio')) return 'current_ratio';
+  if (normalized.includes('asset turnover')) return 'asset_turnover';
+  if (normalized.includes('net profit margin') || normalized === 'npm' || normalized === 'npm %') return 'net_profit_margin';
+  if (normalized.includes('interest coverage')) return 'interest_coverage';
 
   return null;
 };

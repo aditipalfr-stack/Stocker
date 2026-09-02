@@ -1,4 +1,4 @@
-import { DocumentItem } from '../types';
+import type { DocumentItem } from '../types';
 
 const MONTH_MAP: Record<string, number> = {
   jan: 1, feb: 2, mar: 3, apr: 4, may: 5, jun: 6,

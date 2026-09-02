@@ -16,6 +16,8 @@ interface FinancialStatementTableProps {
   statement: FinancialStatement;
   statementKind: FinancialStatementKind;
   businessModel?: string;
+  sector?: string;
+  industry?: string;
 }
 
 const latestLabelFor = (statementKind: FinancialStatementKind) => {
@@ -24,7 +26,7 @@ const latestLabelFor = (statementKind: FinancialStatementKind) => {
   return 'Latest FY';
 };
 
-export const FinancialStatementTable: React.FC<FinancialStatementTableProps> = ({ statement, statementKind, businessModel }) => {
+export const FinancialStatementTable: React.FC<FinancialStatementTableProps> = ({ statement, statementKind, businessModel, sector, industry }) => {
   const selection = selectStatementPeriods(statement.periods, statementKind);
 
   return (
@@ -71,7 +73,7 @@ export const FinancialStatementTable: React.FC<FinancialStatementTableProps> = (
             return (
               <tr key={`${row.metric}-${rowIndex}`} className={rowClass}>
                 <td className="financial-metric-name">
-                  <span>{row.metric}{glossaryTerm && <ConceptHelp term={glossaryTerm} businessModel={businessModel} />}</span>
+                  <span>{glossaryTerm ? <ConceptHelp term={glossaryTerm} label={row.metric} businessModel={businessModel} sector={sector} industry={industry} /> : row.metric}</span>
                 </td>
                 {statement.periods.map((period, periodIndex) => {
                   const isCellTTM = parseFinancialPeriod(period, statementKind).kind === 'ttm';

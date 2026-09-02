@@ -9,6 +9,8 @@ import { DataOriginBadge } from './DataOriginBadge';
 interface StockerCashFlowAnalysisTableProps {
   trends: CashFlowAnalysisTrend[];
   businessModel?: string;
+  sector?: string;
+  industry?: string;
   onCalculationDetails?: () => void;
 }
 
@@ -25,6 +27,8 @@ const isFiniteNumber = (value: unknown): value is number => typeof value === 'nu
 export const StockerCashFlowAnalysisTable: React.FC<StockerCashFlowAnalysisTableProps> = ({
   trends,
   businessModel,
+  sector,
+  industry,
   onCalculationDetails
 }) => {
   const table = buildCashFlowAnalysisTable(trends);
@@ -59,6 +63,8 @@ export const StockerCashFlowAnalysisTable: React.FC<StockerCashFlowAnalysisTable
                       term={glossaryByMetric[row.key]}
                       label={row.label}
                       businessModel={businessModel}
+                      sector={sector}
+                      industry={industry}
                       onCalculationDetails={row.origin === 'stocker_calculation' ? onCalculationDetails : undefined}
                     />
                     <DataOriginBadge origin={row.origin} compact />
