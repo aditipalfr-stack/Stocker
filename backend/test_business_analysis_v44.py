@@ -758,6 +758,36 @@ class TestBusinessAnalysisV44(unittest.TestCase):
         self.assertEqual(res["status"], "Missed")
         self.assertIn("Below Guidance Range", res["stocker_analysis"])
 
+    def test_promise_vs_delivery_range_target_above_range_not_automatically_delivered(self):
+        """NIM range 4.2% - 4.4% with 4.50% actual is NOT automatically Delivered (bounded range)."""
+        item = {
+            "area": "NIM Guidance",
+            "management_promise": "NIM expected between 4.2% and 4.4% in FY26",
+            "promised_in_period": "FY25",
+            "actual_outcome": "Reported NIM of 4.50% in FY26",
+            "actual_in_period": "FY26",
+            "source_url_promise": "https://bse.com/ar25.pdf",
+            "source_url_actual": "https://bse.com/ar26.pdf"
+        }
+        res = verify_promise_vs_delivery_item(item, pl_stmt=None, quarters_stmt=None, current_year=2026.5)
+        self.assertNotEqual(res["status"], "Delivered")
+        self.assertIn("Above Guidance Range", res["stocker_analysis"])
+
+    def test_promise_vs_delivery_range_cost_metric_above_range_missed(self):
+        """Credit Cost range 0.8% - 1.0% with 1.20% actual is MISSED (unfavorable cost overrun)."""
+        item = {
+            "area": "Credit Cost Guidance",
+            "management_promise": "Credit cost expected 0.8% - 1.0% in FY26",
+            "promised_in_period": "FY25",
+            "actual_outcome": "Reported credit cost of 1.20% in FY26",
+            "actual_in_period": "FY26",
+            "source_url_promise": "https://bse.com/ar25.pdf",
+            "source_url_actual": "https://bse.com/ar26.pdf"
+        }
+        res = verify_promise_vs_delivery_item(item, pl_stmt=None, quarters_stmt=None, current_year=2026.5)
+        self.assertEqual(res["status"], "Missed")
+        self.assertIn("Above Guidance Range (Unfavorable)", res["stocker_analysis"])
+
     def test_promise_vs_delivery_future_target_no_interim_not_yet_measurable(self):
         """Future target (FY28) without interim evidence is Not Yet Measurable, NOT On Track."""
         item = {
@@ -766,6 +796,22 @@ class TestBusinessAnalysisV44(unittest.TestCase):
             "promised_in_period": "FY25",
             "target_timeline": "FY28",
             "actual_outcome": "Project planning underway",
+            "actual_in_period": "FY26",
+            "source_url_promise": "https://bse.com/ar25.pdf",
+            "source_url_actual": "https://bse.com/ar26.pdf"
+        }
+        res = verify_promise_vs_delivery_item(item, pl_stmt=None, quarters_stmt=None, current_year=2026.5)
+        self.assertEqual(res["status"], "Not Yet Measurable")
+        self.assertIn("Future Target Not Yet Due", res["stocker_analysis"])
+
+    def test_promise_vs_delivery_future_growth_weak_interim_not_on_track(self):
+        """Target 20% revenue growth by FY28 with only 'Revenue grew 3%' in FY26 is Not Yet Measurable (NOT On Track)."""
+        item = {
+            "area": "Revenue Growth",
+            "management_promise": "Targeting 20% revenue growth by FY28",
+            "promised_in_period": "FY25",
+            "target_timeline": "FY28",
+            "actual_outcome": "Revenue grew 3% in FY26",
             "actual_in_period": "FY26",
             "source_url_promise": "https://bse.com/ar25.pdf",
             "source_url_actual": "https://bse.com/ar26.pdf"

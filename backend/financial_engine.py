@@ -1092,7 +1092,12 @@ def verify_promise_vs_delivery_item(
     m_growth = re.search(r'(\d+(?:\.\d+)?)\s*%\s*(?:revenue|sales|growth|cagr|margin|loan|deposit|advances)', prom_lower)
 
     outcome_text = f"{item.get('actual_outcome', '')} {item.get('actual_quote', '')}"
-    has_subsequent_interim_evidence = bool(re.search(r'\b(grew|increased|expanded|reached|reported|achieved|stands at|commenced|underway|progress|on schedule|trial|construction|commissioned|\d+(?:\.\d+)?%)\b', outcome_text, re.IGNORECASE))
+    has_milestone_on_track = any(phrase in outcome_text.lower() for phrase in [
+        "on schedule", "on track", "remains on schedule", "progressing as planned",
+        "trial run completed", "phase 1 commissioned", "phase 1 operational",
+        "construction commenced and remains on schedule", "trial underway on schedule",
+        "in line with guidance trajectory", "ahead of schedule"
+    ])
 
     if m_range and not m_growth:
         r_min = float(m_range.group(1))
@@ -1105,10 +1110,16 @@ def verify_promise_vs_delivery_item(
         if m_act_val:
             act_v = float(m_act_val.group(1))
             res["financial_numbers_check"] = f"Guided Range: {r_min}%–{r_max}%; Reported: {act_v}%."
+            
+            is_cost_or_risk_metric = any(kw in prom_lower for kw in [
+                "credit cost", "cost of risk", "npa", "gnpa", "nnpa", "slippage",
+                "cost-to-income", "cost to income", "opex", "expense", "debt", "leverage", "capex"
+            ])
+            
             if target_yr is not None and target_yr > curr_yr:
-                if has_subsequent_interim_evidence:
+                if has_milestone_on_track:
                     res["status"] = "On Track"
-                    res["stocker_analysis"] = f"Interim Progress On Track: Stated target range ({r_min}%–{r_max}%) matures in the future ({target_yr:.0f}); interim reported {act_v}% tracked."
+                    res["stocker_analysis"] = f"Interim Progress On Track: Stated target range ({r_min}%–{r_max}%) matures in the future ({target_yr:.0f}); interim execution remains on schedule."
                 else:
                     res["status"] = "Not Yet Measurable"
                     res["stocker_analysis"] = f"Future Target: Stated range ({r_min}%–{r_max}%) matures in {target_timeline or f'FY{int(target_yr)}'}."
@@ -1116,11 +1127,20 @@ def verify_promise_vs_delivery_item(
                 res["status"] = "Delivered"
                 res["stocker_analysis"] = f"Within Guidance Range: Reported {act_v}% fell within management guided range of {r_min}% to {r_max}%."
             elif act_v < r_min:
-                res["status"] = "Missed"
-                res["stocker_analysis"] = f"Below Guidance Range: Reported {act_v}% fell below guided range minimum of {r_min}%."
-            else:
-                res["status"] = "Delivered"
-                res["stocker_analysis"] = f"Above Guidance Range: Reported {act_v}% exceeded guided range maximum of {r_max}%."
+                if is_cost_or_risk_metric:
+                    res["status"] = "Delivered"
+                    res["stocker_analysis"] = f"Favorable Below Range: Reported {act_v}% improved below guided cost/risk minimum of {r_min}%."
+                else:
+                    res["status"] = "Missed"
+                    res["stocker_analysis"] = f"Below Guidance Range: Reported {act_v}% fell below guided range minimum of {r_min}%."
+            else:  # act_v > r_max
+                if is_cost_or_risk_metric:
+                    res["status"] = "Missed"
+                    res["stocker_analysis"] = f"Above Guidance Range (Unfavorable): Reported {act_v}% exceeded guided upper limit of {r_max}% for cost/risk metric."
+                else:
+                    # Going above an explicit upper bound is NOT automatically Delivered unless explicitly directionally known
+                    res["status"] = "Not Enough Evidence"
+                    res["stocker_analysis"] = f"Above Guidance Range: Reported {act_v}% exceeded upper limit of guided range ({r_min}%–{r_max}%). Guidance was bounded; higher outcome reported without deterministic directional classification."
             return res
 
     if m_growth:
@@ -1158,12 +1178,12 @@ def verify_promise_vs_delivery_item(
             
             # Deterministic Target Semantics (NO INVENTED THRESHOLDS!)
             if target_yr is not None and target_yr > curr_yr:
-                if has_subsequent_interim_evidence:
+                if has_milestone_on_track:
                     res["status"] = "On Track"
-                    res["stocker_analysis"] = f"Interim Execution On Track: Stated target ({promised_pct}%) matures in the future ({target_yr:.0f}); interim reported {target_p} growth of {act_growth}% confirms trajectory."
+                    res["stocker_analysis"] = f"Interim Execution On Track: Stated target ({promised_pct}%) matures in the future ({target_yr:.0f}); subsequent filing confirms progress is on schedule."
                 else:
                     res["status"] = "Not Yet Measurable"
-                    res["stocker_analysis"] = f"Future Target Not Yet Due: Stated target deadline ({target_timeline or f'FY{int(target_yr)}'}) matures in {target_yr:.0f} with no interim verification available."
+                    res["stocker_analysis"] = f"Future Target Not Yet Due: Stated target deadline ({target_timeline or f'FY{int(target_yr)}'}) matures in {target_yr:.0f}. Interim reported {target_p} growth of {act_growth}% noted without multi-year trajectory milestones."
             elif is_minimum_target:
                 if act_growth >= promised_pct:
                     res["status"] = "Delivered"
@@ -1190,12 +1210,12 @@ def verify_promise_vs_delivery_item(
                 res["financial_numbers_check"] = f"Target: {promised_pct}%; Actual: {act_growth}% (Variance: {variance_pct:+.1f} percentage points; Achievement Rate: {achieve_pct}%)."
                 
                 if target_yr is not None and target_yr > curr_yr:
-                    if has_subsequent_interim_evidence:
+                    if has_milestone_on_track:
                         res["status"] = "On Track"
-                        res["stocker_analysis"] = f"Interim Execution On Track: Stated target ({promised_pct}%) matures in the future ({target_yr:.0f}); interim reported {act_growth}% confirms trajectory."
+                        res["stocker_analysis"] = f"Interim Execution On Track: Stated target ({promised_pct}%) matures in the future ({target_yr:.0f}); subsequent filing confirms progress is on schedule."
                     else:
                         res["status"] = "Not Yet Measurable"
-                        res["stocker_analysis"] = f"Future Target Not Yet Due: Stated target deadline matures in {target_yr:.0f}."
+                        res["stocker_analysis"] = f"Future Target Not Yet Due: Stated target deadline matures in {target_yr:.0f}. Interim reporting ({actual_period}) noted without explicit trajectory milestones."
                 elif act_growth >= promised_pct:
                     res["status"] = "Delivered"
                     res["stocker_analysis"] = f"Target Delivered: Reported {act_growth}% met targeted {promised_pct}%."
@@ -1215,9 +1235,9 @@ def verify_promise_vs_delivery_item(
 
     # 7. Qualitative / Operational Milestone Verification
     if target_yr is not None and target_yr > curr_yr:
-        if has_subsequent_interim_evidence and any(w in outcome_text.lower() for w in ["phase", "commenced", "underway", "progress", "on schedule", "trial"]):
+        if has_milestone_on_track:
             res["status"] = "On Track"
-            res["financial_numbers_check"] = "Qualitative operational milestone (interim progress tracked)."
+            res["financial_numbers_check"] = "Qualitative operational milestone (interim progress on schedule)."
             res["stocker_analysis"] = f"Milestone On Track: Stated target timeline ({target_timeline or f'FY{int(target_yr)}'}) matures in the future ({target_yr:.0f}). Subsequent filing ({actual_period}) reports active execution."
         else:
             res["status"] = "Not Yet Measurable"
