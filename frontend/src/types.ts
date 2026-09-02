@@ -55,6 +55,12 @@ export interface DocumentItem {
   name?: string | null;
   url: string;
   doc_type: string;
+  doc_subtype?: string | null;
+  event_key?: string | null;
+  is_substantive?: boolean;
+  is_wrapper?: boolean;
+  wrapper_source_url?: string | null;
+  ai_eligible?: boolean;
   period_or_date?: string | null;
   discovery_source: string;
   discovered_sources?: string[];

@@ -63,6 +63,12 @@ class DocumentItem(BaseModel):
     fetched_date: Optional[str] = None
     checksum_sha256: Optional[str] = None
     doc_key: Optional[str] = None
+    event_key: Optional[str] = None
+    doc_subtype: Optional[str] = None
+    is_substantive: bool = True
+    is_wrapper: bool = False
+    wrapper_source_url: Optional[str] = None
+    ai_eligible: bool = True
     ai_status: Optional[str] = None # "AI_ANALYZED", "NOT_SELECTED", "PROCESSING_FAILED", "NOT_ANALYZED_YET"
     ai_failure_reason: Optional[str] = None
     discovered_sources: List[str] = []
@@ -88,6 +94,12 @@ class DocumentItem(BaseModel):
                     url=self.url,
                     title=self.title
                 )
+            except Exception:
+                pass
+        if not self.event_key and self.doc_type in ("concall_transcript", "presentation"):
+            try:
+                from database import derive_earnings_event_key
+                self.event_key = derive_earnings_event_key(self.ticker, self.period_or_date, self.title)
             except Exception:
                 pass
 

@@ -264,9 +264,11 @@ export const SourceFilingsView: React.FC<SourceFilingsViewProps> = ({
               };
 
               const summary = getSummaryForDoc();
-              const isFailed = (summary && summary.status === 'failed') || doc.ai_status === 'PROCESSING_FAILED';
-              const isAnalyzed = Boolean(!isFailed && summary && ((summary.key_takeaways && summary.key_takeaways.length > 0) || (summary.extracted_facts && summary.extracted_facts.length > 0)));
-              const isNotSelected = Boolean(!isAnalyzed && !isFailed && (doc.ai_status === 'NOT_SELECTED' || (filingsData?.has_company_analysis && !summary)));
+              // Backend ai_status is authoritative when present
+              const hasExplicitAiStatus = Boolean(doc.ai_status);
+              const isFailed = doc.ai_status === 'PROCESSING_FAILED' || (!hasExplicitAiStatus && summary && summary.status === 'failed');
+              const isAnalyzed = doc.ai_status === 'AI_ANALYZED' || (!hasExplicitAiStatus && !isFailed && summary && ((summary.key_takeaways && summary.key_takeaways.length > 0) || (summary.extracted_facts && summary.extracted_facts.length > 0)));
+              const isNotSelected = doc.ai_status === 'NOT_SELECTED' || (!hasExplicitAiStatus && !isAnalyzed && !isFailed && filingsData?.has_company_analysis && !summary);
               const docKeyOrUrl = doc.doc_key || doc.url || `doc_${idx}`;
               const isExpanded = expandedDocKeys.has(docKeyOrUrl);
               const displayType = formatDocumentDisplayType(doc.doc_type);

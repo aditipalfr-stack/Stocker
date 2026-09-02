@@ -204,32 +204,47 @@ format_audited_financials_for_prompt = format_financials_for_prompt
 def select_default_document_working_set(documents: DocumentLinks) -> List[DocumentItem]:
     """
     Selects the standard visible/default document history according to Stocker priority:
-    1. Latest Annual Reports (up to 3 financial years)
+    1. Latest Annual Reports (up to 3 financial years, substantive only)
     2. Regulatory Annual Filings (e.g. 20-F, up to 2 filings)
-    3. Concall Transcripts (latest 6 quarters)
-    4. Investor Presentations (latest 6 quarters)
+    3. Concall Transcripts (latest 6 quarters, substantive transcripts only)
+    4. Investor Presentations (latest 6 quarters, substantive presentations only)
     5. Material Announcements (up to 8 material items, filtering routine procedural notices)
-    6. BRSR / ESG (up to 1, if slots available)
+    6. BRSR / ESG (up to 1, if slots available, low priority)
     """
     selected: List[DocumentItem] = []
+    
+    def is_eligible(d: DocumentItem) -> bool:
+        return getattr(d, "ai_eligible", True) and not getattr(d, "is_wrapper", False) and getattr(d, "is_substantive", True)
+
     if documents.annual_reports:
-        selected.extend(documents.annual_reports[:3])
+        ars = [d for d in documents.annual_reports if is_eligible(d)]
+        selected.extend(ars[:3] if ars else documents.annual_reports[:3])
+        
     if getattr(documents, "regulatory_annual_filings", None):
-        selected.extend(documents.regulatory_annual_filings[:2])
+        regs = [d for d in documents.regulatory_annual_filings if is_eligible(d)]
+        selected.extend(regs[:2] if regs else documents.regulatory_annual_filings[:2])
+        
     if documents.concalls:
-        selected.extend(documents.concalls[:6])
+        ccs = [d for d in documents.concalls if is_eligible(d)]
+        selected.extend(ccs[:6] if ccs else documents.concalls[:6])
+        
     if documents.presentations:
-        selected.extend(documents.presentations[:6])
+        ppts = [d for d in documents.presentations if is_eligible(d)]
+        selected.extend(ppts[:6] if ppts else documents.presentations[:6])
+        
     if documents.material_announcements:
         # Filter for materiality: avoid routine loss of shares or trading window notices
         material_only = []
         for ann in documents.material_announcements:
             t_lower = ann.title.lower()
-            if not any(r in t_lower for r in ["loss of share", "duplicate share", "trading window", "newspaper publication"]):
+            if not any(r in t_lower for r in ["loss of share", "duplicate share", "trading window", "newspaper publication"]) and is_eligible(ann):
                 material_only.append(ann)
         selected.extend(material_only[:8] if material_only else documents.material_announcements[:8])
+        
     if getattr(documents, "brsr_reports", None):
-        selected.extend(documents.brsr_reports[:1])
+        brsrs = [d for d in documents.brsr_reports if is_eligible(d)]
+        selected.extend(brsrs[:1] if brsrs else documents.brsr_reports[:1])
+        
     return selected
 
 def fetch_historical_evidence_document(

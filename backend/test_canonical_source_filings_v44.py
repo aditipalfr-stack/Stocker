@@ -117,7 +117,8 @@ class TestCanonicalSourceFilingsV44(unittest.TestCase):
         concalls = resp["documents"]["concalls"]
         self.assertEqual(len(concalls), 1)
         self.assertEqual(concalls[0]["ai_status"], "AI_ANALYZED")
-        self.assertIn(url, resp["summaries"])
+        canonical_c_url = concalls[0]["url"]
+        self.assertIn(canonical_c_url, resp["summaries"])
 
     def test_scenario_c_different_filings_with_similar_titles_do_not_cross_attach(self):
         """
@@ -289,7 +290,7 @@ class TestCanonicalSourceFilingsV44(unittest.TestCase):
         resp = main.get_stock_source_filings(sym)
         ppts = resp["documents"]["presentations"]
         self.assertEqual(len(ppts), 1)
-        self.assertEqual(ppts[0]["url"], "https://bseindia.com/filings/deck.pdf")
+        self.assertEqual(ppts[0]["url"], "https://www.bseindia.com/filings/deck.pdf")
         self.assertEqual(ppts[0]["title"], "TESTSYM Investor Presentation Jul 2026")
 
     def test_scenario_h_form_20f_and_brsr_classification_and_working_set_priority(self):
@@ -384,6 +385,272 @@ class TestCanonicalSourceFilingsV44(unittest.TestCase):
         self.assertEqual(ts_fy24, "2024-03-31")
         self.assertEqual(ts_none, "1970-01-01")
         self.assertTrue(ts_fy26 > ts_fy25 > ts_fy24 > ts_none)
+
+    def test_source_strategy_a_annual_report_duplicate(self):
+        """
+        A. ANNUAL REPORT DUPLICATE
+        Screener FY26 annual report + BSE FY26 annual report for same FY
+        Expected: 1 canonical Annual Report, 2 discovered sources.
+        """
+        sym = "TESTSYM"
+        doc_screener = DocumentItem(
+            ticker=sym,
+            title="TESTSYM Annual Report 2026",
+            url="https://www.bseindia.com/xml-data/corpfiling/AttachHis/ar_fy26_screener.pdf",
+            doc_type="annual_report",
+            period_or_date="FY2026",
+            discovery_source="Screener.in"
+        )
+        doc_bse = DocumentItem(
+            ticker=sym,
+            title="Notice Of 32Nd Annual General Meeting And Annual Report 2025-26",
+            url="https://www.bseindia.com/xml-data/corpfiling/AttachHis/ar_fy26_bse.pdf",
+            doc_type="annual_report",
+            period_or_date="18 Jul 2026",
+            discovery_source="BSE India"
+        )
+        database.save_source_documents(sym, [doc_screener, doc_bse])
+
+        resp = main.get_stock_source_filings(sym)
+        ars = resp["documents"]["annual_reports"]
+        self.assertEqual(len(ars), 1)
+        self.assertIn("Screener.in", ars[0]["discovered_sources"])
+        self.assertIn("BSE India", ars[0]["discovered_sources"])
+        self.assertEqual(ars[0]["title"], "Notice Of 32Nd Annual General Meeting And Annual Report 2025-26")
+        self.assertEqual(ars[0]["period_or_date"], "18 Jul 2026")
+
+    def test_source_strategy_b_distinct_annual_and_20f(self):
+        """
+        B. DISTINCT ANNUAL + 20-F
+        Same FY, different physical filings
+        Expected: 2 canonical documents.
+        """
+        sym = "TESTSYM"
+        doc_ar = DocumentItem(
+            ticker=sym,
+            title="Annual Report 2025-26",
+            url="https://www.bseindia.com/xml-data/corpfiling/AttachHis/ar_2026.pdf",
+            doc_type="annual_report",
+            period_or_date="18 Jul 2026",
+            discovery_source="BSE India"
+        )
+        doc_20f = DocumentItem(
+            ticker=sym,
+            title="Filing Of Annual Report In Form 20-F For Year Ended March 31, 2026",
+            url="https://www.bseindia.com/xml-data/corpfiling/AttachHis/20f_2026.pdf",
+            doc_type="regulatory_annual_filing",
+            period_or_date="20 Jul 2026",
+            discovery_source="BSE India"
+        )
+        database.save_source_documents(sym, [doc_ar, doc_20f])
+
+        resp = main.get_stock_source_filings(sym)
+        ars = resp["documents"]["annual_reports"]
+        reg_20f = resp["documents"]["regulatory_annual_filings"]
+        
+        self.assertEqual(len(ars), 1)
+        self.assertEqual(len(reg_20f), 1)
+        self.assertEqual(ars[0]["doc_type"], "annual_report")
+        self.assertEqual(reg_20f[0]["doc_type"], "regulatory_annual_filing")
+
+    def test_source_strategy_c_screener_concall_plus_bse_wrapper(self):
+        """
+        C. SCREENER CONCALL + BSE WRAPPER
+        Screener has substantive Q1 FY27 transcript.
+        BSE filing is a notification linking to same event transcript.
+        Expected: one substantive transcript for AI. BSE wrapper retained only as provenance.
+        """
+        sym = "TESTSYM"
+        doc_screener_transcript = DocumentItem(
+            ticker=sym,
+            title="TESTSYM Jul 2026 Earnings Call Transcript",
+            url="https://www.icici.bank.in/content/dam/transcript-for-earnings-call-held-on-july-18-2026.pdf",
+            doc_type="concall_transcript",
+            period_or_date="Jul 2026",
+            discovery_source="Screener.in"
+        )
+        doc_bse_notification = DocumentItem(
+            ticker=sym,
+            title="Transcripts Of The Call With Media And Of Earnings Call With Analysts And Investors.",
+            url="https://www.bseindia.com/xml-data/corpfiling/AttachHis/wrapper_notice.pdf",
+            doc_type="concall_transcript",
+            period_or_date="23 Jul 2026",
+            discovery_source="BSE India",
+            is_wrapper=True,
+            is_substantive=False
+        )
+        database.save_source_documents(sym, [doc_screener_transcript, doc_bse_notification])
+
+        resp = main.get_stock_source_filings(sym)
+        ccs = resp["documents"]["concalls"]
+        self.assertEqual(len(ccs), 1)
+        # Substantive Screener transcript URL is selected
+        self.assertEqual(ccs[0]["url"], "https://www.icici.bank.in/content/dam/transcript-for-earnings-call-held-on-july-18-2026.pdf")
+        self.assertTrue(ccs[0]["ai_eligible"])
+        self.assertIn("BSE India", ccs[0]["discovered_sources"])
+        self.assertIn("Screener.in", ccs[0]["discovered_sources"])
+
+    def test_source_strategy_d_bse_only_concall(self):
+        """
+        D. BSE-ONLY CONCALL
+        BSE has a genuine transcript not present in Screener.
+        Expected: included. Do not lose it because of Screener-first preference.
+        """
+        sym = "TESTSYM"
+        doc_bse_concall = DocumentItem(
+            ticker=sym,
+            title="Earnings Call Transcript for Q2 FY27",
+            url="https://www.bseindia.com/xml-data/corpfiling/AttachHis/bse_concall_q2fy27.pdf",
+            doc_type="concall_transcript",
+            period_or_date="24 Oct 2026",
+            discovery_source="BSE India"
+        )
+        database.save_source_documents(sym, [doc_bse_concall])
+
+        resp = main.get_stock_source_filings(sym)
+        ccs = resp["documents"]["concalls"]
+        self.assertEqual(len(ccs), 1)
+        self.assertEqual(ccs[0]["url"], "https://www.bseindia.com/xml-data/corpfiling/AttachHis/bse_concall_q2fy27.pdf")
+        self.assertEqual(ccs[0]["discovery_source"], "BSE India")
+
+    def test_source_strategy_e_transcript_plus_presentation(self):
+        """
+        E. TRANSCRIPT + PRESENTATION
+        Same event/date.
+        Expected: both retained. Shared event identity allowed. Different document subtype.
+        """
+        sym = "TESTSYM"
+        doc_transcript = DocumentItem(
+            ticker=sym,
+            title="TESTSYM Jul 2026 Earnings Call Transcript",
+            url="https://www.icici.bank.in/transcripts/q1fy27.pdf",
+            doc_type="concall_transcript",
+            period_or_date="Jul 2026",
+            discovery_source="Screener.in"
+        )
+        doc_presentation = DocumentItem(
+            ticker=sym,
+            title="TESTSYM Jul 2026 Investor Presentation",
+            url="https://www.bseindia.com/xml-data/corpfiling/AttachHis/deck_q1fy27.pdf",
+            doc_type="presentation",
+            period_or_date="18 Jul 2026",
+            discovery_source="BSE India"
+        )
+        database.save_source_documents(sym, [doc_transcript, doc_presentation])
+
+        resp = main.get_stock_source_filings(sym)
+        ccs = resp["documents"]["concalls"]
+        ppts = resp["documents"]["presentations"]
+        
+        self.assertEqual(len(ccs), 1)
+        self.assertEqual(len(ppts), 1)
+        self.assertNotEqual(ccs[0]["doc_type"], ppts[0]["doc_type"])
+        # Both share the same event key for Q1 FY27
+        self.assertEqual(ccs[0]["event_key"], "event_TESTSYM_Q1FY27")
+        self.assertEqual(ppts[0]["event_key"], "event_TESTSYM_Q1FY27")
+
+    def test_source_strategy_f_duplicate_presentation(self):
+        """
+        F. DUPLICATE PRESENTATION
+        Screener + BSE same presentation.
+        Expected: one canonical presentation.
+        """
+        sym = "TESTSYM"
+        doc_bse_ppt = DocumentItem(
+            ticker=sym,
+            title="Announcement under Regulation 30 (LODR)-Investor Presentation",
+            url="https://www.bseindia.com/xml-data/corpfiling/AttachHis/881c8fc3-a4c2-40ff-bacf-d68efc0e3d7a.pdf",
+            doc_type="presentation",
+            period_or_date="18 Jul 2026",
+            discovery_source="BSE India"
+        )
+        doc_screener_ppt = DocumentItem(
+            ticker=sym,
+            title="TESTSYM Jul 2026 Investor Presentation",
+            url="https://www.bseindia.com/stockinfo/AnnPdfOpen.aspx?Pname=881c8fc3-a4c2-40ff-bacf-d68efc0e3d7a.pdf",
+            doc_type="presentation",
+            period_or_date="Jul 2026",
+            discovery_source="Screener.in"
+        )
+        database.save_source_documents(sym, [doc_bse_ppt, doc_screener_ppt])
+
+        resp = main.get_stock_source_filings(sym)
+        ppts = resp["documents"]["presentations"]
+        self.assertEqual(len(ppts), 1)
+        self.assertIn("BSE India", ppts[0]["discovered_sources"])
+        self.assertIn("Screener.in", ppts[0]["discovered_sources"])
+        self.assertEqual(ppts[0]["period_or_date"], "18 Jul 2026")
+
+    def test_source_strategy_g_brsr_priority(self):
+        """
+        G. BRSR PRIORITY
+        Annual Report + transcript + presentation + unique 20-F + BRSR.
+        Expected: BRSR lower in default AI working-set priority.
+        """
+        doc_links = DocumentLinks(
+            annual_reports=[
+                DocumentItem(ticker="TESTSYM", title="Annual Report FY26", url="https://bse.com/ar26.pdf", doc_type="annual_report", period_or_date="18 Jul 2026")
+            ],
+            regulatory_annual_filings=[
+                DocumentItem(ticker="TESTSYM", title="Form 20-F FY26", url="https://bse.com/20f.pdf", doc_type="regulatory_annual_filing", period_or_date="20 Jul 2026")
+            ],
+            concalls=[
+                DocumentItem(ticker="TESTSYM", title="Concall Q1 FY27", url="https://bse.com/cc1.pdf", doc_type="concall_transcript", period_or_date="Q1 FY27")
+            ],
+            presentations=[
+                DocumentItem(ticker="TESTSYM", title="Investor Presentation", url="https://bse.com/ppt1.pdf", doc_type="presentation", period_or_date="Jul 2026")
+            ],
+            brsr_reports=[
+                DocumentItem(ticker="TESTSYM", title="BRSR 2026", url="https://bse.com/brsr26.pdf", doc_type="brsr_esg", period_or_date="18 Jul 2026")
+            ]
+        )
+        ws = doc_intelligence_pipeline.select_default_document_working_set(doc_links)
+        types = [d.doc_type for d in ws]
+        
+        ar_idx = types.index("annual_report")
+        reg_idx = types.index("regulatory_annual_filing")
+        cc_idx = types.index("concall_transcript")
+        ppt_idx = types.index("presentation")
+        brsr_idx = types.index("brsr_esg")
+        
+        self.assertTrue(ar_idx < brsr_idx)
+        self.assertTrue(reg_idx < brsr_idx)
+        self.assertTrue(cc_idx < brsr_idx)
+        self.assertTrue(ppt_idx < brsr_idx)
+
+    def test_source_strategy_h_date_enrichment(self):
+        """
+        H. DATE ENRICHMENT
+        Screener copy only says FY26.
+        Equivalent BSE alias has exact publication date.
+        Expected: canonical record uses exact date for sorting while preserving provenance.
+        """
+        sym = "TESTSYM"
+        doc_screener = DocumentItem(
+            ticker=sym,
+            title="TESTSYM Annual Report 2026",
+            url="https://www.bseindia.com/xml-data/corpfiling/AttachHis/ar_2026_both.pdf",
+            doc_type="annual_report",
+            period_or_date="FY2026",
+            discovery_source="Screener.in"
+        )
+        doc_bse = DocumentItem(
+            ticker=sym,
+            title="Notice Of 32Nd Annual General Meeting And Annual Report 2025-26",
+            url="https://www.bseindia.com/xml-data/corpfiling/AttachHis/ar_2026_both.pdf",
+            doc_type="annual_report",
+            period_or_date="18 Jul 2026",
+            discovery_source="BSE India"
+        )
+        database.save_source_documents(sym, [doc_screener, doc_bse])
+
+        resp = main.get_stock_source_filings(sym)
+        canonical_ar = resp["documents"]["annual_reports"][0]
+        
+        self.assertEqual(canonical_ar["period_or_date"], "18 Jul 2026")
+        self.assertEqual(canonical_ar["sort_timestamp"], "2026-07-18")
+        self.assertIn("Screener.in", canonical_ar["discovered_sources"])
+        self.assertIn("BSE India", canonical_ar["discovered_sources"])
 
 if __name__ == '__main__':
     unittest.main()

@@ -605,9 +605,9 @@ def get_management_guidance_items(symbol: str) -> List[Dict[str, Any]]:
 def canonicalize_document_url(url: Optional[str]) -> str:
     """
     Cleans and canonicalizes a document URL safely.
-    - Strips leading/trailing whitespace.
-    - Removes harmless URL fragments (#page=1, #...).
-    - Normalizes scheme/host to lowercase.
+    - Strips leading/trailing whitespace and harmless URL fragments (#page=1, #...).
+    - Normalizes BSE AnnPdfOpen.aspx?Pname=FILENAME to direct AttachHis/FILENAME URL.
+    - Normalizes protocol to https:// and hostnames (bseindia.com -> www.bseindia.com).
     - Normalizes query parameters safely without breaking endpoint semantics.
     """
     if not url:
@@ -618,6 +618,25 @@ def canonicalize_document_url(url: Optional[str]) -> str:
     # Strip URL fragments
     if "#" in clean:
         clean = clean.split("#", 1)[0].strip()
+        
+    # BSE AnnPdfOpen normalization
+    if "bseindia.com" in clean.lower() and "annpdfopen.aspx" in clean.lower():
+        try:
+            from urllib.parse import urlparse, parse_qs
+            parsed = urlparse(clean)
+            qs = parse_qs(parsed.query)
+            pname = qs.get("Pname") or qs.get("pname")
+            if pname and pname[0]:
+                filename = pname[0].strip()
+                clean = f"https://www.bseindia.com/xml-data/corpfiling/AttachHis/{filename}"
+        except Exception:
+            pass
+            
+    # Normalize bseindia.com protocol and subdomain
+    if "bseindia.com" in clean.lower():
+        clean = re.sub(r"^http://", "https://", clean)
+        clean = re.sub(r"^https://bseindia\.com", "https://www.bseindia.com", clean)
+        
     try:
         from urllib.parse import urlparse, parse_qsl, urlencode, urlunparse
         parsed = urlparse(clean)
@@ -686,6 +705,132 @@ def normalize_document_type(raw_type: Optional[str], title: str = "") -> str:
         return "announcement"
         
     return "general"
+
+def derive_document_subtype(doc_type: str, title: str = "") -> str:
+    """Derives specific structural subtype of the document for metadata and filtering."""
+    t_clean = (title or "").lower().strip()
+    norm_dt = normalize_document_type(doc_type, title)
+    
+    if norm_dt == "regulatory_annual_filing":
+        return "20-f" if "20-f" in t_clean else "regulatory_annual"
+    if norm_dt == "brsr_esg":
+        return "brsr" if "brsr" in t_clean else "esg_report"
+    if norm_dt == "annual_report":
+        return "annual_report"
+    if norm_dt == "concall_transcript":
+        return "earnings_transcript"
+    if norm_dt == "presentation":
+        return "investor_deck"
+    if norm_dt == "announcement":
+        if "board meeting" in t_clean or "outcome" in t_clean:
+            return "board_outcome"
+        if "credit rating" in t_clean or "rating" in t_clean:
+            return "credit_rating"
+        if "esop" in t_clean or "allotment" in t_clean:
+            return "esop_allotment"
+        if "press release" in t_clean or "media" in t_clean:
+            return "press_release"
+        return "material_disclosure"
+    return "general_filing"
+
+def extract_normalized_fiscal_year(period_or_date: Optional[str], title: str = "") -> str:
+    """Extracts a normalized fiscal year key (e.g. FY2026, FY2025) from filing date or title."""
+    combined = f"{period_or_date or ''} {title or ''}".strip()
+    
+    # 1. Match FY2026, FY26, FY 2026, FY 26
+    m_fy = re.search(r'\bFY\s*(\d{2,4})\b', combined, re.IGNORECASE)
+    if m_fy:
+        raw_yr = int(m_fy.group(1))
+        return f"FY{raw_yr if raw_yr > 1000 else 2000 + raw_yr}"
+        
+    # 2. Match 2025-26, 2025-2026, 2025–26
+    m_range = re.search(r'\b(\d{4})\s*[-–]\s*(\d{2,4})\b', combined)
+    if m_range:
+        yr1 = int(m_range.group(1))
+        yr2 = int(m_range.group(2))
+        fy_yr = yr2 if yr2 > 1000 else int(str(yr1)[:2] + str(yr2).zfill(2))
+        return f"FY{fy_yr}"
+        
+    # 3. Match March 31, 2026 or March 2026
+    m_mar = re.search(r'March[a-z]*\s*(?:\d{1,2}\s*,?\s*)?(\d{4})', combined, re.IGNORECASE)
+    if m_mar:
+        return f"FY{m_mar.group(1)}"
+        
+    # 4. Match year only in title: 'Annual Report 2026'
+    m_yr = re.search(r'\b(20\d{2})\b', combined)
+    if m_yr:
+        return f"FY{m_yr.group(1)}"
+        
+    return "UNKNOWN_FY"
+
+def derive_earnings_event_key(symbol: str, period_or_date: Optional[str], title: str = "") -> str:
+    """
+    Computes a deterministic event key for earnings-event filings (e.g. event_ICICIBANK_Q1FY27).
+    Allows linking transcripts and presentations from the same reporting event while preserving them as distinct documents.
+    """
+    clean_sym = symbol.upper().strip()
+    combined = f"{period_or_date or ''} {title or ''}".strip()
+    
+    # 1. Match explicit Quarter + FY: 'Q1 FY27', 'Q4 FY26', 'Q1-2027', 'Q1 FY2027'
+    m_q = re.search(r'Q([1-4])\s*(?:FY|[-–])?\s*(\d{2,4})', combined, re.IGNORECASE)
+    if m_q:
+        q_num = int(m_q.group(1))
+        raw_yr = int(m_q.group(2))
+        fy_yr = raw_yr if raw_yr > 1000 else 2000 + raw_yr
+        return f"event_{clean_sym}_Q{q_num}FY{str(fy_yr)[-2:]}"
+        
+    # 2. Match Month + Year for Indian reporting cycle:
+    # Jun/Jul/Aug earnings calls -> Q1 of following FY (e.g. Jul 2026 -> Q1 FY27)
+    # Sep/Oct/Nov earnings calls -> Q2 of following FY (e.g. Oct 2025 -> Q2 FY26)
+    # Dec/Jan/Feb earnings calls -> Q3 of FY (e.g. Jan 2026 -> Q3 FY26)
+    # Mar/Apr/May earnings calls -> Q4 of FY (e.g. Apr 2026 -> Q4 FY26)
+    m_my = re.search(r'(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*[-/ ,]+(\d{4})', combined, re.IGNORECASE)
+    if m_my:
+        mon = m_my.group(1)[:3].lower()
+        yr = int(m_my.group(2))
+        if mon in ["jun", "jul", "aug"]:
+            return f"event_{clean_sym}_Q1FY{str(yr + 1)[-2:]}"
+        elif mon in ["sep", "oct", "nov"]:
+            return f"event_{clean_sym}_Q2FY{str(yr + 1)[-2:]}"
+        elif mon in ["dec", "jan", "feb"]:
+            return f"event_{clean_sym}_Q3FY{str(yr if mon != 'dec' else yr + 1)[-2:]}"
+        elif mon in ["mar", "apr", "may"]:
+            return f"event_{clean_sym}_Q4FY{str(yr)[-2:]}"
+            
+    # 3. Match exact text date: '18 Jul 2026', '23 Jul 2026'
+    m_dmy = re.search(r'\d{1,2}[-/ ]+(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*[-/ ,]+(\d{4})', combined, re.IGNORECASE)
+    if m_dmy:
+        mon = m_dmy.group(1)[:3].lower()
+        yr = int(m_dmy.group(2))
+        if mon in ["jun", "jul", "aug"]:
+            return f"event_{clean_sym}_Q1FY{str(yr + 1)[-2:]}"
+        elif mon in ["sep", "oct", "nov"]:
+            return f"event_{clean_sym}_Q2FY{str(yr + 1)[-2:]}"
+        elif mon in ["dec", "jan", "feb"]:
+            return f"event_{clean_sym}_Q3FY{str(yr if mon != 'dec' else yr + 1)[-2:]}"
+        elif mon in ["mar", "apr", "may"]:
+            return f"event_{clean_sym}_Q4FY{str(yr)[-2:]}"
+            
+    return f"event_{clean_sym}_GENERIC"
+
+def is_document_wrapper(title: str, url: str = "", text_content: Optional[str] = None, page_count: Optional[int] = None) -> bool:
+    """
+    Detects whether a filing is a 1-page notification / cover-letter wrapper rather than the substantive document.
+    """
+    t_lower = (title or "").lower().strip()
+    if any(k in t_lower for k in [
+        "audio recording of earnings", "link for audio recording", 
+        "intimation of schedule of analyst", "schedule of analyst meet",
+        "newspaper publication", "loss of share certificate", "duplicate share"
+    ]):
+        return True
+        
+    if page_count == 1 and text_content:
+        fp_lower = text_content.lower()
+        if any(w in fp_lower for w in ["please find attached", "we wish to inform that", "we inform that", "enclosed herewith"]):
+            return True
+            
+    return False
 
 def parse_document_sort_timestamp(period_or_date: Optional[str], title: str = "") -> str:
     """
@@ -782,26 +927,21 @@ def parse_document_sort_timestamp(period_or_date: Optional[str], title: str = ""
 
 def deduplicate_document_records(documents: List[Any], symbol: str) -> List[Dict[str, Any]]:
     """
-    Deduplicates physical documents by canonical URL / canonical document key.
-    Merges discovery sources and aliases while selecting the preferred canonical title and type.
+    Implements deterministic canonical source strategy across filing categories:
+    1. Annual Reports: normally ONE canonical Annual Report per FY; merges Screener & BSE representations,
+       inheriting exact exchange filing date and preferred direct official PDF representation.
+    2. Regulatory Annual Filings (20-F): kept distinct from domestic Annual Reports.
+    3. Concalls: Screener-first for normal transcript/deck pairs; exchange acts as gap detector.
+       Detects wrapper/notification filings and preserves them as provenance while routing AI to substantive transcript.
+    4. Investor Presentations: one canonical deck per event; complementary to transcript (both retained).
+    5. BRSR / ESG: kept distinct and discoverable with low default AI working-set priority.
+    6. Material Announcements: distinct announcements on same date preserved; only true duplicate files merged.
     """
     if not documents:
         return []
     
     clean_sym = symbol.upper().strip()
-    by_url: Dict[str, Dict[str, Any]] = {}
-    
-    # Type priority when multiple records classify the same file differently:
-    type_priority = {
-        "annual_report": 10,
-        "regulatory_annual_filing": 9,
-        "concall_transcript": 8,
-        "presentation": 7,
-        "announcement": 6,
-        "brsr_esg": 5,
-        "general": 1,
-        "other": 1
-    }
+    canonical_map: Dict[str, Dict[str, Any]] = {}
     
     for doc in documents:
         if isinstance(doc, dict):
@@ -815,8 +955,12 @@ def deduplicate_document_records(documents: List[Any], symbol: str) -> List[Dict
             is_valid = doc.get("is_valid", 1)
             f_date = doc.get("fetched_date")
             doc_k = doc.get("doc_key")
+            ev_k = doc.get("event_key")
             sources = list(doc.get("discovered_sources") or [])
             aliases = list(doc.get("source_aliases") or [])
+            is_subst = doc.get("is_substantive", True)
+            is_wrap = doc.get("is_wrapper", False)
+            ai_elig = doc.get("ai_eligible", True)
         else:
             raw_title = str(getattr(doc, "title", None) or getattr(doc, "name", None) or "").strip()
             raw_url = str(getattr(doc, "url", None) or "").strip()
@@ -828,76 +972,126 @@ def deduplicate_document_records(documents: List[Any], symbol: str) -> List[Dict
             is_valid = getattr(doc, "is_valid", 1)
             f_date = getattr(doc, "fetched_date", None)
             doc_k = getattr(doc, "doc_key", None)
+            ev_k = getattr(doc, "event_key", None)
             sources = list(getattr(doc, "discovered_sources", None) or [])
             aliases = list(getattr(doc, "source_aliases", None) or [])
+            is_subst = getattr(doc, "is_substantive", True)
+            is_wrap = getattr(doc, "is_wrapper", False)
+            ai_elig = getattr(doc, "ai_eligible", True)
             
         if not raw_url:
             continue
             
         c_url = canonicalize_document_url(raw_url) or raw_url
         norm_dt = normalize_document_type(raw_dt, raw_title)
+        subtype = derive_document_subtype(norm_dt, raw_title)
+        wrapper = is_wrap or is_document_wrapper(raw_title, c_url)
         
         if discovery and discovery not in sources:
             sources.append(discovery)
             
-        if c_url in by_url:
-            existing = by_url[c_url]
-            # Merge sources
+        # Determine canonical group identity per category:
+        if norm_dt == "annual_report":
+            fy = extract_normalized_fiscal_year(p_date, raw_title)
+            group_key = f"AR_{clean_sym}_{fy}"
+        elif norm_dt == "regulatory_annual_filing":
+            fy = extract_normalized_fiscal_year(p_date, raw_title)
+            group_key = f"REG20F_{clean_sym}_{fy}_{c_url}"
+        elif norm_dt == "brsr_esg":
+            fy = extract_normalized_fiscal_year(p_date, raw_title)
+            group_key = f"BRSR_{clean_sym}_{fy}"
+        elif norm_dt == "concall_transcript":
+            ev = ev_k or derive_earnings_event_key(clean_sym, p_date, raw_title)
+            group_key = f"CC_{clean_sym}_{ev}"
+        elif norm_dt == "presentation":
+            ev = ev_k or derive_earnings_event_key(clean_sym, p_date, raw_title)
+            # Presentations for different decks/dates within same event or distinct URLs
+            group_key = f"PPT_{clean_sym}_{ev}_{c_url}"
+        else:
+            group_key = f"ANN_{clean_sym}_{c_url}"
+            
+        event_key_val = ev_k or (derive_earnings_event_key(clean_sym, p_date, raw_title) if norm_dt in ("concall_transcript", "presentation") else None)
+        
+        if group_key in canonical_map:
+            existing = canonical_map[group_key]
+            # Merge discovery sources
             for s in sources:
                 if s and s not in existing["discovered_sources"]:
                     existing["discovered_sources"].append(s)
-            
+                    
             # Record alias if title is different
             if raw_title and raw_title != existing["title"] and raw_title not in existing["source_aliases"]:
                 existing["source_aliases"].append(raw_title)
                 
-            # Preferred Title Precedence:
-            curr_title = existing["title"]
-            if ("bse" in discovery.lower() or "exchange" in discovery.lower() or "ir" in discovery.lower()) and not ("bse" in existing["discovery_source"].lower()):
-                existing["title"] = raw_title
-                existing["discovery_source"] = discovery
-            elif len(raw_title) > len(curr_title) and raw_title.lower() != curr_title.lower():
-                if curr_title.lower() in ("transcript", "presentation", "ppt", "annual report", "all"):
-                    existing["title"] = raw_title
-                    
-            # Preferred Type Precedence:
-            if type_priority.get(norm_dt, 0) > type_priority.get(existing["doc_type"], 0):
-                existing["doc_type"] = norm_dt
-                
-            # Preferred Period:
-            if not existing.get("period_or_date") and p_date:
+            # Date enrichment: Inherit exact/stronger date from alias
+            curr_ts = existing.get("sort_timestamp") or parse_document_sort_timestamp(existing.get("period_or_date"), existing["title"])
+            new_ts = parse_document_sort_timestamp(p_date, raw_title)
+            if new_ts != "1970-01-01" and (curr_ts == "1970-01-01" or (curr_ts.endswith("-03-31") and not new_ts.endswith("-03-31")) or (p_date and len(str(p_date)) > len(str(existing.get("period_or_date") or "")))):
                 existing["period_or_date"] = p_date
+                existing["sort_timestamp"] = new_ts
                 
-            # Recompute canonical doc_key and sort_timestamp
+            # Category-specific representation preferences:
+            if norm_dt == "annual_report":
+                # Prefer official exchange title and direct host
+                if ("bse" in discovery.lower() or "exchange" in discovery.lower() or "notice" in raw_title.lower()) and not ("bse" in existing["discovery_source"].lower()):
+                    existing["title"] = raw_title
+                    existing["url"] = c_url
+                    existing["discovery_source"] = discovery
+            elif norm_dt == "concall_transcript":
+                # Prefer substantive transcript over 1-page wrapper notification
+                if not wrapper and existing.get("is_wrapper"):
+                    existing["title"] = raw_title
+                    existing["url"] = c_url
+                    existing["discovery_source"] = discovery
+                    existing["is_wrapper"] = False
+                    existing["is_substantive"] = True
+                    existing["ai_eligible"] = True
+                elif "screener" in discovery.lower() and not wrapper:
+                    existing["title"] = raw_title
+                    existing["url"] = c_url
+                    existing["discovery_source"] = discovery
+            elif norm_dt == "presentation":
+                if ("bse" in discovery.lower() or "company" in discovery.lower()) and "screener" in existing["discovery_source"].lower():
+                    existing["title"] = raw_title
+                    existing["url"] = c_url
+                    existing["discovery_source"] = discovery
+                    
+            # Recompute canonical doc_key
             existing["doc_key"] = compute_canonical_document_key(
-                clean_sym, existing["doc_type"], existing.get("period_or_date"), c_url, existing["title"]
+                clean_sym, existing["doc_type"], existing.get("period_or_date"), existing["url"], existing["title"]
             )
-            existing["sort_timestamp"] = parse_document_sort_timestamp(existing.get("period_or_date"), existing["title"])
         else:
             final_key = doc_k or compute_canonical_document_key(
                 clean_sym, norm_dt, p_date, c_url, raw_title
             )
             sort_ts = parse_document_sort_timestamp(p_date, raw_title)
-            by_url[c_url] = {
+            canonical_map[group_key] = {
                 "symbol": clean_sym,
+                "ticker": clean_sym,
                 "title": raw_title,
                 "url": c_url,
                 "doc_type": norm_dt,
+                "doc_subtype": subtype,
                 "period_or_date": p_date,
                 "discovery_source": discovery,
                 "discovered_sources": sources,
                 "source_aliases": aliases,
-                "actual_source_host": host,
+                "actual_source_host": host or ("bseindia.com" if "bseindia.com" in c_url else "screener.in"),
                 "actual_source_url": c_url,
                 "is_direct_pdf": True if c_url.lower().endswith(".pdf") or ".pdf" in c_url.lower() else False,
                 "validation_status": status,
                 "is_valid": 1 if is_valid in (1, True, "1", "Valid") else 0,
                 "fetched_date": f_date,
                 "doc_key": final_key,
+                "event_key": event_key_val,
+                "is_substantive": not wrapper and is_subst,
+                "is_wrapper": wrapper,
+                "wrapper_source_url": raw_url if wrapper else None,
+                "ai_eligible": not wrapper and ai_elig and is_valid in (1, True, "1", "Valid"),
                 "sort_timestamp": sort_ts
             }
             
-    res = list(by_url.values())
+    res = list(canonical_map.values())
     res.sort(key=lambda x: (x.get("sort_timestamp") or "1970-01-01", x.get("title", "")), reverse=True)
     return res
 
@@ -1347,6 +1541,7 @@ def save_source_documents(symbol: str, documents: List[Any]) -> None:
                         )
                         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                         ON CONFLICT(url) DO UPDATE SET
+                            symbol = excluded.symbol,
                             title = excluded.title,
                             doc_type = excluded.doc_type,
                             period_or_date = excluded.period_or_date,
@@ -1364,6 +1559,7 @@ def save_source_documents(symbol: str, documents: List[Any]) -> None:
                         )
                         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                         ON CONFLICT(url) DO UPDATE SET
+                            symbol = excluded.symbol,
                             title = excluded.title,
                             doc_type = excluded.doc_type,
                             period_or_date = excluded.period_or_date,
@@ -1379,6 +1575,7 @@ def save_source_documents(symbol: str, documents: List[Any]) -> None:
                         )
                         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
                         ON CONFLICT(url) DO UPDATE SET
+                            symbol = excluded.symbol,
                             title = excluded.title,
                             doc_type = excluded.doc_type,
                             period_or_date = excluded.period_or_date,

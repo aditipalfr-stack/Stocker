@@ -102,3 +102,37 @@ test('9. Discovered sources formatting merges multiple sources', () => {
   };
   assert.equal(formatDocumentSources(docMulti), 'BSE India, Screener.in');
 });
+
+test('10. Date enrichment sorts exact alias date ahead of FY-only date', () => {
+  const docA = {
+    ticker: 'ICICIBANK',
+    title: 'ICICIBANK Annual Report 2026',
+    url: 'http://a/ar26',
+    doc_type: 'annual_report',
+    period_or_date: '18 Jul 2026',
+    sort_timestamp: '2026-07-18'
+  };
+  const docB = {
+    ticker: 'ICICIBANK',
+    title: 'ICICIBANK Annual Report 2025',
+    url: 'http://a/ar25',
+    doc_type: 'annual_report',
+    period_or_date: 'FY2025',
+    sort_timestamp: '2025-03-31'
+  };
+  const sorted = sortDocumentsGlobally([docB, docA]);
+  assert.equal(sorted[0].title, 'ICICIBANK Annual Report 2026');
+  assert.equal(sorted[0].sort_timestamp, '2026-07-18');
+});
+
+test('11. Authoritative AI status takes precedence', () => {
+  const docAnalyzed = { ai_status: 'AI_ANALYZED' };
+  const docNotSelected = { ai_status: 'NOT_SELECTED' };
+  const docFailed = { ai_status: 'PROCESSING_FAILED' };
+  const docNotAnalyzed = { ai_status: 'NOT_ANALYZED_YET' };
+
+  assert.equal(docAnalyzed.ai_status, 'AI_ANALYZED');
+  assert.equal(docNotSelected.ai_status, 'NOT_SELECTED');
+  assert.equal(docFailed.ai_status, 'PROCESSING_FAILED');
+  assert.equal(docNotAnalyzed.ai_status, 'NOT_ANALYZED_YET');
+});
