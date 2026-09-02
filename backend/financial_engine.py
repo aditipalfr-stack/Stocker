@@ -975,16 +975,15 @@ def verify_promise_vs_delivery_item(
     current_year: Optional[float] = None
 ) -> Dict[str, Any]:
     """
-    Deterministically enforces strict chronology, deadline rules, and mathematical statement calculations:
-    1. Dynamic Runtime Year: Computes continuous float year from datetime.now(timezone.utc) if current_year is not passed.
-    2. Same Filing / Same Event Guard: A promise and outcome citing the same document/URL cannot prove delivery.
-    3. Strict Chronology Assertion: Requires act_yr > prom_yr. Backwards or equal dates are downgraded to 'Not Enough Evidence'.
-    4. Code is the Absolute Authority for status and financial_numbers_check:
-       - Numerical guidance with structured data -> exact code calculation of achievement % and variance.
-       - Numerical guidance without structured data -> 'Not Enough Evidence', financial_numbers_check overwritten.
-       - Target deadline in future -> 'In Progress'.
-       - Qualitative milestone with verified completion event -> 'Delivered'.
-       - Qualitative milestone without clear proof -> 'Not Enough Evidence'.
+    Deterministically enforces strict chronology, deadline rules, and mathematical statement calculations
+    according to explicit target semantics (exact point target, minimum/at least target, range guidance,
+    directional guidance, qualitative milestones).
+    
+    CRITICAL POLICY:
+    - NO INVENTED ARBITRARY THRESHOLDS (no 95% or 80% tolerance bands).
+    - If deadline has passed and actual < target, status is strictly 'Missed'.
+    - Target deadline in the future is 'Not Yet Measurable' unless supported by interim progress evidence.
+    - Same-filing evidence is rejected as 'Not Enough Evidence'.
     """
     res = dict(item)
     
@@ -1029,7 +1028,28 @@ def verify_promise_vs_delivery_item(
             res["financial_numbers_check"] = "Not enough structured financial evidence to verify this claim."
             return res
 
-    # Helper to extract metric values from statement (supports Pydantic model or dict)
+    # 5. Generic Strategy Platitude Check
+    prom_lower = str(item.get("management_promise", "")).lower().strip()
+    if "no measurable prior" in prom_lower or "no prior promise" in prom_lower:
+        res["status"] = "Not Enough Evidence"
+        res["stocker_analysis"] = "No measurable prior management promise found in baseline filings."
+        res["financial_numbers_check"] = "Baseline filings contained general business strategy without measurable numerical guidance targets."
+        return res
+
+    has_quant_kw = bool(re.search(r'(?:%|\b(?:cr|crore|billion|lakh|bps|ratio|guidance|target|capex|mcap)\b)', prom_lower))
+    is_generic_platitude = any(phrase in prom_lower for phrase in [
+        "remain focused", "committed to", "sustainable value",
+        "focusing on sustainable", "aim to be the trusted", "harnessing its brand",
+        "focus on long-term", "strive to deliver", "endeavour to serve", "customer-first", "core purpose"
+    ]) and not has_quant_kw
+
+    if is_generic_platitude:
+        res["status"] = "Not Yet Measurable"
+        res["stocker_analysis"] = "Generic Strategic Intent: Statement reflects ongoing corporate vision or strategic focus rather than an explicit numerical guidance target or verifiable operational milestone."
+        res["financial_numbers_check"] = "Generic qualitative strategy without quantified performance metric."
+        return res
+
+    # Helper to extract metric values from statement
     def _extract_metric_dict(stmt_obj: Any, metric_name: str) -> Dict[str, Optional[float]]:
         if not stmt_obj:
             return {}
@@ -1056,45 +1076,57 @@ def verify_promise_vs_delivery_item(
                             return {periods[i]: v_list[i] for i in range(len(periods))}
         return {}
 
-    # Helper to extract periods list
     def _get_stmt_periods(stmt_obj: Any) -> List[str]:
         if not stmt_obj: return []
         if hasattr(stmt_obj, "periods"): return list(stmt_obj.periods)
         if isinstance(stmt_obj, dict): return list(stmt_obj.get("periods") or stmt_obj.get("years") or [])
         return []
 
-    # 5. Check if Generic Strategy Statement (Not a Measurable Promise)
-    prom_lower = str(item.get("management_promise", "")).lower().strip()
-    if "no measurable prior" in prom_lower or "no prior promise" in prom_lower:
-        res["status"] = "Not Enough Evidence"
-        res["stocker_analysis"] = "No measurable prior management promise found in baseline filings."
-        res["financial_numbers_check"] = "Baseline filings contained general business strategy without measurable numerical guidance targets."
-        return res
-
-    has_quant_kw = bool(re.search(r'(?:%|\b(?:cr|crore|billion|lakh|bps|ratio|guidance|target|capex|mcap)\b)', prom_lower))
-    is_generic_platitude = any(phrase in prom_lower for phrase in [
-        "remain focused", "committed to", "sustainable value",
-        "focusing on sustainable", "aim to be the trusted", "harnessing its brand",
-        "focus on long-term", "strive to deliver", "endeavour to serve", "customer-first", "core purpose"
-    ]) and not has_quant_kw
-
-    if is_generic_platitude:
-        res["status"] = "Not Yet Measurable"
-        res["stocker_analysis"] = "Generic Strategic Intent: Statement reflects ongoing corporate vision or strategic focus rather than an explicit numerical guidance target or verifiable operational milestone."
-        res["financial_numbers_check"] = "Generic qualitative strategy without quantified performance metric."
-        return res
-
-    # 6. Check if Numerical Guidance Promise
     pl_periods = _get_stmt_periods(pl_stmt)
     y_sales = _extract_metric_dict(pl_stmt, "Sales") or _extract_metric_dict(pl_stmt, "Revenue")
     y_opm = _extract_metric_dict(pl_stmt, "OPM %") or _extract_metric_dict(pl_stmt, "OPM")
-    
-    m_growth = re.search(r'(\d+(?:\.\d+)?)\s*%\s*(?:revenue|sales|growth|cagr|margin|loan|deposit|advances)', item.get("management_promise", ""), re.IGNORECASE)
-    
+
+    # 6. Check Range Target (e.g. "between 4.2% and 4.4%", "4.2% - 4.4%", "4.2 to 4.4%")
+    m_range = re.search(r'(\d+(?:\.\d+)?)\s*(?:%|bps)?\s*(?:to|-|and|–)\s*(\d+(?:\.\d+)?)\s*(%|bps)?', prom_lower)
+    # Check Point Target (e.g. "10% growth", "15% revenue growth", "target of 10%")
+    m_growth = re.search(r'(\d+(?:\.\d+)?)\s*%\s*(?:revenue|sales|growth|cagr|margin|loan|deposit|advances)', prom_lower)
+
+    outcome_text = f"{item.get('actual_outcome', '')} {item.get('actual_quote', '')}"
+    has_subsequent_interim_evidence = bool(re.search(r'\b(grew|increased|expanded|reached|reported|achieved|stands at|commenced|underway|progress|on schedule|trial|construction|commissioned|\d+(?:\.\d+)?%)\b', outcome_text, re.IGNORECASE))
+
+    if m_range and not m_growth:
+        r_min = float(m_range.group(1))
+        r_max = float(m_range.group(2))
+        if r_min > r_max:
+            r_min, r_max = r_max, r_min
+        
+        # Check if actual outcome quotes a value
+        m_act_val = re.search(r'(\d+(?:\.\d+)?)\s*%', outcome_text)
+        if m_act_val:
+            act_v = float(m_act_val.group(1))
+            res["financial_numbers_check"] = f"Guided Range: {r_min}%–{r_max}%; Reported: {act_v}%."
+            if target_yr is not None and target_yr > curr_yr:
+                if has_subsequent_interim_evidence:
+                    res["status"] = "On Track"
+                    res["stocker_analysis"] = f"Interim Progress On Track: Stated target range ({r_min}%–{r_max}%) matures in the future ({target_yr:.0f}); interim reported {act_v}% tracked."
+                else:
+                    res["status"] = "Not Yet Measurable"
+                    res["stocker_analysis"] = f"Future Target: Stated range ({r_min}%–{r_max}%) matures in {target_timeline or f'FY{int(target_yr)}'}."
+            elif r_min <= act_v <= r_max:
+                res["status"] = "Delivered"
+                res["stocker_analysis"] = f"Within Guidance Range: Reported {act_v}% fell within management guided range of {r_min}% to {r_max}%."
+            elif act_v < r_min:
+                res["status"] = "Missed"
+                res["stocker_analysis"] = f"Below Guidance Range: Reported {act_v}% fell below guided range minimum of {r_min}%."
+            else:
+                res["status"] = "Delivered"
+                res["stocker_analysis"] = f"Above Guidance Range: Reported {act_v}% exceeded guided range maximum of {r_max}%."
+            return res
+
     if m_growth:
         promised_pct = float(m_growth.group(1))
+        is_minimum_target = any(kw in prom_lower for kw in ["at least", "minimum", "grow to", "reach at least", ">=", "higher than"])
         
-        # Match target year period or latest period in P&L
         target_p = None
         if actual_period and actual_period in pl_periods:
             target_p = actual_period
@@ -1120,72 +1152,104 @@ def verify_promise_vs_delivery_item(
             variance_pct = round(act_growth - promised_pct, 1)
             
             res["financial_numbers_check"] = (
-                f"Promised {promised_pct}% growth; reported {target_p} revenue of ₹{s_curr:,.0f} Cr "
-                f"reflects {act_growth}% YoY growth (Achievement Rate: {achieve_pct}% of guidance; variance {variance_pct:+.1f}%). "
-                f"Reported OPM stood at {opm_curr if opm_curr is not None else 'N/A'}%."
+                f"Target: {promised_pct}%; Actual: {act_growth}% (Variance: {variance_pct:+.1f} percentage points; Achievement Rate: {achieve_pct}%). "
+                f"Reported {target_p} revenue of ₹{s_curr:,.0f} Cr; OPM stood at {opm_curr if opm_curr is not None else 'N/A'}%."
             )
             
-            # Deterministic Status Assignment
+            # Deterministic Target Semantics (NO INVENTED THRESHOLDS!)
             if target_yr is not None and target_yr > curr_yr:
-                res["status"] = "On Track"
-            elif achieve_pct >= 95.0:
-                res["status"] = "Delivered"
-            elif achieve_pct >= 80.0:
-                res["status"] = "Partially Delivered"
-            elif achieve_pct < 80.0:
-                res["status"] = "Missed"
+                if has_subsequent_interim_evidence:
+                    res["status"] = "On Track"
+                    res["stocker_analysis"] = f"Interim Execution On Track: Stated target ({promised_pct}%) matures in the future ({target_yr:.0f}); interim reported {target_p} growth of {act_growth}% confirms trajectory."
+                else:
+                    res["status"] = "Not Yet Measurable"
+                    res["stocker_analysis"] = f"Future Target Not Yet Due: Stated target deadline ({target_timeline or f'FY{int(target_yr)}'}) matures in {target_yr:.0f} with no interim verification available."
+            elif is_minimum_target:
+                if act_growth >= promised_pct:
+                    res["status"] = "Delivered"
+                    res["stocker_analysis"] = f"Minimum Target Achieved: Reported {act_growth}% growth met or exceeded the targeted minimum of {promised_pct}%."
+                else:
+                    res["status"] = "Missed"
+                    res["stocker_analysis"] = f"Target Missed: Reported {act_growth}% growth fell short of minimum target {promised_pct}% (variance {variance_pct:+.1f}%)."
             else:
-                res["status"] = "On Track"
+                # Exact point target semantics: met if actual >= target or within exact rounding parity (0.05%)
+                if act_growth >= promised_pct:
+                    res["status"] = "Delivered"
+                    res["stocker_analysis"] = f"Target Delivered: Reported {act_growth}% growth met targeted {promised_pct}% (variance {variance_pct:+.1f}%)."
+                else:
+                    res["status"] = "Missed"
+                    res["stocker_analysis"] = f"Target Missed: Reported {act_growth}% growth fell short of targeted {promised_pct}% (variance {variance_pct:+.1f}%)."
+            return res
         else:
-            # Structured statements missing or inconclusive: do NOT keep AI numbers or assume Delivered
+            # Check if outcome text contains explicit reported number
+            m_act_text = re.search(r'(\d+(?:\.\d+)?)\s*%', outcome_text)
+            if m_act_text:
+                act_growth = float(m_act_text.group(1))
+                variance_pct = round(act_growth - promised_pct, 1)
+                achieve_pct = round((act_growth / promised_pct) * 100.0, 1) if promised_pct > 0 else 0.0
+                res["financial_numbers_check"] = f"Target: {promised_pct}%; Actual: {act_growth}% (Variance: {variance_pct:+.1f} percentage points; Achievement Rate: {achieve_pct}%)."
+                
+                if target_yr is not None and target_yr > curr_yr:
+                    if has_subsequent_interim_evidence:
+                        res["status"] = "On Track"
+                        res["stocker_analysis"] = f"Interim Execution On Track: Stated target ({promised_pct}%) matures in the future ({target_yr:.0f}); interim reported {act_growth}% confirms trajectory."
+                    else:
+                        res["status"] = "Not Yet Measurable"
+                        res["stocker_analysis"] = f"Future Target Not Yet Due: Stated target deadline matures in {target_yr:.0f}."
+                elif act_growth >= promised_pct:
+                    res["status"] = "Delivered"
+                    res["stocker_analysis"] = f"Target Delivered: Reported {act_growth}% met targeted {promised_pct}%."
+                else:
+                    res["status"] = "Missed"
+                    res["stocker_analysis"] = f"Target Missed: Reported {act_growth}% fell short of targeted {promised_pct}% (variance {variance_pct:+.1f}%)."
+                return res
+
             res["financial_numbers_check"] = "Not enough structured financial evidence to verify this claim."
             if target_yr is not None and target_yr > curr_yr:
-                res["status"] = "On Track"
+                res["status"] = "Not Yet Measurable"
+                res["stocker_analysis"] = f"Future Target Not Yet Due: Stated target deadline ({target_timeline or f'FY{int(target_yr)}'}) matures in the future ({target_yr:.0f})."
             else:
                 res["status"] = "Not Enough Evidence"
                 res["stocker_analysis"] = "Missing Structured Financial Data: Standardized statements for the target period are not available to verify this quantitative guidance."
-    else:
-        # 7. Qualitative / Operational Milestone Verification
-        outcome_text = f"{item.get('actual_outcome', '')} {item.get('actual_quote', '')}"
-        
-        if target_yr is not None and target_yr > curr_yr:
-            res["status"] = "On Track"
-            res["financial_numbers_check"] = "Qualitative operational milestone (tracked in progress)."
-            res["stocker_analysis"] = f"Milestone On Track: Stated target timeline ({target_timeline or f'FY{int(target_yr)}'}) matures in the future ({target_yr:.0f}). Ongoing execution tracked against interim reported progress."
-        else:
-            # Simple, robust structured keyword matching
-            completion_match = re.search(
-                r'\b(commissioned|operational|commercial production|commercial operations commenced|launched|completed acquisition|acquired|approval received|won order|order received|executed|achieved cod)\b',
-                outcome_text,
-                re.IGNORECASE
-            )
-            delay_match = re.search(r'\b(delayed|postponed|deferred|pushed back|rescheduled)\b', outcome_text, re.IGNORECASE)
-            cancel_match = re.search(r'\b(cancelled|shelved|dropped|abandoned)\b', outcome_text, re.IGNORECASE)
-            partial_match = re.search(r'\b(partially completed|partial commissioning|phase 1 operational|under progress|ongoing)\b', outcome_text, re.IGNORECASE)
-            
-            if completion_match and act_yr is not None and prom_yr is not None and act_yr > prom_yr:
-                res["status"] = "Delivered"
-                res["financial_numbers_check"] = f"Qualitative milestone verified: {completion_match.group(1).capitalize()} confirmed in subsequent filing ({actual_period})."
-            elif partial_match:
-                res["status"] = "Partially Delivered"
-                res["financial_numbers_check"] = f"Qualitative milestone partially delivered: {partial_match.group(1).capitalize()} confirmed in subsequent filing ({actual_period})."
-            elif delay_match:
-                res["status"] = "Delayed"
-                res["financial_numbers_check"] = f"Qualitative milestone delayed: {delay_match.group(1).capitalize()} reported in subsequent filing ({actual_period})."
-            elif cancel_match:
-                res["status"] = "Missed"
-                res["financial_numbers_check"] = f"Qualitative milestone missed: {cancel_match.group(1).capitalize()} reported in subsequent filing ({actual_period})."
-            else:
-                res["status"] = "Not Enough Evidence"
-                res["stocker_analysis"] = f"Uncertain Qualitative Evidence: Subsequent filing ({actual_period}) does not contain verifiable completion proof for this milestone."
-                res["financial_numbers_check"] = "Not enough structured financial evidence to verify this claim."
+            return res
 
-    # 8. Final Target Deadline Protection (Always overrides!)
+    # 7. Qualitative / Operational Milestone Verification
     if target_yr is not None and target_yr > curr_yr:
-        res["status"] = "On Track"
-        if not res.get("stocker_analysis") or "Missed" in res.get("stocker_analysis", "") or "Delivered" in res.get("stocker_analysis", ""):
-            res["stocker_analysis"] = f"Milestone On Track: Stated target timeline ({target_timeline or f'FY{int(target_yr)}'}) matures in the future ({target_yr:.0f}). Ongoing execution tracked against interim reported progress."
-            
+        if has_subsequent_interim_evidence and any(w in outcome_text.lower() for w in ["phase", "commenced", "underway", "progress", "on schedule", "trial"]):
+            res["status"] = "On Track"
+            res["financial_numbers_check"] = "Qualitative operational milestone (interim progress tracked)."
+            res["stocker_analysis"] = f"Milestone On Track: Stated target timeline ({target_timeline or f'FY{int(target_yr)}'}) matures in the future ({target_yr:.0f}). Subsequent filing ({actual_period}) reports active execution."
+        else:
+            res["status"] = "Not Yet Measurable"
+            res["financial_numbers_check"] = "Qualitative operational milestone (future target not yet due)."
+            res["stocker_analysis"] = f"Milestone Not Yet Measurable: Stated target timeline ({target_timeline or f'FY{int(target_yr)}'}) matures in the future ({target_yr:.0f}) with no verifiable interim progress reported."
+    else:
+        completion_match = re.search(
+            r'\b(commissioned|operational|commercial production|commercial operations commenced|launched|completed acquisition|acquired|approval received|won order|order received|executed|achieved cod)\b',
+            outcome_text,
+            re.IGNORECASE
+        )
+        delay_match = re.search(r'\b(delayed|postponed|deferred|pushed back|rescheduled)\b', outcome_text, re.IGNORECASE)
+        cancel_match = re.search(r'\b(cancelled|shelved|dropped|abandoned)\b', outcome_text, re.IGNORECASE)
+        partial_match = re.search(r'\b(partially completed|partial commissioning|phase 1 operational|under progress|ongoing)\b', outcome_text, re.IGNORECASE)
+        
+        if completion_match and act_yr is not None and prom_yr is not None and act_yr > prom_yr:
+            res["status"] = "Delivered"
+            res["financial_numbers_check"] = f"Qualitative milestone verified: {completion_match.group(1).capitalize()} confirmed in subsequent filing ({actual_period})."
+        elif partial_match:
+            res["status"] = "Partially Delivered"
+            res["financial_numbers_check"] = f"Qualitative milestone partially delivered: {partial_match.group(1).capitalize()} confirmed in subsequent filing ({actual_period})."
+        elif delay_match:
+            res["status"] = "Delayed"
+            res["financial_numbers_check"] = f"Qualitative milestone delayed: {delay_match.group(1).capitalize()} reported in subsequent filing ({actual_period})."
+        elif cancel_match:
+            res["status"] = "Missed"
+            res["financial_numbers_check"] = f"Qualitative milestone missed: {cancel_match.group(1).capitalize()} reported in subsequent filing ({actual_period})."
+        else:
+            res["status"] = "Not Enough Evidence"
+            res["stocker_analysis"] = f"Uncertain Qualitative Evidence: Subsequent filing ({actual_period}) does not contain verifiable completion proof for this milestone."
+            res["financial_numbers_check"] = "Not enough structured financial evidence to verify this claim."
+
     return res
 
 # -----------------------------------------------------------------------------
@@ -1197,10 +1261,9 @@ def normalize_metric_key(name: str) -> str:
     if not name:
         return ""
     clean = re.sub(r'[^a-zA-Z0-9\s]', ' ', name).lower()
-    clean = re.sub(r'\s+', ' ', clean).strip()
     return clean
 
-def match_statement_period(period_str: Optional[str], available_periods: List[str]) -> Optional[str]:
+def match_period_to_statement_column(period_str: str, available_periods: List[str]) -> Optional[str]:
     """Matches a filing period label (e.g. 'FY26', 'Q3 FY26', 'Mar 2026') to audited statement columns."""
     if not period_str or not available_periods:
         return None

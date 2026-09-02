@@ -659,16 +659,16 @@ class TestBusinessAnalysisV44(unittest.TestCase):
         self.assertIn("Rural and Business Banking", sanitized.growth_drivers[0].driver_title)
 
     # =========================================================================
-    # C. PROMISE VS DELIVERY TESTS
+    # C. PROMISE VS DELIVERY TESTS (EXACT TARGET SEMANTICS, NO 95/80 TOLERANCE)
     # =========================================================================
 
-    def test_promise_vs_delivery_explicit_numeric_guidance_deterministic(self):
-        """Numerical guidance is evaluated deterministically against reported statements."""
+    def test_promise_vs_delivery_exact_target_missed_without_tolerance(self):
+        """Exact point target 10% with 9.4% actual is MISSED (no invented 95% tolerance)."""
         item = {
             "area": "Revenue Growth",
-            "management_promise": "Targeted 15% revenue growth in FY26",
+            "management_promise": "Targeted 10% revenue growth in FY26",
             "promised_in_period": "FY25",
-            "actual_outcome": "Reported revenue of ₹1,150 Cr in FY26",
+            "actual_outcome": "Reported revenue of ₹1,094 Cr in FY26",
             "actual_in_period": "FY26",
             "source_url_promise": "https://bse.com/ar25.pdf",
             "source_url_actual": "https://bse.com/ar26.pdf"
@@ -676,13 +676,134 @@ class TestBusinessAnalysisV44(unittest.TestCase):
         pl_stmt = {
             "periods": ["FY25", "FY26"],
             "rows": [
-                {"metric": "Sales", "values": [1000, 1150]},
-                {"metric": "OPM %", "values": [20.0, 20.5]}
+                {"metric": "Sales", "values": [1000, 1094]}
+            ]
+        }
+        res = verify_promise_vs_delivery_item(item, pl_stmt=pl_stmt, quarters_stmt=None, current_year=2026.5)
+        self.assertEqual(res["status"], "Missed")
+        self.assertIn("Target: 10.0%; Actual: 9.4%", res["financial_numbers_check"])
+        self.assertIn("Variance: -0.6 percentage points", res["financial_numbers_check"])
+        self.assertIn("Achievement Rate: 94.0%", res["financial_numbers_check"])
+        self.assertIn("Target Missed", res["stocker_analysis"])
+
+    def test_promise_vs_delivery_exact_target_delivered(self):
+        """Exact point target 10% with 10.0% actual is DELIVERED."""
+        item = {
+            "area": "Revenue Growth",
+            "management_promise": "Targeted 10% revenue growth in FY26",
+            "promised_in_period": "FY25",
+            "actual_outcome": "Reported revenue of ₹1,100 Cr in FY26",
+            "actual_in_period": "FY26",
+            "source_url_promise": "https://bse.com/ar25.pdf",
+            "source_url_actual": "https://bse.com/ar26.pdf"
+        }
+        pl_stmt = {
+            "periods": ["FY25", "FY26"],
+            "rows": [
+                {"metric": "Sales", "values": [1000, 1100]}
             ]
         }
         res = verify_promise_vs_delivery_item(item, pl_stmt=pl_stmt, quarters_stmt=None, current_year=2026.5)
         self.assertEqual(res["status"], "Delivered")
-        self.assertIn("Achievement Rate: 100.0%", res["financial_numbers_check"])
+        self.assertIn("Target Delivered", res["stocker_analysis"])
+
+    def test_promise_vs_delivery_minimum_target_delivered(self):
+        """'At least 10%' target with 10.2% actual is DELIVERED."""
+        item = {
+            "area": "Revenue Growth",
+            "management_promise": "Management targeted at least 10% revenue growth in FY26",
+            "promised_in_period": "FY25",
+            "actual_outcome": "Reported revenue of ₹1,102 Cr in FY26",
+            "actual_in_period": "FY26",
+            "source_url_promise": "https://bse.com/ar25.pdf",
+            "source_url_actual": "https://bse.com/ar26.pdf"
+        }
+        pl_stmt = {
+            "periods": ["FY25", "FY26"],
+            "rows": [
+                {"metric": "Sales", "values": [1000, 1102]}
+            ]
+        }
+        res = verify_promise_vs_delivery_item(item, pl_stmt=pl_stmt, quarters_stmt=None, current_year=2026.5)
+        self.assertEqual(res["status"], "Delivered")
+        self.assertIn("Minimum Target Achieved", res["stocker_analysis"])
+
+    def test_promise_vs_delivery_range_target_within_range(self):
+        """Range guidance 'between 4.2% and 4.4%' with 4.36% actual is DELIVERED (within range)."""
+        item = {
+            "area": "NIM Guidance",
+            "management_promise": "NIM expected between 4.2% and 4.4% in FY26",
+            "promised_in_period": "FY25",
+            "actual_outcome": "Reported NIM was 4.36% in FY26",
+            "actual_in_period": "FY26",
+            "source_url_promise": "https://bse.com/ar25.pdf",
+            "source_url_actual": "https://bse.com/ar26.pdf"
+        }
+        res = verify_promise_vs_delivery_item(item, pl_stmt=None, quarters_stmt=None, current_year=2026.5)
+        self.assertEqual(res["status"], "Delivered")
+        self.assertIn("Within Guidance Range", res["stocker_analysis"])
+
+    def test_promise_vs_delivery_range_target_below_range_missed(self):
+        """Range guidance '4.2% - 4.4%' with 4.1% actual is MISSED (below range)."""
+        item = {
+            "area": "NIM Guidance",
+            "management_promise": "NIM expected 4.2% - 4.4% in FY26",
+            "promised_in_period": "FY25",
+            "actual_outcome": "Reported NIM of 4.10% in FY26",
+            "actual_in_period": "FY26",
+            "source_url_promise": "https://bse.com/ar25.pdf",
+            "source_url_actual": "https://bse.com/ar26.pdf"
+        }
+        res = verify_promise_vs_delivery_item(item, pl_stmt=None, quarters_stmt=None, current_year=2026.5)
+        self.assertEqual(res["status"], "Missed")
+        self.assertIn("Below Guidance Range", res["stocker_analysis"])
+
+    def test_promise_vs_delivery_future_target_no_interim_not_yet_measurable(self):
+        """Future target (FY28) without interim evidence is Not Yet Measurable, NOT On Track."""
+        item = {
+            "area": "Capacity Expansion",
+            "management_promise": "Targeting 20% growth by FY28",
+            "promised_in_period": "FY25",
+            "target_timeline": "FY28",
+            "actual_outcome": "Project planning underway",
+            "actual_in_period": "FY26",
+            "source_url_promise": "https://bse.com/ar25.pdf",
+            "source_url_actual": "https://bse.com/ar26.pdf"
+        }
+        res = verify_promise_vs_delivery_item(item, pl_stmt=None, quarters_stmt=None, current_year=2026.5)
+        self.assertEqual(res["status"], "Not Yet Measurable")
+        self.assertIn("Future Target Not Yet Due", res["stocker_analysis"])
+
+    def test_promise_vs_delivery_future_target_with_interim_on_track(self):
+        """Future target (FY28) with supported interim progress in subsequent filing is On Track."""
+        item = {
+            "area": "Operational Milestone",
+            "management_promise": "Targeting commissioning of new facility by FY28",
+            "promised_in_period": "FY25",
+            "target_timeline": "FY28",
+            "actual_outcome": "Phase 1 construction commenced and trial underway on schedule",
+            "actual_in_period": "FY26",
+            "source_url_promise": "https://bse.com/ar25.pdf",
+            "source_url_actual": "https://bse.com/ar26.pdf"
+        }
+        res = verify_promise_vs_delivery_item(item, pl_stmt=None, quarters_stmt=None, current_year=2026.5)
+        self.assertEqual(res["status"], "On Track")
+        self.assertIn("Milestone On Track", res["stocker_analysis"])
+
+    def test_promise_vs_delivery_same_filing_rejected(self):
+        """Same filing promise + outcome is rejected as Not Enough Evidence."""
+        item = {
+            "area": "Operating Margin",
+            "management_promise": "Targeted margin of 22%",
+            "promised_in_period": "Q1 FY27",
+            "actual_outcome": "Reported margin was 22.5%",
+            "actual_in_period": "Q1 FY27",
+            "source_url_promise": "https://bse.com/cc_q1.pdf",
+            "source_url_actual": "https://bse.com/cc_q1.pdf"
+        }
+        res = verify_promise_vs_delivery_item(item, pl_stmt=None, quarters_stmt=None, current_year=2026.5)
+        self.assertEqual(res["status"], "Not Enough Evidence")
+        self.assertIn("Evidence from Same Filing", res["stocker_analysis"])
 
     def test_promise_vs_delivery_generic_strategy_statement_rejected(self):
         """Generic strategy statement ('focus on sustainable growth') is not treated as a delivered promise."""
@@ -717,6 +838,14 @@ class TestBusinessAnalysisV44(unittest.TestCase):
         self.assertEqual(len(sanitized.promise_vs_delivery), 1)
         self.assertEqual(sanitized.promise_vs_delivery[0].status, "Not Enough Evidence")
         self.assertIn("No measurable prior management promise found", sanitized.promise_vs_delivery[0].management_promise)
+
+    def test_no_hardcoded_95_80_achievement_thresholds_in_codebase(self):
+        """Ensures that invented 95% / 80% tolerance band checks do not exist in backend/financial_engine.py."""
+        from pathlib import Path
+        code = (Path(__file__).parent / "financial_engine.py").read_text()
+        self.assertNotIn("achieve_pct >= 95", code)
+        self.assertNotIn("achieve_pct >= 80", code)
+        self.assertNotIn("achieve_pct < 80", code)
 
     # =========================================================================
     # D. RISKS & STOCKER VIEW TESTS
