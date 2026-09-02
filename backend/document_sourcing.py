@@ -65,6 +65,12 @@ COMPANY_IR_DOMAINS: Dict[str, Dict[str, str]] = {
         "ar_prefix": "https://www.hdfcbank.com/annual-reports",
         "presentation_prefix": "https://www.hdfcbank.com/quarterly-results"
     },
+    "ICICIBANK": {
+        "domain": "icicibank.com",
+        "ir_url": "https://www.icicibank.com/about-us/investor-relations",
+        "ar_prefix": "https://www.icicibank.com/managed-assets/docs/investor/annual-reports",
+        "presentation_prefix": "https://www.icicibank.com/managed-assets/docs/investor"
+    },
     "BHARTIARTL": {
         "domain": "airtel.in",
         "ir_url": "https://www.airtel.in/about-bharti/equity",
@@ -159,8 +165,8 @@ def extract_period_or_date(text: str) -> Optional[str]:
         else:
             return f"{month} {year}"
 
-    # 4. Quarter pattern (e.g. 'Q1 FY27' or 'Q4 FY26')
-    q_match = re.search(r"(Q[1-4])\s*(?:FY)?\s*['\"]?(\d{2,4})", text, re.IGNORECASE)
+    # 4. Quarter pattern (e.g. 'Q1 FY27', 'Q4 FY26', 'Q2-2026')
+    q_match = re.search(r"(Q[1-4])\s*(?:FY|[-/ ])?\s*['\"]?(\d{2,4})", text, re.IGNORECASE)
     if q_match:
         quarter = q_match.group(1).upper()
         yr = q_match.group(2)
@@ -1123,11 +1129,16 @@ def discover_substantive_alternate_source(
         except Exception:
             pass
 
+    def _is_compatible_subtype(cand_st: str) -> bool:
+        if not doc_subtype or cand_st == doc_subtype:
+            return True
+        if norm_dt == "concall_transcript" and doc_subtype in ("earnings_transcript", "analyst_investor_transcript", "concall_transcript") and cand_st in ("earnings_transcript", "analyst_investor_transcript", "concall_transcript"):
+            return True
+        return False
+
     # 1. Try Company IR discovery adapter
-    ir_docs = DocumentLinks()
     try:
-        discover_documents_company_ir_fallback(clean_sym, company_name, scrip_code, ir_docs)
-        cand_list = (ir_docs.concalls or []) + (ir_docs.annual_reports or []) + (ir_docs.presentations or []) + (ir_docs.material_announcements or [])
+        cand_list = discover_documents_company_ir_fallback(clean_sym, company_name, [norm_dt])
         for cand in cand_list:
             c_url = (cand.url or "").strip().rstrip("/")
             if not c_url or c_url == failed_clean:
@@ -1138,7 +1149,7 @@ def discover_substantive_alternate_source(
             if c_dt != norm_dt:
                 continue
             c_subtype = database.derive_document_subtype(c_dt, cand.title, cand.period_or_date)
-            if doc_subtype and c_subtype != doc_subtype:
+            if not _is_compatible_subtype(c_subtype):
                 continue
             c_ev = database.derive_announcement_event_key(clean_sym, cand.title, cand.period_or_date) if norm_dt == "material_announcements" else database.derive_earnings_event_key(clean_sym, cand.period_or_date, cand.title)
             if target_event and c_ev and c_ev != target_event and not target_event.endswith("_GENERIC"):
@@ -1152,10 +1163,8 @@ def discover_substantive_alternate_source(
         pass
 
     # 2. Try BSE discovery adapter
-    bse_docs = DocumentLinks()
     try:
-        discover_documents_bse_fallback(clean_sym, scrip_code, bse_docs)
-        cand_list = (bse_docs.concalls or []) + (bse_docs.annual_reports or []) + (bse_docs.presentations or []) + (bse_docs.material_announcements or [])
+        cand_list = discover_documents_bse_fallback(clean_sym, company_name, [norm_dt], bse_code=scrip_code)
         for cand in cand_list:
             c_url = (cand.url or "").strip().rstrip("/")
             if not c_url or c_url == failed_clean:
@@ -1166,7 +1175,7 @@ def discover_substantive_alternate_source(
             if c_dt != norm_dt:
                 continue
             c_subtype = database.derive_document_subtype(c_dt, cand.title, cand.period_or_date)
-            if doc_subtype and c_subtype != doc_subtype:
+            if not _is_compatible_subtype(c_subtype):
                 continue
             c_ev = database.derive_announcement_event_key(clean_sym, cand.title, cand.period_or_date) if norm_dt == "material_announcements" else database.derive_earnings_event_key(clean_sym, cand.period_or_date, cand.title)
             if target_event and c_ev and c_ev != target_event and not target_event.endswith("_GENERIC"):
@@ -1180,10 +1189,8 @@ def discover_substantive_alternate_source(
         pass
 
     # 3. Try NSE discovery adapter
-    nse_docs = DocumentLinks()
     try:
-        discover_documents_nse_fallback(clean_sym, nse_docs)
-        cand_list = (nse_docs.concalls or []) + (nse_docs.annual_reports or []) + (nse_docs.presentations or []) + (nse_docs.material_announcements or [])
+        cand_list = discover_documents_nse_fallback(clean_sym, company_name, [norm_dt])
         for cand in cand_list:
             c_url = (cand.url or "").strip().rstrip("/")
             if not c_url or c_url == failed_clean:
@@ -1194,7 +1201,7 @@ def discover_substantive_alternate_source(
             if c_dt != norm_dt:
                 continue
             c_subtype = database.derive_document_subtype(c_dt, cand.title, cand.period_or_date)
-            if doc_subtype and c_subtype != doc_subtype:
+            if not _is_compatible_subtype(c_subtype):
                 continue
             c_ev = database.derive_announcement_event_key(clean_sym, cand.title, cand.period_or_date) if norm_dt == "material_announcements" else database.derive_earnings_event_key(clean_sym, cand.period_or_date, cand.title)
             if target_event and c_ev and c_ev != target_event and not target_event.endswith("_GENERIC"):

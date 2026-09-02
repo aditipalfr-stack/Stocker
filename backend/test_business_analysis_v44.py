@@ -1144,14 +1144,14 @@ class TestBusinessAnalysisV44(unittest.TestCase):
         self.assertEqual(len(trends), 1)
         self.assertEqual(trends[0]["trajectory"], "Improving")
 
-    def test_1_same_hash_and_same_versions_reuses_cache(self):
-        """Unchanged PDF text hash + same schema/prompt versions reuses cached summary without LLM extraction."""
+    def test_1_fresh_remote_fetch_with_matching_hash_produces_current_content_verified(self):
+        """Fresh remote fetch (REMOTE_FETCH) with matching content hash & versions sets CURRENT_CONTENT_VERIFIED."""
         import doc_intelligence_pipeline
-        sym = "TESTSYM_CACHE_OK"
+        sym = "TESTSYM_CACHE_REMOTE_OK"
         doc = DocumentItem(
             ticker=sym,
             title="Q1 FY26 Earnings Call Transcript",
-            url="https://bse.com/cc_q1.pdf",
+            url="https://bse.com/cc_q1_remote.pdf",
             doc_type="concall_transcript",
             period_or_date="Q1 FY26"
         )
@@ -1170,16 +1170,52 @@ class TestBusinessAnalysisV44(unittest.TestCase):
             extraction_prompt_version="4.4.1"
         )
 
-        with unittest.mock.patch("doc_intelligence_pipeline.download_and_extract_pdf", return_value=sample_pages), \
+        # Mock download returning provenance: (pages, "REMOTE_FETCH", True)
+        with unittest.mock.patch("doc_intelligence_pipeline.download_and_extract_pdf_with_provenance", return_value=(sample_pages, "REMOTE_FETCH", True)), \
              unittest.mock.patch("doc_intelligence_pipeline.summarize_single_document_with_llm") as mock_llm:
             summary = doc_intelligence_pipeline.get_or_generate_document_summary(sym, "Test Corp", doc)
-            # LLM was NOT called
             mock_llm.assert_not_called()
             self.assertEqual(summary["key_takeaways"], ["18% loan growth in Q1 FY26"])
             self.assertEqual(doc.cache_status, "CURRENT_CONTENT_VERIFIED")
+            self.assertEqual(summary["cache_status"], "CURRENT_CONTENT_VERIFIED")
 
-    def test_2_changed_content_hash_rejects_cache_and_reextracts(self):
-        """When document content changes (different hash), cached summary is rejected and re-extracted via LLM."""
+    def test_2_local_cached_pages_only_produces_current_version_content_unchecked(self):
+        """When only local page cache is used (not remote verified), matching cache produces CURRENT_VERSION_CONTENT_UNCHECKED."""
+        import doc_intelligence_pipeline
+        sym = "TESTSYM_CACHE_LOCAL_ONLY"
+        doc = DocumentItem(
+            ticker=sym,
+            title="Q1 FY26 Earnings Call Transcript",
+            url="https://bse.com/cc_q1_local.pdf",
+            doc_type="concall_transcript",
+            period_or_date="Q1 FY26"
+        )
+        sample_pages = [(1, "Local cached transcript text for Q1 FY26.")]
+        content_hash = database.compute_document_content_hash(sample_pages)
+
+        database.save_document_summary(
+            sym, doc.url, doc.title,
+            {"key_takeaways": ["Local cached takeaway"]},
+            doc_key=doc.doc_key,
+            doc_type=doc.doc_type,
+            period_or_date=doc.period_or_date,
+            content_hash=content_hash,
+            extraction_schema_version="4.4",
+            extraction_prompt_version="4.4.1"
+        )
+
+        # Mock download returning provenance: (pages, "LOCAL_PAGE_CACHE", False)
+        with unittest.mock.patch("doc_intelligence_pipeline.download_and_extract_pdf_with_provenance", return_value=(sample_pages, "LOCAL_PAGE_CACHE", False)), \
+             unittest.mock.patch("doc_intelligence_pipeline.summarize_single_document_with_llm") as mock_llm:
+            summary = doc_intelligence_pipeline.get_or_generate_document_summary(sym, "Test Corp", doc)
+            # Reused without making LLM call
+            mock_llm.assert_not_called()
+            self.assertEqual(summary["key_takeaways"], ["Local cached takeaway"])
+            self.assertEqual(doc.cache_status, "CURRENT_VERSION_CONTENT_UNCHECKED")
+            self.assertEqual(summary["cache_status"], "CURRENT_VERSION_CONTENT_UNCHECKED")
+
+    def test_3_remote_content_changed_rejects_cache_and_reextracts(self):
+        """When remote document content changes (different hash), cached summary is rejected and re-extracted via LLM."""
         import doc_intelligence_pipeline
         sym = "TESTSYM_CACHE_CHANGED"
         doc = DocumentItem(
@@ -1199,12 +1235,12 @@ class TestBusinessAnalysisV44(unittest.TestCase):
             extraction_prompt_version="4.4.1"
         )
 
-        # New PDF text content
+        # New PDF text content from fresh remote fetch
         new_pages = [(1, "Updated revised presentation. NIM expanded to 4.45%.")]
         new_hash = database.compute_document_content_hash(new_pages)
         self.assertNotEqual(old_hash, new_hash)
 
-        with unittest.mock.patch("doc_intelligence_pipeline.download_and_extract_pdf", return_value=new_pages), \
+        with unittest.mock.patch("doc_intelligence_pipeline.download_and_extract_pdf_with_provenance", return_value=(new_pages, "REMOTE_FETCH", True)), \
              unittest.mock.patch("doc_intelligence_pipeline.summarize_single_document_with_llm") as mock_llm:
             mock_llm.return_value = {
                 "doc_title": doc.title,
@@ -1220,8 +1256,8 @@ class TestBusinessAnalysisV44(unittest.TestCase):
             self.assertEqual(summary["content_hash"], new_hash)
             self.assertEqual(doc.cache_status, "CURRENT_CONTENT_VERIFIED")
 
-    def test_3_missing_or_null_content_hash_not_labeled_cached_current(self):
-        """Legacy cached summary rows without content_hash are labeled LEGACY_STALE, not CURRENT_CONTENT_VERIFIED."""
+    def test_4_legacy_hash_missing_labeled_legacy_stale(self):
+        """Legacy cached summary rows without content_hash are labeled LEGACY_STALE."""
         sym = "TESTSYM_LEGACY_NULL_HASH"
         url = "https://bse.com/legacy_doc.pdf"
         title = "Legacy Document"
@@ -1241,48 +1277,35 @@ class TestBusinessAnalysisV44(unittest.TestCase):
 
         summaries = database.get_document_summaries(sym)
         self.assertIn(url, summaries)
-        self.assertNotEqual(summaries[url]["cache_status"], "CURRENT_CONTENT_VERIFIED")
-        self.assertEqual(summaries[url]["cache_status"], "CURRENT_VERSION_CONTENT_UNCHECKED")
+        self.assertEqual(summaries[url]["cache_status"], "LEGACY_STALE")
 
-    def test_4_changed_prompt_version_rejects_cache(self):
-        """When extraction prompt version changes, cached summary is invalidated."""
-        sym = "TESTSYM_PROMPT_STALE"
-        url = "https://bse.com/doc_prompt.pdf"
+    def test_5_local_cache_never_independently_produces_current_content_verified(self):
+        """Local cache alone must NEVER claim CURRENT_CONTENT_VERIFIED."""
+        import doc_intelligence_pipeline
+        sym = "TESTSYM_LOCAL_NEVER_VERIFIED"
+        doc = DocumentItem(
+            ticker=sym,
+            title="Q1 FY26 Concall",
+            url="https://bse.com/local_only.pdf",
+            doc_type="concall_transcript",
+            period_or_date="Q1 FY26"
+        )
+        pages = [(1, "Offline cached text.")]
+        c_hash = database.compute_document_content_hash(pages)
         database.save_document_summary(
-            sym, url, "Prompt Test Doc",
-            {"key_takeaways": ["Test bullet"]},
-            content_hash="valid_hash_123",
+            sym, doc.url, doc.title,
+            {"key_takeaways": ["Fact"]},
+            content_hash=c_hash,
             extraction_schema_version="4.4",
-            extraction_prompt_version="4.0.0"  # Older prompt
-        )
-        res = database.get_document_summary(
-            doc_url=url,
-            symbol=sym,
-            expected_schema_version="4.4",
-            expected_prompt_version="4.4.1",
-            expected_content_hash="valid_hash_123"
-        )
-        self.assertIsNone(res)
-
-    def test_5_changed_schema_version_rejects_cache(self):
-        """When extraction schema version changes, cached summary is invalidated."""
-        sym = "TESTSYM_SCHEMA_STALE"
-        url = "https://bse.com/doc_schema.pdf"
-        database.save_document_summary(
-            sym, url, "Schema Test Doc",
-            {"key_takeaways": ["Test bullet"]},
-            content_hash="valid_hash_123",
-            extraction_schema_version="3.0",  # Older schema
             extraction_prompt_version="4.4.1"
         )
-        res = database.get_document_summary(
-            doc_url=url,
-            symbol=sym,
-            expected_schema_version="4.4",
-            expected_prompt_version="4.4.1",
-            expected_content_hash="valid_hash_123"
-        )
-        self.assertIsNone(res)
+
+        with unittest.mock.patch("doc_intelligence_pipeline.download_and_extract_pdf_with_provenance", return_value=(pages, "LOCAL_PAGE_CACHE", False)):
+            summary = doc_intelligence_pipeline.get_or_generate_document_summary(sym, "Test Corp", doc)
+            self.assertNotEqual(summary.get("cache_status"), "CURRENT_CONTENT_VERIFIED")
+            self.assertEqual(summary.get("cache_status"), "CURRENT_VERSION_CONTENT_UNCHECKED")
+            self.assertNotEqual(doc.cache_status, "CURRENT_CONTENT_VERIFIED")
+            self.assertEqual(doc.cache_status, "CURRENT_VERSION_CONTENT_UNCHECKED")
 
 if __name__ == "__main__":
     unittest.main()

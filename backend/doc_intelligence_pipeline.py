@@ -625,14 +625,16 @@ def get_or_generate_document_summary(symbol: str, company_name: str, doc: Docume
     doc_k = getattr(doc, "doc_key", None) or database.compute_canonical_document_key(clean_sym, doc.doc_type, doc.period_or_date, doc.url, doc.title)
     doc.doc_key = doc_k
 
-    # 1. Download and extract pages (reusing local SQLite page cache to avoid network download if already cached)
+    # 1. Download and extract pages with explicit provenance tracking
     pages = None
+    content_source = "LOCAL_PAGE_CACHE"
+    remote_verified = False
     download_err = None
     original_url = doc.url
     active_url = doc.url
 
     try:
-        pages = download_and_extract_pdf(active_url, symbol=clean_sym)
+        pages, content_source, remote_verified = download_and_extract_pdf_with_provenance(active_url, symbol=clean_sym)
     except Exception as e:
         download_err = e
         print(f"    ⚠️ Could not extract text for {doc.title} from {active_url}: {e}")
@@ -658,7 +660,7 @@ def get_or_generate_document_summary(symbol: str, company_name: str, doc: Docume
             alt_url = alt_doc["url"]
             print(f"    🔄 Attempting Alternate Source Recovery from stored corpus for {doc.title}: {alt_url}")
             try:
-                pages = download_and_extract_pdf(alt_url, symbol=clean_sym)
+                pages, content_source, remote_verified = download_and_extract_pdf_with_provenance(alt_url, symbol=clean_sym)
                 if pages:
                     active_url = alt_url
                     if not doc.source_aliases:
@@ -690,7 +692,7 @@ def get_or_generate_document_summary(symbol: str, company_name: str, doc: Docume
                 if disc_alt and disc_alt.url:
                     alt_url = disc_alt.url
                     print(f"    🔄 Attempting extraction from on-demand discovered alternate for {doc.title}: {alt_url}")
-                    pages = download_and_extract_pdf(alt_url, symbol=clean_sym)
+                    pages, content_source, remote_verified = download_and_extract_pdf_with_provenance(alt_url, symbol=clean_sym)
                     if pages:
                         active_url = alt_url
                         if not doc.source_aliases:
@@ -739,7 +741,17 @@ def get_or_generate_document_summary(symbol: str, company_name: str, doc: Docume
         cached["doc_key"] = doc_k
         cached["content_hash"] = current_content_hash
         doc.content_hash = current_content_hash
-        doc.cache_status = "CURRENT_CONTENT_VERIFIED"
+
+        # Provenance-aware cache status assignment:
+        # Only label CURRENT_CONTENT_VERIFIED if remote resource was actually fetched/validated in this run.
+        # If only previously cached extracted pages were available, mark CURRENT_VERSION_CONTENT_UNCHECKED.
+        if remote_verified or content_source == "REMOTE_FETCH":
+            cache_st = "CURRENT_CONTENT_VERIFIED"
+        else:
+            cache_st = "CURRENT_VERSION_CONTENT_UNCHECKED"
+
+        doc.cache_status = cache_st
+        cached["cache_status"] = cache_st
         if doc.source_aliases:
             cached["source_aliases"] = list(doc.source_aliases)
         if doc.discovered_sources:
@@ -788,6 +800,7 @@ def get_or_generate_document_summary(symbol: str, company_name: str, doc: Docume
         summary["status"] = "success"
         doc.content_hash = current_content_hash
         doc.cache_status = "CURRENT_CONTENT_VERIFIED"
+        summary["cache_status"] = "CURRENT_CONTENT_VERIFIED"
         if doc.source_aliases:
             summary["source_aliases"] = list(doc.source_aliases)
         if doc.discovered_sources:
@@ -810,28 +823,38 @@ def get_or_generate_document_summary(symbol: str, company_name: str, doc: Docume
 
 get_or_create_document_summary = get_or_generate_document_summary
 
-def download_and_extract_pdf(pdf_url: str, symbol: str = "") -> List[Tuple[int, str]]:
+def download_and_extract_pdf_with_provenance(
+    pdf_url: str,
+    symbol: str = "",
+    force_remote_fetch: bool = False
+) -> Tuple[List[Tuple[int, str]], str, bool]:
     """
     Downloads a PDF document from a direct URL and extracts text page-by-page.
-    Uses SQLite database page cache to avoid redundant downloads.
+    Returns:
+        (pages, content_source, remote_verified)
+    where:
+        content_source: "REMOTE_FETCH" | "LOCAL_PAGE_CACHE"
+        remote_verified: True if remote PDF content was actually fetched/validated in this run,
+                         False if only local SQLite/disk cache was used without remote validation.
     """
-    cached_pages = database.get_cached_document_pages(pdf_url)
-    if cached_pages:
-        return cached_pages
+    if not force_remote_fetch:
+        cached_pages = database.get_cached_document_pages(pdf_url)
+        if cached_pages:
+            return cached_pages, "LOCAL_PAGE_CACHE", False
 
-    url_hash = hashlib.md5(pdf_url.encode()).hexdigest()
-    cache_file = PDF_CACHE_DIR / f"{url_hash}.json"
+        url_hash = hashlib.md5(pdf_url.encode()).hexdigest()
+        cache_file = PDF_CACHE_DIR / f"{url_hash}.json"
 
-    if cache_file.exists():
-        try:
-            with open(cache_file, "r", encoding="utf-8") as f:
-                data = json.load(f)
-                pages = [(item["page"], item["text"]) for item in data]
-                if symbol:
-                    database.save_cached_document_pages(symbol, pdf_url, pages)
-                return pages
-        except Exception:
-            pass
+        if cache_file.exists():
+            try:
+                with open(cache_file, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                    pages = [(item["page"], item["text"]) for item in data]
+                    if symbol:
+                        database.save_cached_document_pages(symbol, pdf_url, pages)
+                    return pages, "LOCAL_PAGE_CACHE", False
+            except Exception:
+                pass
 
     resp = requests.get(pdf_url, headers=HEADERS, timeout=45)
     if resp.status_code != 200:
@@ -852,11 +875,18 @@ def download_and_extract_pdf(pdf_url: str, symbol: str = "") -> List[Tuple[int, 
         database.save_cached_document_pages(symbol, pdf_url, pages)
 
     try:
+        url_hash = hashlib.md5(pdf_url.encode()).hexdigest()
+        cache_file = PDF_CACHE_DIR / f"{url_hash}.json"
         with open(cache_file, "w", encoding="utf-8") as f:
             json.dump(cache_list, f)
     except Exception:
         pass
 
+    return pages, "REMOTE_FETCH", True
+
+def download_and_extract_pdf(pdf_url: str, symbol: str = "") -> List[Tuple[int, str]]:
+    """Legacy helper returning only pages for callers not needing explicit provenance."""
+    pages, _, _ = download_and_extract_pdf_with_provenance(pdf_url, symbol=symbol)
     return pages
 
 def select_relevant_sections(

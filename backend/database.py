@@ -738,7 +738,7 @@ def derive_document_subtype(doc_type: str, title: str = "", period_or_date: Opti
     if norm_dt == "concall_transcript":
         if ("media" in t_clean or "press" in t_clean) and not any(k in t_clean for k in ["analyst", "investor", "earnings call", "quarterly earnings"]):
             return "media_call_transcript"
-        if "analyst" in t_clean or "investor" in t_clean or "earnings" in t_clean:
+        if "analyst" in t_clean or "investor" in t_clean or "earnings" in t_clean or "concall" in t_clean:
             return "analyst_investor_transcript"
         return "earnings_transcript"
     if norm_dt == "presentation":
@@ -1597,10 +1597,8 @@ def get_document_summary(
                 data["provider"] = row_dict.get("provider") or data.get("provider")
                 data["model"] = row_dict.get("model") or data.get("model")
 
-                if c_hash and expected_content_hash and c_hash == expected_content_hash:
-                    data["cache_status"] = "CURRENT_CONTENT_VERIFIED"
-                elif c_hash and s_ver and p_ver:
-                    data["cache_status"] = "CURRENT_VERSION_CONTENT_UNCHECKED"
+                if c_hash and s_ver and p_ver:
+                    data["cache_status"] = data.get("cache_status") or "CURRENT_VERSION_CONTENT_UNCHECKED"
                 else:
                     data["cache_status"] = "LEGACY_STALE"
 
@@ -1693,9 +1691,9 @@ def get_document_summaries(symbol: str) -> Dict[str, Dict[str, Any]]:
                     data["model"] = r["model"] or data.get("model")
 
                 # Assign status badge for UI
-                if data.get("extraction_schema_version") and data.get("extraction_prompt_version") and data.get("content_hash"):
-                    data["cache_status"] = "CURRENT_CONTENT_VERIFIED"
-                elif data.get("extraction_schema_version") and data.get("extraction_prompt_version"):
+                if data.get("cache_status"):
+                    pass
+                elif data.get("extraction_schema_version") and data.get("extraction_prompt_version") and data.get("content_hash"):
                     data["cache_status"] = "CURRENT_VERSION_CONTENT_UNCHECKED"
                 else:
                     data["cache_status"] = "LEGACY_STALE"
