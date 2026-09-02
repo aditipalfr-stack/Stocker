@@ -438,19 +438,26 @@ export interface RecentChange {
   headline: string;
   category: string;
   detail: string;
+  direction?: 'POSITIVE' | 'NEGATIVE' | 'NEUTRAL' | 'MIXED' | string | null;
+  period_comparison?: string | null;
+  is_one_off?: boolean;
+  why_it_matters?: string | null;
   source_doc?: string | null;
   source_page?: number | null;
   source_url?: string | null;
+  source_quote?: string | null;
 }
 
 export interface GrowthDriver {
   driver_title: string;
   driver_type: string;
   description: string;
+  is_one_off?: boolean;
   target_timeline?: string | null;
   stated_outlay_or_value?: string | null;
   execution_status: string;
   expected_impact?: string | null;
+  source_doc_title?: string | null;
   source_page?: number | null;
   source_quote?: string | null;
   source_url?: string | null;
@@ -461,17 +468,19 @@ export interface PromiseVsDeliveryItem {
   area: string;
   management_promise: string;
   promised_in_period: string;
+  promise_source_doc?: string | null;
+  source_url_promise?: string | null;
   promise_source_page?: number | null;
   promise_quote?: string | null;
   actual_outcome: string;
   actual_in_period: string;
+  actual_source_doc?: string | null;
+  source_url_actual?: string | null;
   actual_source_page?: number | null;
   actual_quote?: string | null;
-  status: 'Delivered' | 'In Progress' | 'Delayed' | 'Missed' | 'Not Enough Data' | 'Not Enough Evidence';
+  status: 'Delivered' | 'On Track' | 'Partially Delivered' | 'In Progress' | 'Delayed' | 'Missed' | 'Not Yet Measurable' | 'Not Enough Data' | 'Not Enough Evidence' | string;
   stocker_analysis: string;
   financial_numbers_check?: string | null;
-  source_url_promise?: string | null;
-  source_url_actual?: string | null;
   confidence?: number;
 }
 
@@ -493,6 +502,16 @@ export interface RisksAndCashIssues {
   margin_and_cost_pressures?: string | null;
   execution_and_bottlenecks: string[];
   regulatory_or_legal_headwinds: string[];
+  risk_items?: Array<{
+    risk_title?: string;
+    risk_category?: string;
+    severity?: string;
+    is_current_or_potential?: string;
+    evidence_statement?: string;
+    metric_to_watch?: string;
+    source_url?: string | null;
+    source_page?: number | null;
+  }>;
   reported_numbers_comparison?: string | null;
   source_page?: number | null;
   source_quote?: string | null;
@@ -501,7 +520,10 @@ export interface RisksAndCashIssues {
 }
 
 export interface StockerView {
-  execution_verdict: 'Strong Execution' | 'Mixed Execution' | 'Weak Execution' | 'Evolving / Watchlist';
+  execution_verdict: 'Strong Execution' | 'Mixed Execution' | 'Weak Execution' | 'Evolving / Watchlist' | string;
+  business_momentum?: string | null;
+  financial_quality?: string | null;
+  evidence_confidence?: string | null;
   positive_triggers: string[];
   main_risks: string[];
   what_to_watch_next: string[];

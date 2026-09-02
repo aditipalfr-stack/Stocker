@@ -19,9 +19,10 @@ class TestCanonicalSourceFilingsV44(unittest.TestCase):
         conn = database.get_db_connection()
         try:
             with conn:
-                conn.execute("DELETE FROM source_documents WHERE symbol = 'TESTSYM';")
-                conn.execute("DELETE FROM ai_document_summaries WHERE symbol = 'TESTSYM';")
-                conn.execute("DELETE FROM ai_analysis_cache WHERE symbol = 'TESTSYM';")
+                conn.execute("DELETE FROM source_documents WHERE symbol LIKE 'TEST%';")
+                conn.execute("DELETE FROM ai_document_summaries WHERE symbol LIKE 'TEST%';")
+                conn.execute("DELETE FROM ai_analysis_cache WHERE symbol LIKE 'TEST%';")
+                conn.execute("DELETE FROM document_pages_cache WHERE symbol LIKE 'TEST%';")
         finally:
             conn.close()
 
@@ -29,9 +30,10 @@ class TestCanonicalSourceFilingsV44(unittest.TestCase):
         conn = database.get_db_connection()
         try:
             with conn:
-                conn.execute("DELETE FROM source_documents WHERE symbol = 'TESTSYM';")
-                conn.execute("DELETE FROM ai_document_summaries WHERE symbol = 'TESTSYM';")
-                conn.execute("DELETE FROM ai_analysis_cache WHERE symbol = 'TESTSYM';")
+                conn.execute("DELETE FROM source_documents WHERE symbol LIKE 'TEST%';")
+                conn.execute("DELETE FROM ai_document_summaries WHERE symbol LIKE 'TEST%';")
+                conn.execute("DELETE FROM ai_analysis_cache WHERE symbol LIKE 'TEST%';")
+                conn.execute("DELETE FROM document_pages_cache WHERE symbol LIKE 'TEST%';")
         finally:
             conn.close()
 

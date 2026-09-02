@@ -1063,12 +1063,33 @@ def verify_promise_vs_delivery_item(
         if isinstance(stmt_obj, dict): return list(stmt_obj.get("periods") or stmt_obj.get("years") or [])
         return []
 
-    # 5. Check if Numerical Guidance Promise
+    # 5. Check if Generic Strategy Statement (Not a Measurable Promise)
+    prom_lower = str(item.get("management_promise", "")).lower().strip()
+    if "no measurable prior" in prom_lower or "no prior promise" in prom_lower:
+        res["status"] = "Not Enough Evidence"
+        res["stocker_analysis"] = "No measurable prior management promise found in baseline filings."
+        res["financial_numbers_check"] = "Baseline filings contained general business strategy without measurable numerical guidance targets."
+        return res
+
+    has_quant_kw = bool(re.search(r'(?:%|\b(?:cr|crore|billion|lakh|bps|ratio|guidance|target|capex|mcap)\b)', prom_lower))
+    is_generic_platitude = any(phrase in prom_lower for phrase in [
+        "remain focused", "committed to", "sustainable value",
+        "focusing on sustainable", "aim to be the trusted", "harnessing its brand",
+        "focus on long-term", "strive to deliver", "endeavour to serve", "customer-first", "core purpose"
+    ]) and not has_quant_kw
+
+    if is_generic_platitude:
+        res["status"] = "Not Yet Measurable"
+        res["stocker_analysis"] = "Generic Strategic Intent: Statement reflects ongoing corporate vision or strategic focus rather than an explicit numerical guidance target or verifiable operational milestone."
+        res["financial_numbers_check"] = "Generic qualitative strategy without quantified performance metric."
+        return res
+
+    # 6. Check if Numerical Guidance Promise
     pl_periods = _get_stmt_periods(pl_stmt)
     y_sales = _extract_metric_dict(pl_stmt, "Sales") or _extract_metric_dict(pl_stmt, "Revenue")
     y_opm = _extract_metric_dict(pl_stmt, "OPM %") or _extract_metric_dict(pl_stmt, "OPM")
     
-    m_growth = re.search(r'(\d+(?:\.\d+)?)\s*%\s*(?:revenue|sales|growth|cagr|margin)', item.get("management_promise", ""), re.IGNORECASE)
+    m_growth = re.search(r'(\d+(?:\.\d+)?)\s*%\s*(?:revenue|sales|growth|cagr|margin|loan|deposit|advances)', item.get("management_promise", ""), re.IGNORECASE)
     
     if m_growth:
         promised_pct = float(m_growth.group(1))
@@ -1099,36 +1120,38 @@ def verify_promise_vs_delivery_item(
             variance_pct = round(act_growth - promised_pct, 1)
             
             res["financial_numbers_check"] = (
-                f"Promised {promised_pct}% revenue growth; audited {target_p} reported revenue of ₹{s_curr:,.0f} Cr "
+                f"Promised {promised_pct}% growth; reported {target_p} revenue of ₹{s_curr:,.0f} Cr "
                 f"reflects {act_growth}% YoY growth (Achievement Rate: {achieve_pct}% of guidance; variance {variance_pct:+.1f}%). "
-                f"Audited OPM stood at {opm_curr if opm_curr is not None else 'N/A'}%."
+                f"Reported OPM stood at {opm_curr if opm_curr is not None else 'N/A'}%."
             )
             
             # Deterministic Status Assignment
             if target_yr is not None and target_yr > curr_yr:
-                res["status"] = "In Progress"
-            elif achieve_pct >= 90.0:
+                res["status"] = "On Track"
+            elif achieve_pct >= 95.0:
                 res["status"] = "Delivered"
-            elif achieve_pct < 85.0:
+            elif achieve_pct >= 80.0:
+                res["status"] = "Partially Delivered"
+            elif achieve_pct < 80.0:
                 res["status"] = "Missed"
             else:
-                res["status"] = "In Progress"
+                res["status"] = "On Track"
         else:
             # Structured statements missing or inconclusive: do NOT keep AI numbers or assume Delivered
             res["financial_numbers_check"] = "Not enough structured financial evidence to verify this claim."
             if target_yr is not None and target_yr > curr_yr:
-                res["status"] = "In Progress"
+                res["status"] = "On Track"
             else:
                 res["status"] = "Not Enough Evidence"
-                res["stocker_analysis"] = "Missing Structured Financial Data: Audited statements for the target period are not available to verify this quantitative guidance."
+                res["stocker_analysis"] = "Missing Structured Financial Data: Standardized statements for the target period are not available to verify this quantitative guidance."
     else:
-        # 6. Qualitative / Operational Milestone Verification
+        # 7. Qualitative / Operational Milestone Verification
         outcome_text = f"{item.get('actual_outcome', '')} {item.get('actual_quote', '')}"
         
         if target_yr is not None and target_yr > curr_yr:
-            res["status"] = "In Progress"
+            res["status"] = "On Track"
             res["financial_numbers_check"] = "Qualitative operational milestone (tracked in progress)."
-            res["stocker_analysis"] = f"Milestone In Progress: Stated target timeline ({target_timeline or f'FY{int(target_yr)}'}) matures in the future ({target_yr:.0f}). Ongoing execution tracked against interim audited progress."
+            res["stocker_analysis"] = f"Milestone On Track: Stated target timeline ({target_timeline or f'FY{int(target_yr)}'}) matures in the future ({target_yr:.0f}). Ongoing execution tracked against interim reported progress."
         else:
             # Simple, robust structured keyword matching
             completion_match = re.search(
@@ -1138,10 +1161,14 @@ def verify_promise_vs_delivery_item(
             )
             delay_match = re.search(r'\b(delayed|postponed|deferred|pushed back|rescheduled)\b', outcome_text, re.IGNORECASE)
             cancel_match = re.search(r'\b(cancelled|shelved|dropped|abandoned)\b', outcome_text, re.IGNORECASE)
+            partial_match = re.search(r'\b(partially completed|partial commissioning|phase 1 operational|under progress|ongoing)\b', outcome_text, re.IGNORECASE)
             
             if completion_match and act_yr is not None and prom_yr is not None and act_yr > prom_yr:
                 res["status"] = "Delivered"
                 res["financial_numbers_check"] = f"Qualitative milestone verified: {completion_match.group(1).capitalize()} confirmed in subsequent filing ({actual_period})."
+            elif partial_match:
+                res["status"] = "Partially Delivered"
+                res["financial_numbers_check"] = f"Qualitative milestone partially delivered: {partial_match.group(1).capitalize()} confirmed in subsequent filing ({actual_period})."
             elif delay_match:
                 res["status"] = "Delayed"
                 res["financial_numbers_check"] = f"Qualitative milestone delayed: {delay_match.group(1).capitalize()} reported in subsequent filing ({actual_period})."
@@ -1153,11 +1180,11 @@ def verify_promise_vs_delivery_item(
                 res["stocker_analysis"] = f"Uncertain Qualitative Evidence: Subsequent filing ({actual_period}) does not contain verifiable completion proof for this milestone."
                 res["financial_numbers_check"] = "Not enough structured financial evidence to verify this claim."
 
-    # 7. Final Target Deadline Protection (Always overrides!)
+    # 8. Final Target Deadline Protection (Always overrides!)
     if target_yr is not None and target_yr > curr_yr:
-        res["status"] = "In Progress"
+        res["status"] = "On Track"
         if not res.get("stocker_analysis") or "Missed" in res.get("stocker_analysis", "") or "Delivered" in res.get("stocker_analysis", ""):
-            res["stocker_analysis"] = f"Milestone In Progress: Stated target timeline ({target_timeline or f'FY{int(target_yr)}'}) matures in the future ({target_yr:.0f}). Ongoing execution tracked against interim audited progress."
+            res["stocker_analysis"] = f"Milestone On Track: Stated target timeline ({target_timeline or f'FY{int(target_yr)}'}) matures in the future ({target_yr:.0f}). Ongoing execution tracked against interim reported progress."
             
     return res
 

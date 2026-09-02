@@ -261,10 +261,17 @@ export const BusinessGrowthView: React.FC<BusinessGrowthViewProps> = ({ docIntel
             {growthDrivers.map((driver, idx) => (
               <div key={idx} className="bg-slate-950 p-5 rounded-2xl border border-slate-800 space-y-3 hover:border-slate-700 transition-all flex flex-col justify-between">
                 <div className="space-y-2.5">
-                  <div className="flex items-start justify-between gap-2">
-                    <span className="bg-cyan-500/10 text-cyan-400 text-[11px] font-semibold px-2.5 py-0.5 rounded-full border border-cyan-500/20">
-                      {driver.driver_type || 'Capex / Expansion'}
-                    </span>
+                  <div className="flex items-start justify-between gap-2 flex-wrap">
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <span className="bg-cyan-500/10 text-cyan-400 text-[11px] font-semibold px-2.5 py-0.5 rounded-full border border-cyan-500/20">
+                        {driver.driver_type || 'Structural Driver'}
+                      </span>
+                      {driver.is_one_off && (
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/40">
+                          ONE-OFF
+                        </span>
+                      )}
+                    </div>
                     <span className="text-[10px] font-mono text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/20">
                       {driver.execution_status || 'In Progress'}
                     </span>

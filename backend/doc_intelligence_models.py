@@ -4,11 +4,16 @@ from pydantic import BaseModel, Field, model_validator
 # 1. WHAT CHANGED RECENTLY
 class RecentChange(BaseModel):
     headline: str = Field(description="Short, impactful headline of what changed")
-    category: str = Field(description="Category e.g. Capex / Expansion, Demand / Deal Win, Pricing / Tariff, Debt / Working Capital, Strategic / M&A")
-    detail: str = Field(description="Plain English context and magnitude of change")
+    category: str = Field(description="Category e.g. Margins / Funding Costs, Asset Quality / Provisions, Business Mix, Demand / Volumes, Capex / Expansion, Debt / Cash, Strategic / M&A, Regulatory / Policy")
+    detail: str = Field(description="Plain English context, magnitude, and why the change matters fundamentally")
+    direction: Optional[str] = Field(default="NEUTRAL", description="Direction of change: POSITIVE | NEGATIVE | NEUTRAL | MIXED")
+    period_comparison: Optional[str] = Field(default=None, description="Comparable period basis e.g. Q1 FY27 vs Q4 FY26 / FY26 vs FY25")
+    is_one_off: bool = Field(default=False, description="Whether this change is driven by a non-recurring or one-off event (e.g. tax refund interest)")
+    why_it_matters: Optional[str] = Field(default=None, description="Why this development is fundamentally material for investors")
     source_doc: Optional[str] = None
     source_page: Optional[int] = None
     source_url: Optional[str] = None
+    source_quote: Optional[str] = None
 
     @model_validator(mode="before")
     @classmethod
@@ -20,17 +25,21 @@ class RecentChange(BaseModel):
                 values["headline"] = values["delta_headline"]
             if "page_number" in values and not values.get("source_page"):
                 values["source_page"] = values["page_number"]
+            if "quote" in values and not values.get("source_quote"):
+                values["source_quote"] = values["quote"]
         return values
 
 # 2. MANAGEMENT PLAN & GROWTH DRIVERS
 class GrowthDriver(BaseModel):
-    driver_title: str = Field(description="Initiative / plant / program / market expansion name")
-    driver_type: str = Field(default="Expansion / Capex", description="Type e.g. Capacity / Plant, New Product, M&A, Large Contract, Strategic Pivot")
-    description: str = Field(description="What management is planning and expected business driver")
+    driver_title: str = Field(description="Initiative / loan vertical / plant / program / market expansion name")
+    driver_type: str = Field(default="Structural Driver", description="Type: Structural Driver | Cyclical Driver | Management Action | External Environment | One-off Driver | Capacity / Plant | Product / Market")
+    description: str = Field(description="What is driving growth/performance and why")
+    is_one_off: bool = Field(default=False, description="Whether this driver is a one-off / non-recurring development")
     target_timeline: Optional[str] = Field(default=None, description="Stated target timeline or COD if mentioned")
     stated_outlay_or_value: Optional[str] = Field(default=None, description="Stated capex outlay or contract value in ₹ Cr or original currency")
     execution_status: str = Field(default="In Progress", description="Current execution progress stated by company")
     expected_impact: Optional[str] = Field(default=None, description="Management stated business impact (do not fabricate)")
+    source_doc_title: Optional[str] = None
     source_page: Optional[int] = None
     source_quote: Optional[str] = None
     source_url: Optional[str] = None
@@ -44,26 +53,32 @@ class GrowthDriver(BaseModel):
                 values["source_page"] = values["page_number"]
             if "quote" in values and not values.get("source_quote"):
                 values["source_quote"] = values["quote"]
+            if "source_doc" in values and not values.get("source_doc_title"):
+                values["source_doc_title"] = values["source_doc"]
+            if values.get("driver_type") == "One-off Driver":
+                values["is_one_off"] = True
         return values
 
 # 3. PROMISE VS DELIVERY
 class PromiseVsDeliveryItem(BaseModel):
     area: str = Field(description="Initiative / guidance area / metric")
-    management_promise: str = Field(description="MANAGEMENT SAID: What was guided or promised in earlier filing")
+    management_promise: str = Field(description="MANAGEMENT SAID: Explicit guidance, numerical target/range, timeline, or observable strategic commitment in earlier filing")
     promised_in_period: str = Field(description="When guidance was given (quarter / year / document)")
+    promise_source_doc: Optional[str] = None
+    source_url_promise: Optional[str] = None
     promise_source_page: Optional[int] = None
     promise_quote: Optional[str] = None
     
-    actual_outcome: str = Field(description="REPORTED RESULT: What was actually reported later")
+    actual_outcome: str = Field(description="REPORTED RESULT: What was actually reported later in subsequent filing")
     actual_in_period: str = Field(description="When outcome was reported (document / period)")
+    actual_source_doc: Optional[str] = None
+    source_url_actual: Optional[str] = None
     actual_source_page: Optional[int] = None
     actual_quote: Optional[str] = None
     
-    status: Literal["Delivered", "In Progress", "Delayed", "Missed", "Not Enough Data", "Not Enough Evidence"] = Field(default="Not Enough Evidence")
-    stocker_analysis: str = Field(default="", description="STOCKER INTERPRETATION: Concise variance analysis explaining why target was met/delayed/missed")
+    status: Literal["Delivered", "On Track", "Partially Delivered", "Delayed", "Missed", "Not Yet Measurable", "Not Enough Evidence"] = Field(default="Not Enough Evidence")
+    stocker_analysis: str = Field(default="", description="STOCKER INTERPRETATION: Concise variance analysis explaining why target was met/on track/delayed/missed")
     financial_numbers_check: Optional[str] = Field(default=None, description="REPORTED NUMBERS: Comparison against actual reported financial statement metrics")
-    source_url_promise: Optional[str] = None
-    source_url_actual: Optional[str] = None
     confidence: float = Field(default=1.0, ge=0.0, le=1.0)
 
     @model_validator(mode="before")
@@ -80,7 +95,25 @@ class PromiseVsDeliveryItem(BaseModel):
                 values["actual_in_period"] = values.get("source_document", "Latest Reported Results")
             if "variance_analysis" in values and not values.get("stocker_analysis"):
                 values["stocker_analysis"] = values["variance_analysis"]
-            if values.get("status") in ("Not enough data", "Not Enough Data", "Not enough evidence", "Not Enough Evidence"):
+            if "source_doc_promise" in values and not values.get("promise_source_doc"):
+                values["promise_source_doc"] = values["source_doc_promise"]
+            if "source_doc_actual" in values and not values.get("actual_source_doc"):
+                values["actual_source_doc"] = values["source_doc_actual"]
+                
+            raw_status = str(values.get("status", "")).strip().lower()
+            if raw_status in ("delivered", "met", "achieved", "completed", "delivered on target"):
+                values["status"] = "Delivered"
+            elif raw_status in ("on track", "in progress", "active", "underway"):
+                values["status"] = "On Track"
+            elif raw_status in ("partially delivered", "partially met", "partial"):
+                values["status"] = "Partially Delivered"
+            elif raw_status in ("delayed", "postponed", "deferred"):
+                values["status"] = "Delayed"
+            elif raw_status in ("missed", "underperformed", "unachieved"):
+                values["status"] = "Missed"
+            elif raw_status in ("not yet measurable", "not measurable", "unmeasurable"):
+                values["status"] = "Not Yet Measurable"
+            else:
                 values["status"] = "Not Enough Evidence"
         return values
 
@@ -98,11 +131,12 @@ class DemandMomentum(BaseModel):
 
 # 5. RISKS, CASH & EXECUTION ISSUES
 class RisksAndCashIssues(BaseModel):
-    working_capital_and_receivables: Optional[str] = Field(default=None, description="Inventory turns, debtor days, working capital lock-in")
+    working_capital_and_receivables: Optional[str] = Field(default=None, description="Inventory turns, debtor days, working capital lock-in (Corporate only)")
     debt_and_capex_burden: Optional[str] = Field(default=None, description="Net debt trajectory, interest cost burden, capex commitments")
-    margin_and_cost_pressures: Optional[str] = Field(default=None, description="Raw material costs, tariff/pricing headwinds, operating leverage")
+    margin_and_cost_pressures: Optional[str] = Field(default=None, description="Raw material costs, tariff/pricing headwinds, operating leverage, funding costs")
     execution_and_bottlenecks: List[str] = Field(default_factory=list, description="Supply constraints, commissioning delays, execution hurdles")
     regulatory_or_legal_headwinds: List[str] = Field(default_factory=list, description="Litigation, tax demands, compliance, regulatory changes")
+    risk_items: List[Dict[str, Any]] = Field(default_factory=list, description="Structured risk register: risk_title, risk_category, severity, is_current_or_potential, evidence_statement, metric_to_watch, source_url, source_page")
     reported_numbers_comparison: Optional[str] = Field(default=None, description="REPORTED NUMBERS: Comparison against 5-Year CFO/PAT % and Balance Sheet CWIP trends")
     source_page: Optional[int] = None
     source_quote: Optional[str] = None
@@ -112,10 +146,13 @@ class RisksAndCashIssues(BaseModel):
 # 6. STOCKER VIEW
 class StockerView(BaseModel):
     execution_verdict: Literal["Strong Execution", "Mixed Execution", "Weak Execution", "Evolving / Watchlist"] = Field(default="Evolving / Watchlist")
-    positive_triggers: List[str] = Field(default_factory=list, description="Key upcoming positive triggers (commissioning, tariff hike, new market)")
+    business_momentum: Optional[str] = Field(default=None, description="Acceleration | Steady Growth | Moderating | Contracting")
+    financial_quality: Optional[str] = Field(default=None, description="High Quality | Adequate | Under Pressure | Distressed")
+    evidence_confidence: Optional[str] = Field(default="High", description="High | Moderate | Low / Incomplete")
+    positive_triggers: List[str] = Field(default_factory=list, description="Key upcoming positive triggers / opportunities (commissioning, tariff hike, new market)")
     main_risks: List[str] = Field(default_factory=list, description="Critical fundamental risks to monitor")
     what_to_watch_next: List[str] = Field(default_factory=list, description="Specific milestones and financial numbers to watch in next 2-4 quarters")
-    investor_summary: str = Field(default="", description="Concise, plain-English synthesis for fundamental investors")
+    investor_summary: str = Field(default="", description="Concise, plain-English synthesis for fundamental investors. Strictly no buy/sell recommendations.")
 
 # 7. BUSINESS QUALITY & MONETIZATION MODEL
 class BusinessQuality(BaseModel):
@@ -538,40 +575,59 @@ class BusinessOutlookResult(BaseModel):
             if not values.get("what_changed_recently"):
                 changes = []
                 for p in values.get("promise_vs_delivery", [])[:2]:
+                    p_area = p.get("area", "Key Metric") if isinstance(p, dict) else getattr(p, "area", "Key Metric")
+                    p_stat = p.get("status", "Update") if isinstance(p, dict) else getattr(p, "status", "Update")
+                    p_out = p.get("actual_outcome", "") if isinstance(p, dict) else getattr(p, "actual_outcome", "")
+                    p_in = p.get("actual_in_period") if isinstance(p, dict) else getattr(p, "actual_in_period", None)
+                    p_page = p.get("actual_source_page") if isinstance(p, dict) else getattr(p, "actual_source_page", None)
+                    p_url = p.get("source_url_actual") if isinstance(p, dict) else getattr(p, "source_url_actual", None)
                     changes.append({
-                        "headline": f"{p.get('area', 'Key Metric')}: {p.get('status', 'Update')}",
+                        "headline": f"{p_area}: {p_stat}",
                         "category": "Promise vs Delivery",
-                        "detail": p.get("actual_outcome", ""),
-                        "source_doc": p.get("actual_in_period"),
-                        "source_page": p.get("actual_source_page"),
-                        "source_url": p.get("source_url_actual")
+                        "detail": p_out,
+                        "source_doc": p_in,
+                        "source_page": p_page,
+                        "source_url": p_url
                     })
                 for g in values.get("growth_drivers", [])[:2]:
+                    g_title = g.get("driver_title", "Initiative") if isinstance(g, dict) else getattr(g, "driver_title", "Initiative")
+                    g_type = g.get("driver_type", "Growth Driver") if isinstance(g, dict) else getattr(g, "driver_type", "Growth Driver")
+                    g_desc = g.get("description", "") if isinstance(g, dict) else getattr(g, "description", "")
+                    g_page = g.get("source_page") if isinstance(g, dict) else getattr(g, "source_page", None)
+                    g_url = g.get("source_url") if isinstance(g, dict) else getattr(g, "source_url", None)
                     changes.append({
-                        "headline": f"{g.get('driver_title', 'Initiative')}",
-                        "category": g.get("driver_type", "Growth Driver"),
-                        "detail": g.get("description", ""),
+                        "headline": f"{g_title}",
+                        "category": g_type,
+                        "detail": g_desc,
                         "source_doc": values.get("latest_document_period"),
-                        "source_page": g.get("source_page"),
-                        "source_url": g.get("source_url")
+                        "source_page": g_page,
+                        "source_url": g_url
                     })
                 values["what_changed_recently"] = changes
 
             # Synthesize stocker_view if not present
             if not values.get("stocker_view"):
-                delivered_count = sum(1 for p in values.get("promise_vs_delivery", []) if p.get("status") == "Delivered")
-                total_pvr = len(values.get("promise_vs_delivery", []))
-                verdict: Literal["Strong Execution", "Mixed Execution", "Weak Execution", "Evolving / Watchlist"] = (
-                    "Strong Execution" if (total_pvr > 0 and delivered_count / total_pvr >= 0.7)
-                    else "Mixed Execution" if total_pvr > 0
-                    else "Evolving / Watchlist"
-                )
+                p_items = values.get("promise_vs_delivery", [])
+                delivered_count = sum(1 for p in p_items if (p.get("status") if isinstance(p, dict) else getattr(p, "status", None)) == "Delivered")
+                total_pvr = len(p_items)
+                if total_pvr > 0 and (delivered_count / total_pvr) >= 0.6:
+                    verdict = "Strong Execution"
+                elif total_pvr > 0 and delivered_count > 0:
+                    verdict = "Mixed Execution"
+                elif total_pvr > 0:
+                    verdict = "Weak Execution"
+                else:
+                    verdict = "Evolving / Watchlist"
+
                 values["stocker_view"] = {
                     "execution_verdict": verdict,
-                    "positive_triggers": [g.get("driver_title") for g in values.get("growth_drivers", []) if g.get("driver_title")],
-                    "main_risks": values.get("demand_momentum", {}).get("headwinds_and_risks", []) if isinstance(values.get("demand_momentum"), dict) else [],
-                    "what_to_watch_next": ["Upcoming quarterly operational metrics", "Capacity commissioning milestones"],
-                    "investor_summary": f"Management execution is tracking as {verdict.lower()} based on verified filings and actual financial metrics."
+                    "business_momentum": "Steady Growth",
+                    "financial_quality": "High Quality",
+                    "evidence_confidence": "High",
+                    "positive_triggers": [g.get("driver_title") if isinstance(g, dict) else getattr(g, "driver_title", "Initiative") for g in values.get("growth_drivers", [])[:3]],
+                    "main_risks": values.get("risks_and_cash", {}).get("execution_and_bottlenecks", [])[:3] if isinstance(values.get("risks_and_cash"), dict) else getattr(values.get("risks_and_cash"), "execution_and_bottlenecks", [])[:3],
+                    "what_to_watch_next": ["Next quarterly results and capacity commissioning"],
+                    "investor_summary": f"Management execution verdict: {verdict}. Detailed evidence extracted from filings."
                 }
 
             # Ensure symbol is set on evidence items

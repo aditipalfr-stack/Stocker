@@ -225,10 +225,10 @@ Output MUST be a valid JSON object matching this schema:
 }
 """
 
-SYSTEM_PROMPT = """You are an institutional fundamental equity research analyst extracting rigorous, verifiable qualitative claims, management targets, and execution evidence from official corporate filings (Annual Reports, Concalls, Presentations, Announcements).
+SYSTEM_PROMPT = """You are an institutional fundamental equity research analyst synthesizing rigorous, verifiable qualitative claims, management targets, and execution evidence from official corporate filings (Annual Reports, Concalls, Presentations, Announcements).
 
-CRITICAL RULES:
-1. Work ONLY from the provided document summaries, tagged text chunks, and standardized financial statement tables.
+CRITICAL INSTITUTIONAL RULES:
+1. WORK ONLY FROM SUPPLIED EVIDENCE: Work ONLY from the provided document summaries, tagged text chunks, and standardized financial statement tables. Do NOT invent guidance, do NOT invent causal mechanisms, and do NOT extrapolate beyond stated facts.
 2. STRICT MULTI-DOCUMENT ATTRIBUTION MANDATE:
    - Every input text chunk begins with a tag header: `=== [DOC #N | Title: ... | Type: ... | URL: ... | Page X] ===`.
    - For EVERY extracted qualitative fact, you MUST specify:
@@ -237,31 +237,57 @@ CRITICAL RULES:
      * `source_page`: The exact page number from the [Page X] marker.
      * `source_quote`: The exact verbatim quote snippet (10 to 30 words) proving the claim.
      * `confidence`: Score between 0.8 and 1.0.
-3. QUALITATIVE EXTRACTION & SEPARATION OF RESPONSIBILITIES:
-   - Extract management guidance statements, capacity targets, and forward statements verbatim from earlier baseline documents.
-   - Extract subsequently reported business outcomes and progress statements from later documents.
-   - DO NOT attempt to compute mathematical CAGR, YoY growth %, margin basis point changes, CFO/PAT ratios, debt variances, or achievement percentages. Code calculates all financial formulas deterministically from structured financial statement data.
-   - Do NOT populate or compute 'financial_numbers_check'; leave it null or omit it. Deterministic statement checks are performed exclusively by Stocker code.
-   - In 'stocker_analysis', summarize the qualitative execution takeaways and operational drivers.
-   - For 'source_url_promise', use the baseline document URL. For 'source_url_actual', use the outcome document URL.
+3. CONCISE, NON-REPETITIVE & INVESTOR-RELEVANT:
+   - Prefer 3 to 5 strong, high-signal items per section. Avoid long verbose paragraphs.
+   - Avoid vague buzzwords like "robust", "strong", "healthy", "significant" unless accompanied by concrete comparative metrics (e.g. "accelerated from X% to Y%").
+   - Do NOT repeat the identical KPI finding across multiple views.
+4. FOUR CANONICAL VIEWS:
+   A. WHAT CHANGED:
+      - Answer: "What is materially different now versus the previous comparable period?" (QoQ, YoY, or FY-on-FY).
+      - Include: headline, category, direction (POSITIVE | NEGATIVE | NEUTRAL | MIXED), period_comparison (e.g. "Q1 FY27 vs Q4 FY26"), is_one_off (true if non-recurring event like tax-refund interest), detail (1-2 sentences explaining why it matters).
+      - Do NOT merely state raw KPI movements without interpretation.
+   B. GROWTH / BUSINESS DRIVERS:
+      - Answer: "What is actually driving current growth, demand, profitability, or business momentum?"
+      - Separate driver types: 'Structural Driver' | 'Cyclical Driver' | 'Management Action' | 'External Environment' | 'One-off Driver'.
+      - If a metric improved due to a one-off: MUST label as 'One-off Driver' and set is_one_off = true.
+      - Sector-Awareness: For Banks, focus on loan mix, deposit mobilization, CASA, NIM, credit costs, asset quality, fee income, capital. For Corporates, focus on volume, pricing, utilization, order backlog, capex, market share.
+   C. PROMISE VS DELIVERY:
+      - Compare: CURRENT YEAR / CURRENT PERIOD vs PREVIOUS YEAR / PRIOR MANAGEMENT PROMISE.
+      - A Promise MUST be an explicit management guidance, numerical target/range, explicit timeline, or observable strategic commitment.
+      - Do NOT infer promises from generic strategy platitudes (e.g. "we remain focused on profitable growth").
+      - Status MUST be: 'Delivered' | 'On Track' | 'Partially Delivered' | 'Delayed' | 'Missed' | 'Not Yet Measurable' | 'Not Enough Evidence'.
+      - If no measurable guidance was given in baseline filings: provide an item with management_promise = "No measurable prior management promise found.", status = "Not Enough Evidence", stocker_analysis = "Baseline filings contained general strategy discussion without measurable numerical guidance targets."
+   D. RISKS & STOCKER VIEW:
+      - NOT AN INVESTMENT RECOMMENDATION: Strictly FORBIDDEN from using "Buy", "Strong Buy", "Hold", "Sell".
+      - Separate: Critical Risks (3-5 items with severity, current vs potential, metric to watch), Opportunities, Watch Items, and Stocker View (execution verdict, business momentum, financial quality, evidence confidence, investor summary).
+5. TRUTH INTEGRITY & SEPARATION OF RESPONSIBILITIES:
+   - DO NOT attempt mathematical calculations; code computes all financial ratios and achievement rates deterministically.
+   - Leave 'financial_numbers_check' null.
+   - Preserve 'STANDARDIZED HISTORICAL FINANCIAL STATEMENTS' wording; do NOT call them audited/officially verified unless explicitly verified.
 
 Output MUST be a valid JSON object matching this schema:
 {
   "what_changed_recently": [
     {
-      "headline": "Short headline of recent development",
-      "category": "Capex / Expansion" | "Demand / Orders" | "Pricing / Tariff" | "Debt / Cash" | "Strategic / M&A",
-      "detail": "Plain English summary of recent change",
+      "headline": "Short, factual headline of recent material shift",
+      "category": "Margins / Funding Costs" | "Asset Quality / Provisions" | "Business Mix" | "Demand / Volumes" | "Capex / Expansion" | "Debt / Cash" | "Strategic / M&A" | "Regulatory / Policy",
+      "direction": "POSITIVE" | "NEGATIVE" | "NEUTRAL" | "MIXED",
+      "period_comparison": "e.g. Q1 FY27 vs Q4 FY26 / FY26 vs FY25",
+      "is_one_off": false,
+      "why_it_matters": "Why this development is fundamentally material",
+      "detail": "Plain English summary of recent change and context (1-2 sentences)",
       "source_doc_title": "Document title where stated",
       "source_url": "Exact document URL",
-      "source_page": 5
+      "source_page": 5,
+      "source_quote": "Verbatim quote snippet proving claim"
     }
   ],
   "growth_drivers": [
     {
-      "driver_title": "Expansion initiative, plant, product, or acquisition name",
-      "driver_type": "Capacity / Plant" | "New Product / Market" | "M&A / Acquisition" | "Large Contract / Deal",
-      "description": "What management is planning and expected business driver",
+      "driver_title": "Expansion initiative, loan vertical, plant, product, or market expansion name",
+      "driver_type": "Structural Driver" | "Cyclical Driver" | "Management Action" | "External Environment" | "One-off Driver",
+      "is_one_off": false,
+      "description": "What is driving growth/performance and why (1-2 sentences)",
       "target_timeline": "Timeline or COD if stated",
       "stated_outlay_or_value": "Stated outlay in ₹ Cr or original currency if mentioned",
       "execution_status": "Current execution progress",
@@ -275,21 +301,21 @@ Output MUST be a valid JSON object matching this schema:
   ],
   "promise_vs_delivery": [
     {
-      "area": "Initiative or metric title",
-      "management_promise": "What management promised/guided in earlier document",
-      "promised_in_period": "Earlier document period",
+      "area": "Initiative or metric title e.g. Margin Trajectory / Branch Expansion / Digital Loan Share / Capacity COD",
+      "management_promise": "EXPLICIT PROMISE/GUIDANCE: What management guided or promised in earlier filing",
+      "promised_in_period": "Earlier document period e.g. FY25 AR / Q3 FY26 Concall",
       "promise_source_doc": "Earlier document title",
       "source_url_promise": "Earlier document URL",
       "promise_source_page": 12,
       "promise_quote": "Verbatim quote from earlier document",
-      "actual_outcome": "What actually happened in later document",
-      "actual_in_period": "Later document period",
+      "actual_outcome": "REPORTED OUTCOME: What actually happened in later document",
+      "actual_in_period": "Later document period e.g. FY26 AR / Q1 FY27 Concall",
       "actual_source_doc": "Later document title",
       "source_url_actual": "Later document URL",
       "actual_source_page": 44,
       "actual_quote": "Verbatim quote from later document",
-      "status": "In Progress" | "Delivered" | "Missed" | "Delayed" | "Not Enough Evidence",
-      "stocker_analysis": "Concise qualitative explanation of operational drivers",
+      "status": "Delivered" | "On Track" | "Partially Delivered" | "Delayed" | "Missed" | "Not Yet Measurable" | "Not Enough Evidence",
+      "stocker_analysis": "STOCKER INTERPRETATION: Concise variance analysis explaining operational drivers",
       "financial_numbers_check": null,
       "confidence": 0.95
     }
@@ -297,10 +323,10 @@ Output MUST be a valid JSON object matching this schema:
   "demand_momentum": {
     "summary": "Plain English synthesis of current demand environment",
     "company_specific_metrics": [
-      {"metric": "Metric Name e.g. 5G Users / Order Book / TCV", "value": "Metric Value e.g. 130M+ / ₹4.5L Cr"}
+      {"metric": "Metric Name e.g. Loan Growth / CASA / Order Book / TCV", "value": "Metric Value e.g. 19.6% / 43.6% / ₹4.5L Cr"}
     ],
     "segment_trends": [
-      {"segment": "Segment Name", "trend": "Segment demand trajectory e.g. +18% YoY growth"}
+      {"segment": "Segment Name", "trend": "Segment demand trajectory e.g. +35.4% YoY rural growth"}
     ],
     "market_share_and_pricing": "Market share trends and pricing power signals if stated",
     "headwinds_and_risks": ["Stated demand headwinds or client caution"],
@@ -310,11 +336,23 @@ Output MUST be a valid JSON object matching this schema:
     "confidence": 0.95
   },
   "risks_and_cash": {
-    "working_capital_and_receivables": "Working capital cycle, inventory days, debtor days",
-    "debt_and_capex_burden": "Net debt trajectory, interest costs, capex deployment",
-    "margin_and_cost_pressures": "Input cost pressures, pricing headwinds, operating leverage",
-    "execution_and_bottlenecks": ["Supply constraints, execution hurdles"],
-    "regulatory_or_legal_headwinds": ["Compliance, litigation, regulatory scrutiny"],
+    "working_capital_and_receivables": "Working capital cycle, inventory days, debtor days (Corporate only; 'Not applicable to banking' for banks)",
+    "debt_and_capex_burden": "Net debt trajectory, interest costs, capex commitments, capital adequacy (CET-1/CRAR for banks)",
+    "margin_and_cost_pressures": "Input cost pressures, pricing headwinds, operating leverage, funding costs, credit costs",
+    "execution_and_bottlenecks": ["Specific supply constraints, commissioning delays, execution hurdles"],
+    "regulatory_or_legal_headwinds": ["Compliance, litigation, regulatory scrutiny, policy changes"],
+    "risk_items": [
+      {
+        "risk_title": "Short title of critical risk",
+        "risk_category": "Asset Quality" | "Margin Compression" | "Customer Concentration" | "Regulatory / Legal" | "Leverage" | "Execution" | "Cyclicality" | "Funding / Liquidity",
+        "severity": "HIGH" | "MEDIUM" | "LOW",
+        "is_current_or_potential": "CURRENT" | "POTENTIAL",
+        "evidence_statement": "Evidence-backed description of the risk",
+        "metric_to_watch": "What metric/document would confirm improvement or deterioration",
+        "source_url": "Exact document URL",
+        "source_page": 15
+      }
+    ],
     "source_url": "Exact document URL",
     "source_page": 45,
     "source_quote": "Verbatim quote snippet",
@@ -322,10 +360,13 @@ Output MUST be a valid JSON object matching this schema:
   },
   "stocker_view": {
     "execution_verdict": "Strong Execution" | "Mixed Execution" | "Weak Execution" | "Evolving / Watchlist",
-    "positive_triggers": ["Key upcoming positive triggers"],
+    "business_momentum": "Acceleration" | "Steady Growth" | "Moderating" | "Contracting",
+    "financial_quality": "High Quality" | "Adequate" | "Under Pressure" | "Distressed",
+    "evidence_confidence": "High" | "Moderate" | "Low / Incomplete",
+    "positive_triggers": ["Key upcoming positive triggers / opportunities"],
     "main_risks": ["Critical fundamental risks to monitor"],
     "what_to_watch_next": ["Specific milestones to watch in next 2-4 quarters"],
-    "investor_summary": "Concise, plain-English summary for fundamental investors."
+    "investor_summary": "Concise, plain-English summary for fundamental investors. Strictly no buy/sell recommendations."
   },
   "evidence_items": [
     {
@@ -345,7 +386,7 @@ Output MUST be a valid JSON object matching this schema:
   ],
   "management_guidance_items": [
     {
-      "metric_or_topic": "Revenue Growth / EBITDA Margin / Capex / Deposit Growth / Loan Growth",
+      "metric_or_topic": "Revenue Growth / EBITDA Margin / Capex / Deposit Growth / Loan Growth / Net NPA",
       "guidance_text": "Exact guidance text stated by management",
       "quantified_value": 15.0,
       "quantified_range_min": null,
@@ -758,9 +799,12 @@ def sanitize_and_verify_intelligence_result(
 ) -> GenericDocumentIntelligenceResult:
     """
     Sanitizes all citations in extracted intelligence, rejects unmapped sources,
-    verifies page numbers, and evaluates management guidance deterministically.
+    verifies page numbers, enforces sector-safety and truth categories, and evaluates management guidance deterministically.
     """
-    # 1. RecentChange: headline, category, detail, source_doc, source_page, source_url
+    is_bank = (financial_business_model == "BANK")
+
+    # 1. RecentChange: headline, category, detail, direction, period_comparison, is_one_off, source_doc, source_page, source_url
+    clean_changes = []
     for c in result.what_changed_recently:
         c.source_url, matched_doc = sanitize_citation(
             c.source_url, c.source_doc, candidate_documents_meta,
@@ -770,35 +814,68 @@ def sanitize_and_verify_intelligence_result(
             c.source_doc = matched_doc
         elif not c.source_url:
             c.source_doc = None
-        page_match = verify_citation_page(c.source_url, None, f"{c.headline} {c.detail}")
+        page_match = verify_citation_page(c.source_url, getattr(c, "source_quote", None), f"{c.headline} {c.detail}")
         if page_match:
             c.source_page = page_match
         elif not c.source_url:
             c.source_page = None
+
+        # Check for one-off / non-recurring indicators (e.g. tax refund interest)
+        detail_low = f"{c.headline} {c.detail}".lower()
+        if any(w in detail_low for w in ["tax refund", "one-off", "one off", "exceptional item", "non-recurring", "prior period item", "write-back"]):
+            c.is_one_off = True
+
+        # Normalize direction
+        if c.direction not in ("POSITIVE", "NEGATIVE", "NEUTRAL", "MIXED"):
+            c.direction = "NEUTRAL"
+
+        clean_changes.append(c)
+    result.what_changed_recently = clean_changes
             
-    # 2. GrowthDriver: driver_title, driver_type, description, target_timeline, stated_outlay_or_value, execution_status, expected_impact, source_page, source_quote, source_url, confidence
+    # 2. GrowthDriver: driver_title, driver_type, description, is_one_off, target_timeline, stated_outlay_or_value, execution_status, expected_impact, source_page, source_quote, source_url, confidence
+    clean_drivers = []
     for g in result.growth_drivers:
-        g.source_url, _ = sanitize_citation(
-            g.source_url, None, candidate_documents_meta,
+        g.source_url, matched_doc = sanitize_citation(
+            g.source_url, getattr(g, "source_doc_title", None), candidate_documents_meta,
             latest_doc_url, latest_doc_title, older_doc_url, older_doc_title
         )
+        if matched_doc:
+            g.source_doc_title = matched_doc
         page_match = verify_citation_page(g.source_url, g.source_quote, f"{g.driver_title} {g.description}")
         if page_match:
             g.source_page = page_match
         elif not g.source_url:
             g.source_page = None
             g.source_quote = None
+
+        desc_low = f"{g.driver_title} {g.description}".lower()
+        if g.is_one_off or g.driver_type == "One-off Driver" or any(w in desc_low for w in ["tax refund", "one-off", "one off", "exceptional gain", "non-recurring"]):
+            g.is_one_off = True
+            g.driver_type = "One-off Driver"
+
+        # Bank Safety: Reject industrial FCF/CWIP drivers for banks
+        if is_bank and any(w in desc_low for w in ["working capital cycle", "debtor days", "inventory days", "industrial fcf", "cwip conversion"]):
+            continue
+
+        clean_drivers.append(g)
+    result.growth_drivers = clean_drivers
             
     # 3. PromiseVsDeliveryItem
+    clean_promises = []
     for p in result.promise_vs_delivery:
-        p.source_url_actual, _ = sanitize_citation(
+        p.source_url_actual, matched_act_doc = sanitize_citation(
             p.source_url_actual, p.actual_in_period, candidate_documents_meta,
             latest_doc_url, latest_doc_title, older_doc_url, older_doc_title
         )
-        p.source_url_promise, _ = sanitize_citation(
+        if matched_act_doc and not p.actual_source_doc:
+            p.actual_source_doc = matched_act_doc
+
+        p.source_url_promise, matched_prom_doc = sanitize_citation(
             p.source_url_promise, p.promised_in_period, candidate_documents_meta,
             latest_doc_url, latest_doc_title, older_doc_url, older_doc_title
         )
+        if matched_prom_doc and not p.promise_source_doc:
+            p.promise_source_doc = matched_prom_doc
         
         if p.source_url_actual:
             act_page = verify_citation_page(p.source_url_actual, p.actual_quote, p.actual_outcome)
@@ -818,6 +895,9 @@ def sanitize_and_verify_intelligence_result(
             
         if not p.source_url_promise or not p.source_url_actual:
             p.status = "Not Enough Evidence"
+            if "no measurable" in str(p.management_promise).lower():
+                p.stocker_analysis = "No measurable prior management promise found in baseline filings."
+                p.financial_numbers_check = "Baseline filings contained general strategy discussion without measurable numerical guidance targets."
         else:
             try:
                 from financial_engine import verify_promise_vs_delivery_item
@@ -833,6 +913,23 @@ def sanitize_and_verify_intelligence_result(
                     p.stocker_analysis = verified_dict["stocker_analysis"]
             except Exception as e:
                 print(f"Notice: Verification engine error on promise item: {e}")
+
+        clean_promises.append(p)
+
+    if not clean_promises:
+        from doc_intelligence_models import PromiseVsDeliveryItem
+        clean_promises.append(PromiseVsDeliveryItem(
+            area="Corporate Guidance & Execution",
+            management_promise="No measurable prior management promise found in baseline filings.",
+            promised_in_period="Baseline Filing",
+            actual_outcome="No quantifiable guidance target was disclosed in baseline filings.",
+            actual_in_period="Latest Results",
+            status="Not Enough Evidence",
+            stocker_analysis="Baseline filings contained general business strategy without measurable numerical guidance targets or verifiable completion deadlines.",
+            financial_numbers_check="No structured forward-guidance numbers found in earlier annual reports.",
+            confidence=1.0
+        ))
+    result.promise_vs_delivery = clean_promises
 
     # 4. DemandMomentum
     if result.demand_momentum:
@@ -850,6 +947,8 @@ def sanitize_and_verify_intelligence_result(
 
     # 5. RisksAndCashIssues
     if result.risks_and_cash:
+        if is_bank:
+            result.risks_and_cash.working_capital_and_receivables = "Not applicable to banking operations."
         result.risks_and_cash.source_url, _ = sanitize_citation(
             result.risks_and_cash.source_url, None, candidate_documents_meta,
             latest_doc_url, latest_doc_title, older_doc_url, older_doc_title
@@ -861,6 +960,27 @@ def sanitize_and_verify_intelligence_result(
         else:
             result.risks_and_cash.source_page = None
             result.risks_and_cash.source_quote = None
+
+        if hasattr(result.risks_and_cash, "risk_items") and isinstance(result.risks_and_cash.risk_items, list):
+            sanitized_risks = []
+            for r_item in result.risks_and_cash.risk_items:
+                if isinstance(r_item, dict):
+                    r_url, _ = sanitize_citation(
+                        r_item.get("source_url"), None, candidate_documents_meta,
+                        latest_doc_url, latest_doc_title, older_doc_url, older_doc_title
+                    )
+                    r_item["source_url"] = r_url or ""
+                    sanitized_risks.append(r_item)
+            result.risks_and_cash.risk_items = sanitized_risks
+
+    # 6. StockerView: Prohibit AI Investment Recommendations
+    if result.stocker_view:
+        s_summary = result.stocker_view.investor_summary or ""
+        for prohibited in ["Buy", "Strong Buy", "Sell", "Strong Sell", "Hold"]:
+            s_summary = re.sub(rf'\b{prohibited}\b', 'Watchlist / Neutral Stance', s_summary, flags=re.IGNORECASE)
+        result.stocker_view.investor_summary = s_summary.strip()
+        if not result.stocker_view.evidence_confidence:
+            result.stocker_view.evidence_confidence = "High"
 
     # 6. Integrated Persistent Company Knowledge & Triangulation Layer
     all_facts: List[Dict[str, Any]] = []

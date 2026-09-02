@@ -13,20 +13,26 @@ sys.path.insert(0, str(Path(__file__).parent.parent / "libs"))
 
 from doc_intelligence_models import (
     BusinessAnalysisResult, BusinessOutlookResult, DocumentEvidenceItem,
-    ManagementGuidanceItem, PromiseVsDeliveryItem, GrowthDriver, StockerView
+    ManagementGuidanceItem, PromiseVsDeliveryItem, GrowthDriver, StockerView,
+    RecentChange, RisksAndCashIssues, DemandMomentum
 )
 from doc_intelligence_engine import (
     get_company_doc_intelligence,
     evaluate_management_guidance_vs_actual,
     _apply_financial_cross_check
 )
-from doc_intelligence_pipeline import run_multi_document_ai_pipeline
+from doc_intelligence_pipeline import (
+    run_multi_document_ai_pipeline,
+    deduplicate_synthesized_findings
+)
 from llm_service import (
     sanitize_citation,
     sanitize_and_verify_intelligence_result,
     GenericDocumentIntelligenceResult
 )
+from financial_engine import verify_promise_vs_delivery_item
 from models import DocumentLinks, DocumentItem
+import database
 
 class TestBusinessAnalysisV44(unittest.TestCase):
     def setUp(self):
@@ -547,6 +553,267 @@ class TestBusinessAnalysisV44(unittest.TestCase):
         self.assertEqual(res.evidence_items[1].evidence_type, "DEMAND_DRIVER")
         self.assertEqual(len(res.management_guidance_items), 1)
         self.assertEqual(res.management_guidance_items[0].quantified_range_max, 5.0)
+
+    # =========================================================================
+    # A. WHAT CHANGED TESTS
+    # =========================================================================
+
+    def test_what_changed_latest_vs_prior_period_comparison(self):
+        """What Changed item includes direction, period comparison, and plain English explanation."""
+        change = RecentChange(
+            headline="NIM Core Expansion Moderation",
+            category="Margins / Funding Costs",
+            detail="NIM expanded to 4.36% from 4.32% QoQ, but 8 bps came from non-recurring tax-refund interest.",
+            direction="MIXED",
+            period_comparison="Q1 FY27 vs Q4 FY26",
+            is_one_off=True,
+            why_it_matters="Underlying core NIM was 4.28%, indicating headline margin expansion overstates core momentum.",
+            source_doc="Q1 FY27 Concall Transcript",
+            source_url="https://bse.com/cc_q1fy27.pdf",
+            source_page=8
+        )
+        self.assertEqual(change.direction, "MIXED")
+        self.assertEqual(change.period_comparison, "Q1 FY27 vs Q4 FY26")
+        self.assertTrue(change.is_one_off)
+        self.assertIn("Underlying core NIM was 4.28%", change.why_it_matters)
+
+    def test_what_changed_one_off_effect_identified_in_sanitization(self):
+        """Sanitizer automatically detects tax-refund interest / exceptional item as one-off."""
+        raw_res = GenericDocumentIntelligenceResult(
+            symbol="TESTBANK",
+            company_name="Test Bank",
+            latest_document_period="Q1 FY27",
+            what_changed_recently=[
+                RecentChange(
+                    headline="NIM Headline Increase",
+                    category="Margins / Funding Costs",
+                    detail="Reported NIM was 4.36% with 8 bps from tax refund interest.",
+                    source_url="https://bse.com/cc.pdf"
+                )
+            ]
+        )
+        candidate_docs = [{"title": "Q1 FY27 Concall", "url": "https://bse.com/cc.pdf", "type": "concall_transcript"}]
+        database.save_cached_document_pages("TESTBANK", "https://bse.com/cc.pdf", [(8, "Reported NIM was 4.36% with 8 bps from tax refund interest.")])
+        
+        sanitized = sanitize_and_verify_intelligence_result(
+            result=raw_res,
+            symbol="TESTBANK",
+            candidate_documents_meta=candidate_docs,
+            latest_doc_url="https://bse.com/cc.pdf",
+            financial_business_model="BANK"
+        )
+        self.assertEqual(len(sanitized.what_changed_recently), 1)
+        self.assertTrue(sanitized.what_changed_recently[0].is_one_off)
+        self.assertEqual(sanitized.what_changed_recently[0].source_page, 8)
+
+    # =========================================================================
+    # B. GROWTH DRIVERS TESTS
+    # =========================================================================
+
+    def test_growth_driver_one_off_not_mislabeled_structural(self):
+        """A one-off gain or tax reversal is labeled as One-off Driver, not Structural Driver."""
+        driver = GrowthDriver(
+            driver_title="Tax Provision Write-back",
+            driver_type="One-off Driver",
+            description="One-time tax provision write-back of ₹4.46B boosted PAT.",
+            is_one_off=True,
+            execution_status="Completed",
+            source_url="https://bse.com/cc.pdf"
+        )
+        self.assertTrue(driver.is_one_off)
+        self.assertEqual(driver.driver_type, "One-off Driver")
+
+    def test_growth_driver_bank_routing(self):
+        """Bank drivers focus on loan mix, deposits, CASA, and NIM, excluding industrial FCF/CWIP."""
+        raw_res = GenericDocumentIntelligenceResult(
+            symbol="TESTBANK",
+            company_name="Test Bank",
+            latest_document_period="Q1 FY27",
+            growth_drivers=[
+                GrowthDriver(
+                    driver_title="Rural and Business Banking Loan Acceleration",
+                    driver_type="Structural Driver",
+                    description="Rural portfolio grew 35.4% YoY and Business Banking grew 28.2% YoY driving 19.6% total loan growth.",
+                    source_url="https://bse.com/cc.pdf"
+                ),
+                GrowthDriver(
+                    driver_title="Industrial CWIP Commissioning",
+                    driver_type="Capacity / Plant",
+                    description="Gross block expansion and working capital cycle reduction.",
+                    source_url="https://bse.com/cc.pdf"
+                )
+            ]
+        )
+        candidate_docs = [{"title": "Q1 Concall", "url": "https://bse.com/cc.pdf", "type": "concall_transcript"}]
+        database.save_cached_document_pages("TESTBANK", "https://bse.com/cc.pdf", [(3, "Rural portfolio grew 35.4% YoY and Business Banking grew 28.2% YoY.")])
+
+        sanitized = sanitize_and_verify_intelligence_result(
+            result=raw_res,
+            symbol="TESTBANK",
+            candidate_documents_meta=candidate_docs,
+            latest_doc_url="https://bse.com/cc.pdf",
+            financial_business_model="BANK"
+        )
+        # Bank sanitizer should reject the industrial CWIP/working-capital driver
+        self.assertEqual(len(sanitized.growth_drivers), 1)
+        self.assertIn("Rural and Business Banking", sanitized.growth_drivers[0].driver_title)
+
+    # =========================================================================
+    # C. PROMISE VS DELIVERY TESTS
+    # =========================================================================
+
+    def test_promise_vs_delivery_explicit_numeric_guidance_deterministic(self):
+        """Numerical guidance is evaluated deterministically against reported statements."""
+        item = {
+            "area": "Revenue Growth",
+            "management_promise": "Targeted 15% revenue growth in FY26",
+            "promised_in_period": "FY25",
+            "actual_outcome": "Reported revenue of ₹1,150 Cr in FY26",
+            "actual_in_period": "FY26",
+            "source_url_promise": "https://bse.com/ar25.pdf",
+            "source_url_actual": "https://bse.com/ar26.pdf"
+        }
+        pl_stmt = {
+            "periods": ["FY25", "FY26"],
+            "rows": [
+                {"metric": "Sales", "values": [1000, 1150]},
+                {"metric": "OPM %", "values": [20.0, 20.5]}
+            ]
+        }
+        res = verify_promise_vs_delivery_item(item, pl_stmt=pl_stmt, quarters_stmt=None, current_year=2026.5)
+        self.assertEqual(res["status"], "Delivered")
+        self.assertIn("Achievement Rate: 100.0%", res["financial_numbers_check"])
+
+    def test_promise_vs_delivery_generic_strategy_statement_rejected(self):
+        """Generic strategy statement ('focus on sustainable growth') is not treated as a delivered promise."""
+        item = {
+            "area": "Corporate Strategy",
+            "management_promise": "We remain focused on sustainable value creation and harnessing its brand strengths",
+            "promised_in_period": "FY25",
+            "actual_outcome": "Bank continued to expand market share",
+            "actual_in_period": "FY26",
+            "source_url_promise": "https://bse.com/ar25.pdf",
+            "source_url_actual": "https://bse.com/ar26.pdf"
+        }
+        res = verify_promise_vs_delivery_item(item, pl_stmt=None, quarters_stmt=None, current_year=2026.5)
+        self.assertEqual(res["status"], "Not Yet Measurable")
+        self.assertIn("Generic Strategic Intent", res["stocker_analysis"])
+
+    def test_promise_vs_delivery_no_prior_promise_clean_fallback(self):
+        """When no prior measurable guidance was found, returns clean explanatory item without fabrication."""
+        raw_res = GenericDocumentIntelligenceResult(
+            symbol="TESTBANK",
+            company_name="Test Bank",
+            latest_document_period="Q1 FY27",
+            promise_vs_delivery=[]
+        )
+        sanitized = sanitize_and_verify_intelligence_result(
+            result=raw_res,
+            symbol="TESTBANK",
+            candidate_documents_meta=[],
+            latest_doc_url="https://bse.com/ar26.pdf",
+            financial_business_model="BANK"
+        )
+        self.assertEqual(len(sanitized.promise_vs_delivery), 1)
+        self.assertEqual(sanitized.promise_vs_delivery[0].status, "Not Enough Evidence")
+        self.assertIn("No measurable prior management promise found", sanitized.promise_vs_delivery[0].management_promise)
+
+    # =========================================================================
+    # D. RISKS & STOCKER VIEW TESTS
+    # =========================================================================
+
+    def test_risks_view_structured_items_with_metric(self):
+        """Risk items include severity, is_current_or_potential, and metric_to_watch."""
+        risks = RisksAndCashIssues(
+            debt_and_capex_burden="CET-1 ratio at 16.19% as of June 30, 2026.",
+            margin_and_cost_pressures="NIM pressure from higher cost of term deposits.",
+            regulatory_or_legal_headwinds=["RBI transition to ECL guidelines"],
+            risk_items=[
+                {
+                    "risk_title": "ECL Accounting Transition",
+                    "risk_category": "Regulatory / Legal",
+                    "severity": "MEDIUM",
+                    "is_current_or_potential": "POTENTIAL",
+                    "evidence_statement": "New RBI ECL norms may increase transitional credit provisioning across the banking sector.",
+                    "metric_to_watch": "Credit Cost % and Provision Coverage Ratio (PCR) in subsequent quarters",
+                    "source_url": "https://bse.com/cc.pdf",
+                    "source_page": 17
+                }
+            ]
+        )
+        self.assertEqual(len(risks.risk_items), 1)
+        self.assertEqual(risks.risk_items[0]["severity"], "MEDIUM")
+        self.assertEqual(risks.risk_items[0]["is_current_or_potential"], "POTENTIAL")
+        self.assertIn("Credit Cost %", risks.risk_items[0]["metric_to_watch"])
+
+    def test_stocker_view_no_buy_sell_recommendations(self):
+        """Stocker View sanitization purges any accidental Buy/Sell words from investor summary."""
+        raw_res = GenericDocumentIntelligenceResult(
+            symbol="TESTBANK",
+            company_name="Test Bank",
+            latest_document_period="Q1 FY27",
+            stocker_view=StockerView(
+                execution_verdict="Strong Execution",
+                investor_summary="The bank exhibits high-teen loan growth. We maintain a Strong Buy rating."
+            )
+        )
+        sanitized = sanitize_and_verify_intelligence_result(
+            result=raw_res,
+            symbol="TESTBANK",
+            financial_business_model="BANK"
+        )
+        self.assertNotIn("Strong Buy", sanitized.stocker_view.investor_summary)
+        self.assertIn("Watchlist / Neutral Stance", sanitized.stocker_view.investor_summary)
+
+    # =========================================================================
+    # E. REDUNDANCY & CROSS-VIEW SUPPRESSION TESTS
+    # =========================================================================
+
+    def test_redundancy_suppression_cross_views(self):
+        """Cross-view deduplication suppresses verbatim duplicate statements across What Changed and Growth Drivers."""
+        raw_dict = {
+            "what_changed_recently": [
+                {
+                    "headline": "Rural loan growth accelerated to 35.4% YoY",
+                    "detail": "Rural loan growth accelerated to 35.4% YoY driven by gold loans and Kisan Credit Cards.",
+                    "category": "Demand / Volumes"
+                }
+            ],
+            "growth_drivers": [
+                {
+                    "driver_title": "Rural loan growth accelerated to 35.4% YoY",
+                    "description": "Rural loan growth accelerated to 35.4% YoY driven by gold loans and Kisan Credit Cards.",
+                    "driver_type": "Structural Driver"
+                },
+                {
+                    "driver_title": "Business Banking Expansion",
+                    "description": "Business banking grew 28.2% YoY across 200+ micromarkets.",
+                    "driver_type": "Structural Driver"
+                }
+            ]
+        }
+        deduped = deduplicate_synthesized_findings(raw_dict)
+        # Duplicate in growth_drivers should be suppressed
+        self.assertEqual(len(deduped["what_changed_recently"]), 1)
+        self.assertEqual(len(deduped["growth_drivers"]), 1)
+        self.assertEqual(deduped["growth_drivers"][0]["driver_title"], "Business Banking Expansion")
+
+    # =========================================================================
+    # F. SOURCE CITATION SAFETY TESTS
+    # =========================================================================
+
+    def test_source_citation_safety_unmapped_url_rejected(self):
+        """Hallucinated or unmapped document URLs are rejected and set to empty/unsupported."""
+        candidate_docs = [{"title": "Official Annual Report FY26", "url": "https://bse.com/ar26.pdf"}]
+        
+        url, title = sanitize_citation("https://random-blog.com/fake.pdf", "Official Annual Report FY26", candidate_docs)
+        # Title match recovers verified official URL
+        self.assertEqual(url, "https://bse.com/ar26.pdf")
+        
+        # Completely unknown URL and title is rejected
+        url_fake, title_fake = sanitize_citation("https://hallucinated.com/doc.pdf", "Nonexistent Document", candidate_docs)
+        self.assertIsNone(url_fake)
+        self.assertIsNone(title_fake)
 
 if __name__ == "__main__":
     unittest.main()

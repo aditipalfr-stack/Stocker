@@ -773,9 +773,9 @@ def select_relevant_sections(
 
 def deduplicate_synthesized_findings(output_dict: Dict[str, Any]) -> Dict[str, Any]:
     """
-    Ensures company-level synthesis does not repeat duplicate KPI findings or takeaways
-    when transcript and presentation from the same earnings event report the identical fact.
-    Consolidates duplicate evidence items and verified facts.
+    Ensures company-level synthesis does not repeat duplicate KPI findings or claims
+    across the four Business Analysis views.
+    Consolidates duplicate evidence items, verified facts, and cross-view redundancies.
     """
     if not output_dict or not isinstance(output_dict, dict):
         return output_dict
@@ -794,27 +794,79 @@ def deduplicate_synthesized_findings(output_dict: Dict[str, Any]) -> Dict[str, A
             deduped_facts.append(fact)
         output_dict["verified_facts"] = deduped_facts
 
-    # 2. Deduplicate what_changed_recently / growth_drivers
-    for field in ["what_changed_recently", "growth_drivers"]:
-        if field in output_dict and isinstance(output_dict[field], list):
-            seen_items = set()
-            deduped_items = []
-            for item in output_dict[field]:
-                norm_str = re.sub(r'[^a-z0-9]', '', str(item).lower())
-                if norm_str and norm_str in seen_items:
-                    continue
-                if norm_str:
-                    seen_items.add(norm_str)
-                deduped_items.append(item)
-            output_dict[field] = deduped_items
-            
+    # 2. Track cross-view normalized claims for redundancy suppression
+    seen_cross_view_claims = set()
+
+    # 2A. What Changed Recently
+    if "what_changed_recently" in output_dict and isinstance(output_dict["what_changed_recently"], list):
+        seen_changes = set()
+        deduped_changes = []
+        for item in output_dict["what_changed_recently"]:
+            if isinstance(item, str):
+                item_str = item.strip()
+            elif isinstance(item, dict):
+                item_str = f"{item.get('headline', '')} {item.get('detail', '')}".strip()
+            else:
+                item_str = f"{getattr(item, 'headline', '')} {getattr(item, 'detail', '')}".strip()
+            norm_str = re.sub(r'[^a-z0-9]', '', item_str.lower())
+            if norm_str and norm_str in seen_changes:
+                continue
+            if norm_str:
+                seen_changes.add(norm_str)
+                # Keep significant 5-word snippets in cross-view set
+                for snippet in [norm_str[:40], norm_str[-40:]]:
+                    if len(snippet) > 15:
+                        seen_cross_view_claims.add(snippet)
+            deduped_changes.append(item)
+        output_dict["what_changed_recently"] = deduped_changes
+
+    # 2B. Growth Drivers (Suppress identical text already in What Changed)
+    if "growth_drivers" in output_dict and isinstance(output_dict["growth_drivers"], list):
+        seen_drivers = set()
+        deduped_drivers = []
+        for item in output_dict["growth_drivers"]:
+            if isinstance(item, str):
+                item_str = item.strip()
+            elif isinstance(item, dict):
+                item_str = f"{item.get('driver_title', '')} {item.get('description', '')}".strip()
+            else:
+                item_str = f"{getattr(item, 'driver_title', '')} {getattr(item, 'description', '')}".strip()
+            norm_str = re.sub(r'[^a-z0-9]', '', item_str.lower())
+            if norm_str and (norm_str in seen_drivers or (len(norm_str) > 30 and norm_str[:40] in seen_cross_view_claims)):
+                continue
+            if norm_str:
+                seen_drivers.add(norm_str)
+                if len(norm_str) > 15:
+                    seen_cross_view_claims.add(norm_str[:40])
+            deduped_drivers.append(item)
+        output_dict["growth_drivers"] = deduped_drivers
+
+    # 2C. Promise vs Delivery
+    if "promise_vs_delivery" in output_dict and isinstance(output_dict["promise_vs_delivery"], list):
+        seen_promises = set()
+        deduped_promises = []
+        for item in output_dict["promise_vs_delivery"]:
+            if isinstance(item, str):
+                item_str = item.strip()
+            elif isinstance(item, dict):
+                item_str = f"{item.get('management_promise', '')} {item.get('actual_outcome', '')}".strip()
+            else:
+                item_str = f"{getattr(item, 'management_promise', '')} {getattr(item, 'actual_outcome', '')}".strip()
+            norm_str = re.sub(r'[^a-z0-9]', '', item_str.lower())
+            if norm_str and norm_str in seen_promises:
+                continue
+            if norm_str:
+                seen_promises.add(norm_str)
+            deduped_promises.append(item)
+        output_dict["promise_vs_delivery"] = deduped_promises
+
     # 3. Deduplicate evidence_items
     if "evidence_items" in output_dict and isinstance(output_dict["evidence_items"], list):
         seen_evidence = set()
         deduped_evidence = []
         for ev in output_dict["evidence_items"]:
             if isinstance(ev, dict):
-                ev_quote = str(ev.get("fact", "") or ev.get("excerpt", "") or ev.get("metric_name", "")).strip()
+                ev_quote = str(ev.get("statement", "") or ev.get("fact", "") or ev.get("excerpt", "") or ev.get("title", "")).strip()
                 norm_ev = re.sub(r'[^a-z0-9]', '', ev_quote.lower())
                 if norm_ev and norm_ev in seen_evidence:
                     continue
