@@ -819,6 +819,45 @@ class TestBusinessAnalysisV44(unittest.TestCase):
         self.assertEqual(res["status"], "Delivered")
         self.assertIn("Favorable Below Range", res["stocker_analysis"])
 
+    def test_currency_actual_extraction_context_and_units(self):
+        """Actual currency/absolute value extraction requires explicit currency/unit context and normalizes units."""
+        from financial_engine import extract_guidance_actual_value
+        
+        # 1. FY26 capex was ₹6,000 Cr -> 6000
+        self.assertEqual(extract_guidance_actual_value("FY26 capex was ₹6,000 Cr", "cr"), 6000.0)
+        
+        # 2. FY2026 capex was ₹9,000 Cr -> 9000
+        self.assertEqual(extract_guidance_actual_value("FY2026 capex was ₹9,000 Cr", "cr"), 9000.0)
+        
+        # 3. FY26 without an amount -> no actual extracted (None)
+        self.assertIsNone(extract_guidance_actual_value("FY26 capex planning was initiated without final spending", "cr"))
+        
+        # 4. unrelated number before amount does not win
+        self.assertEqual(extract_guidance_actual_value("In Q1 FY26 across 26 facilities, capex was ₹6,000 Cr", "cr"), 6000.0)
+        
+        # 5. incompatible currency units fail closed unless deterministic conversion exists
+        # Incompatible USD fails closed
+        self.assertIsNone(extract_guidance_actual_value("FY26 capex was $50 million", "cr"))
+        # ₹60 billion deterministically converts to 6000 Cr (1 billion INR = 100 Cr INR)
+        self.assertEqual(extract_guidance_actual_value("FY26 capex was ₹60 billion", "cr"), 6000.0)
+        # 600,000 lakh converts to 6000 Cr
+        self.assertEqual(extract_guidance_actual_value("FY26 capex was 600000 lakh", "cr"), 6000.0)
+
+    def test_promise_vs_delivery_capex_fy26_amount_parsing(self):
+        """FY26 capex was ₹6,000 Cr parses 6000 Cr, not 26."""
+        item = {
+            "area": "Capital Expenditure",
+            "management_promise": "Targeted capex of ₹8,000–₹10,000 Cr in FY26",
+            "promised_in_period": "FY25",
+            "actual_outcome": "FY26 capex was ₹6,000 Cr",
+            "actual_in_period": "FY26",
+            "source_url_promise": "https://bse.com/ar25.pdf",
+            "source_url_actual": "https://bse.com/ar26.pdf"
+        }
+        res = verify_promise_vs_delivery_item(item, pl_stmt=None, quarters_stmt=None, current_year=2026.5)
+        self.assertIn("Reported: 6000.0 cr", res["financial_numbers_check"])
+        self.assertNotIn("Reported: 26", res["financial_numbers_check"])
+
     def test_promise_vs_delivery_range_cost_metric_above_range_missed(self):
         """Credit Cost range 0.8% - 1.0% with 1.20% actual is MISSED (unfavorable cost overrun)."""
         item = {

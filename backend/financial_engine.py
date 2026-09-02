@@ -1,5 +1,4 @@
 from typing import Dict, List, Any, Optional, Tuple
-import math
 import re
 from models import FinancialStatement, FinancialRow
 
@@ -1012,6 +1011,91 @@ def parse_explicit_guidance_range(text: str) -> Optional[Tuple[float, float, str
 
     return None
 
+def extract_guidance_actual_value(outcome_text: str, target_unit: str) -> Optional[float]:
+    """
+    Extracts an actual outcome value matching the expected target unit (%, bps, currency/amount).
+    Requires explicit currency symbol or unit context; strictly rejects bare year/period/page tokens
+    (e.g. 'FY26', '2026', 'Q1', 'page 26').
+    """
+    if not outcome_text or not target_unit:
+        return None
+    s = outcome_text.strip()
+    t_unit = target_unit.lower().strip()
+
+    # 1. Percentage Target
+    if t_unit == "%":
+        m_pct = re.search(r'(\d+(?:\.\d+)?)\s*%', s, re.IGNORECASE)
+        if m_pct:
+            return float(m_pct.group(1))
+        m_bps = re.search(r'(\d+(?:\.\d+)?)\s*bps\b', s, re.IGNORECASE)
+        if m_bps:
+            return round(float(m_bps.group(1)) / 100.0, 4)
+        return None
+
+    # 2. Basis Points Target
+    if t_unit == "bps":
+        m_bps = re.search(r'(\d+(?:\.\d+)?)\s*bps\b', s, re.IGNORECASE)
+        if m_bps:
+            return float(m_bps.group(1))
+        m_pct = re.search(r'(\d+(?:\.\d+)?)\s*%', s, re.IGNORECASE)
+        if m_pct:
+            return round(float(m_pct.group(1)) * 100.0, 2)
+        return None
+
+    # 3. Currency / Absolute Amount Target (e.g. Cr, Crore, Billion, Lakh)
+    if t_unit in ("cr", "crore", "billion", "bn", "lakh"):
+        # Match explicit currency symbols or explicit unit words
+        # (A) Currency prefix (₹, Rs., INR) + numeric amount + optional unit
+        # (B) Numeric amount + required unit (Cr, Crore, Billion, etc.)
+        m_curr_sym = re.search(
+            r'(?:₹|rs\.?|inr)\s*([\d,]+(?:\.\d+)?)\s*(cr|crore|billion|bn|lakh|million|mn)?\b',
+            s,
+            re.IGNORECASE
+        )
+        m_unit_only = re.search(
+            r'\b([\d,]+(?:\.\d+)?)\s*(cr|crore|billion|bn|lakh)\b',
+            s,
+            re.IGNORECASE
+        )
+
+        val_raw = None
+        found_unit = None
+
+        if m_curr_sym:
+            val_str = m_curr_sym.group(1).replace(',', '')
+            try:
+                val_raw = float(val_str)
+                found_unit = (m_curr_sym.group(2) or t_unit).lower()
+            except ValueError:
+                pass
+        elif m_unit_only:
+            val_str = m_unit_only.group(1).replace(',', '')
+            try:
+                val_raw = float(val_str)
+                found_unit = m_unit_only.group(2).lower()
+            except ValueError:
+                pass
+
+        if val_raw is not None and found_unit:
+            # Deterministic unit normalization to target unit
+            if t_unit in ("cr", "crore"):
+                if found_unit in ("cr", "crore"):
+                    return val_raw
+                elif found_unit in ("billion", "bn"):
+                    return round(val_raw * 100.0, 2)  # 1 billion INR = 100 crore INR
+                elif found_unit == "lakh":
+                    return round(val_raw * 0.01, 2)
+            elif t_unit in ("billion", "bn"):
+                if found_unit in ("billion", "bn"):
+                    return val_raw
+                elif found_unit in ("cr", "crore"):
+                    return round(val_raw / 100.0, 4)
+            elif t_unit == "lakh":
+                if found_unit == "lakh":
+                    return val_raw
+                elif found_unit in ("cr", "crore"):
+                    return round(val_raw * 100.0, 2)
+
 def verify_promise_vs_delivery_item(
     item: Dict[str, Any],
     pl_stmt: Optional[Any] = None,
@@ -1146,27 +1230,8 @@ def verify_promise_vs_delivery_item(
         r_min, r_max, r_unit = range_parsed
         unit_label = "%" if r_unit == "%" else (f" {r_unit}" if r_unit != "%" else "")
         
-        # Extract reported number from outcome
-        act_v = None
-        if r_unit == "%":
-            m_act = re.search(r'(\d+(?:\.\d+)?)\s*%', outcome_text)
-            if m_act:
-                act_v = float(m_act.group(1))
-        elif r_unit == "bps":
-            m_act_bps = re.search(r'(\d+(?:\.\d+)?)\s*bps\b', outcome_text)
-            if m_act_bps:
-                act_v = float(m_act_bps.group(1))
-            else:
-                m_act_pct = re.search(r'(\d+(?:\.\d+)?)\s*%', outcome_text)
-                if m_act_pct:
-                    act_v = float(m_act_pct.group(1)) * 100.0
-        else: # Currency e.g. cr, crore
-            m_act_curr = re.search(r'(?:₹|rs\.?|inr)?\s*([\d,]+(?:\.\d+)?)\s*(?:cr|crore|billion|lakh)?', outcome_text)
-            if m_act_curr and m_act_curr.group(1):
-                try:
-                    act_v = float(m_act_curr.group(1).replace(',', ''))
-                except ValueError:
-                    pass
+        # Extract reported number from outcome with explicit currency / unit context
+        act_v = extract_guidance_actual_value(outcome_text, r_unit)
 
         if act_v is not None:
             res["financial_numbers_check"] = f"Guided Range: {r_min}{unit_label}–{r_max}{unit_label}; Reported: {act_v}{unit_label}."
@@ -1209,7 +1274,16 @@ def verify_promise_vs_delivery_item(
                     res["status"] = "Not Enough Evidence"
                     res["stocker_analysis"] = f"Above Guidance Range: Reported {act_v}{unit_label} exceeded upper limit of guided range ({r_min}{unit_label}–{r_max}{unit_label}). Guidance was bounded; higher outcome reported without deterministic directional classification."
             return res
-
+        else:
+            if target_yr is not None and target_yr > curr_yr:
+                res["status"] = "Not Yet Measurable"
+                res["stocker_analysis"] = f"Future Target Not Yet Due: Stated range ({r_min}{unit_label}–{r_max}{unit_label}) matures in the future ({target_yr:.0f})."
+            else:
+                res["status"] = "Not Enough Evidence"
+                res["stocker_analysis"] = f"Missing Quantitative Outcome: Subsequent filing ({actual_period}) does not contain a verifiable amount matching the guided range unit ({r_unit})."
+                res["financial_numbers_check"] = "Not enough structured financial evidence to verify this claim."
+            return res
+            
     if m_growth:
         promised_pct = float(m_growth.group(1))
         is_minimum_target = any(kw in prom_lower for kw in ["at least", "minimum", "grow to", "reach at least", ">=", "higher than"])
