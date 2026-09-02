@@ -1307,6 +1307,77 @@ class TestBusinessAnalysisV44(unittest.TestCase):
             self.assertNotEqual(doc.cache_status, "CURRENT_CONTENT_VERIFIED")
             self.assertEqual(doc.cache_status, "CURRENT_VERSION_CONTENT_UNCHECKED")
 
+    def test_6_local_cached_pages_with_stale_prompt_and_fresh_llm_extraction(self):
+        """Fresh LLM extraction on local cached pages must produce CURRENT_VERSION_CONTENT_UNCHECKED, not verified."""
+        import doc_intelligence_pipeline
+        sym = "TESTSYM_LOCAL_PROMPT_BUMP"
+        doc = DocumentItem(
+            ticker=sym,
+            title="Q2 FY26 Earnings Call Transcript",
+            url="https://bse.com/cc_q2_local_stale_prompt.pdf",
+            doc_type="concall_transcript",
+            period_or_date="Q2 FY26"
+        )
+        sample_pages = [(1, "Local cached transcript text from last month.")]
+        content_hash = database.compute_document_content_hash(sample_pages)
+
+        # Pre-seed DB cache with older prompt version "4.0.0"
+        database.save_document_summary(
+            sym, doc.url, doc.title,
+            {"key_takeaways": ["Old prompt summary"]},
+            doc_key=doc.doc_key,
+            doc_type=doc.doc_type,
+            period_or_date=doc.period_or_date,
+            content_hash=content_hash,
+            extraction_schema_version="4.4",
+            extraction_prompt_version="4.0.0"  # Older prompt triggers new extraction
+        )
+
+        with unittest.mock.patch("doc_intelligence_pipeline.download_and_extract_pdf_with_provenance", return_value=(sample_pages, "LOCAL_PAGE_CACHE", False)), \
+             unittest.mock.patch("doc_intelligence_pipeline.summarize_single_document_with_llm") as mock_llm:
+            mock_llm.return_value = {
+                "doc_title": doc.title,
+                "doc_url": doc.url,
+                "doc_type": doc.doc_type,
+                "period_or_date": doc.period_or_date,
+                "key_takeaways": ["Fresh extraction takeaway"]
+            }
+            summary = doc_intelligence_pipeline.get_or_generate_document_summary(sym, "Test Corp", doc)
+            mock_llm.assert_called_once()
+            self.assertEqual(summary["key_takeaways"], ["Fresh extraction takeaway"])
+            # Fresh extraction on unverified local pages must NOT upgrade to CURRENT_CONTENT_VERIFIED
+            self.assertEqual(doc.cache_status, "CURRENT_VERSION_CONTENT_UNCHECKED")
+            self.assertEqual(summary["cache_status"], "CURRENT_VERSION_CONTENT_UNCHECKED")
+
+    def test_7_remote_fetched_pages_with_fresh_llm_extraction(self):
+        """Fresh LLM extraction on newly fetched remote pages produces CURRENT_CONTENT_VERIFIED."""
+        import doc_intelligence_pipeline
+        sym = "TESTSYM_REMOTE_FRESH_LLM"
+        doc = DocumentItem(
+            ticker=sym,
+            title="Q2 FY26 Earnings Call Transcript",
+            url="https://bse.com/cc_q2_remote_new.pdf",
+            doc_type="concall_transcript",
+            period_or_date="Q2 FY26"
+        )
+        sample_pages = [(1, "Newly fetched remote transcript text.")]
+        content_hash = database.compute_document_content_hash(sample_pages)
+
+        with unittest.mock.patch("doc_intelligence_pipeline.download_and_extract_pdf_with_provenance", return_value=(sample_pages, "REMOTE_FETCH", True)), \
+             unittest.mock.patch("doc_intelligence_pipeline.summarize_single_document_with_llm") as mock_llm:
+            mock_llm.return_value = {
+                "doc_title": doc.title,
+                "doc_url": doc.url,
+                "doc_type": doc.doc_type,
+                "period_or_date": doc.period_or_date,
+                "key_takeaways": ["Remote fresh takeaway"]
+            }
+            summary = doc_intelligence_pipeline.get_or_generate_document_summary(sym, "Test Corp", doc)
+            mock_llm.assert_called_once()
+            self.assertEqual(summary["key_takeaways"], ["Remote fresh takeaway"])
+            self.assertEqual(doc.cache_status, "CURRENT_CONTENT_VERIFIED")
+            self.assertEqual(summary["cache_status"], "CURRENT_CONTENT_VERIFIED")
+
 if __name__ == "__main__":
     unittest.main()
 

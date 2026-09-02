@@ -686,7 +686,8 @@ OFFICIAL URL: {doc_url}
         summary["content_hash"] = content_hash
         summary["extraction_schema_version"] = EXTRACTION_SCHEMA_VERSION
         summary["extraction_prompt_version"] = EXTRACTION_PROMPT_VERSION
-        summary["cache_status"] = "NEWLY_EXTRACTED"
+        if "cache_status" not in summary:
+            summary["cache_status"] = "CURRENT_VERSION_CONTENT_UNCHECKED"
         summary["analyzed_at"] = datetime.now(timezone.utc).isoformat()
         
         # Enrich and persist extracted knowledge facts

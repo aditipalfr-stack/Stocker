@@ -1755,7 +1755,8 @@ def save_document_summary(
     summary_data["extraction_prompt_version"] = p_ver
     summary_data["provider"] = prov
     summary_data["model"] = mod
-    summary_data["cache_status"] = "NEWLY_EXTRACTED"
+    if "cache_status" not in summary_data:
+        summary_data["cache_status"] = "CURRENT_VERSION_CONTENT_UNCHECKED"
     if "doc_type" not in summary_data:
         summary_data["doc_type"] = dt
     if "period_or_date" not in summary_data and p_date:

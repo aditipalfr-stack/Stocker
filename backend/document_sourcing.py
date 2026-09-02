@@ -66,10 +66,10 @@ COMPANY_IR_DOMAINS: Dict[str, Dict[str, str]] = {
         "presentation_prefix": "https://www.hdfcbank.com/quarterly-results"
     },
     "ICICIBANK": {
-        "domain": "icicibank.com",
-        "ir_url": "https://www.icicibank.com/about-us/investor-relations",
-        "ar_prefix": "https://www.icicibank.com/managed-assets/docs/investor/annual-reports",
-        "presentation_prefix": "https://www.icicibank.com/managed-assets/docs/investor"
+        "domain": "icici.bank.in",
+        "ir_url": "https://www.icici.bank.in/about-us/invest-relations",
+        "ar_prefix": "https://www.icici.bank.in/about-us/annual-reports",
+        "presentation_prefix": "https://www.icici.bank.in/about-us/quarterly-results"
     },
     "BHARTIARTL": {
         "domain": "airtel.in",
@@ -127,11 +127,19 @@ def extract_period_or_date(text: str) -> Optional[str]:
         return None
 
     # 1. Exact Date with Day Month Year (e.g. '24 Jul 2026', '24-07-2026', '2026-07-24')
-    d_match = re.search(r"\b(\d{1,2})[-/ ]+(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*[-/ ]+(\d{4})\b", text, re.IGNORECASE)
+    d_match = re.search(r"\b(\d{1,2})[-/ ]+(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*[-/ ,]+(\d{4})\b", text, re.IGNORECASE)
     if d_match:
         day = d_match.group(1).zfill(2)
         month = d_match.group(2).capitalize()
         year = d_match.group(3)
+        return f"{day} {month} {year}"
+
+    # Exact Date with Month Day Year (e.g. 'October 18, 2025', 'Oct 18 2025')
+    m_d_match = re.search(r"\b(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\s+(\d{1,2})(?:st|nd|rd|th)?[-/ ,]+(\d{4})\b", text, re.IGNORECASE)
+    if m_d_match:
+        month = m_d_match.group(1).capitalize()
+        day = m_d_match.group(2).zfill(2)
+        year = m_d_match.group(3)
         return f"{day} {month} {year}"
 
     iso_date = re.search(r"\b(\d{4})-(\d{2})-(\d{2})\b", text)
@@ -604,67 +612,101 @@ def discover_documents_company_ir_fallback(
     try:
         resp = requests.get(ir_url, headers=headers, timeout=6)
         if resp.status_code == 200:
-            soup = BeautifulSoup(resp.text, "html.parser")
+            root_soup = BeautifulSoup(resp.text, "html.parser")
+            pages_to_scan: List[Tuple[BeautifulSoup, str]] = [(root_soup, ir_url)]
+            scanned_urls = {ir_url}
 
-            # Filter candidate anchors to relevant filing links (PDFs or filing keywords)
-            candidate_anchors: List[Tuple[str, str]] = []
-            for a in soup.find_all("a", href=True):
-                text = a.text.strip()
-                href = a["href"].strip()
-                if not href or not text or len(text) < 3:
+            # If the IR root links to dedicated official sub-sections (e.g. quarterly-results),
+            # follow supported official links on the company domain
+            for a in root_soup.find_all("a", href=True):
+                sub_href = a["href"].strip()
+                sub_text = a.text.strip()
+                if not sub_href or sub_href.lower().endswith(".pdf"):
                     continue
-                combined_lower = f"{text} {href}".lower()
-                if (href.lower().endswith(".pdf") or
-                    any(kw in combined_lower for kw in ["report", "annual", "presentation", "transcript", "concall", "investor", "financial", "result", "quarter"])):
-                    candidate_anchors.append((text, href))
+                full_sub = sub_href
+                if full_sub.startswith("/"):
+                    parsed_domain = urlparse(ir_url)
+                    full_sub = f"{parsed_domain.scheme}://{parsed_domain.netloc}{full_sub}"
+                elif not full_sub.startswith("http"):
+                    full_sub = f"{ir_url.rstrip('/')}/{full_sub}"
 
-            # In incremental mode, limit scan to the newest 20 relevant filing anchors
-            scan_anchors = candidate_anchors[:20] if from_date_dt else candidate_anchors
+                parsed_sub = urlparse(full_sub)
+                base_domain = ir_info.get("domain", "")
+                if base_domain and (base_domain in parsed_sub.netloc.lower() or "icici" in parsed_sub.netloc.lower() or "icicibank" in parsed_sub.netloc.lower()):
+                    if any(kw in full_sub.lower() or kw in sub_text.lower() for kw in ["quarter", "result", "transcript", "presentation", "financial", "annual-report", "invest-relations", "investor-relations"]):
+                        if full_sub not in scanned_urls and len(pages_to_scan) < 4:
+                            scanned_urls.add(full_sub)
+                            try:
+                                sub_resp = requests.get(full_sub, headers=headers, timeout=5)
+                                if sub_resp.status_code == 200:
+                                    pages_to_scan.append((BeautifulSoup(sub_resp.text, "html.parser"), full_sub))
+                            except Exception:
+                                pass
 
             from_yr = None
             if from_date_dt:
                 from_yr = from_date_dt.year + (from_date_dt.month - 1) / 12.0 + from_date_dt.day / 365.0
 
-            for text, href in scan_anchors:
-                # Resolve relative URL
-                if href.startswith("/"):
-                    parsed_domain = urlparse(ir_url)
-                    href = f"{parsed_domain.scheme}://{parsed_domain.netloc}{href}"
-                elif not href.startswith("http"):
-                    href = f"{ir_url.rstrip('/')}/{href}"
+            seen_urls = set()
+            for soup, current_page_url in pages_to_scan:
+                candidate_anchors: List[Tuple[str, str]] = []
+                for a in soup.find_all("a", href=True):
+                    text = a.text.strip()
+                    href = a["href"].strip()
+                    if not href or not text or len(text) < 3:
+                        continue
+                    combined_lower = f"{text} {href}".lower()
+                    if (href.lower().endswith(".pdf") or
+                        any(kw in combined_lower for kw in ["report", "annual", "presentation", "transcript", "concall", "investor", "financial", "result", "quarter"])):
+                        candidate_anchors.append((text, href))
 
-                period = extract_period_or_date(text) or extract_period_or_date(href)
+                # In incremental mode, limit scan to the newest 20 relevant filing anchors
+                scan_anchors = candidate_anchors[:20] if from_date_dt else candidate_anchors
 
-                # Check if this filing is strictly older than the incremental date cutoff
-                if from_yr and period:
-                    try:
-                        from financial_engine import parse_filing_period_to_year
-                        p_yr = parse_filing_period_to_year(period)
-                        if p_yr is not None and p_yr < (from_yr - 0.05):
-                            # Filing is prior to recent window; skip older historical entries
-                            continue
-                    except Exception:
-                        pass
+                for text, href in scan_anchors:
+                    # Resolve relative URL
+                    if href.startswith("/"):
+                        parsed_domain = urlparse(current_page_url)
+                        href = f"{parsed_domain.scheme}://{parsed_domain.netloc}{href}"
+                    elif not href.startswith("http"):
+                        href = f"{current_page_url.rstrip('/')}/{href}"
 
-                doc_type, formatted_title = classify_document_title(text, company_name, period)
-                if doc_type in ("annual_report", "presentation", "concall_transcript") and (not needed_types or doc_type in needed_types):
-                    is_valid, _ = validate_document_candidate(formatted_title, href, doc_type, symbol)
-                    if is_valid:
-                        parsed_h = urlparse(href)
-                        found.append(DocumentItem(
-                            ticker=symbol,
-                            company_name=company_name,
-                            title=formatted_title[:120],
-                            name=formatted_title[:120],
-                            url=href,
-                            doc_type=doc_type,
-                            period_or_date=period,
-                            discovery_source="Company IR",
-                            actual_source_host=parsed_h.netloc.lower(),
-                            actual_source_url=href,
-                            is_direct_pdf=href.lower().endswith(".pdf"),
-                            validation_status="Valid"
-                        ))
+                    if href in seen_urls:
+                        continue
+                    seen_urls.add(href)
+
+                    period = extract_period_or_date(text) or extract_period_or_date(href)
+
+                    # Check if this filing is strictly older than the incremental date cutoff
+                    if from_yr and period:
+                        try:
+                            from financial_engine import parse_filing_period_to_year
+                            p_yr = parse_filing_period_to_year(period)
+                            if p_yr is not None and p_yr < (from_yr - 0.05):
+                                # Filing is prior to recent window; skip older historical entries
+                                continue
+                        except Exception:
+                            pass
+
+                    doc_type, formatted_title = classify_document_title(text, company_name, period)
+                    if doc_type in ("annual_report", "presentation", "concall_transcript") and (not needed_types or doc_type in needed_types):
+                        is_valid, _ = validate_document_candidate(formatted_title, href, doc_type, symbol)
+                        if is_valid:
+                            parsed_h = urlparse(href)
+                            found.append(DocumentItem(
+                                ticker=symbol,
+                                company_name=company_name,
+                                title=formatted_title[:120],
+                                name=formatted_title[:120],
+                                url=href,
+                                doc_type=doc_type,
+                                period_or_date=period,
+                                discovery_source="Company IR",
+                                actual_source_host=parsed_h.netloc.lower(),
+                                actual_source_url=href,
+                                is_direct_pdf=href.lower().endswith(".pdf"),
+                                validation_status="Valid"
+                            ))
     except Exception:
         pass
 

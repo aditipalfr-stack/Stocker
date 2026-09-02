@@ -798,9 +798,17 @@ def get_or_generate_document_summary(symbol: str, company_name: str, doc: Docume
         summary["extraction_schema_version"] = EXTRACTION_SCHEMA_VERSION
         summary["extraction_prompt_version"] = EXTRACTION_PROMPT_VERSION
         summary["status"] = "success"
+
+        # Provenance-aware cache status: An LLM extraction must NOT imply remote content verification
+        # if the extraction was performed on local cached pages without live remote validation.
+        if remote_verified or content_source == "REMOTE_FETCH":
+            cache_st = "CURRENT_CONTENT_VERIFIED"
+        else:
+            cache_st = "CURRENT_VERSION_CONTENT_UNCHECKED"
+
         doc.content_hash = current_content_hash
-        doc.cache_status = "CURRENT_CONTENT_VERIFIED"
-        summary["cache_status"] = "CURRENT_CONTENT_VERIFIED"
+        doc.cache_status = cache_st
+        summary["cache_status"] = cache_st
         if doc.source_aliases:
             summary["source_aliases"] = list(doc.source_aliases)
         if doc.discovered_sources:

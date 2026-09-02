@@ -1350,25 +1350,35 @@ class TestCanonicalSourceFilingsV44(unittest.TestCase):
         import document_sourcing
         sym = "ICICIBANK"
 
-        # Mock authentic ICICI IR HTML page structure
-        html_content = """
+        root_html = """
         <html>
             <body>
-                <a href="/managed-assets/docs/investor/intimation-audio-recording-q2-2026.pdf">Link of audio recording of earnings conference call for Q2-2026</a>
-                <a href="/managed-assets/docs/investor/transcript-q1-2026.pdf">Transcript of earnings call for Q1-2026</a>
-                <a href="/managed-assets/docs/investor/annual-report-2025.pdf">Annual Report 2025</a>
-                <a href="/managed-assets/docs/investor/earnings-call-transcript-q2-2026.pdf">Transcript of Earnings Conference Call - Q2-2026</a>
+                <a href="/about-us/invest-relations">Investor Relations Overview</a>
+                <a href="/about-us/audio-recording-q2-2026.pdf">Link of audio recording of earnings conference call for Q2-2026</a>
+                <a href="/about-us/quarterly-results">Quarterly Financial Results</a>
             </body>
         </html>
         """
 
-        mock_resp = unittest.mock.MagicMock()
-        mock_resp.status_code = 200
-        mock_resp.text = html_content
+        quarterly_html = """
+        <html>
+            <body>
+                <a href="/managed-assets/docs/investor/transcript-q1-2026.pdf">ICICI Bank: Transcript for Earnings Call held on July 19, 2025</a>
+                <a href="/managed-assets/docs/investor/annual-report-2025.pdf">Annual Report 2025</a>
+                <a href="https://www.icici.bank.in/managed-assets/docs/investor/earnings-call-transcript-oct-18-2025.pdf">ICICI Bank: Transcript for Earnings Call held on October 18, 2025</a>
+            </body>
+        </html>
+        """
 
         def mock_get(url, *args, **kwargs):
-            if "icicibank.com" in url:
-                return mock_resp
+            resp = unittest.mock.MagicMock()
+            resp.status_code = 200
+            if "quarterly-results" in url:
+                resp.text = quarterly_html
+                return resp
+            elif "icici" in url:
+                resp.text = root_html
+                return resp
             resp_404 = unittest.mock.MagicMock()
             resp_404.status_code = 404
             return resp_404
@@ -1386,9 +1396,9 @@ class TestCanonicalSourceFilingsV44(unittest.TestCase):
 
             self.assertIsNotNone(cand)
             self.assertEqual(cand.ticker, "ICICIBANK")
-            self.assertEqual(cand.url, "https://www.icicibank.com/managed-assets/docs/investor/earnings-call-transcript-q2-2026.pdf")
+            self.assertEqual(cand.url, "https://www.icici.bank.in/managed-assets/docs/investor/earnings-call-transcript-oct-18-2025.pdf")
             self.assertEqual(cand.doc_type, "concall_transcript")
-            self.assertEqual(cand.period_or_date, "Q2 FY26")
+            self.assertEqual(cand.period_or_date, "18 Oct 2025")
             self.assertEqual(cand.discovery_source, "Company IR")
             self.assertFalse(database.is_document_wrapper(cand.title, cand.url))
 
