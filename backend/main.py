@@ -47,6 +47,7 @@ from company_taxonomy_service import (
     normalize_classification,
     resolve_local_company_taxonomy,
 )
+import doc_intelligence_pipeline
 
 app = FastAPI(
     title="Stocker - Fundamental Stock Analysis & Decision Engine",
@@ -882,6 +883,32 @@ def get_stock_source_filings(symbol: str):
             doc_links.brsr_reports.append(doc)
         else:
             doc_links.other_filings.append(doc)
+            
+    # Assign deterministic AI Working Set metadata
+    doc_intelligence_pipeline.assign_working_set_metadata(doc_links)
+    
+    # Authoritative AI status synchronization
+    for doc in doc_links.all_documents:
+        sem_k = database.compute_canonical_semantic_key(doc.ticker, doc.doc_type, doc.period_or_date)
+        summary = (
+            summaries.get(doc.url) 
+            or (summaries.get(doc.doc_key) if doc.doc_key else None)
+            or (summaries.get(sem_k) if sem_k else None)
+        )
+        if summary:
+            if summary.get("status") == "failed" or summary.get("error"):
+                doc.ai_status = "PROCESSING_FAILED"
+                doc.ai_failure_reason = summary.get("error", "AI document extraction failed.")
+            else:
+                doc.ai_status = "AI_ANALYZED"
+                doc.ai_failure_reason = None
+        elif has_company_analysis:
+            if not doc.selected_for_ai:
+                doc.ai_status = "NOT_SELECTED"
+            else:
+                doc.ai_status = "NOT_ANALYZED_YET"
+        else:
+            doc.ai_status = "NOT_ANALYZED_YET"
     
     return {
         "symbol": clean_sym,
@@ -1019,6 +1046,7 @@ def generate_stock_doc_intelligence(symbol: str):
         else:
             doc_links.other_filings.append(doc)
             
+    doc_intelligence_pipeline.assign_working_set_metadata(doc_links)
     documents_to_analyze = doc_links
         
     try:

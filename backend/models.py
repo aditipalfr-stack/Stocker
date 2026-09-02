@@ -69,6 +69,9 @@ class DocumentItem(BaseModel):
     is_wrapper: bool = False
     wrapper_source_url: Optional[str] = None
     ai_eligible: bool = True
+    selected_for_ai: bool = False
+    ai_priority: Optional[int] = None
+    selection_reason: Optional[str] = None
     ai_status: Optional[str] = None # "AI_ANALYZED", "NOT_SELECTED", "PROCESSING_FAILED", "NOT_ANALYZED_YET"
     ai_failure_reason: Optional[str] = None
     discovered_sources: List[str] = []

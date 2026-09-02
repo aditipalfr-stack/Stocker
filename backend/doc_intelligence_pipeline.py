@@ -199,53 +199,242 @@ def format_financials_for_prompt(symbol: str, stock_data: Optional[Dict[str, Any
     return "\n".join(lines)
 
 # Backward-compatibility alias
+# Backward-compatibility alias
 format_audited_financials_for_prompt = format_financials_for_prompt
+
+def calculate_announcement_materiality(title: str, text: str = "") -> Tuple[int, str]:
+    """
+    Evaluates corporate announcements for financial and operational materiality.
+    Returns (score, reason).
+    High materiality items (score >= 10) enter the default AI working set (up to 3-5).
+    Routine items (score < 10) are retained in the archive only.
+    """
+    combined = f"{title or ''} {text or ''}".lower()
+    
+    # 1. Immediate Exclusions / Routine compliance (Score 0)
+    if any(k in combined for k in [
+        "trading window", "newspaper publication", "loss of share", "duplicate share",
+        "allotment of esop", "esop / esps", "esps", "schedule of analyst",
+        "intimation of analyst meet", "investor meet intimation", "investor meet",
+        "scrutinizer", "postal ballot", "general meeting intimation", "procedural"
+    ]):
+        return (0, "Routine procedural / compliance announcement")
+        
+    # 2. High Materiality Rules
+    if any(k in combined for k in ["acquisition", "amalgamation", "merger", "takeover", "slump sale", "divestment"]):
+        return (30, "M&A / Acquisition / Divestment")
+    if any(k in combined for k in ["penalty", "regulatory action", "rbi order", "sebi order", "adjudication", "warning letter"]):
+        return (25, "Regulatory action / Penalty / Order")
+    if any(k in combined for k in ["credit rating", "rating action", "rating upgrade", "rating downgrade"]):
+        return (25, "Credit rating action")
+    if any(k in combined for k in ["order win", "contract win", "bagged order", "major contract", "award of contract"]):
+        return (20, "Major contract / Order win")
+    if any(k in combined for k in ["fund raise", "qip", "bonds", "notes issuance", "senior notes", "capital raise", "rights issue", "preferential issue"]):
+        return (20, "Capital raise / Debt financing")
+    if any(k in combined for k in [
+        "appointment of managing director", "resignation of managing director", 
+        "appointment of ceo", "resignation of ceo", 
+        "appointment of cfo", "resignation of cfo",
+        "appointment of executive director", "resignation of executive director",
+        "key managerial personnel"
+    ]):
+        return (20, "C-Suite executive management change")
+    if any(k in combined for k in ["capacity", "capex", "commissioning", "new plant", "new unit", "commercial production"]):
+        return (20, "Major Capex / Capacity addition")
+    if any(k in combined for k in ["litigation", "court order", "nclt", "arbitration", "stay order"]):
+        return (15, "Material litigation / Court order")
+    if any(k in combined for k in ["profit warning", "material update", "business update"]):
+        return (15, "Material business update")
+        
+    # Default for other announcements
+    return (5, "General corporate disclosure")
+
+def assign_working_set_metadata(documents: DocumentLinks) -> List[DocumentItem]:
+    """
+    Authoritative Working Set Assignor:
+    Evaluates and assigns auditable metadata (selected_for_ai, ai_priority, selection_reason)
+    across all document categories according to Stocker's approved AI Working Set policy:
+    1. Annual Reports: Latest 2 substantive Annual Reports (latest state + previous-year baseline)
+    2. Regulatory Filings (20-F): Latest 1 unique substantive 20-F filing (if distinct from AR)
+    3. Concalls: Latest 4 earnings quarters (analyst/investor transcripts prioritized; media calls in archive)
+    4. Investor Presentations: Latest 4 earnings quarters (substantive presentations)
+    5. Material Announcements: Maximum 3-5 high-materiality announcements (M&A, Capex, Reg/Rating/C-Suite)
+    6. BRSR / ESG: 0 by default (archive only, on-demand/ESG escalation only)
+    7. Routine notices / Wrappers: 0 (archive only)
+    
+    Returns the list of selected DocumentItems sorted by ai_priority (1..N).
+    """
+    selected_items: List[DocumentItem] = []
+    priority_counter = 1
+
+    def is_substantive_eligible(d: DocumentItem) -> bool:
+        return (
+            getattr(d, "ai_eligible", True) 
+            and not getattr(d, "is_wrapper", False) 
+            and getattr(d, "is_substantive", True)
+            and getattr(d, "is_valid", 1) in (1, True, "1", "Valid")
+        )
+
+    # 1. ANNUAL REPORTS: Latest 2 substantive
+    ars = documents.annual_reports or []
+    substantive_ars = [d for d in ars if is_substantive_eligible(d)]
+    for idx, d in enumerate(ars):
+        if d in substantive_ars[:2]:
+            d.selected_for_ai = True
+            d.ai_priority = priority_counter
+            priority_counter += 1
+            if d == substantive_ars[0]:
+                d.selection_reason = "Latest Annual Report"
+            else:
+                d.selection_reason = "Previous Annual Report baseline"
+            selected_items.append(d)
+        else:
+            d.selected_for_ai = False
+            d.ai_priority = None
+            if getattr(d, "is_wrapper", False):
+                d.selection_reason = "Wrapper notification; substantive report resolved"
+            else:
+                d.selection_reason = "Older Annual Report (on-demand archive)"
+
+    # 2. REGULATORY ANNUAL FILINGS (20-F): Latest 1 unique
+    regs = getattr(documents, "regulatory_annual_filings", None) or []
+    substantive_regs = [d for d in regs if is_substantive_eligible(d)]
+    selected_ar_urls = {d.url for d in selected_items if d.doc_type == "annual_report"}
+    distinct_regs = [d for d in substantive_regs if d.url not in selected_ar_urls]
+    for idx, d in enumerate(regs):
+        if d in distinct_regs[:1]:
+            d.selected_for_ai = True
+            d.ai_priority = priority_counter
+            priority_counter += 1
+            d.selection_reason = "Latest Form 20-F regulatory filing"
+            selected_items.append(d)
+        else:
+            d.selected_for_ai = False
+            d.ai_priority = None
+            if getattr(d, "is_wrapper", False):
+                d.selection_reason = "Wrapper notification"
+            elif d.url in selected_ar_urls:
+                d.selection_reason = "Duplicate of selected Annual Report"
+            else:
+                d.selection_reason = "Older regulatory filing (on-demand archive)"
+
+    # 3. CONCALL TRANSCRIPTS: Latest 4 quarters (prefer analyst/investor)
+    ccs = documents.concalls or []
+    analyst_ccs = [
+        d for d in ccs 
+        if is_substantive_eligible(d) and getattr(d, "doc_subtype", None) in ("analyst_investor_transcript", "earnings_transcript", None)
+    ]
+    media_ccs = [
+        d for d in ccs 
+        if is_substantive_eligible(d) and getattr(d, "doc_subtype", None) == "media_call_transcript"
+    ]
+    for idx, d in enumerate(ccs):
+        if d in analyst_ccs[:4]:
+            d.selected_for_ai = True
+            d.ai_priority = priority_counter
+            priority_counter += 1
+            d.selection_reason = f"{d.period_or_date or 'Recent'} earnings transcript"
+            selected_items.append(d)
+        elif d in media_ccs:
+            d.selected_for_ai = False
+            d.ai_priority = None
+            d.selection_reason = "Media call retained in archive (analyst transcript prioritized for AI)"
+        else:
+            d.selected_for_ai = False
+            d.ai_priority = None
+            if getattr(d, "is_wrapper", False):
+                d.selection_reason = "Wrapper notification; substantive transcript resolved"
+            else:
+                d.selection_reason = "Older than default 4-quarter transcript window"
+
+    # 4. INVESTOR PRESENTATIONS: Latest 4 quarters
+    ppts = documents.presentations or []
+    substantive_ppts = [d for d in ppts if is_substantive_eligible(d)]
+    for idx, d in enumerate(ppts):
+        if d in substantive_ppts[:4]:
+            d.selected_for_ai = True
+            d.ai_priority = priority_counter
+            priority_counter += 1
+            d.selection_reason = f"{d.period_or_date or 'Recent'} investor presentation"
+            selected_items.append(d)
+        else:
+            d.selected_for_ai = False
+            d.ai_priority = None
+            if getattr(d, "is_wrapper", False):
+                d.selection_reason = "Wrapper notification"
+            else:
+                d.selection_reason = "Older than default 4-quarter presentation window"
+
+    # 5. MATERIAL ANNOUNCEMENTS: Max 3-5 High-Materiality (score >= 10)
+    anns = documents.material_announcements or []
+    scored_anns = []
+    for d in anns:
+        score, reason = calculate_announcement_materiality(d.title)
+        scored_anns.append((d, score, reason))
+
+    high_mat_anns = [
+        (d, score, reason) for d, score, reason in scored_anns 
+        if score >= 10 and is_substantive_eligible(d)
+    ]
+    
+    selected_high_mat = {d.url: (score, reason) for d, score, reason in high_mat_anns[:5]}
+    
+    for d, score, reason in scored_anns:
+        if d.url in selected_high_mat:
+            d.selected_for_ai = True
+            d.ai_priority = priority_counter
+            priority_counter += 1
+            d.selection_reason = f"High-materiality: {reason}"
+            selected_items.append(d)
+        else:
+            d.selected_for_ai = False
+            d.ai_priority = None
+            if score < 10:
+                d.selection_reason = f"Routine announcement: {reason}"
+            else:
+                d.selection_reason = "Beyond top 5 material announcements window"
+
+    # 6. BRSR / ESG: 0 by default (archive only)
+    brsrs = getattr(documents, "brsr_reports", None) or []
+    for d in brsrs:
+        d.selected_for_ai = False
+        d.ai_priority = None
+        d.selection_reason = "BRSR excluded from default AI working set (on-demand / ESG escalated only)"
+
+    # 7. OTHER GENERAL FILINGS: 0 by default
+    others = getattr(documents, "other_filings", None) or []
+    for d in others:
+        d.selected_for_ai = False
+        d.ai_priority = None
+        d.selection_reason = "General corporate filing (archive only)"
+
+    # Also synchronize all_documents
+    if getattr(documents, "all_documents", None):
+        for d in documents.all_documents:
+            matched = next((s for s in selected_items if getattr(s, "doc_key", None) == getattr(d, "doc_key", None) or s.url == d.url), None)
+            if matched:
+                d.selected_for_ai = True
+                d.ai_priority = matched.ai_priority
+                d.selection_reason = matched.selection_reason
+            elif not getattr(d, "selection_reason", None):
+                cat_doc = next((
+                    item for item in (ars + regs + ccs + ppts + anns + brsrs + others)
+                    if getattr(item, "doc_key", None) == getattr(d, "doc_key", None) or item.url == d.url
+                ), None)
+                if cat_doc:
+                    d.selected_for_ai = getattr(cat_doc, "selected_for_ai", False)
+                    d.ai_priority = getattr(cat_doc, "ai_priority", None)
+                    d.selection_reason = getattr(cat_doc, "selection_reason", None)
+
+    selected_items.sort(key=lambda x: x.ai_priority or 999)
+    return selected_items
 
 def select_default_document_working_set(documents: DocumentLinks) -> List[DocumentItem]:
     """
-    Selects the standard visible/default document history according to Stocker priority:
-    1. Latest Annual Reports (up to 3 financial years, substantive only)
-    2. Regulatory Annual Filings (e.g. 20-F, up to 2 filings)
-    3. Concall Transcripts (latest 6 quarters, substantive transcripts only)
-    4. Investor Presentations (latest 6 quarters, substantive presentations only)
-    5. Material Announcements (up to 8 material items, filtering routine procedural notices)
-    6. BRSR / ESG (up to 1, if slots available, low priority)
+    Authoritative Working Set Selector:
+    Returns exactly the documents marked selected_for_ai=True, sorted by ai_priority.
     """
-    selected: List[DocumentItem] = []
-    
-    def is_eligible(d: DocumentItem) -> bool:
-        return getattr(d, "ai_eligible", True) and not getattr(d, "is_wrapper", False) and getattr(d, "is_substantive", True)
-
-    if documents.annual_reports:
-        ars = [d for d in documents.annual_reports if is_eligible(d)]
-        selected.extend(ars[:3] if ars else documents.annual_reports[:3])
-        
-    if getattr(documents, "regulatory_annual_filings", None):
-        regs = [d for d in documents.regulatory_annual_filings if is_eligible(d)]
-        selected.extend(regs[:2] if regs else documents.regulatory_annual_filings[:2])
-        
-    if documents.concalls:
-        ccs = [d for d in documents.concalls if is_eligible(d)]
-        selected.extend(ccs[:6] if ccs else documents.concalls[:6])
-        
-    if documents.presentations:
-        ppts = [d for d in documents.presentations if is_eligible(d)]
-        selected.extend(ppts[:6] if ppts else documents.presentations[:6])
-        
-    if documents.material_announcements:
-        # Filter for materiality: avoid routine loss of shares or trading window notices
-        material_only = []
-        for ann in documents.material_announcements:
-            t_lower = ann.title.lower()
-            if not any(r in t_lower for r in ["loss of share", "duplicate share", "trading window", "newspaper publication"]) and is_eligible(ann):
-                material_only.append(ann)
-        selected.extend(material_only[:8] if material_only else documents.material_announcements[:8])
-        
-    if getattr(documents, "brsr_reports", None):
-        brsrs = [d for d in documents.brsr_reports if is_eligible(d)]
-        selected.extend(brsrs[:1] if brsrs else documents.brsr_reports[:1])
-        
-    return selected
+    return assign_working_set_metadata(documents)
 
 def fetch_historical_evidence_document(
     symbol: str, 
@@ -508,11 +697,61 @@ def select_relevant_sections(
         kept_indices = set(scored_pages[:max_pages_to_select])
         final_selected_indices = kept_indices
         
-    sorted_pages = [
-        (p, text) for p, text in all_pages if p in final_selected_indices
-    ]
-    
-    return sorted_pages, page_reasons
+def deduplicate_synthesized_findings(output_dict: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Ensures company-level synthesis does not repeat duplicate KPI findings or takeaways
+    when transcript and presentation from the same earnings event report the identical fact.
+    Consolidates duplicate evidence items and verified facts.
+    """
+    if not output_dict or not isinstance(output_dict, dict):
+        return output_dict
+        
+    # 1. Deduplicate verified_facts
+    if "verified_facts" in output_dict and isinstance(output_dict["verified_facts"], list):
+        seen_facts = set()
+        deduped_facts = []
+        for fact in output_dict["verified_facts"]:
+            fact_str = str(fact.get("fact", "") if isinstance(fact, dict) else fact).strip()
+            norm_stmt = re.sub(r'[^a-z0-9]', '', fact_str.lower())
+            if norm_stmt and norm_stmt in seen_facts:
+                continue
+            if norm_stmt:
+                seen_facts.add(norm_stmt)
+            deduped_facts.append(fact)
+        output_dict["verified_facts"] = deduped_facts
+
+    # 2. Deduplicate what_changed_recently / growth_drivers
+    for field in ["what_changed_recently", "growth_drivers"]:
+        if field in output_dict and isinstance(output_dict[field], list):
+            seen_items = set()
+            deduped_items = []
+            for item in output_dict[field]:
+                norm_str = re.sub(r'[^a-z0-9]', '', str(item).lower())
+                if norm_str and norm_str in seen_items:
+                    continue
+                if norm_str:
+                    seen_items.add(norm_str)
+                deduped_items.append(item)
+            output_dict[field] = deduped_items
+            
+    # 3. Deduplicate evidence_items
+    if "evidence_items" in output_dict and isinstance(output_dict["evidence_items"], list):
+        seen_evidence = set()
+        deduped_evidence = []
+        for ev in output_dict["evidence_items"]:
+            if isinstance(ev, dict):
+                ev_quote = str(ev.get("fact", "") or ev.get("excerpt", "") or ev.get("metric_name", "")).strip()
+                norm_ev = re.sub(r'[^a-z0-9]', '', ev_quote.lower())
+                if norm_ev and norm_ev in seen_evidence:
+                    continue
+                if norm_ev:
+                    seen_evidence.add(norm_ev)
+                deduped_evidence.append(ev)
+            else:
+                deduped_evidence.append(ev)
+        output_dict["evidence_items"] = deduped_evidence
+            
+    return output_dict
 
 def run_multi_document_ai_pipeline(
     symbol: str,
@@ -547,52 +786,23 @@ def run_multi_document_ai_pipeline(
     # 2. Identify primary latest and baseline documents
     latest_ar = next((d for d in candidate_docs if d.doc_type == "annual_report"), None)
     if not latest_ar:
-        latest_ar = next((d for d in candidate_docs if d.doc_type == "regulatory_annual_filing"), candidate_docs[0])
+        latest_ar = next((d for d in candidate_docs if d.doc_type == "regulatory_annual_filing"), candidate_docs[0] if candidate_docs else None)
         
     older_ar = historical_baseline_doc
-    if not older_ar:
-        ar_candidates = [d for d in documents.annual_reports if getattr(d, "doc_key", None) != getattr(latest_ar, "doc_key", None) and d.url != latest_ar.url]
+    if not older_ar and latest_ar:
+        ar_candidates = [d for d in candidate_docs if d.doc_type == "annual_report" and getattr(d, "doc_key", None) != getattr(latest_ar, "doc_key", None) and d.url != latest_ar.url]
         older_ar = ar_candidates[0] if ar_candidates else None
     
-    # Auto-retrieve historical baseline for Promise vs Delivery if only 1 AR was in working set
-    if not older_ar or older_ar.url == latest_ar.url or getattr(older_ar, "doc_key", None) == getattr(latest_ar, "doc_key", None):
-        for target_yr in ["FY23", "FY22", "FY21"]:
-            older_doc = fetch_historical_evidence_document(clean_sym, "annual_report", target_yr, all_available_documents=documents, company_name=company_name)
-            if older_doc and older_doc.url != latest_ar.url and getattr(older_doc, "doc_key", None) != getattr(latest_ar, "doc_key", None):
-                older_ar = older_doc
-                if older_ar.url not in [d.url for d in candidate_docs]:
-                    candidate_docs.append(older_ar)
-                break
-    
-    latest_doc_title = latest_ar.title
-    latest_doc_url = latest_ar.url
+    latest_doc_title = latest_ar.title if latest_ar else ""
+    latest_doc_url = latest_ar.url if latest_ar else ""
     older_doc_title = older_ar.title if older_ar else None
     older_doc_url = older_ar.url if older_ar else None
 
     # 3. Tier 1: Generate or retrieve Per-Document AI Summaries (Cached in SQLite)
-    # Focus initial LLM summarization on top core filings according to Stocker priority:
-    core_docs_for_summary: List[DocumentItem] = []
-    if latest_ar: core_docs_for_summary.append(latest_ar)
-    if older_ar and older_ar.url != latest_doc_url and getattr(older_ar, "doc_key", None) != getattr(latest_ar, "doc_key", None):
-        core_docs_for_summary.append(older_ar)
-    # Regulatory 20-F filing if distinct
-    reg_20f = next((d for d in candidate_docs if d.doc_type == "regulatory_annual_filing" and getattr(d, "doc_key", None) != getattr(latest_ar, "doc_key", None)), None)
-    if reg_20f and getattr(reg_20f, "doc_key", None) not in [getattr(d, "doc_key", None) for d in core_docs_for_summary]:
-        core_docs_for_summary.append(reg_20f)
-    # Concalls (latest 2)
-    core_docs_for_summary.extend([d for d in candidate_docs if d.doc_type == "concall_transcript"][:2])
-    # Presentation (latest 1)
-    core_docs_for_summary.extend([d for d in candidate_docs if d.doc_type == "presentation"][:1])
-    # Announcements (latest 2)
-    core_docs_for_summary.extend([d for d in candidate_docs if d.doc_type == "announcement"][:2])
-    # BRSR only if slots available (lower priority than 20-F, concalls, PPTs)
-    if len(core_docs_for_summary) < 7:
-        core_docs_for_summary.extend([d for d in candidate_docs if d.doc_type == "brsr_esg"][:1])
-    
-    # Deduplicate core docs
+    # Tier-1 operates on EXACTLY the candidate_docs selected in the AI working set
     seen_summary_keys = set()
-    deduped_core_summary_docs = []
-    for d in core_docs_for_summary:
+    deduped_core_summary_docs: List[DocumentItem] = []
+    for d in candidate_docs:
         k = getattr(d, "doc_key", None) or database.compute_canonical_document_key(clean_sym, d.doc_type, d.period_or_date, d.url, d.title)
         d.doc_key = k
         if k not in seen_summary_keys and d.url not in seen_summary_keys:
@@ -600,7 +810,7 @@ def run_multi_document_ai_pipeline(
             seen_summary_keys.add(d.url)
             deduped_core_summary_docs.append(d)
             
-    print(f"  • Generating/Retrieving Per-Document AI Summaries for {len(deduped_core_summary_docs)} core filings...")
+    print(f"  • Generating/Retrieving Per-Document AI Summaries for {len(deduped_core_summary_docs)} AI Working Set filings...")
     doc_summaries_list: List[Dict[str, Any]] = []
     
     for doc in deduped_core_summary_docs:
@@ -726,9 +936,8 @@ def run_multi_document_ai_pipeline(
     result.source_documents_hash = docs_hash
     result.analysis_version = "2.0"
     result.staleness_status = "fresh"
-    result.financial_business_model = biz_model
-    
     output_dict = result.model_dump()
+    output_dict = deduplicate_synthesized_findings(output_dict)
     
     # Save to SQLite Database
     if save_output:

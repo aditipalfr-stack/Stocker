@@ -718,9 +718,17 @@ def derive_document_subtype(doc_type: str, title: str = "") -> str:
     if norm_dt == "annual_report":
         return "annual_report"
     if norm_dt == "concall_transcript":
+        if ("media" in t_clean or "press" in t_clean) and not any(k in t_clean for k in ["analyst", "investor", "earnings call", "quarterly earnings"]):
+            return "media_call_transcript"
+        if "analyst" in t_clean or "investor" in t_clean or "earnings" in t_clean:
+            return "analyst_investor_transcript"
         return "earnings_transcript"
     if norm_dt == "presentation":
-        return "investor_deck"
+        if "earnings" in t_clean:
+            return "earnings_presentation"
+        if "investor" in t_clean or "analyst" in t_clean or "agm" in t_clean:
+            return "investor_presentation"
+        return "other_presentation"
     if norm_dt == "announcement":
         if "board meeting" in t_clean or "outcome" in t_clean:
             return "board_outcome"
@@ -816,18 +824,36 @@ def derive_earnings_event_key(symbol: str, period_or_date: Optional[str], title:
 def is_document_wrapper(title: str, url: str = "", text_content: Optional[str] = None, page_count: Optional[int] = None) -> bool:
     """
     Detects whether a filing is a 1-page notification / cover-letter wrapper rather than the substantive document.
+    Inspects title, cached first-page text, and notification phrases.
     """
     t_lower = (title or "").lower().strip()
     if any(k in t_lower for k in [
-        "audio recording of earnings", "link for audio recording", 
-        "intimation of schedule of analyst", "schedule of analyst meet",
-        "newspaper publication", "loss of share certificate", "duplicate share"
+        "audio recording of earnings", "link for audio recording", "audio recording",
+        "intimation of schedule of analyst", "schedule of analyst meet", "intimation of analyst meet",
+        "newspaper publication", "loss of share certificate", "duplicate share",
+        "call with media on financial results for the quarter"
     ]):
         return True
         
-    if page_count == 1 and text_content:
-        fp_lower = text_content.lower()
-        if any(w in fp_lower for w in ["please find attached", "we wish to inform that", "we inform that", "enclosed herewith"]):
+    fp_text = text_content
+    p_cnt = page_count
+    
+    if fp_text is None and url:
+        try:
+            cached_pages = get_cached_document_pages(url)
+            if cached_pages:
+                p_cnt = len(cached_pages)
+                fp_text = cached_pages[0][1]
+        except Exception:
+            pass
+            
+    if p_cnt is not None and p_cnt <= 2 and fp_text:
+        fp_lower = fp_text.lower()
+        if any(w in fp_lower for w in [
+            "transcripts of the call", "transcripts are available", "available on website", 
+            "please find link", "web-link", "web link", "link for audio", "available at https",
+            "please find attached", "we wish to inform that", "we inform that", "enclosed herewith"
+        ]):
             return True
             
     return False
@@ -928,12 +954,14 @@ def parse_document_sort_timestamp(period_or_date: Optional[str], title: str = ""
 def deduplicate_document_records(documents: List[Any], symbol: str) -> List[Dict[str, Any]]:
     """
     Implements deterministic canonical source strategy across filing categories:
-    1. Annual Reports: normally ONE canonical Annual Report per FY; merges Screener & BSE representations,
+    1. Annual Reports: normally ONE canonical Annual Report per known FY; merges Screener & BSE representations,
        inheriting exact exchange filing date and preferred direct official PDF representation.
+       Fail-closed: Unknown FY annual reports are NOT semantically merged and retain strict physical identity.
     2. Regulatory Annual Filings (20-F): kept distinct from domestic Annual Reports.
     3. Concalls: Screener-first for normal transcript/deck pairs; exchange acts as gap detector.
-       Detects wrapper/notification filings and preserves them as provenance while routing AI to substantive transcript.
-    4. Investor Presentations: one canonical deck per event; complementary to transcript (both retained).
+       Subtype isolation: Media call transcript vs Analyst/investor transcript are distinct.
+       Fail-closed: Unknown event concalls retain physical identity.
+    4. Investor Presentations: one canonical deck per event/URL; complementary to transcript.
     5. BRSR / ESG: kept distinct and discoverable with low default AI working-set priority.
     6. Material Announcements: distinct announcements on same date preserved; only true duplicate files merged.
     """
@@ -990,27 +1018,43 @@ def deduplicate_document_records(documents: List[Any], symbol: str) -> List[Dict
         if discovery and discovery not in sources:
             sources.append(discovery)
             
-        # Determine canonical group identity per category:
+        # Determine canonical group identity per category (Fail-Closed on Unknown / Generic):
         if norm_dt == "annual_report":
             fy = extract_normalized_fiscal_year(p_date, raw_title)
-            group_key = f"AR_{clean_sym}_{fy}"
+            if fy and fy != "UNKNOWN_FY":
+                group_key = f"AR_{clean_sym}_{fy}"
+            else:
+                # Never semantically merge unknown-period annual reports
+                group_key = f"AR_{clean_sym}_PHYSICAL_{c_url}"
         elif norm_dt == "regulatory_annual_filing":
-            fy = extract_normalized_fiscal_year(p_date, raw_title)
-            group_key = f"REG20F_{clean_sym}_{fy}_{c_url}"
+            group_key = f"REG20F_{clean_sym}_{c_url}"
         elif norm_dt == "brsr_esg":
             fy = extract_normalized_fiscal_year(p_date, raw_title)
-            group_key = f"BRSR_{clean_sym}_{fy}"
+            if fy and fy != "UNKNOWN_FY":
+                group_key = f"BRSR_{clean_sym}_{fy}"
+            else:
+                group_key = f"BRSR_{clean_sym}_PHYSICAL_{c_url}"
         elif norm_dt == "concall_transcript":
             ev = ev_k or derive_earnings_event_key(clean_sym, p_date, raw_title)
-            group_key = f"CC_{clean_sym}_{ev}"
+            if ev and ev != f"event_{clean_sym}_GENERIC":
+                # Isolate subtypes: Media call transcript vs Analyst/investor transcript
+                group_key = f"CC_{clean_sym}_{ev}_{subtype}"
+            else:
+                # Fail closed: unknown event concalls are not merged across different URLs
+                group_key = f"CC_{clean_sym}_PHYSICAL_{c_url}"
         elif norm_dt == "presentation":
             ev = ev_k or derive_earnings_event_key(clean_sym, p_date, raw_title)
-            # Presentations for different decks/dates within same event or distinct URLs
-            group_key = f"PPT_{clean_sym}_{ev}_{c_url}"
+            if ev and ev != f"event_{clean_sym}_GENERIC":
+                # Key presentations by event + URL to preserve distinct decks
+                group_key = f"PPT_{clean_sym}_{ev}_{c_url}"
+            else:
+                group_key = f"PPT_{clean_sym}_PHYSICAL_{c_url}"
         else:
             group_key = f"ANN_{clean_sym}_{c_url}"
             
         event_key_val = ev_k or (derive_earnings_event_key(clean_sym, p_date, raw_title) if norm_dt in ("concall_transcript", "presentation") else None)
+        if event_key_val == f"event_{clean_sym}_GENERIC":
+            event_key_val = None
         
         if group_key in canonical_map:
             existing = canonical_map[group_key]

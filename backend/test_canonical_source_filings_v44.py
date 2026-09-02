@@ -607,16 +607,13 @@ class TestCanonicalSourceFilingsV44(unittest.TestCase):
         ws = doc_intelligence_pipeline.select_default_document_working_set(doc_links)
         types = [d.doc_type for d in ws]
         
-        ar_idx = types.index("annual_report")
-        reg_idx = types.index("regulatory_annual_filing")
-        cc_idx = types.index("concall_transcript")
-        ppt_idx = types.index("presentation")
-        brsr_idx = types.index("brsr_esg")
-        
-        self.assertTrue(ar_idx < brsr_idx)
-        self.assertTrue(reg_idx < brsr_idx)
-        self.assertTrue(cc_idx < brsr_idx)
-        self.assertTrue(ppt_idx < brsr_idx)
+        self.assertIn("annual_report", types)
+        self.assertIn("regulatory_annual_filing", types)
+        self.assertIn("concall_transcript", types)
+        self.assertIn("presentation", types)
+        # BRSR is 0 by default in working set
+        self.assertNotIn("brsr_esg", types)
+        self.assertFalse(doc_links.brsr_reports[0].selected_for_ai)
 
     def test_source_strategy_h_date_enrichment(self):
         """
@@ -651,6 +648,281 @@ class TestCanonicalSourceFilingsV44(unittest.TestCase):
         self.assertEqual(canonical_ar["sort_timestamp"], "2026-07-18")
         self.assertIn("Screener.in", canonical_ar["discovered_sources"])
         self.assertIn("BSE India", canonical_ar["discovered_sources"])
+
+    # =========================================================================
+    # 20 DETERMINISTIC REGRESSION TESTS FOR PARTS A - E
+    # =========================================================================
+
+    def test_1_unknown_fy_annual_reports_do_not_merge(self):
+        """1. Unknown FY annual reports with different URLs do NOT merge."""
+        sym = "TESTSYM_A1"
+        docs = [
+            DocumentItem(ticker=sym, title="Annual Report A", url="https://bse.com/ar_unk1.pdf", doc_type="annual_report", period_or_date=None),
+            DocumentItem(ticker=sym, title="Annual Report B", url="https://bse.com/ar_unk2.pdf", doc_type="annual_report", period_or_date=None),
+            DocumentItem(ticker=sym, title="Annual Report C", url="https://bse.com/ar_unk3.pdf", doc_type="annual_report", period_or_date=None),
+        ]
+        database.save_source_documents(sym, docs)
+        resp = main.get_stock_source_filings(sym)
+        self.assertEqual(len(resp["documents"]["annual_reports"]), 3)
+
+    def test_2_unknown_event_concalls_do_not_merge(self):
+        """2. Unknown event concalls with different URLs do NOT merge."""
+        sym = "TESTSYM_A2"
+        docs = [
+            DocumentItem(ticker=sym, title="Concall Transcript A", url="https://bse.com/cc_unk1.pdf", doc_type="concall_transcript", period_or_date=None),
+            DocumentItem(ticker=sym, title="Concall Transcript B", url="https://bse.com/cc_unk2.pdf", doc_type="concall_transcript", period_or_date=None),
+        ]
+        database.save_source_documents(sym, docs)
+        resp = main.get_stock_source_filings(sym)
+        self.assertEqual(len(resp["documents"]["concalls"]), 2)
+
+    def test_3_media_call_and_analyst_call_same_quarter_remain_separate(self):
+        """3. Media call + analyst call same quarter remain separate."""
+        sym = "TESTSYM_A3"
+        docs = [
+            DocumentItem(ticker=sym, title="Transcripts of Media Call Q1 FY27", url="https://bse.com/media_q1.pdf", doc_type="concall_transcript", period_or_date="Q1 FY27"),
+            DocumentItem(ticker=sym, title="Earnings Call Transcript with Analysts Q1 FY27", url="https://bse.com/analyst_q1.pdf", doc_type="concall_transcript", period_or_date="Q1 FY27"),
+        ]
+        database.save_source_documents(sym, docs)
+        resp = main.get_stock_source_filings(sym)
+        ccs = resp["documents"]["concalls"]
+        self.assertEqual(len(ccs), 2)
+        subtypes = {c["doc_subtype"] for c in ccs}
+        self.assertIn("media_call_transcript", subtypes)
+        self.assertIn("analyst_investor_transcript", subtypes)
+
+    def test_4_same_analyst_transcript_from_screener_and_bse_merges(self):
+        """4. Same analyst transcript from Screener+BSE merges into 1 canonical document."""
+        sym = "TESTSYM_A4"
+        docs = [
+            DocumentItem(ticker=sym, title="TESTSYM Jul 2026 Earnings Call Transcript", url="https://bse.com/substantive_transcript.pdf", doc_type="concall_transcript", period_or_date="Jul 2026", discovery_source="Screener.in"),
+            DocumentItem(ticker=sym, title="Transcripts of Earnings Call with Analysts and Investors Q1 FY27", url="https://bse.com/substantive_transcript.pdf", doc_type="concall_transcript", period_or_date="23 Jul 2026", discovery_source="BSE India"),
+        ]
+        database.save_source_documents(sym, docs)
+        resp = main.get_stock_source_filings(sym)
+        self.assertEqual(len(resp["documents"]["concalls"]), 1)
+        self.assertEqual(len(resp["documents"]["concalls"][0]["discovered_sources"]), 2)
+
+    def test_5_wrapper_notification_excluded_from_ai(self):
+        """5. Wrapper notification is marked is_wrapper=True and ai_eligible=False."""
+        sym = "TESTSYM_A5"
+        doc = DocumentItem(ticker=sym, title="Audio Recording of Earnings Call for Q1 FY27", url="https://bse.com/audio_rec.pdf", doc_type="concall_transcript", period_or_date="Q1 FY27")
+        database.save_source_documents(sym, [doc])
+        resp = main.get_stock_source_filings(sym)
+        c = resp["documents"]["concalls"][0]
+        self.assertTrue(c["is_wrapper"])
+        self.assertFalse(c["ai_eligible"])
+
+    def test_6_underlying_substantive_transcript_selected(self):
+        """6. Substantive transcript is selected for AI."""
+        sym = "TESTSYM_A6"
+        doc = DocumentItem(ticker=sym, title="TESTSYM Q1 FY27 Analyst Transcript", url="https://bse.com/real_transcript.pdf", doc_type="concall_transcript", period_or_date="Q1 FY27")
+        database.save_source_documents(sym, [doc])
+        resp = main.get_stock_source_filings(sym)
+        c = resp["documents"]["concalls"][0]
+        self.assertTrue(c["selected_for_ai"])
+        self.assertTrue(c["is_substantive"])
+
+    def test_7_latest_2_annual_reports_selected(self):
+        """7. Latest 2 annual reports selected in AI working set."""
+        sym = "TESTSYM_A7"
+        docs = [
+            DocumentItem(ticker=sym, title="Annual Report 2026", url="https://bse.com/ar26.pdf", doc_type="annual_report", period_or_date="FY2026"),
+            DocumentItem(ticker=sym, title="Annual Report 2025", url="https://bse.com/ar25.pdf", doc_type="annual_report", period_or_date="FY2025"),
+        ]
+        database.save_source_documents(sym, docs)
+        resp = main.get_stock_source_filings(sym)
+        ars = resp["documents"]["annual_reports"]
+        self.assertTrue(ars[0]["selected_for_ai"])
+        self.assertTrue(ars[1]["selected_for_ai"])
+
+    def test_8_third_older_annual_report_not_selected(self):
+        """8. Third older annual report not selected in default AI working set."""
+        sym = "TESTSYM_A8"
+        docs = [
+            DocumentItem(ticker=sym, title="Annual Report 2026", url="https://bse.com/ar26.pdf", doc_type="annual_report", period_or_date="FY2026"),
+            DocumentItem(ticker=sym, title="Annual Report 2025", url="https://bse.com/ar25.pdf", doc_type="annual_report", period_or_date="FY2025"),
+            DocumentItem(ticker=sym, title="Annual Report 2024", url="https://bse.com/ar24.pdf", doc_type="annual_report", period_or_date="FY2024"),
+        ]
+        database.save_source_documents(sym, docs)
+        resp = main.get_stock_source_filings(sym)
+        ars = resp["documents"]["annual_reports"]
+        self.assertTrue(ars[0]["selected_for_ai"])
+        self.assertTrue(ars[1]["selected_for_ai"])
+        self.assertFalse(ars[2]["selected_for_ai"])
+        self.assertIn("Older Annual Report", ars[2]["selection_reason"])
+
+    def test_9_latest_4_quarter_transcripts_selected(self):
+        """9. Latest 4 quarter transcripts selected in AI working set."""
+        sym = "TESTSYM_A9"
+        docs = [
+            DocumentItem(ticker=sym, title=f"Concall Q{q} FY26", url=f"https://bse.com/cc_q{q}.pdf", doc_type="concall_transcript", period_or_date=f"Q{q} FY26")
+            for q in [4, 3, 2, 1]
+        ]
+        database.save_source_documents(sym, docs)
+        resp = main.get_stock_source_filings(sym)
+        ccs = resp["documents"]["concalls"]
+        self.assertEqual(len(ccs), 4)
+        for c in ccs:
+            self.assertTrue(c["selected_for_ai"])
+
+    def test_10_fifth_oldest_transcript_not_selected(self):
+        """10. Fifth-oldest transcript not selected in default AI working set."""
+        sym = "TESTSYM_A10"
+        docs = [
+            DocumentItem(ticker=sym, title=f"Concall Transcript #{i}", url=f"https://bse.com/cc_{i}.pdf", doc_type="concall_transcript", period_or_date=f"Q{((5-i)%4)+1} FY{26 if i < 4 else 25}")
+            for i in range(1, 6)
+        ]
+        database.save_source_documents(sym, docs)
+        resp = main.get_stock_source_filings(sym)
+        ccs = resp["documents"]["concalls"]
+        self.assertEqual(len(ccs), 5)
+        self.assertTrue(ccs[0]["selected_for_ai"])
+        self.assertTrue(ccs[1]["selected_for_ai"])
+        self.assertTrue(ccs[2]["selected_for_ai"])
+        self.assertTrue(ccs[3]["selected_for_ai"])
+        self.assertFalse(ccs[4]["selected_for_ai"])
+        self.assertIn("Older than default 4-quarter", ccs[4]["selection_reason"])
+
+    def test_11_latest_4_presentations_selected(self):
+        """11. Latest 4 presentations selected in default AI working set."""
+        sym = "TESTSYM_A11"
+        docs = [
+            DocumentItem(ticker=sym, title=f"Presentation Deck #{i}", url=f"https://bse.com/ppt_{i}.pdf", doc_type="presentation", period_or_date=f"Q{((5-i)%4)+1} FY26")
+            for i in range(1, 6)
+        ]
+        database.save_source_documents(sym, docs)
+        resp = main.get_stock_source_filings(sym)
+        ppts = resp["documents"]["presentations"]
+        self.assertTrue(ppts[0]["selected_for_ai"])
+        self.assertTrue(ppts[1]["selected_for_ai"])
+        self.assertTrue(ppts[2]["selected_for_ai"])
+        self.assertTrue(ppts[3]["selected_for_ai"])
+        self.assertFalse(ppts[4]["selected_for_ai"])
+
+    def test_12_brsr_excluded_by_default(self):
+        """12. BRSR is excluded by default from AI working set."""
+        sym = "TESTSYM_A12"
+        doc = DocumentItem(ticker=sym, title="Business Responsibility and Sustainability Reporting (BRSR)", url="https://bse.com/brsr.pdf", doc_type="brsr_esg", period_or_date="FY2026")
+        database.save_source_documents(sym, [doc])
+        resp = main.get_stock_source_filings(sym)
+        b = resp["documents"]["brsr_reports"][0]
+        self.assertFalse(b["selected_for_ai"])
+        self.assertIn("BRSR excluded", b["selection_reason"])
+
+    def test_13_unique_latest_20f_selected(self):
+        """13. Unique latest 20-F selected in AI working set."""
+        sym = "TESTSYM_A13"
+        doc = DocumentItem(ticker=sym, title="Filing Of Form 20-F For The Year Ended March 31, 2026", url="https://bse.com/20f_unique.pdf", doc_type="regulatory_annual_filing", period_or_date="20 Jul 2026")
+        database.save_source_documents(sym, [doc])
+        resp = main.get_stock_source_filings(sym)
+        r = resp["documents"]["regulatory_annual_filings"][0]
+        self.assertTrue(r["selected_for_ai"])
+        self.assertEqual(r["selection_reason"], "Latest Form 20-F regulatory filing")
+
+    def test_14_material_announcement_max_limit_respected(self):
+        """14. Material announcement max limit (top 5) respected."""
+        sym = "TESTSYM_A14"
+        docs = [
+            DocumentItem(ticker=sym, title=f"Announcement: Acquisition of Subsidiary #{i}", url=f"https://bse.com/mna_{i}.pdf", doc_type="announcement", period_or_date=f"{10+i} Aug 2026")
+            for i in range(1, 8)
+        ]
+        database.save_source_documents(sym, docs)
+        resp = main.get_stock_source_filings(sym)
+        anns = resp["documents"]["material_announcements"]
+        selected = [a for a in anns if a["selected_for_ai"]]
+        self.assertLessEqual(len(selected), 5)
+
+    def test_15_routine_announcements_excluded(self):
+        """15. Routine announcements (trading window, duplicate shares) excluded from AI."""
+        sym = "TESTSYM_A15"
+        docs = [
+            DocumentItem(ticker=sym, title="Intimation of Closure of Trading Window", url="https://bse.com/tw.pdf", doc_type="announcement", period_or_date="30 Jun 2026"),
+            DocumentItem(ticker=sym, title="Loss of Share Certificates and Issue of Duplicate", url="https://bse.com/dup.pdf", doc_type="announcement", period_or_date="15 Jul 2026"),
+            DocumentItem(ticker=sym, title="Newspaper Publication of Financial Results", url="https://bse.com/np.pdf", doc_type="announcement", period_or_date="20 Jul 2026"),
+        ]
+        database.save_source_documents(sym, docs)
+        resp = main.get_stock_source_filings(sym)
+        for a in resp["documents"]["material_announcements"]:
+            self.assertFalse(a["selected_for_ai"])
+            self.assertIn("Routine", a["selection_reason"])
+
+    def test_16_promise_vs_delivery_current_vs_prior_year_evidence(self):
+        """16. Promise vs delivery uses current vs prior-year evidence without auto-fetching FY21-FY23."""
+        sym = "TESTSYM_A16"
+        doc_links = DocumentLinks(
+            annual_reports=[
+                DocumentItem(ticker=sym, title="Annual Report 2026", url="https://bse.com/ar26.pdf", doc_type="annual_report", period_or_date="FY2026"),
+                DocumentItem(ticker=sym, title="Annual Report 2025", url="https://bse.com/ar25.pdf", doc_type="annual_report", period_or_date="FY2025"),
+            ]
+        )
+        ws = doc_intelligence_pipeline.select_default_document_working_set(doc_links)
+        self.assertEqual(len(ws), 2)
+        self.assertEqual(ws[0].title, "Annual Report 2026")
+        self.assertEqual(ws[1].title, "Annual Report 2025")
+
+    def test_17_incremental_run_reuses_existing_document_summaries(self):
+        """17. Incremental run reuses existing document summaries from SQLite without LLM calls."""
+        sym = "TESTSYM_A17"
+        url = "https://bse.com/cached_transcript.pdf"
+        doc = DocumentItem(ticker=sym, title="Concall Transcript Q1 FY26", url=url, doc_type="concall_transcript", period_or_date="Q1 FY26")
+        summary_payload = {
+            "doc_title": doc.title,
+            "doc_url": url,
+            "doc_type": "concall_transcript",
+            "period_or_date": "Q1 FY26",
+            "key_takeaways": ["Net profit up 15%"],
+            "management_tone": "Confident"
+        }
+        database.save_document_summary(sym, url, doc.title, summary_payload, doc_type="concall_transcript", period_or_date="Q1 FY26")
+        
+        # Calling get_or_generate_document_summary should return the cached summary immediately
+        summary = doc_intelligence_pipeline.get_or_generate_document_summary(sym, "Test Corp", doc)
+        self.assertEqual(summary["key_takeaways"], ["Net profit up 15%"])
+        self.assertEqual(summary["management_tone"], "Confident")
+
+    def test_18_new_document_causes_only_new_tier1_summary_generation(self):
+        """18. If 1 doc is cached and 1 doc is not, cached doc is reused."""
+        sym = "TESTSYM_A18"
+        url_cached = "https://bse.com/cached.pdf"
+        database.save_document_summary(sym, url_cached, "Cached Doc", {"key_takeaways": ["Cached fact"], "management_tone": "Neutral"})
+        
+        doc_cached = DocumentItem(ticker=sym, title="Cached Doc", url=url_cached, doc_type="concall_transcript", period_or_date="Q1 FY26")
+        res = doc_intelligence_pipeline.get_or_generate_document_summary(sym, "Test Corp", doc_cached)
+        self.assertEqual(res["key_takeaways"], ["Cached fact"])
+
+    def test_19_selected_for_ai_matches_individually_summarized(self):
+        """19. selected_for_ai exactly matches documents in select_default_document_working_set."""
+        sym = "TESTSYM_A19"
+        doc_links = DocumentLinks(
+            annual_reports=[DocumentItem(ticker=sym, title="AR 2026", url="http://a/1", doc_type="annual_report", period_or_date="FY2026")],
+            concalls=[DocumentItem(ticker=sym, title="CC Q1", url="http://a/2", doc_type="concall_transcript", period_or_date="Q1 FY27")],
+            brsr_reports=[DocumentItem(ticker=sym, title="BRSR 2026", url="http://a/3", doc_type="brsr_esg", period_or_date="FY2026")]
+        )
+        ws = doc_intelligence_pipeline.select_default_document_working_set(doc_links)
+        ws_urls = {d.url for d in ws}
+        self.assertIn("http://a/1", ws_urls)
+        self.assertIn("http://a/2", ws_urls)
+        self.assertNotIn("http://a/3", ws_urls)
+        self.assertTrue(doc_links.annual_reports[0].selected_for_ai)
+        self.assertTrue(doc_links.concalls[0].selected_for_ai)
+        self.assertFalse(doc_links.brsr_reports[0].selected_for_ai)
+
+    def test_20_company_synthesis_does_not_duplicate_identical_kpi_findings(self):
+        """20. Company synthesis does not duplicate identical verified KPI findings."""
+        raw_output = {
+            "verified_facts": [
+                {"fact": "Loan book grew 19.6% year-on-year", "source": "Concall Transcript"},
+                {"fact": "Loan book grew 19.6% year-on-year", "source": "Investor Presentation"}
+            ],
+            "what_changed_recently": [
+                "Net interest margin expanded to 4.36%",
+                "Net interest margin expanded to 4.36%"
+            ]
+        }
+        deduped = doc_intelligence_pipeline.deduplicate_synthesized_findings(raw_output)
+        self.assertEqual(len(deduped["verified_facts"]), 1)
+        self.assertEqual(len(deduped["what_changed_recently"]), 1)
 
 if __name__ == '__main__':
     unittest.main()

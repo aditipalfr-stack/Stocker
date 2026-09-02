@@ -61,6 +61,9 @@ export interface DocumentItem {
   is_wrapper?: boolean;
   wrapper_source_url?: string | null;
   ai_eligible?: boolean;
+  selected_for_ai?: boolean;
+  ai_priority?: number | null;
+  selection_reason?: string | null;
   period_or_date?: string | null;
   discovery_source: string;
   discovered_sources?: string[];

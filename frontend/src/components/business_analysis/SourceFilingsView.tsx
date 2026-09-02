@@ -29,6 +29,7 @@ export const SourceFilingsView: React.FC<SourceFilingsViewProps> = ({
   onRetry
 }) => {
   const [filterType, setFilterType] = useState<string>('all');
+  const [workingSetOnly, setWorkingSetOnly] = useState<boolean>(false);
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [expandedDocKeys, setExpandedDocKeys] = useState<Set<string>>(new Set());
 
@@ -64,6 +65,8 @@ export const SourceFilingsView: React.FC<SourceFilingsViewProps> = ({
     }
     return sortDocumentsGlobally(Array.from(seen.values()));
   }, [documents]);
+
+  const workingSetCount = useMemo(() => allDocs.filter(d => d.selected_for_ai).length, [allDocs]);
 
   const toggleExpandDoc = (docKeyOrUrl: string) => {
     setExpandedDocKeys(prev => {
@@ -110,6 +113,9 @@ export const SourceFilingsView: React.FC<SourceFilingsViewProps> = ({
   // Filter and search
   const filteredDocs = useMemo(() => {
     return allDocs.filter(d => {
+      if (workingSetOnly && !d.selected_for_ai) {
+        return false;
+      }
       const dt = (d.doc_type || '').toLowerCase();
       const matchesType = 
         filterType === 'all' ? true :
@@ -130,7 +136,7 @@ export const SourceFilingsView: React.FC<SourceFilingsViewProps> = ({
 
       return matchesType && matchesSearch;
     });
-  }, [allDocs, filterType, searchQuery]);
+  }, [allDocs, filterType, workingSetOnly, searchQuery]);
 
   const getDocTypeIcon = (docType?: string) => {
     if (!docType) return <FileText className="w-4 h-4 text-cyan-400" />;
@@ -167,7 +173,19 @@ export const SourceFilingsView: React.FC<SourceFilingsViewProps> = ({
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
+            <button
+              type="button"
+              onClick={() => setWorkingSetOnly(!workingSetOnly)}
+              className={`text-xs px-3 py-2 rounded-xl flex items-center gap-1.5 border transition-all shrink-0 font-medium ${
+                workingSetOnly
+                  ? 'bg-cyan-500/20 text-cyan-300 border-cyan-500/50 shadow-sm shadow-cyan-500/10'
+                  : 'bg-slate-900 hover:bg-slate-800 text-slate-300 border-slate-700'
+              }`}
+            >
+              <Sparkles className="w-3.5 h-3.5 text-cyan-400" />
+              <span>AI Working Set ({workingSetCount})</span>
+            </button>
             <button
               type="button"
               onClick={onRetry}
@@ -177,13 +195,13 @@ export const SourceFilingsView: React.FC<SourceFilingsViewProps> = ({
               <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
               <span>Refresh list</span>
             </button>
-            <div className="relative min-w-[220px]">
+            <div className="relative min-w-[200px]">
               <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
               <input
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Search filings by title or period..."
+                placeholder="Search filings..."
                 className="w-full bg-slate-950 text-xs text-slate-200 pl-8 pr-3 py-2 rounded-xl border border-slate-800 focus:outline-none focus:border-cyan-500/50"
               />
             </div>
@@ -287,6 +305,21 @@ export const SourceFilingsView: React.FC<SourceFilingsViewProps> = ({
                           <span className="bg-slate-900 text-cyan-300 text-[10px] font-semibold px-2 py-0.5 rounded-full border border-slate-800">
                             {displayType}
                           </span>
+                          {doc.selected_for_ai ? (
+                            <span className="bg-cyan-500/10 text-cyan-300 text-[10px] font-semibold px-2 py-0.5 rounded-full border border-cyan-500/30 flex items-center gap-1">
+                              <Sparkles className="w-2.5 h-2.5 text-cyan-400" />
+                              <span>AI Working Set #{doc.ai_priority}</span>
+                              {doc.selection_reason && (
+                                <span className="text-cyan-400/80 font-normal">({doc.selection_reason})</span>
+                              )}
+                            </span>
+                          ) : (
+                            doc.selection_reason && (
+                              <span className="bg-slate-900 text-slate-400 text-[10px] font-mono px-2 py-0.5 rounded-full border border-slate-800">
+                                {doc.selection_reason}
+                              </span>
+                            )
+                          )}
                           {isAnalyzed && (
                             <span className="bg-emerald-500/10 text-emerald-400 text-[10px] font-semibold px-2 py-0.5 rounded-full border border-emerald-500/20 flex items-center gap-1">
                               <Sparkles className="w-2.5 h-2.5" />
@@ -299,7 +332,7 @@ export const SourceFilingsView: React.FC<SourceFilingsViewProps> = ({
                               AI Extraction Failed
                             </span>
                           )}
-                          {isNotSelected && (
+                          {isNotSelected && !doc.selection_reason && (
                             <span className="bg-slate-900 text-slate-400 text-[10px] font-mono px-2 py-0.5 rounded-full border border-slate-800">
                               Not in working set
                             </span>
