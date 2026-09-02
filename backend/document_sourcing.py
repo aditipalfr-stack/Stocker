@@ -274,7 +274,14 @@ def classify_document_title(raw_title: str, company_name: str = "", period: Opti
     """
     Strict fundamental classification of filing titles:
     Returns (doc_type, formatted_title)
-    doc_type is one of: 'annual_report', 'concall_transcript', 'presentation', 'announcement', 'general'
+    doc_type is one of: 
+      - 'annual_report'
+      - 'regulatory_annual_filing'
+      - 'concall_transcript'
+      - 'presentation'
+      - 'announcement'
+      - 'brsr_esg'
+      - 'general'
     """
     if not raw_title:
         return "general", ""
@@ -291,17 +298,27 @@ def classify_document_title(raw_title: str, company_name: str = "", period: Opti
         "newspaper publication", "loss of certificate"
     ])
     
-    # 2. Annual Reports & Integrated Filings
+    # 2. Form 20-F / Regulatory Annual Filings (SEC / Foreign Statutory)
+    if any(k in lower_t for k in ["20-f", "form 20-f", "form 20 f", "10-k", "form 10-k"]):
+        return "regulatory_annual_filing", raw_title
+        
+    # 3. BRSR / ESG Reports (Must NOT be merged with Annual Report)
+    if any(k in lower_t for k in [
+        "business responsibility and sustainability", "brsr", 
+        "sustainability report", "esg report", "esg factsheet", "sustainability disclosure"
+    ]):
+        return "brsr_esg", raw_title
+
+    # 4. Annual Reports & Integrated Filings
     if not is_capital_call and any(k in lower_t for k in [
-        "annual report", "integrated report", "integrated annual report", 
-        "business responsibility and sustainability", "brsr", "annual accounts"
+        "annual report", "integrated report", "integrated annual report", "annual accounts"
     ]):
         formatted_title = raw_title
         if company_name and len(raw_title) <= 20:
             formatted_title = f"{company_name} {raw_title}"
         return "annual_report", formatted_title
         
-    # 3. Earnings Conference Call Transcripts (Strict - no generic 'call' word matches!)
+    # 5. Earnings Conference Call Transcripts (Strict - no generic 'call' word matches!)
     is_concall = not is_capital_call and (
         "earnings call" in lower_t or
         "conference call" in lower_t or
@@ -316,7 +333,7 @@ def classify_document_title(raw_title: str, company_name: str = "", period: Opti
             formatted_title = f"{company_name} {period or ''} Earnings Call Transcript".strip()
         return "concall_transcript", formatted_title
 
-    # 4. Investor Presentations & Quarterly Decks
+    # 6. Investor Presentations & Quarterly Decks
     is_ppt = any(k in lower_t for k in [
         "investor presentation", "earnings presentation", "investor deck", 
         "analyst presentation", "quarterly presentation", "investor update"
@@ -327,7 +344,7 @@ def classify_document_title(raw_title: str, company_name: str = "", period: Opti
             formatted_title = f"{company_name} {period or ''} Investor Presentation".strip()
         return "presentation", formatted_title
 
-    # 5. Material Exchange Announcements & Corporate Actions
+    # 7. Material Exchange Announcements & Corporate Actions
     if is_capital_call or is_routine_notice or any(k in lower_t for k in [
         "announcement", "outcome", "board meeting", "filing", "regulation 30", 
         "press release", "media release", "acquisition", "order", "contract", 

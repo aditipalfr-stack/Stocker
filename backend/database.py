@@ -401,13 +401,17 @@ def init_db() -> None:
             except Exception:
                 pass
 
-            # Safe schema migration for source_documents.doc_key
+            # Safe schema migration for source_documents.doc_key, discovered_sources, and source_aliases
             try:
                 cur = conn.cursor()
                 sdocs_cols = {r[1] for r in cur.execute("PRAGMA table_info(source_documents);").fetchall()}
                 if sdocs_cols and "doc_key" not in sdocs_cols:
                     conn.execute("ALTER TABLE source_documents ADD COLUMN doc_key TEXT;")
                     conn.execute("CREATE INDEX IF NOT EXISTS idx_docs_key ON source_documents(doc_key);")
+                if sdocs_cols and "discovered_sources" not in sdocs_cols:
+                    conn.execute("ALTER TABLE source_documents ADD COLUMN discovered_sources TEXT DEFAULT '[]';")
+                if sdocs_cols and "source_aliases" not in sdocs_cols:
+                    conn.execute("ALTER TABLE source_documents ADD COLUMN source_aliases TEXT DEFAULT '[]';")
             except Exception:
                 pass
 
@@ -630,6 +634,273 @@ def canonicalize_document_url(url: Optional[str]) -> str:
         pass
     return clean
 
+def normalize_document_type(raw_type: Optional[str], title: str = "") -> str:
+    """
+    Normalizes document classification into standard taxonomy:
+    - annual_report
+    - regulatory_annual_filing (20-F)
+    - concall_transcript
+    - presentation
+    - announcement
+    - brsr_esg
+    - general (other)
+    """
+    t_clean = (title or "").lower().strip()
+    rt_clean = str(raw_type or "").lower().strip()
+    
+    # 1. 20-F / Regulatory Annual Filing
+    if any(k in t_clean for k in ["20-f", "form 20-f", "form 20 f", "10-k", "form 10-k"]) or rt_clean in ("regulatory_annual_filing", "20-f", "form_20_f"):
+        return "regulatory_annual_filing"
+        
+    # 2. BRSR / ESG Reports
+    if any(k in t_clean for k in [
+        "brsr", "business responsibility and sustainability", "sustainability report", 
+        "esg report", "esg factsheet", "sustainability disclosure"
+    ]) or rt_clean in ("brsr_esg", "brsr", "esg"):
+        return "brsr_esg"
+        
+    # 3. Concall Transcripts
+    if "concall" in rt_clean or "transcript" in rt_clean or any(k in t_clean for k in [
+        "earnings call", "conference call", "concall transcript", "earnings conference", "call transcript"
+    ]) or ("transcript" in t_clean and not any(w in t_clean for w in ["share", "transfer", "notice", "court", "tribunal"])):
+        return "concall_transcript"
+        
+    # 4. Investor Presentations
+    if "presentation" in rt_clean or "ppt" in rt_clean or any(k in t_clean for k in [
+        "investor presentation", "earnings presentation", "investor deck", "analyst presentation", 
+        "quarterly presentation", "investor update", "presentation", "ppt"
+    ]):
+        return "presentation"
+        
+    # 5. Annual Reports (Excluding BRSR and 20-F)
+    if "annual" in rt_clean or any(k in t_clean for k in [
+        "annual report", "integrated report", "integrated annual report", "annual accounts", "annual general meeting and annual report"
+    ]):
+        return "annual_report"
+        
+    # 6. Material Announcements
+    if "announcement" in rt_clean or any(k in t_clean for k in [
+        "announcement", "outcome", "board meeting", "filing", "regulation 30", "press release", 
+        "media release", "disclosure", "intimation", "allotment", "credit rating"
+    ]):
+        return "announcement"
+        
+    return "general"
+
+def parse_document_sort_timestamp(period_or_date: Optional[str], title: str = "") -> str:
+    """
+    Extracts a deterministic ISO sort timestamp (YYYY-MM-DD) for global chronological ordering.
+    Does NOT invent or change visible text; used strictly for ordering.
+    Priority:
+    1. Exact filing / publication date
+    2. Exact quarter / month if no full date
+    3. FY-only documents (mapped to fiscal year end YYYY-03-31)
+    4. Unknown-date documents last (1970-01-01)
+    """
+    combined = f"{period_or_date or ''} {title or ''}".strip()
+    if not combined:
+        return "1970-01-01"
+        
+    # 1. Exact ISO: YYYY-MM-DD
+    m_iso = re.search(r'(\d{4})-(\d{2})-(\d{2})', combined)
+    if m_iso:
+        try:
+            dt = datetime(int(m_iso.group(1)), int(m_iso.group(2)), int(m_iso.group(3)))
+            return dt.strftime('%Y-%m-%d')
+        except Exception:
+            pass
+
+    # 2. Exact text date: '28 Aug 2026', '28-Aug-2026', 'August 21, 2026', '21 August 2026'
+    m_dmy = re.search(r'(\d{1,2})[-/ ]+(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*[-/ ,]+(\d{4})', combined, re.IGNORECASE)
+    if m_dmy:
+        try:
+            day = int(m_dmy.group(1))
+            mon_str = m_dmy.group(2)[:3].capitalize()
+            yr = int(m_dmy.group(3))
+            dt = datetime.strptime(f"{day} {mon_str} {yr}", "%d %b %Y")
+            return dt.strftime('%Y-%m-%d')
+        except Exception:
+            pass
+
+    m_mdy = re.search(r'(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*[-/ ]+(\d{1,2})[-/ ,]+(\d{4})', combined, re.IGNORECASE)
+    if m_mdy:
+        try:
+            mon_str = m_mdy.group(1)[:3].capitalize()
+            day = int(m_mdy.group(2))
+            yr = int(m_mdy.group(3))
+            dt = datetime.strptime(f"{day} {mon_str} {yr}", "%d %b %Y")
+            return dt.strftime('%Y-%m-%d')
+        except Exception:
+            pass
+
+    # 3. Month & Year only: 'Jul 2026', 'July 2026'
+    m_my = re.search(r'(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*[-/ ]+(\d{4})', combined, re.IGNORECASE)
+    if m_my:
+        try:
+            mon_str = m_my.group(1)[:3].capitalize()
+            yr = int(m_my.group(2))
+            dt = datetime.strptime(f"01 {mon_str} {yr}", "%d %b %Y")
+            return dt.strftime('%Y-%m-%d')
+        except Exception:
+            pass
+
+    # 4. Quarter & Fiscal Year: 'Q1 FY27', 'Q4 FY26', 'Q1 FY2026'
+    m_q = re.search(r'Q([1-4])\s*(?:FY)?\s*(\d{2,4})', combined, re.IGNORECASE)
+    if m_q:
+        q_num = int(m_q.group(1))
+        raw_yr = int(m_q.group(2))
+        fy_yr = raw_yr if raw_yr > 1000 else 2000 + raw_yr
+        if q_num == 1:
+            return f"{fy_yr - 1}-06-30"
+        elif q_num == 2:
+            return f"{fy_yr - 1}-09-30"
+        elif q_num == 3:
+            return f"{fy_yr - 1}-12-31"
+        elif q_num == 4:
+            return f"{fy_yr}-03-31"
+
+    # 5. Fiscal Year only: 'FY2026', 'FY26', '2025-26', '2025-2026'
+    m_fy = re.search(r'FY\s*(\d{2,4})', combined, re.IGNORECASE)
+    if m_fy:
+        raw_yr = int(m_fy.group(1))
+        fy_yr = raw_yr if raw_yr > 1000 else 2000 + raw_yr
+        return f"{fy_yr}-03-31"
+        
+    m_fy_range = re.search(r'(\d{4})\s*[-–]\s*(\d{2,4})', combined)
+    if m_fy_range:
+        yr1 = int(m_fy_range.group(1))
+        yr2 = int(m_fy_range.group(2))
+        fy_yr = yr2 if yr2 > 1000 else int(str(yr1)[:2] + str(yr2).zfill(2))
+        return f"{fy_yr}-03-31"
+
+    # 6. Year only in title: 'Annual Report 2024'
+    m_yr = re.search(r'\b(20\d{2})\b', combined)
+    if m_yr:
+        return f"{m_yr.group(1)}-03-31"
+
+    return "1970-01-01"
+
+def deduplicate_document_records(documents: List[Any], symbol: str) -> List[Dict[str, Any]]:
+    """
+    Deduplicates physical documents by canonical URL / canonical document key.
+    Merges discovery sources and aliases while selecting the preferred canonical title and type.
+    """
+    if not documents:
+        return []
+    
+    clean_sym = symbol.upper().strip()
+    by_url: Dict[str, Dict[str, Any]] = {}
+    
+    # Type priority when multiple records classify the same file differently:
+    type_priority = {
+        "annual_report": 10,
+        "regulatory_annual_filing": 9,
+        "concall_transcript": 8,
+        "presentation": 7,
+        "announcement": 6,
+        "brsr_esg": 5,
+        "general": 1,
+        "other": 1
+    }
+    
+    for doc in documents:
+        if isinstance(doc, dict):
+            raw_title = str(doc.get("title") or doc.get("name") or "").strip()
+            raw_url = str(doc.get("url") or "").strip()
+            raw_dt = str(doc.get("doc_type") or "general").strip()
+            p_date = doc.get("period_or_date")
+            discovery = doc.get("discovery_source") or "Unknown"
+            host = doc.get("actual_source_host") or ""
+            status = doc.get("validation_status", "Valid")
+            is_valid = doc.get("is_valid", 1)
+            f_date = doc.get("fetched_date")
+            doc_k = doc.get("doc_key")
+            sources = list(doc.get("discovered_sources") or [])
+            aliases = list(doc.get("source_aliases") or [])
+        else:
+            raw_title = str(getattr(doc, "title", None) or getattr(doc, "name", None) or "").strip()
+            raw_url = str(getattr(doc, "url", None) or "").strip()
+            raw_dt = str(getattr(doc, "doc_type", None) or "general").strip()
+            p_date = getattr(doc, "period_or_date", None)
+            discovery = getattr(doc, "discovery_source", None) or "Unknown"
+            host = getattr(doc, "actual_source_host", None) or ""
+            status = getattr(doc, "validation_status", "Valid")
+            is_valid = getattr(doc, "is_valid", 1)
+            f_date = getattr(doc, "fetched_date", None)
+            doc_k = getattr(doc, "doc_key", None)
+            sources = list(getattr(doc, "discovered_sources", None) or [])
+            aliases = list(getattr(doc, "source_aliases", None) or [])
+            
+        if not raw_url:
+            continue
+            
+        c_url = canonicalize_document_url(raw_url) or raw_url
+        norm_dt = normalize_document_type(raw_dt, raw_title)
+        
+        if discovery and discovery not in sources:
+            sources.append(discovery)
+            
+        if c_url in by_url:
+            existing = by_url[c_url]
+            # Merge sources
+            for s in sources:
+                if s and s not in existing["discovered_sources"]:
+                    existing["discovered_sources"].append(s)
+            
+            # Record alias if title is different
+            if raw_title and raw_title != existing["title"] and raw_title not in existing["source_aliases"]:
+                existing["source_aliases"].append(raw_title)
+                
+            # Preferred Title Precedence:
+            curr_title = existing["title"]
+            if ("bse" in discovery.lower() or "exchange" in discovery.lower() or "ir" in discovery.lower()) and not ("bse" in existing["discovery_source"].lower()):
+                existing["title"] = raw_title
+                existing["discovery_source"] = discovery
+            elif len(raw_title) > len(curr_title) and raw_title.lower() != curr_title.lower():
+                if curr_title.lower() in ("transcript", "presentation", "ppt", "annual report", "all"):
+                    existing["title"] = raw_title
+                    
+            # Preferred Type Precedence:
+            if type_priority.get(norm_dt, 0) > type_priority.get(existing["doc_type"], 0):
+                existing["doc_type"] = norm_dt
+                
+            # Preferred Period:
+            if not existing.get("period_or_date") and p_date:
+                existing["period_or_date"] = p_date
+                
+            # Recompute canonical doc_key and sort_timestamp
+            existing["doc_key"] = compute_canonical_document_key(
+                clean_sym, existing["doc_type"], existing.get("period_or_date"), c_url, existing["title"]
+            )
+            existing["sort_timestamp"] = parse_document_sort_timestamp(existing.get("period_or_date"), existing["title"])
+        else:
+            final_key = doc_k or compute_canonical_document_key(
+                clean_sym, norm_dt, p_date, c_url, raw_title
+            )
+            sort_ts = parse_document_sort_timestamp(p_date, raw_title)
+            by_url[c_url] = {
+                "symbol": clean_sym,
+                "title": raw_title,
+                "url": c_url,
+                "doc_type": norm_dt,
+                "period_or_date": p_date,
+                "discovery_source": discovery,
+                "discovered_sources": sources,
+                "source_aliases": aliases,
+                "actual_source_host": host,
+                "actual_source_url": c_url,
+                "is_direct_pdf": True if c_url.lower().endswith(".pdf") or ".pdf" in c_url.lower() else False,
+                "validation_status": status,
+                "is_valid": 1 if is_valid in (1, True, "1", "Valid") else 0,
+                "fetched_date": f_date,
+                "doc_key": final_key,
+                "sort_timestamp": sort_ts
+            }
+            
+    res = list(by_url.values())
+    res.sort(key=lambda x: (x.get("sort_timestamp") or "1970-01-01", x.get("title", "")), reverse=True)
+    return res
+
 def compute_canonical_document_key(
     symbol: str,
     doc_type: str,
@@ -642,17 +913,7 @@ def compute_canonical_document_key(
     Uses normalized symbol, doc_type, and canonical URL (or normalized period/title fallback).
     """
     clean_sym = symbol.upper().strip()
-    raw_dt = str(doc_type or "general").lower().strip()
-    if "annual" in raw_dt:
-        dt = "annual_report"
-    elif "concall" in raw_dt:
-        dt = "concall_transcript"
-    elif "presentation" in raw_dt:
-        dt = "presentation"
-    elif "announcement" in raw_dt:
-        dt = "announcement"
-    else:
-        dt = "general"
+    dt = normalize_document_type(doc_type, title or "")
         
     c_url = canonicalize_document_url(url)
     p_date = (period_or_date or "").strip().upper()
@@ -677,16 +938,8 @@ def compute_canonical_semantic_key(
     for cross-referencing equivalent filings across Screener and exchange discovery.
     """
     clean_sym = symbol.upper().strip()
-    raw_dt = str(doc_type or "").lower().strip()
-    if "annual" in raw_dt:
-        dt = "annual_report"
-    elif "concall" in raw_dt:
-        dt = "concall_transcript"
-    elif "presentation" in raw_dt:
-        dt = "presentation"
-    elif "announcement" in raw_dt:
-        dt = "announcement"
-    else:
+    dt = normalize_document_type(doc_type)
+    if dt == "general":
         return None
         
     p = (period_or_date or "").strip().upper()
@@ -1054,37 +1307,57 @@ def get_cached_ai_analysis(symbol: str) -> Optional[Dict[str, Any]]:
 get_ai_analysis = get_cached_ai_analysis
 
 def save_source_documents(symbol: str, documents: List[Any]) -> None:
-    """Persists discovered and verified source documents into SQLite with canonical doc_keys."""
+    """Persists discovered and verified source documents into SQLite with canonical doc_keys and deduplication."""
     if not documents:
         return
     clean_sym = symbol.upper().strip()
     now_iso = datetime.now(timezone.utc).isoformat()
+    deduped = deduplicate_document_records(documents, clean_sym)
+    
     conn = get_db_connection()
     try:
         with conn:
             cur = conn.cursor()
             cols = {r[1] for r in cur.execute("PRAGMA table_info(source_documents);").fetchall()}
             has_doc_key = "doc_key" in cols
+            has_sources = "discovered_sources" in cols
+            has_aliases = "source_aliases" in cols
             
-            for doc in documents:
-                title = getattr(doc, "title", None) or (doc.get("title") if isinstance(doc, dict) else "")
-                url = getattr(doc, "url", None) or (doc.get("url") if isinstance(doc, dict) else "")
-                doc_type = getattr(doc, "doc_type", None) or (doc.get("doc_type") if isinstance(doc, dict) else "general")
-                period = getattr(doc, "period_or_date", None) or (doc.get("period_or_date") if isinstance(doc, dict) else None)
-                discovery = getattr(doc, "discovery_source", None) or (doc.get("discovery_source") if isinstance(doc, dict) else "Unknown")
-                host = getattr(doc, "actual_source_host", None) or (doc.get("actual_source_host") if isinstance(doc, dict) else "")
-                status = getattr(doc, "validation_status", "Valid") or (doc.get("validation_status", "Valid") if isinstance(doc, dict) else "Valid")
-                is_valid = 1 if status == "Valid" else 0
+            for doc in deduped:
+                title = doc.get("title", "")
+                url = doc.get("url", "")
+                doc_type = doc.get("doc_type", "general")
+                period = doc.get("period_or_date")
+                discovery = doc.get("discovery_source", "Unknown")
+                sources_json = json.dumps(doc.get("discovered_sources") or [discovery])
+                aliases_json = json.dumps(doc.get("source_aliases") or [])
+                host = doc.get("actual_source_host", "")
+                is_valid = doc.get("is_valid", 1)
+                doc_key = doc.get("doc_key") or compute_canonical_document_key(
+                    clean_sym, doc_type, period, url, title
+                )
                 
                 if not url:
                     continue
                     
-                c_url = canonicalize_document_url(url) or url
-                doc_key = getattr(doc, "doc_key", None) or (doc.get("doc_key") if isinstance(doc, dict) else None) or compute_canonical_document_key(
-                    clean_sym, doc_type, period, c_url, title
-                )
-                
-                if has_doc_key:
+                if has_doc_key and has_sources and has_aliases:
+                    conn.execute("""
+                        INSERT INTO source_documents (
+                            symbol, title, url, doc_type, period_or_date, discovery_source, actual_source_host, is_valid, added_at, doc_key, discovered_sources, source_aliases
+                        )
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        ON CONFLICT(url) DO UPDATE SET
+                            title = excluded.title,
+                            doc_type = excluded.doc_type,
+                            period_or_date = excluded.period_or_date,
+                            discovery_source = excluded.discovery_source,
+                            actual_source_host = excluded.actual_source_host,
+                            is_valid = excluded.is_valid,
+                            doc_key = excluded.doc_key,
+                            discovered_sources = excluded.discovered_sources,
+                            source_aliases = excluded.source_aliases
+                    """, (clean_sym, title, url, doc_type, period, discovery, host, is_valid, now_iso, doc_key, sources_json, aliases_json))
+                elif has_doc_key:
                     conn.execute("""
                         INSERT INTO source_documents (
                             symbol, title, url, doc_type, period_or_date, discovery_source, actual_source_host, is_valid, added_at, doc_key
@@ -1098,7 +1371,7 @@ def save_source_documents(symbol: str, documents: List[Any]) -> None:
                             actual_source_host = excluded.actual_source_host,
                             is_valid = excluded.is_valid,
                             doc_key = excluded.doc_key
-                    """, (clean_sym, title, c_url, doc_type, period, discovery, host, is_valid, now_iso, doc_key))
+                    """, (clean_sym, title, url, doc_type, period, discovery, host, is_valid, now_iso, doc_key))
                 else:
                     conn.execute("""
                         INSERT INTO source_documents (
@@ -1112,47 +1385,57 @@ def save_source_documents(symbol: str, documents: List[Any]) -> None:
                             discovery_source = excluded.discovery_source,
                             actual_source_host = excluded.actual_source_host,
                             is_valid = excluded.is_valid
-                    """, (clean_sym, title, c_url, doc_type, period, discovery, host, is_valid, now_iso))
+                    """, (clean_sym, title, url, doc_type, period, discovery, host, is_valid, now_iso))
     finally:
         conn.close()
 
 def get_source_documents(symbol: str, doc_type: Optional[str] = None) -> List[Dict[str, Any]]:
-    """Retrieves verified source documents from SQLite."""
+    """Retrieves verified and deduplicated canonical source documents from SQLite."""
     clean_sym = symbol.upper().strip()
     conn = get_db_connection()
     try:
         cur = conn.cursor()
         cols = {r[1] for r in cur.execute("PRAGMA table_info(source_documents);").fetchall()}
         has_doc_key = "doc_key" in cols
+        has_sources = "discovered_sources" in cols
+        has_aliases = "source_aliases" in cols
         
         select_cols = "symbol, title, url, doc_type, period_or_date, discovery_source, actual_source_host, is_valid, added_at"
         if has_doc_key:
             select_cols += ", doc_key"
+        if has_sources:
+            select_cols += ", discovered_sources"
+        if has_aliases:
+            select_cols += ", source_aliases"
             
-        if doc_type:
-            cur.execute(f"""
-                SELECT {select_cols}
-                FROM source_documents
-                WHERE symbol = ? AND doc_type = ? AND is_valid = 1
-                ORDER BY id DESC
-            """, (clean_sym, doc_type))
-        else:
-            cur.execute(f"""
-                SELECT {select_cols}
-                FROM source_documents
-                WHERE symbol = ? AND is_valid = 1
-                ORDER BY id DESC
-            """, (clean_sym,))
+        cur.execute(f"""
+            SELECT {select_cols}
+            FROM source_documents
+            WHERE symbol = ? AND is_valid = 1
+            ORDER BY id DESC
+        """, (clean_sym,))
         rows = cur.fetchall()
-        res = []
+        raw_list = []
         for r in rows:
             d = dict(r)
-            if not d.get("doc_key"):
-                d["doc_key"] = compute_canonical_document_key(
-                    clean_sym, d.get("doc_type", "general"), d.get("period_or_date"), d.get("url"), d.get("title")
-                )
-            res.append(d)
-        return res
+            if has_sources and d.get("discovered_sources"):
+                try:
+                    d["discovered_sources"] = json.loads(d["discovered_sources"])
+                except Exception:
+                    d["discovered_sources"] = [d["discovery_source"]] if d.get("discovery_source") else []
+            if has_aliases and d.get("source_aliases"):
+                try:
+                    d["source_aliases"] = json.loads(d["source_aliases"])
+                except Exception:
+                    d["source_aliases"] = []
+            raw_list.append(d)
+            
+        deduped = deduplicate_document_records(raw_list, clean_sym)
+        
+        if doc_type:
+            target_norm = normalize_document_type(doc_type)
+            return [d for d in deduped if d.get("doc_type") == target_norm]
+        return deduped
     finally:
         conn.close()
 

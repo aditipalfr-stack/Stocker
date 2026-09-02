@@ -759,6 +759,7 @@ def get_stock_source_filings(symbol: str):
     """
     Returns structured filing archive and per-document AI summaries directly
     from the canonical persisted document layer without expensive full-detail recalculations.
+    Documents are deduplicated at the physical file layer and ordered globally newest-first.
     """
     clean_sym = symbol.upper().strip()
     company_name = clean_sym
@@ -777,75 +778,104 @@ def get_stock_source_filings(symbol: str):
     from models import DocumentLinks, DocumentItem
     doc_links = DocumentLinks()
     
+    raw_doc_items = []
     if db_docs:
-        for r in db_docs:
-            d_item = DocumentItem(
-                ticker=clean_sym,
-                company_name=company_name,
-                title=r.get("title", ""),
-                url=r.get("url", ""),
-                doc_type=r.get("doc_type", "general"),
-                period_or_date=r.get("period_or_date"),
-                discovery_source=r.get("discovery_source", "Database"),
-                actual_source_host=r.get("actual_source_host", "bseindia.com"),
-                doc_key=r.get("doc_key")
-            )
-            dt = (d_item.doc_type or "").lower()
-            if "annual" in dt:
-                doc_links.annual_reports.append(d_item)
-            elif "concall" in dt:
-                doc_links.concalls.append(d_item)
-            elif "presentation" in dt:
-                doc_links.presentations.append(d_item)
-            elif "announcement" in dt:
-                doc_links.material_announcements.append(d_item)
+        raw_doc_items = db_docs
     else:
         # Fast fallback: fetch screener raw documents without full analytics/projections calculation
         cached = database.get_stock_cache(clean_sym)
         if cached and "documents" in cached:
             raw_d = cached["documents"]
             if isinstance(raw_d, dict):
-                doc_links = DocumentLinks(**raw_d)
+                for k, lst in raw_d.items():
+                    if isinstance(lst, list):
+                        raw_doc_items.extend(lst)
         else:
             data = fetch_stock_from_screener(clean_sym, force_refresh=False)
             if data and "documents" in data:
                 raw_d = data["documents"]
                 if isinstance(raw_d, dict):
-                    doc_links = DocumentLinks(**raw_d)
+                    for k, lst in raw_d.items():
+                        if isinstance(lst, list):
+                            raw_doc_items.extend(lst)
                 company_name = data.get("company_name", company_name)
     
+    # 3. Deduplicate physical documents and normalize classifications
+    canonical_docs = database.deduplicate_document_records(raw_doc_items, clean_sym)
     summaries = database.get_document_summaries(clean_sym)
     cached_ai = database.get_cached_ai_analysis(clean_sym)
     has_company_analysis = bool(cached_ai and (cached_ai.get("what_changed_recently") or cached_ai.get("growth_drivers") or cached_ai.get("promise_vs_delivery")))
     
-    # Annotate truthful AI status on each document item
-    for group in [doc_links.annual_reports, doc_links.concalls, doc_links.presentations, doc_links.material_announcements]:
-        for doc in group:
-            if not doc.doc_key:
-                doc.doc_key = database.compute_canonical_document_key(clean_sym, doc.doc_type, doc.period_or_date, doc.url, doc.title)
-            
-            # Lookup summary by doc_key, then URL, then semantic key
-            summary = summaries.get(doc.doc_key) or summaries.get(doc.url)
-            if not summary and doc.url:
-                clean_u = database.canonicalize_document_url(doc.url)
-                if clean_u:
-                    summary = summaries.get(clean_u)
-            if not summary and doc.period_or_date:
-                sem_key = database.compute_canonical_semantic_key(clean_sym, doc.doc_type, doc.period_or_date)
-                if sem_key:
-                    summary = summaries.get(sem_key)
-            
-            if summary:
-                if summary.get("status") == "failed":
-                    doc.ai_status = "PROCESSING_FAILED"
-                    doc.ai_failure_reason = summary.get("error", "AI document extraction failed.")
-                else:
-                    doc.ai_status = "AI_ANALYZED"
+    all_items: List[DocumentItem] = []
+    for r in canonical_docs:
+        c_url = database.canonicalize_document_url(r.get("url")) or r.get("url")
+        norm_dt = database.normalize_document_type(r.get("doc_type"), r.get("title"))
+        sort_ts = database.parse_document_sort_timestamp(r.get("period_or_date"), r.get("title"))
+        doc_k = r.get("doc_key") or database.compute_canonical_document_key(
+            clean_sym, norm_dt, r.get("period_or_date"), c_url, r.get("title")
+        )
+        
+        # Summary resolution
+        summary = summaries.get(doc_k) or summaries.get(c_url)
+        if not summary and r.get("url"):
+            summary = summaries.get(r.get("url"))
+        if not summary and r.get("period_or_date"):
+            sem_key = database.compute_canonical_semantic_key(clean_sym, norm_dt, r.get("period_or_date"))
+            if sem_key:
+                summary = summaries.get(sem_key)
+                
+        if summary:
+            if summary.get("status") == "failed":
+                ai_st = "PROCESSING_FAILED"
+                fail_reason = summary.get("error", "AI document extraction failed.")
             else:
-                if has_company_analysis:
-                    doc.ai_status = "NOT_SELECTED"
-                else:
-                    doc.ai_status = "NOT_ANALYZED_YET"
+                ai_st = "AI_ANALYZED"
+                fail_reason = None
+        else:
+            if has_company_analysis:
+                ai_st = "NOT_SELECTED"
+            else:
+                ai_st = "NOT_ANALYZED_YET"
+            fail_reason = None
+            
+        d_item = DocumentItem(
+            ticker=clean_sym,
+            company_name=company_name,
+            title=r.get("title", ""),
+            url=c_url,
+            doc_type=norm_dt,
+            period_or_date=r.get("period_or_date"),
+            discovery_source=r.get("discovery_source", "Database"),
+            discovered_sources=r.get("discovered_sources") or [r.get("discovery_source", "Database")],
+            source_aliases=r.get("source_aliases") or [],
+            actual_source_host=r.get("actual_source_host", "bseindia.com"),
+            doc_key=doc_k,
+            ai_status=ai_st,
+            ai_failure_reason=fail_reason,
+            sort_timestamp=sort_ts
+        )
+        all_items.append(d_item)
+
+    # 4. Global Chronological Sort: Newest First
+    all_items.sort(key=lambda x: (x.sort_timestamp or "1970-01-01", x.title), reverse=True)
+    doc_links.all_documents = all_items
+    
+    for doc in all_items:
+        dt = doc.doc_type
+        if dt == "annual_report":
+            doc_links.annual_reports.append(doc)
+        elif dt == "regulatory_annual_filing":
+            doc_links.regulatory_annual_filings.append(doc)
+        elif dt == "concall_transcript":
+            doc_links.concalls.append(doc)
+        elif dt == "presentation":
+            doc_links.presentations.append(doc)
+        elif dt == "announcement":
+            doc_links.material_announcements.append(doc)
+        elif dt == "brsr_esg":
+            doc_links.brsr_reports.append(doc)
+        else:
+            doc_links.other_filings.append(doc)
     
     return {
         "symbol": clean_sym,
@@ -924,31 +954,60 @@ def generate_stock_doc_intelligence(symbol: str):
     from models import DocumentLinks, DocumentItem
     doc_links = DocumentLinks()
     
+    raw_doc_items = []
     if db_docs:
-        for r in db_docs:
-            d_item = DocumentItem(
-                ticker=clean_sym,
-                company_name=detail.name,
-                title=r.get("title", ""),
-                url=r.get("url", ""),
-                doc_type=r.get("doc_type", "general"),
-                period_or_date=r.get("period_or_date"),
-                discovery_source=r.get("discovery_source", "Database"),
-                actual_source_host=r.get("actual_source_host", "bseindia.com"),
-                doc_key=r.get("doc_key")
-            )
-            dt = (d_item.doc_type or "").lower()
-            if "annual" in dt:
-                doc_links.annual_reports.append(d_item)
-            elif "concall" in dt:
-                doc_links.concalls.append(d_item)
-            elif "presentation" in dt:
-                doc_links.presentations.append(d_item)
-            elif "announcement" in dt:
-                doc_links.material_announcements.append(d_item)
-        documents_to_analyze = doc_links
+        raw_doc_items = db_docs
     else:
-        documents_to_analyze = detail.documents
+        if detail.documents:
+            for k, lst in detail.documents.model_dump().items():
+                if isinstance(lst, list):
+                    raw_doc_items.extend(lst)
+                    
+    canonical_docs = database.deduplicate_document_records(raw_doc_items, clean_sym)
+    all_items = []
+    for r in canonical_docs:
+        c_url = database.canonicalize_document_url(r.get("url")) or r.get("url")
+        norm_dt = database.normalize_document_type(r.get("doc_type"), r.get("title"))
+        sort_ts = database.parse_document_sort_timestamp(r.get("period_or_date"), r.get("title"))
+        doc_k = r.get("doc_key") or database.compute_canonical_document_key(
+            clean_sym, norm_dt, r.get("period_or_date"), c_url, r.get("title")
+        )
+        d_item = DocumentItem(
+            ticker=clean_sym,
+            company_name=detail.name,
+            title=r.get("title", ""),
+            url=c_url,
+            doc_type=norm_dt,
+            period_or_date=r.get("period_or_date"),
+            discovery_source=r.get("discovery_source", "Database"),
+            discovered_sources=r.get("discovered_sources") or [r.get("discovery_source", "Database")],
+            source_aliases=r.get("source_aliases") or [],
+            actual_source_host=r.get("actual_source_host", "bseindia.com"),
+            doc_key=doc_k,
+            sort_timestamp=sort_ts
+        )
+        all_items.append(d_item)
+        
+    all_items.sort(key=lambda x: (x.sort_timestamp or "1970-01-01", x.title), reverse=True)
+    doc_links.all_documents = all_items
+    for doc in all_items:
+        dt = doc.doc_type
+        if dt == "annual_report":
+            doc_links.annual_reports.append(doc)
+        elif dt == "regulatory_annual_filing":
+            doc_links.regulatory_annual_filings.append(doc)
+        elif dt == "concall_transcript":
+            doc_links.concalls.append(doc)
+        elif dt == "presentation":
+            doc_links.presentations.append(doc)
+        elif dt == "announcement":
+            doc_links.material_announcements.append(doc)
+        elif dt == "brsr_esg":
+            doc_links.brsr_reports.append(doc)
+        else:
+            doc_links.other_filings.append(doc)
+            
+    documents_to_analyze = doc_links
         
     try:
         from doc_intelligence_pipeline import run_multi_document_ai_pipeline

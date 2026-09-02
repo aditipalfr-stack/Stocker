@@ -65,6 +65,9 @@ class DocumentItem(BaseModel):
     doc_key: Optional[str] = None
     ai_status: Optional[str] = None # "AI_ANALYZED", "NOT_SELECTED", "PROCESSING_FAILED", "NOT_ANALYZED_YET"
     ai_failure_reason: Optional[str] = None
+    discovered_sources: List[str] = []
+    source_aliases: List[str] = []
+    sort_timestamp: Optional[str] = None
 
     def model_post_init(self, __context: Any) -> None:
         if not self.title and self.name:
@@ -73,6 +76,8 @@ class DocumentItem(BaseModel):
             self.name = self.title
         if not self.actual_source_url and self.url:
             self.actual_source_url = self.url
+        if self.discovery_source and not self.discovered_sources:
+            self.discovered_sources = [self.discovery_source]
         if not self.doc_key and self.url:
             try:
                 from database import compute_canonical_document_key
@@ -102,9 +107,13 @@ class DocumentDiscoveryDiagnostics(BaseModel):
 
 class DocumentLinks(BaseModel):
     annual_reports: List[DocumentItem] = []
+    regulatory_annual_filings: List[DocumentItem] = []
     concalls: List[DocumentItem] = []
     presentations: List[DocumentItem] = []
     material_announcements: List[DocumentItem] = []
+    brsr_reports: List[DocumentItem] = []
+    other_filings: List[DocumentItem] = []
+    all_documents: List[DocumentItem] = []
     diagnostics: Optional[DocumentDiscoveryDiagnostics] = None
     checked_at: Optional[str] = None
 

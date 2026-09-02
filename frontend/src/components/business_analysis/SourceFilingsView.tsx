@@ -1,10 +1,15 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { DocumentLinks, DocumentItem, DocumentSummaryItem, SourceFilingsResponse } from '../../types';
 import { 
   FileText, ExternalLink, Search, Sparkles, 
-  Mic, Presentation, Bell, ChevronDown, CheckCircle2, AlertTriangle, RefreshCw
+  Mic, Presentation, Bell, ChevronDown, CheckCircle2, AlertTriangle, RefreshCw,
+  Globe, ShieldCheck, FileCheck
 } from 'lucide-react';
-import { DataOriginBadge } from '../ui/DataOriginBadge';
+import { 
+  sortDocumentsGlobally, 
+  formatDocumentDisplayType, 
+  formatDocumentSources 
+} from '../../utils/documentChronology';
 
 interface SourceFilingsViewProps {
   symbol: string;
@@ -25,39 +30,114 @@ export const SourceFilingsView: React.FC<SourceFilingsViewProps> = ({
 }) => {
   const [filterType, setFilterType] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState<string>('');
-  const [expandedDocUrl, setExpandedDocUrl] = useState<string | null>(null);
+  const [expandedDocKeys, setExpandedDocKeys] = useState<Set<string>>(new Set());
 
   const documents = filingsData?.documents;
   const summariesMap = filingsData?.summaries || {};
 
-  // Compile all available source documents using strictly typed fields.
-  const allDocs: DocumentItem[] = [];
-  if (documents?.annual_reports) allDocs.push(...documents.annual_reports);
-  if (documents?.concalls) allDocs.push(...documents.concalls);
-  if (documents?.presentations) allDocs.push(...documents.presentations);
-  if (documents?.material_announcements) allDocs.push(...documents.material_announcements);
+  // 1. Compile all source documents with backend/canonical deduplication
+  const allDocs = useMemo<DocumentItem[]>(() => {
+    if (!documents) return [];
+    
+    // If backend provided pre-sorted all_documents, use it
+    if (documents.all_documents && documents.all_documents.length > 0) {
+      return sortDocumentsGlobally(documents.all_documents);
+    }
+    
+    // Otherwise gather from all typed category lists
+    const rawList: DocumentItem[] = [];
+    if (documents.annual_reports) rawList.push(...documents.annual_reports);
+    if (documents.regulatory_annual_filings) rawList.push(...documents.regulatory_annual_filings);
+    if (documents.concalls) rawList.push(...documents.concalls);
+    if (documents.presentations) rawList.push(...documents.presentations);
+    if (documents.material_announcements) rawList.push(...documents.material_announcements);
+    if (documents.brsr_reports) rawList.push(...documents.brsr_reports);
+    if (documents.other_filings) rawList.push(...documents.other_filings);
+    
+    // Deduplicate by doc_key or clean canonical URL
+    const seen = new Map<string, DocumentItem>();
+    for (const d of rawList) {
+      const key = d.doc_key || (d.url ? d.url.split('#')[0].trim() : '') || d.title;
+      if (!seen.has(key)) {
+        seen.set(key, d);
+      }
+    }
+    return sortDocumentsGlobally(Array.from(seen.values()));
+  }, [documents]);
 
-  // Filter docs
-  const filteredDocs = allDocs.filter(d => {
-    const dt = (d.doc_type || '').toLowerCase();
-    const matchesType = 
-      filterType === 'all' ? true :
-      filterType === 'annual_report' ? (dt === 'annual_report' || dt.includes('annual')) :
-      filterType === 'concall' ? (dt === 'concall_transcript' || dt.includes('concall')) :
-      filterType === 'presentation' ? (dt === 'presentation' || dt.includes('presentation')) :
-      filterType === 'announcement' ? (dt === 'announcement' || dt.includes('announcement')) : true;
+  const toggleExpandDoc = (docKeyOrUrl: string) => {
+    setExpandedDocKeys(prev => {
+      const next = new Set(prev);
+      if (next.has(docKeyOrUrl)) {
+        next.delete(docKeyOrUrl);
+      } else {
+        next.add(docKeyOrUrl);
+      }
+      return next;
+    });
+  };
 
-    const matchesSearch = searchQuery.trim() === '' ? true :
-      (d.title || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (d.period_or_date || '').toLowerCase().includes(searchQuery.toLowerCase());
+  // Category counts
+  const categoryCounts = useMemo(() => {
+    const counts = {
+      all: allDocs.length,
+      annual_report: 0,
+      regulatory_annual_filing: 0,
+      concall: 0,
+      presentation: 0,
+      announcement: 0,
+      brsr_esg: 0
+    };
+    for (const d of allDocs) {
+      const dt = (d.doc_type || '').toLowerCase();
+      if (dt === 'regulatory_annual_filing' || dt.includes('20-f')) {
+        counts.regulatory_annual_filing++;
+      } else if (dt === 'brsr_esg' || dt.includes('brsr') || dt.includes('esg')) {
+        counts.brsr_esg++;
+      } else if (dt === 'annual_report' || dt.includes('annual')) {
+        counts.annual_report++;
+      } else if (dt === 'concall_transcript' || dt.includes('concall')) {
+        counts.concall++;
+      } else if (dt === 'presentation' || dt.includes('presentation')) {
+        counts.presentation++;
+      } else if (dt === 'announcement' || dt.includes('announcement')) {
+        counts.announcement++;
+      }
+    }
+    return counts;
+  }, [allDocs]);
 
-    return matchesType && matchesSearch;
-  });
+  // Filter and search
+  const filteredDocs = useMemo(() => {
+    return allDocs.filter(d => {
+      const dt = (d.doc_type || '').toLowerCase();
+      const matchesType = 
+        filterType === 'all' ? true :
+        filterType === 'annual_report' ? (dt === 'annual_report' && !dt.includes('brsr') && !dt.includes('20-f')) :
+        filterType === 'regulatory_annual_filing' ? (dt === 'regulatory_annual_filing' || dt.includes('20-f')) :
+        filterType === 'concall' ? (dt === 'concall_transcript' || dt.includes('concall')) :
+        filterType === 'presentation' ? (dt === 'presentation' || dt.includes('presentation')) :
+        filterType === 'announcement' ? (dt === 'announcement' || dt.includes('announcement')) :
+        filterType === 'brsr_esg' ? (dt === 'brsr_esg' || dt.includes('brsr') || dt.includes('esg')) : true;
+
+      const q = searchQuery.toLowerCase().trim();
+      const matchesSearch = q === '' ? true :
+        (d.title || '').toLowerCase().includes(q) ||
+        (d.period_or_date || '').toLowerCase().includes(q) ||
+        (d.discovery_source || '').toLowerCase().includes(q) ||
+        (d.doc_type || '').toLowerCase().includes(q) ||
+        (d.discovered_sources && d.discovered_sources.some(s => s.toLowerCase().includes(q)));
+
+      return matchesType && matchesSearch;
+    });
+  }, [allDocs, filterType, searchQuery]);
 
   const getDocTypeIcon = (docType?: string) => {
     if (!docType) return <FileText className="w-4 h-4 text-cyan-400" />;
     const t = docType.toLowerCase();
-    if (t.includes('annual')) return <FileText className="w-4 h-4 text-cyan-400" />;
+    if (t === 'regulatory_annual_filing' || t.includes('20-f')) return <FileCheck className="w-4 h-4 text-indigo-400" />;
+    if (t === 'brsr_esg' || t.includes('brsr') || t.includes('esg')) return <ShieldCheck className="w-4 h-4 text-teal-400" />;
+    if (t === 'annual_report' || t.includes('annual')) return <FileText className="w-4 h-4 text-cyan-400" />;
     if (t.includes('concall')) return <Mic className="w-4 h-4 text-amber-400" />;
     if (t.includes('presentation')) return <Presentation className="w-4 h-4 text-emerald-400" />;
     if (t.includes('announcement')) return <Bell className="w-4 h-4 text-rose-400" />;
@@ -79,11 +159,11 @@ export const SourceFilingsView: React.FC<SourceFilingsViewProps> = ({
                 <span>Unified Sourced Filings & AI Findings</span>
                 {!loading && (
                   <span className="bg-slate-900 text-cyan-400 text-[10px] font-mono font-bold px-2 py-0.5 rounded-full border border-slate-800">
-                    {allDocs.length} source documents
+                    {allDocs.length} unique canonical filings
                   </span>
                 )}
               </h4>
-              <p className="text-xs text-slate-400">Annual reports, concall transcripts, investor presentations and announcements with optional AI insights</p>
+              <p className="text-xs text-slate-400">Chronological timeline of annual reports, 20-F filings, concalls, presentations, announcements and ESG reports</p>
             </div>
           </div>
 
@@ -113,11 +193,13 @@ export const SourceFilingsView: React.FC<SourceFilingsViewProps> = ({
         {/* Filter Buttons */}
         <div className="flex items-center gap-2 overflow-x-auto pb-1">
           {[
-            { id: 'all', label: 'All Documents', count: allDocs.length },
-            { id: 'annual_report', label: 'Annual Reports', count: documents?.annual_reports?.length || 0 },
-            { id: 'concall', label: 'Concalls', count: documents?.concalls?.length || 0 },
-            { id: 'presentation', label: 'Presentations', count: documents?.presentations?.length || 0 },
-            { id: 'announcement', label: 'Material Announcements', count: documents?.material_announcements?.length || 0 },
+            { id: 'all', label: 'All Documents', count: categoryCounts.all },
+            { id: 'annual_report', label: 'Annual Reports', count: categoryCounts.annual_report },
+            { id: 'regulatory_annual_filing', label: 'Regulatory (20-F)', count: categoryCounts.regulatory_annual_filing },
+            { id: 'concall', label: 'Concalls', count: categoryCounts.concall },
+            { id: 'presentation', label: 'Presentations', count: categoryCounts.presentation },
+            { id: 'announcement', label: 'Material Announcements', count: categoryCounts.announcement },
+            { id: 'brsr_esg', label: 'BRSR / ESG', count: categoryCounts.brsr_esg },
           ].map(btn => (
             <button
               key={btn.id}
@@ -186,10 +268,12 @@ export const SourceFilingsView: React.FC<SourceFilingsViewProps> = ({
               const isAnalyzed = Boolean(!isFailed && summary && ((summary.key_takeaways && summary.key_takeaways.length > 0) || (summary.extracted_facts && summary.extracted_facts.length > 0)));
               const isNotSelected = Boolean(!isAnalyzed && !isFailed && (doc.ai_status === 'NOT_SELECTED' || (filingsData?.has_company_analysis && !summary)));
               const docKeyOrUrl = doc.doc_key || doc.url || `doc_${idx}`;
-              const isExpanded = expandedDocUrl === docKeyOrUrl;
+              const isExpanded = expandedDocKeys.has(docKeyOrUrl);
+              const displayType = formatDocumentDisplayType(doc.doc_type);
+              const sourcesText = formatDocumentSources(doc);
 
               return (
-                <div key={idx} className="glass-panel rounded-2xl p-5 md:p-6 border border-slate-800/90 space-y-4 hover:border-slate-700 transition-all bg-slate-950/80">
+                <div key={docKeyOrUrl} className="glass-panel rounded-2xl p-5 md:p-6 border border-slate-800/90 space-y-4 hover:border-slate-700 transition-all bg-slate-950/80">
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                     <div className="flex items-start sm:items-center gap-3">
                       <div className="w-9 h-9 rounded-xl bg-slate-900 border border-slate-800 flex items-center justify-center shrink-0">
@@ -198,6 +282,9 @@ export const SourceFilingsView: React.FC<SourceFilingsViewProps> = ({
                       <div>
                         <h5 className="text-sm font-bold text-white flex items-center gap-2 flex-wrap">
                           <span>{doc.title}</span>
+                          <span className="bg-slate-900 text-cyan-300 text-[10px] font-semibold px-2 py-0.5 rounded-full border border-slate-800">
+                            {displayType}
+                          </span>
                           {isAnalyzed && (
                             <span className="bg-emerald-500/10 text-emerald-400 text-[10px] font-semibold px-2 py-0.5 rounded-full border border-emerald-500/20 flex items-center gap-1">
                               <Sparkles className="w-2.5 h-2.5" />
@@ -221,8 +308,15 @@ export const SourceFilingsView: React.FC<SourceFilingsViewProps> = ({
                             </span>
                           )}
                         </h5>
-                        <p className="text-xs text-slate-400 font-mono mt-0.5">
-                          {doc.period_or_date || 'Source document'} • {doc.discovery_source || 'Discovered source'}
+                        <p className="text-xs text-slate-400 font-mono mt-0.5 flex items-center gap-1.5 flex-wrap">
+                          <span>{doc.period_or_date || 'Undated'}</span>
+                          <span>•</span>
+                          <span>{sourcesText}</span>
+                          {doc.source_aliases && doc.source_aliases.length > 0 && (
+                            <span className="text-[10px] text-slate-500 italic">
+                              (also referenced as: {doc.source_aliases.join(', ')})
+                            </span>
+                          )}
                         </p>
                       </div>
                     </div>
@@ -230,7 +324,7 @@ export const SourceFilingsView: React.FC<SourceFilingsViewProps> = ({
                     <div className="flex items-center gap-2 self-end sm:self-center">
                       {isAnalyzed && (
                         <button
-                          onClick={() => setExpandedDocUrl(isExpanded ? null : docKeyOrUrl)}
+                          onClick={() => toggleExpandDoc(docKeyOrUrl)}
                           className="text-xs text-cyan-400 hover:text-cyan-300 bg-cyan-500/10 hover:bg-cyan-500/20 border border-cyan-500/20 px-3 py-1.5 rounded-xl font-medium flex items-center gap-1 transition-all"
                         >
                           <span>{isExpanded ? 'Hide AI Details' : 'View AI Findings'}</span>
@@ -273,7 +367,7 @@ export const SourceFilingsView: React.FC<SourceFilingsViewProps> = ({
                     </p>
                   )}
 
-                  {/* Expanded AI Findings Section */}
+                  {/* Expanded AI Findings Section (Supports multiple expanded cards simultaneously) */}
                   {isExpanded && isAnalyzed && summary && (
                     <div className="mt-4 pt-4 border-t border-slate-900 space-y-4 bg-slate-950 p-4 rounded-xl border border-slate-800/80">
                       

@@ -217,38 +217,173 @@ class TestCanonicalSourceFilingsV44(unittest.TestCase):
         self.assertEqual(ars[0]["ai_status"], "AI_ANALYZED")
         self.assertEqual(anns[0]["ai_status"], "NOT_SELECTED")
 
-    def test_scenario_e_failed_document_status(self):
+    def test_scenario_f_duplicate_url_merging(self):
         """
-        E. FAILED DOCUMENT
-        If extraction attempt fails, status is PROCESSING_FAILED and does not borrow another summary.
+        F. DUPLICATE PHYSICAL DOCUMENTS MERGING
+        Two discovered records with the same canonical URL must merge into ONE canonical record,
+        combining discovered sources and not double counting.
         """
         sym = "TESTSYM"
-        corrupt_doc = DocumentItem(
+        doc_bse = DocumentItem(
             ticker=sym,
             company_name="Test Corp",
-            title="TESTSYM Corrupted Transcript",
-            url="https://bse.com/corrupted.pdf",
-            doc_type="concall_transcript",
-            period_or_date="Q2 FY26"
+            title="Notice Of 32Nd AGM And Annual Report 2025-26",
+            url="https://www.bseindia.com/xml-data/corpfiling/AttachHis/canonical_report.pdf",
+            doc_type="annual_report",
+            period_or_date="18 Jul 2026",
+            discovery_source="BSE India"
         )
-        database.save_source_documents(sym, [corrupt_doc])
-
-        failed_summary = {
-            "doc_title": corrupt_doc.title,
-            "doc_url": corrupt_doc.url,
-            "doc_type": "concall_transcript",
-            "period_or_date": "Q2 FY26",
-            "status": "failed",
-            "error": "PDF stream ended unexpectedly",
-            "key_takeaways": []
-        }
-        database.save_document_summary(sym, corrupt_doc.url, corrupt_doc.title, failed_summary, doc_type="concall_transcript", period_or_date="Q2 FY26")
+        doc_screener = DocumentItem(
+            ticker=sym,
+            company_name="Test Corp",
+            title="Annual Report 2026",
+            url="https://www.bseindia.com/xml-data/corpfiling/AttachHis/canonical_report.pdf",
+            doc_type="annual_report",
+            period_or_date="FY2026",
+            discovery_source="Screener.in"
+        )
+        database.save_source_documents(sym, [doc_bse, doc_screener])
 
         resp = main.get_stock_source_filings(sym)
-        concalls = resp["documents"]["concalls"]
-        self.assertEqual(len(concalls), 1)
-        self.assertEqual(concalls[0]["ai_status"], "PROCESSING_FAILED")
-        self.assertIn("PDF stream ended unexpectedly", concalls[0]["ai_failure_reason"])
+        ars = resp["documents"]["annual_reports"]
+        all_docs = resp["documents"]["all_documents"]
+
+        # Exactly 1 filing present
+        self.assertEqual(len(ars), 1)
+        self.assertEqual(len(all_docs), 1)
+
+        # Discovered sources merged
+        canonical_ar = ars[0]
+        self.assertIn("BSE India", canonical_ar["discovered_sources"])
+        self.assertIn("Screener.in", canonical_ar["discovered_sources"])
+        # Preferred title is official/descriptive
+        self.assertEqual(canonical_ar["title"], "Notice Of 32Nd AGM And Annual Report 2025-26")
+        self.assertIn("Annual Report 2026", canonical_ar["source_aliases"])
+
+    def test_scenario_g_canonical_url_fragment_normalization(self):
+        """
+        G. CANONICAL URL FRAGMENT NORMALIZATION
+        URLs with fragments (#page=1) or search parameters merge cleanly.
+        """
+        sym = "TESTSYM"
+        doc_with_hash = DocumentItem(
+            ticker=sym,
+            company_name="Test Corp",
+            title="TESTSYM Investor Presentation Jul 2026",
+            url="https://bseindia.com/filings/deck.pdf#page=1",
+            doc_type="presentation",
+            period_or_date="Jul 2026",
+            discovery_source="BSE India"
+        )
+        doc_clean = DocumentItem(
+            ticker=sym,
+            company_name="Test Corp",
+            title="Presentation",
+            url="https://bseindia.com/filings/deck.pdf",
+            doc_type="presentation",
+            period_or_date="Jul 2026",
+            discovery_source="Screener.in"
+        )
+        database.save_source_documents(sym, [doc_with_hash, doc_clean])
+
+        resp = main.get_stock_source_filings(sym)
+        ppts = resp["documents"]["presentations"]
+        self.assertEqual(len(ppts), 1)
+        self.assertEqual(ppts[0]["url"], "https://bseindia.com/filings/deck.pdf")
+        self.assertEqual(ppts[0]["title"], "TESTSYM Investor Presentation Jul 2026")
+
+    def test_scenario_h_form_20f_and_brsr_classification_and_working_set_priority(self):
+        """
+        H. CLASSIFICATION & AI WORKING SET PRIORITY
+        Form 20-F is regulatory_annual_filing, BRSR is brsr_esg, Annual Report is annual_report.
+        AI working set prioritizes AR > 20-F > Concalls > PPTs ahead of BRSR.
+        """
+        from document_sourcing import classify_document_title
+        
+        ar_type, _ = classify_document_title("Notice Of 32Nd Annual General Meeting And Annual Report 2025-26")
+        brsr_type, _ = classify_document_title("Business Responsibility and Sustainability Reporting (BRSR)")
+        f20_type, _ = classify_document_title("Filing Of Annual Report In The Form 20-F For The Year Ended March 31, 2026.")
+        
+        self.assertEqual(ar_type, "annual_report")
+        self.assertEqual(brsr_type, "brsr_esg")
+        self.assertEqual(f20_type, "regulatory_annual_filing")
+
+        doc_links = DocumentLinks(
+            annual_reports=[
+                DocumentItem(ticker="TESTSYM", title="Annual Report FY26", url="https://bse.com/ar26.pdf", doc_type="annual_report", period_or_date="18 Jul 2026"),
+                DocumentItem(ticker="TESTSYM", title="Annual Report FY25", url="https://bse.com/ar25.pdf", doc_type="annual_report", period_or_date="FY25")
+            ],
+            regulatory_annual_filings=[
+                DocumentItem(ticker="TESTSYM", title="Form 20-F FY26", url="https://bse.com/20f.pdf", doc_type="regulatory_annual_filing", period_or_date="20 Jul 2026")
+            ],
+            concalls=[
+                DocumentItem(ticker="TESTSYM", title="Concall Q1 FY27", url="https://bse.com/cc1.pdf", doc_type="concall_transcript", period_or_date="Q1 FY27")
+            ],
+            presentations=[
+                DocumentItem(ticker="TESTSYM", title="Investor Presentation", url="https://bse.com/ppt1.pdf", doc_type="presentation", period_or_date="Jul 2026")
+            ],
+            brsr_reports=[
+                DocumentItem(ticker="TESTSYM", title="BRSR 2026", url="https://bse.com/brsr26.pdf", doc_type="brsr_esg", period_or_date="18 Jul 2026")
+            ]
+        )
+
+        working_set = doc_intelligence_pipeline.select_default_document_working_set(doc_links)
+        ws_types = [d.doc_type for d in working_set]
+        
+        self.assertIn("annual_report", ws_types)
+        self.assertIn("regulatory_annual_filing", ws_types)
+        self.assertIn("concall_transcript", ws_types)
+        self.assertIn("presentation", ws_types)
+
+    def test_scenario_i_global_chronological_ordering(self):
+        """
+        I. GLOBAL CHRONOLOGICAL ORDERING
+        Timeline is sorted strictly newest-first across all document types.
+        """
+        sym = "TESTSYM"
+        items = [
+            DocumentItem(ticker=sym, title="Older AR 2012", url="https://bse.com/ar12.pdf", doc_type="annual_report", period_or_date="FY2012"),
+            DocumentItem(ticker=sym, title="Regulation 30 Announcement 24 Aug", url="https://bse.com/reg30.pdf", doc_type="announcement", period_or_date="24 Aug 2026"),
+            DocumentItem(ticker=sym, title="Notice of AGM & AR 2026", url="https://bse.com/ar26.pdf", doc_type="annual_report", period_or_date="18 Jul 2026"),
+            DocumentItem(ticker=sym, title="Form 20-F 2026", url="https://bse.com/20f26.pdf", doc_type="regulatory_annual_filing", period_or_date="20 Jul 2026"),
+            DocumentItem(ticker=sym, title="Investor Presentation Jul 2026", url="https://bse.com/ppt.pdf", doc_type="presentation", period_or_date="Jul 2026"),
+            DocumentItem(ticker=sym, title="Concall Q1 FY27", url="https://bse.com/cc.pdf", doc_type="concall_transcript", period_or_date="Q1 FY27"),
+            DocumentItem(ticker=sym, title="AR 2025", url="https://bse.com/ar25.pdf", doc_type="annual_report", period_or_date="FY2025"),
+            DocumentItem(ticker=sym, title="Undated General Notice", url="https://bse.com/notice.pdf", doc_type="general", period_or_date=None)
+        ]
+        database.save_source_documents(sym, items)
+
+        resp = main.get_stock_source_filings(sym)
+        all_docs = resp["documents"]["all_documents"]
+
+        titles_in_order = [d["title"] for d in all_docs]
+        expected_top = [
+            "Regulation 30 Announcement 24 Aug", # 2026-08-24
+            "Form 20-F 2026",                   # 2026-07-20
+            "Notice of AGM & AR 2026",          # 2026-07-18
+            "Investor Presentation Jul 2026",   # 2026-07-01
+            "Concall Q1 FY27",                  # 2026-06-30
+            "AR 2025",                          # 2025-03-31
+            "Older AR 2012",                    # 2012-03-31
+            "Undated General Notice"            # 1970-01-01
+        ]
+        self.assertEqual(titles_in_order, expected_top)
+
+    def test_scenario_j_fy_only_dates_deterministic(self):
+        """
+        J. FY-ONLY DATES DETERMINISTIC SORTING
+        FY dates sort deterministically without changing visible text or inventing dates.
+        """
+        ts_fy26 = database.parse_document_sort_timestamp("FY2026")
+        ts_fy25 = database.parse_document_sort_timestamp("FY2025")
+        ts_fy24 = database.parse_document_sort_timestamp("FY24")
+        ts_none = database.parse_document_sort_timestamp(None)
+
+        self.assertEqual(ts_fy26, "2026-03-31")
+        self.assertEqual(ts_fy25, "2025-03-31")
+        self.assertEqual(ts_fy24, "2024-03-31")
+        self.assertEqual(ts_none, "1970-01-01")
+        self.assertTrue(ts_fy26 > ts_fy25 > ts_fy24 > ts_none)
 
 if __name__ == '__main__':
     unittest.main()

@@ -31,3 +31,4 @@ backend/data/doc_intelligence_generated/
 # Build Outputs
 dist/
 frontend/dist/
+*.tsbuildinfo

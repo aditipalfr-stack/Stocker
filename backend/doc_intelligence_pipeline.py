@@ -203,15 +203,19 @@ format_audited_financials_for_prompt = format_financials_for_prompt
 
 def select_default_document_working_set(documents: DocumentLinks) -> List[DocumentItem]:
     """
-    Selects the standard visible/default document history:
-    - Annual Reports: latest 3 financial years
-    - Concall Transcripts: latest 6 quarters
-    - Investor Presentations: latest 6 quarters
-    - Material Announcements: latest 12 months (up to 8 material items, filtering routine procedural notices)
+    Selects the standard visible/default document history according to Stocker priority:
+    1. Latest Annual Reports (up to 3 financial years)
+    2. Regulatory Annual Filings (e.g. 20-F, up to 2 filings)
+    3. Concall Transcripts (latest 6 quarters)
+    4. Investor Presentations (latest 6 quarters)
+    5. Material Announcements (up to 8 material items, filtering routine procedural notices)
+    6. BRSR / ESG (up to 1, if slots available)
     """
     selected: List[DocumentItem] = []
     if documents.annual_reports:
         selected.extend(documents.annual_reports[:3])
+    if getattr(documents, "regulatory_annual_filings", None):
+        selected.extend(documents.regulatory_annual_filings[:2])
     if documents.concalls:
         selected.extend(documents.concalls[:6])
     if documents.presentations:
@@ -224,6 +228,8 @@ def select_default_document_working_set(documents: DocumentLinks) -> List[Docume
             if not any(r in t_lower for r in ["loss of share", "duplicate share", "trading window", "newspaper publication"]):
                 material_only.append(ann)
         selected.extend(material_only[:8] if material_only else documents.material_announcements[:8])
+    if getattr(documents, "brsr_reports", None):
+        selected.extend(documents.brsr_reports[:1])
     return selected
 
 def fetch_historical_evidence_document(
@@ -524,14 +530,20 @@ def run_multi_document_ai_pipeline(
     print(f"  Selected working set: {len(candidate_docs)} documents")
 
     # 2. Identify primary latest and baseline documents
-    latest_ar = next((d for d in candidate_docs if d.doc_type == "annual_report"), candidate_docs[0])
-    older_ar = historical_baseline_doc or (documents.annual_reports[1] if len(documents.annual_reports) > 1 else None)
+    latest_ar = next((d for d in candidate_docs if d.doc_type == "annual_report"), None)
+    if not latest_ar:
+        latest_ar = next((d for d in candidate_docs if d.doc_type == "regulatory_annual_filing"), candidate_docs[0])
+        
+    older_ar = historical_baseline_doc
+    if not older_ar:
+        ar_candidates = [d for d in documents.annual_reports if getattr(d, "doc_key", None) != getattr(latest_ar, "doc_key", None) and d.url != latest_ar.url]
+        older_ar = ar_candidates[0] if ar_candidates else None
     
     # Auto-retrieve historical baseline for Promise vs Delivery if only 1 AR was in working set
-    if not older_ar or older_ar.url == latest_ar.url:
+    if not older_ar or older_ar.url == latest_ar.url or getattr(older_ar, "doc_key", None) == getattr(latest_ar, "doc_key", None):
         for target_yr in ["FY23", "FY22", "FY21"]:
             older_doc = fetch_historical_evidence_document(clean_sym, "annual_report", target_yr, all_available_documents=documents, company_name=company_name)
-            if older_doc and older_doc.url != latest_ar.url:
+            if older_doc and older_doc.url != latest_ar.url and getattr(older_doc, "doc_key", None) != getattr(latest_ar, "doc_key", None):
                 older_ar = older_doc
                 if older_ar.url not in [d.url for d in candidate_docs]:
                     candidate_docs.append(older_ar)
@@ -543,13 +555,24 @@ def run_multi_document_ai_pipeline(
     older_doc_url = older_ar.url if older_ar else None
 
     # 3. Tier 1: Generate or retrieve Per-Document AI Summaries (Cached in SQLite)
-    # Focus initial LLM summarization on top core filings to prevent HTTP 429 rate limits
+    # Focus initial LLM summarization on top core filings according to Stocker priority:
     core_docs_for_summary: List[DocumentItem] = []
     if latest_ar: core_docs_for_summary.append(latest_ar)
-    if older_ar and older_ar.url != latest_doc_url: core_docs_for_summary.append(older_ar)
+    if older_ar and older_ar.url != latest_doc_url and getattr(older_ar, "doc_key", None) != getattr(latest_ar, "doc_key", None):
+        core_docs_for_summary.append(older_ar)
+    # Regulatory 20-F filing if distinct
+    reg_20f = next((d for d in candidate_docs if d.doc_type == "regulatory_annual_filing" and getattr(d, "doc_key", None) != getattr(latest_ar, "doc_key", None)), None)
+    if reg_20f and getattr(reg_20f, "doc_key", None) not in [getattr(d, "doc_key", None) for d in core_docs_for_summary]:
+        core_docs_for_summary.append(reg_20f)
+    # Concalls (latest 2)
     core_docs_for_summary.extend([d for d in candidate_docs if d.doc_type == "concall_transcript"][:2])
+    # Presentation (latest 1)
     core_docs_for_summary.extend([d for d in candidate_docs if d.doc_type == "presentation"][:1])
+    # Announcements (latest 2)
     core_docs_for_summary.extend([d for d in candidate_docs if d.doc_type == "announcement"][:2])
+    # BRSR only if slots available (lower priority than 20-F, concalls, PPTs)
+    if len(core_docs_for_summary) < 7:
+        core_docs_for_summary.extend([d for d in candidate_docs if d.doc_type == "brsr_esg"][:1])
     
     # Deduplicate core docs
     seen_summary_keys = set()

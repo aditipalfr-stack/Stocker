@@ -57,6 +57,8 @@ export interface DocumentItem {
   doc_type: string;
   period_or_date?: string | null;
   discovery_source: string;
+  discovered_sources?: string[];
+  source_aliases?: string[];
   actual_source_host: string;
   actual_source_url: string;
   is_direct_pdf: boolean;
@@ -67,6 +69,7 @@ export interface DocumentItem {
   doc_key?: string | null;
   ai_status?: 'AI_ANALYZED' | 'NOT_SELECTED' | 'PROCESSING_FAILED' | 'NOT_ANALYZED_YET' | null;
   ai_failure_reason?: string | null;
+  sort_timestamp?: string | null;
 }
 
 export interface DocumentDiscoveryDiagnostics {
@@ -86,9 +89,13 @@ export interface DocumentDiscoveryDiagnostics {
 
 export interface DocumentLinks {
   annual_reports: DocumentItem[];
+  regulatory_annual_filings?: DocumentItem[];
   concalls: DocumentItem[];
   presentations: DocumentItem[];
   material_announcements?: DocumentItem[];
+  brsr_reports?: DocumentItem[];
+  other_filings?: DocumentItem[];
+  all_documents?: DocumentItem[];
   diagnostics?: DocumentDiscoveryDiagnostics | null;
   checked_at?: string | null;
 }
