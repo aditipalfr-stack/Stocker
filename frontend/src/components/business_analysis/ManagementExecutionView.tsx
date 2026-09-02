@@ -150,7 +150,7 @@ export const ManagementExecutionView: React.FC<ManagementExecutionViewProps> = (
                     {managementGuidance.length} tracked items
                   </span>
                 </h4>
-                <p className="text-xs text-slate-400">Deterministic code comparison against audited financial statements and verified milestones</p>
+                <p className="text-xs text-slate-400">Deterministic code comparison against standardized financial statements and verified milestones</p>
               </div>
             </div>
           </div>

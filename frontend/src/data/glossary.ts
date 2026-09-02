@@ -502,8 +502,9 @@ const glossarySeeds = {
     title: 'ROCE',
     meaning: 'Return on capital employed measures operating returns from the long-term capital in the business.',
     whyItMatters: 'It helps judge whether a company creates good returns from both equity and debt capital.',
-    formula: 'Operating profit after tax ÷ Capital employed × 100',
+    formula: 'EBIT ÷ Capital Employed × 100',
     howStockerUses: 'Stocker uses ROCE as a capital-efficiency signal where the business model supports it.',
+    financialBusinessNote: 'ROCE is not a primary analytical metric for banks; use ROA, ROE, NIM, asset quality and capital metrics instead.',
     aliases: ['return on capital employed']
   },
   working_capital: {

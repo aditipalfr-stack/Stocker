@@ -85,6 +85,12 @@ from doc_intelligence_models import (
 )
 
 from datetime import datetime, timezone
+import hashlib
+
+# Explicit Extraction & Synthesis Prompt/Schema Versioning
+EXTRACTION_SCHEMA_VERSION = "4.4"
+EXTRACTION_PROMPT_VERSION = "4.4.1"
+COMPANY_SYNTHESIS_PROMPT_VERSION = "4.4.1"
 
 ANNUAL_REPORT_SUMMARY_PROMPT = """You are an institutional fundamental equity analyst extracting an executive summary from a company Annual Report.
 Focus strictly on:
@@ -659,6 +665,9 @@ OFFICIAL URL: {doc_url}
     else:
         target_prompt = ANNOUNCEMENT_SUMMARY_PROMPT
 
+    raw_pages_text = "".join(text for _, text in pages) if pages else ""
+    content_hash = hashlib.sha256(raw_pages_text.encode("utf-8")).hexdigest()
+
     try:
         if provider == "gemini":
             raw_json, used_model = call_gemini_api(api_key, prompt, system_prompt=target_prompt)
@@ -672,6 +681,12 @@ OFFICIAL URL: {doc_url}
         summary["period_or_date"] = period_or_date
         summary["model_version"] = used_model
         summary["ai_provider"] = f"{provider.upper()} ({used_model})"
+        summary["provider"] = provider.upper()
+        summary["model"] = used_model
+        summary["content_hash"] = content_hash
+        summary["extraction_schema_version"] = EXTRACTION_SCHEMA_VERSION
+        summary["extraction_prompt_version"] = EXTRACTION_PROMPT_VERSION
+        summary["cache_status"] = "NEWLY_EXTRACTED"
         summary["analyzed_at"] = datetime.now(timezone.utc).isoformat()
         
         # Enrich and persist extracted knowledge facts
@@ -702,6 +717,24 @@ OFFICIAL URL: {doc_url}
             except Exception as e_db:
                 print(f"Notice: Could not persist knowledge facts for {doc_title}: {e_db}")
                 
+        # Persist single document summary in SQLite with provenance
+        try:
+            database.save_document_summary(
+                symbol=symbol,
+                doc_url=doc_url,
+                doc_title=doc_title,
+                summary_data=summary,
+                doc_type=doc_type,
+                period_or_date=period_or_date,
+                content_hash=content_hash,
+                extraction_schema_version=EXTRACTION_SCHEMA_VERSION,
+                extraction_prompt_version=EXTRACTION_PROMPT_VERSION,
+                provider=provider.upper(),
+                model=used_model
+            )
+        except Exception as e_save:
+            print(f"Notice: Could not cache document summary for {doc_title}: {e_save}")
+            
         return summary
     except AIServiceError:
         # A provider outage should stop this run instead of being retried once per document.
@@ -973,7 +1006,7 @@ def sanitize_and_verify_intelligence_result(
                     sanitized_risks.append(r_item)
             result.risks_and_cash.risk_items = sanitized_risks
 
-    # 6. StockerView: Prohibit AI Investment Recommendations
+    # 6. StockerView: Prohibit AI Investment Recommendations & Enforce Risk Register Authority
     if result.stocker_view:
         s_summary = result.stocker_view.investor_summary or ""
         for prohibited in ["Buy", "Strong Buy", "Sell", "Strong Sell", "Hold"]:
@@ -981,6 +1014,26 @@ def sanitize_and_verify_intelligence_result(
         result.stocker_view.investor_summary = s_summary.strip()
         if not result.stocker_view.evidence_confidence:
             result.stocker_view.evidence_confidence = "High"
+
+        # Hero Critical Risks strictly derived from validated risk register
+        if result.risks_and_cash and getattr(result.risks_and_cash, "risk_items", None):
+            hero_risks = []
+            for r in result.risks_and_cash.risk_items:
+                r_dict = r if isinstance(r, dict) else (r.model_dump() if hasattr(r, "model_dump") else {})
+                t = r_dict.get("risk_title")
+                d = r_dict.get("description") or ""
+                if t:
+                    hero_risks.append(f"{t}: {d}".strip(" :"))
+            result.stocker_view.main_risks = hero_risks
+        else:
+            result.stocker_view.main_risks = []
+
+        # Deterministic Fail-Closed Execution Verdict
+        if result.promise_vs_delivery:
+            from financial_engine import compute_fail_closed_execution_verdict
+            result.stocker_view.execution_verdict = compute_fail_closed_execution_verdict(result.promise_vs_delivery)
+        else:
+            result.stocker_view.execution_verdict = "Insufficient History"
 
     # 6. Integrated Persistent Company Knowledge & Triangulation Layer
     all_facts: List[Dict[str, Any]] = []

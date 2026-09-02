@@ -79,6 +79,13 @@ export interface DocumentItem {
   ai_status?: 'AI_ANALYZED' | 'NOT_SELECTED' | 'PROCESSING_FAILED' | 'NOT_ANALYZED_YET' | null;
   ai_failure_reason?: string | null;
   sort_timestamp?: string | null;
+  materiality_score?: number | null;
+  materiality_level?: 'HIGH' | 'MEDIUM' | 'ROUTINE' | null;
+  materiality_reason?: string | null;
+  content_hash?: string | null;
+  extraction_schema_version?: string | null;
+  extraction_prompt_version?: string | null;
+  cache_status?: 'CACHED_CURRENT' | 'LEGACY_STALE' | 'NEWLY_EXTRACTED' | null;
 }
 
 export interface DocumentDiscoveryDiagnostics {
@@ -719,6 +726,13 @@ export interface DocumentSummaryItem {
   concall_specific?: ConcallSpecificSummary | null;
   presentation_specific?: PresentationSpecificSummary | null;
   announcement_specific?: AnnouncementSpecificSummary | null;
+  
+  content_hash?: string | null;
+  extraction_schema_version?: string | null;
+  extraction_prompt_version?: string | null;
+  provider?: string | null;
+  model?: string | null;
+  cache_status?: 'CACHED_CURRENT' | 'LEGACY_STALE' | 'NEWLY_EXTRACTED' | null;
 }
 
 export interface SourceDocumentReference {

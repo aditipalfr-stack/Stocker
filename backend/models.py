@@ -74,6 +74,13 @@ class DocumentItem(BaseModel):
     selection_reason: Optional[str] = None
     ai_status: Optional[str] = None # "AI_ANALYZED", "NOT_SELECTED", "PROCESSING_FAILED", "NOT_ANALYZED_YET"
     ai_failure_reason: Optional[str] = None
+    materiality_score: Optional[int] = None
+    materiality_level: Optional[str] = None # "HIGH", "MEDIUM", "ROUTINE"
+    materiality_reason: Optional[str] = None
+    content_hash: Optional[str] = None
+    extraction_schema_version: Optional[str] = None
+    extraction_prompt_version: Optional[str] = None
+    cache_status: Optional[str] = None # "CACHED_CURRENT", "LEGACY_STALE", "NEWLY_EXTRACTED"
     discovered_sources: List[str] = []
     source_aliases: List[str] = []
     sort_timestamp: Optional[str] = None

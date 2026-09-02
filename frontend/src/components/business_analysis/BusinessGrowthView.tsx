@@ -5,13 +5,16 @@ import {
   ExternalLink, ShieldCheck, Target, BarChart3, Building
 } from 'lucide-react';
 import { DataOriginBadge } from '../ui/DataOriginBadge';
+import { ConceptHelp } from '../ui/ConceptHelp';
 
 interface BusinessGrowthViewProps {
   docIntel: BusinessAnalysisIntelligence;
   companyName: string;
+  businessModel?: string;
 }
 
-export const BusinessGrowthView: React.FC<BusinessGrowthViewProps> = ({ docIntel, companyName }) => {
+export const BusinessGrowthView: React.FC<BusinessGrowthViewProps> = ({ docIntel, companyName, businessModel }) => {
+  const isBank = (docIntel as any)?.financial_business_model === 'BANK' || businessModel === 'BANK';
   const bzQuality = docIntel.business_quality;
   const compPos = docIntel.competitive_position;
   const demandMomentum = docIntel.demand_momentum;
@@ -33,14 +36,16 @@ export const BusinessGrowthView: React.FC<BusinessGrowthViewProps> = ({ docIntel
                 <span>Business Model & Monetization Architecture</span>
                 <DataOriginBadge origin="ai_interpretation" />
               </h4>
-              <p className="text-xs text-slate-400">Core value proposition, revenue streams, and customer engagement</p>
+              <p className="text-xs text-slate-400">
+                {isBank ? 'Core banking franchise, interest spread engine, fee income, and customer verticals' : 'Core value proposition, revenue streams, and customer engagement'}
+              </p>
             </div>
           </div>
         </div>
 
         <div className="bg-slate-950 p-5 rounded-2xl border border-slate-800 space-y-3">
           <p className="text-sm text-slate-200 leading-relaxed">
-            {bzQuality?.business_model_summary || `${companyName} generates revenue across core operational segments, monetizing through contractual volumes, customer subscriptions, and ongoing value-added services.`}
+            {bzQuality?.business_model_summary || `Detailed business model description not yet extracted. Review official filings or trigger live analysis.`}
           </p>
         </div>
 
@@ -52,7 +57,7 @@ export const BusinessGrowthView: React.FC<BusinessGrowthViewProps> = ({ docIntel
             <div className="flex items-center justify-between border-b border-slate-800/80 pb-2.5">
               <span className="text-xs font-bold text-slate-200 flex items-center gap-1.5">
                 <Layers className="w-3.5 h-3.5 text-cyan-400" />
-                <span>Segment Revenue Breakdown</span>
+                <span>{isBank ? 'Segment / Vertical Breakdown' : 'Segment Revenue Breakdown'}</span>
               </span>
               <span className="text-[10px] text-slate-500 font-mono">Reported Mix</span>
             </div>
@@ -69,7 +74,7 @@ export const BusinessGrowthView: React.FC<BusinessGrowthViewProps> = ({ docIntel
                 ))}
               </div>
             ) : (
-              <p className="text-xs text-slate-400 italic">Segment mix synthesized from core operational verticals in filings.</p>
+              <p className="text-xs text-slate-400 italic">No segment revenue breakdown extracted from filings.</p>
             )}
           </div>
 
@@ -95,7 +100,7 @@ export const BusinessGrowthView: React.FC<BusinessGrowthViewProps> = ({ docIntel
                 ))}
               </div>
             ) : (
-              <p className="text-xs text-slate-400 italic">Broad domestic and international footprint across core operational regions.</p>
+              <p className="text-xs text-slate-400 italic">No regional / geographical revenue breakdown extracted from filings.</p>
             )}
           </div>
 
@@ -111,10 +116,12 @@ export const BusinessGrowthView: React.FC<BusinessGrowthViewProps> = ({ docIntel
             </div>
             <div>
               <h4 className="text-base font-bold text-white flex items-center gap-2">
-                <span>Demand Momentum, Volumes & Order Book</span>
+                <span>{isBank ? 'Banking Growth & Operating Momentum' : 'Demand Momentum, Volumes & Order Book'}</span>
                 <DataOriginBadge origin="ai_interpretation" />
               </h4>
-              <p className="text-xs text-slate-400">Order pipeline, volume growth, capacity utilization, and client demand indicators</p>
+              <p className="text-xs text-slate-400">
+                {isBank ? 'Loan and deposit momentum, CASA evolution, retail/corporate mix, and underwriting volume indicators' : 'Order pipeline, volume growth, capacity utilization, and client demand indicators'}
+              </p>
             </div>
           </div>
         </div>
@@ -131,7 +138,7 @@ export const BusinessGrowthView: React.FC<BusinessGrowthViewProps> = ({ docIntel
             <div className="bg-slate-950 p-5 rounded-2xl border border-slate-800 space-y-3">
               <h5 className="text-xs font-bold text-slate-300 uppercase tracking-wider flex items-center gap-2">
                 <Activity className="w-3.5 h-3.5 text-cyan-400" />
-                <span>Key Operational Volume Indicators</span>
+                <span>{isBank ? 'Core Banking Volume Indicators' : 'Key Operational Volume Indicators'}</span>
               </h5>
               <div className="space-y-2">
                 {demandMomentum.company_specific_metrics.map((m, idx) => (
@@ -148,7 +155,7 @@ export const BusinessGrowthView: React.FC<BusinessGrowthViewProps> = ({ docIntel
             <div className="bg-slate-950 p-5 rounded-2xl border border-slate-800 space-y-3">
               <h5 className="text-xs font-bold text-slate-300 uppercase tracking-wider flex items-center gap-2">
                 <BarChart3 className="w-3.5 h-3.5 text-emerald-400" />
-                <span>Segment Growth Trajectories</span>
+                <span>{isBank ? 'Vertical Growth Trajectories' : 'Segment Growth Trajectories'}</span>
               </h5>
               <div className="space-y-2">
                 {demandMomentum.segment_trends.map((s, idx) => (
@@ -172,12 +179,14 @@ export const BusinessGrowthView: React.FC<BusinessGrowthViewProps> = ({ docIntel
             </div>
             <div>
               <h4 className="text-base font-bold text-white flex items-center gap-2">
-                <span>Operational KPI Evolution (Multi-Filing Time Series)</span>
+                <span>{isBank ? 'Bank KPI Evolution (Multi-Filing Time Series)' : 'Operational KPI Evolution (Multi-Filing Time Series)'}</span>
                 <span className="bg-slate-900 text-amber-400 text-[10px] font-mono font-bold px-2 py-0.5 rounded-full border border-slate-800">
                   {kpiEvolution.length} tracked KPIs
                 </span>
               </h4>
-              <p className="text-xs text-slate-400">Chronological trajectory of core non-financial volume, capacity, and operational metrics</p>
+              <p className="text-xs text-slate-400">
+                {isBank ? 'Chronological trajectory of NIM, Asset Quality (GNPA/NNPA), Credit Cost, CASA, and Capital Adequacy' : 'Chronological trajectory of core non-financial volume, capacity, and operational metrics'}
+              </p>
             </div>
           </div>
         </div>
@@ -190,11 +199,16 @@ export const BusinessGrowthView: React.FC<BusinessGrowthViewProps> = ({ docIntel
                 kpi.trajectory === 'Contracting' || kpi.trajectory === 'Deteriorating' ? 'bg-rose-500/10 text-rose-400 border-rose-500/20' :
                 'bg-amber-500/10 text-amber-400 border-amber-500/20';
 
+              const isNim = kpi.metric_name.toLowerCase().includes('nim') || kpi.metric_name.toLowerCase().includes('net interest margin');
+
               return (
                 <div key={idx} className="bg-slate-950 p-5 rounded-2xl border border-slate-800 space-y-4 hover:border-slate-700 transition-all">
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-900 pb-3">
                     <div className="flex items-center gap-2.5">
-                      <span className="text-sm font-bold text-white">{kpi.metric_name}</span>
+                      <span className="text-sm font-bold text-white flex items-center gap-1.5">
+                        <span>{kpi.metric_name}</span>
+                        {isNim && <ConceptHelp term="nim" businessModel="BANK" />}
+                      </span>
                       <span className={`text-[10px] font-semibold px-2.5 py-0.5 rounded-full border ${trajBg}`}>
                         {kpi.trajectory}
                       </span>
@@ -232,12 +246,12 @@ export const BusinessGrowthView: React.FC<BusinessGrowthViewProps> = ({ docIntel
           </div>
         ) : (
           <div className="bg-slate-950/60 p-6 rounded-2xl border border-slate-800 text-center text-xs text-slate-400">
-            No inter-document operational KPI trends compiled yet. Run live AI analysis to extract chronological series.
+            {isBank ? 'No bank KPI trends compiled yet with ≥ 2 comparable periods.' : 'No inter-document operational KPI trends compiled yet with ≥ 2 comparable periods.'}
           </div>
         )}
       </div>
 
-      {/* 4. Capacity Expansion, Capex & Growth Pipeline */}
+      {/* 4. Structural Growth Drivers & Strategic Initiatives */}
       <div className="glass-panel rounded-3xl p-6 md:p-8 border border-slate-800 space-y-6">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-800 pb-4">
           <div className="flex items-center gap-3">
@@ -246,12 +260,14 @@ export const BusinessGrowthView: React.FC<BusinessGrowthViewProps> = ({ docIntel
             </div>
             <div>
               <h4 className="text-base font-bold text-white flex items-center gap-2">
-                <span>Capacity Expansion, Capex & Growth Pipeline</span>
+                <span>{isBank ? 'Structural Growth Drivers & Strategic Initiatives' : 'Capacity Expansion, Capex & Growth Pipeline'}</span>
                 <span className="bg-slate-900 text-cyan-400 text-[10px] font-mono font-bold px-2 py-0.5 rounded-full border border-slate-800">
                   {growthDrivers.length} initiatives
                 </span>
               </h4>
-              <p className="text-xs text-slate-400">Upcoming plant additions, product launches, acquisitions, and strategic capital outlays</p>
+              <p className="text-xs text-slate-400">
+                {isBank ? 'Branch expansion, digital banking platforms, technology outlays, and product line expansion' : 'Upcoming plant additions, product launches, acquisitions, and strategic capital outlays'}
+              </p>
             </div>
           </div>
         </div>
@@ -311,7 +327,7 @@ export const BusinessGrowthView: React.FC<BusinessGrowthViewProps> = ({ docIntel
           </div>
         ) : (
           <div className="bg-slate-950/60 p-6 rounded-2xl border border-slate-800 text-center text-xs text-slate-400">
-            No specific capacity expansion roadmaps extracted yet.
+            {isBank ? 'No specific strategic growth initiatives extracted yet.' : 'No specific capacity expansion roadmaps extracted yet.'}
           </div>
         )}
       </div>

@@ -86,10 +86,17 @@ def init_db() -> None:
                     symbol TEXT NOT NULL,
                     doc_title TEXT NOT NULL,
                     summary_json TEXT NOT NULL,
-                    generated_at TEXT NOT NULL
+                    generated_at TEXT NOT NULL,
+                    doc_key TEXT,
+                    content_hash TEXT,
+                    extraction_schema_version TEXT,
+                    extraction_prompt_version TEXT,
+                    provider TEXT,
+                    model TEXT
                 );
             """)
             conn.execute("CREATE INDEX IF NOT EXISTS idx_summaries_symbol ON ai_document_summaries(symbol);")
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_summaries_key ON ai_document_summaries(doc_key);")
 
             # 5. Full Institutional AI Synthesis & Analysis Provenance
             conn.execute("""
@@ -415,13 +422,24 @@ def init_db() -> None:
             except Exception:
                 pass
 
-            # Safe schema migration for ai_document_summaries.doc_key
+            # Safe schema migration for ai_document_summaries provenance columns
             try:
                 cur = conn.cursor()
                 sums_cols = {r[1] for r in cur.execute("PRAGMA table_info(ai_document_summaries);").fetchall()}
-                if sums_cols and "doc_key" not in sums_cols:
-                    conn.execute("ALTER TABLE ai_document_summaries ADD COLUMN doc_key TEXT;")
-                    conn.execute("CREATE INDEX IF NOT EXISTS idx_summaries_key ON ai_document_summaries(doc_key);")
+                if sums_cols:
+                    if "doc_key" not in sums_cols:
+                        conn.execute("ALTER TABLE ai_document_summaries ADD COLUMN doc_key TEXT;")
+                        conn.execute("CREATE INDEX IF NOT EXISTS idx_summaries_key ON ai_document_summaries(doc_key);")
+                    if "content_hash" not in sums_cols:
+                        conn.execute("ALTER TABLE ai_document_summaries ADD COLUMN content_hash TEXT;")
+                    if "extraction_schema_version" not in sums_cols:
+                        conn.execute("ALTER TABLE ai_document_summaries ADD COLUMN extraction_schema_version TEXT;")
+                    if "extraction_prompt_version" not in sums_cols:
+                        conn.execute("ALTER TABLE ai_document_summaries ADD COLUMN extraction_prompt_version TEXT;")
+                    if "provider" not in sums_cols:
+                        conn.execute("ALTER TABLE ai_document_summaries ADD COLUMN provider TEXT;")
+                    if "model" not in sums_cols:
+                        conn.execute("ALTER TABLE ai_document_summaries ADD COLUMN model TEXT;")
             except Exception:
                 pass
     finally:
@@ -724,11 +742,11 @@ def derive_document_subtype(doc_type: str, title: str = "") -> str:
             return "analyst_investor_transcript"
         return "earnings_transcript"
     if norm_dt == "presentation":
-        if "earnings" in t_clean:
-            return "earnings_presentation"
-        if "investor" in t_clean or "analyst" in t_clean or "agm" in t_clean:
-            return "investor_presentation"
-        return "other_presentation"
+        if any(k in t_clean for k in ["agm", "annual general meeting", "general meeting"]):
+            return "agm_presentation"
+        if any(k in t_clean for k in ["investor day", "analyst meet", "analyst day", "strategy presentation", "thematic"]):
+            return "investor_day_presentation"
+        return "earnings_presentation"
     if norm_dt == "announcement":
         if "board meeting" in t_clean or "outcome" in t_clean:
             return "board_outcome"
@@ -740,6 +758,45 @@ def derive_document_subtype(doc_type: str, title: str = "") -> str:
             return "press_release"
         return "material_disclosure"
     return "general_filing"
+
+def derive_announcement_event_key(symbol: str, title: str, period_or_date: Optional[str] = None) -> str:
+    """
+    Computes a deterministic canonical event key for announcements to suppress
+    near-duplicate disclosure wrappers for the same underlying material event.
+    """
+    clean_sym = symbol.upper().strip()
+    t_clean = (title or "").lower().strip()
+    p_clean = (period_or_date or "").strip()
+    
+    # 1. Credit Rating Action (e.g. CRISIL, ICRA, CARE, India Ratings)
+    if "rating" in t_clean or "credit rating" in t_clean:
+        agency = "rating"
+        for ag in ["crisil", "icra", "care", "india ratings", "fitch", "moody", "s&p", "brickwork"]:
+            if ag in t_clean:
+                agency = ag.replace(" ", "_")
+                break
+        m_date = re.search(r'\b(20\d\d[-/]\d{2}(?:[-/]\d{2})?)\b', p_clean or t_clean)
+        d_part = m_date.group(1) if m_date else p_clean[:7]
+        return f"ANN_EVENT_{clean_sym}_RATING_{agency}_{d_part}"
+
+    # 2. Debt / Bond / NCD Issuance
+    if any(k in t_clean for k in ["bond", "ncd", "debenture", "senior notes", "commercial paper", "issuance"]):
+        m_date = re.search(r'\b(20\d\d[-/]\d{2}(?:[-/]\d{2})?)\b', p_clean or t_clean)
+        d_part = m_date.group(1) if m_date else p_clean[:7]
+        return f"ANN_EVENT_{clean_sym}_DEBT_ISSUE_{d_part}"
+
+    # 3. Dividend / AGM Outcome
+    if "dividend" in t_clean or "agm" in t_clean:
+        return f"ANN_EVENT_{clean_sym}_DIVIDEND_AGM_{p_clean[:7]}"
+
+    # 4. Board Meeting Outcome / Results
+    if "board meeting" in t_clean or "outcome of" in t_clean:
+        m_date = re.search(r'\b(\d{1,2}\s+[A-Za-z]{3}\s+20\d\d)\b', p_clean or t_clean)
+        d_part = m_date.group(1) if m_date else p_clean[:10]
+        return f"ANN_EVENT_{clean_sym}_BOARD_MEETING_{d_part.replace(' ', '_')}"
+
+    # Default: each distinct title/date combination remains distinct
+    return f"ANN_EVENT_{clean_sym}_{hashlib.md5(f'{t_clean}_{p_clean}'.encode()).hexdigest()[:10]}"
 
 def extract_normalized_fiscal_year(period_or_date: Optional[str], title: str = "") -> str:
     """Extracts a normalized fiscal year key (e.g. FY2026, FY2025) from filing date or title."""
@@ -1063,9 +1120,11 @@ def deduplicate_document_records(documents: List[Any], symbol: str) -> List[Dict
                 if s and s not in existing["discovered_sources"]:
                     existing["discovered_sources"].append(s)
                     
-            # Record alias if title is different
+            # Record alias if title or URL is different
             if raw_title and raw_title != existing["title"] and raw_title not in existing["source_aliases"]:
                 existing["source_aliases"].append(raw_title)
+            if raw_url and raw_url != existing["url"] and raw_url not in existing["source_aliases"]:
+                existing["source_aliases"].append(raw_url)
                 
             # Date enrichment: Inherit exact/stronger date from alias
             curr_ts = existing.get("sort_timestamp") or parse_document_sort_timestamp(existing.get("period_or_date"), existing["title"])
@@ -1358,64 +1417,190 @@ def save_cached_document_pages(symbol: str, doc_url: str, pages: List[Tuple[int,
 # PER-DOCUMENT AI SUMMARIES HELPERS
 # ---------------------------------------------------------
 
+def find_substantive_alternate_source(
+    symbol: str,
+    doc_type: str,
+    doc_subtype: Optional[str] = None,
+    event_key: Optional[str] = None,
+    period_or_date: Optional[str] = None,
+    failed_url: Optional[str] = None
+) -> Optional[Dict[str, Any]]:
+    """
+    Searches the stored/discovered document corpus for an alternative substantive document
+    for the exact same canonical event & subtype when a convenience URL fails (e.g. HTTP 403).
+    Source priority:
+    1. Company IR direct substantive document
+    2. BSE/NSE substantive document
+    3. Screener convenience transcript
+    4. Other verified source
+    """
+    clean_sym = symbol.upper().strip()
+    failed_clean = (failed_url or "").strip().rstrip("/")
+    conn = get_db_connection()
+    try:
+        cur = conn.cursor()
+        cols = {r[1] for r in cur.execute("PRAGMA table_info(source_documents);").fetchall()}
+        has_aliases = "source_aliases" in cols
+        select_cols = "title, url, doc_type, period_or_date, discovery_source, actual_source_host"
+        if has_aliases:
+            select_cols += ", source_aliases"
+            
+        cur.execute(f"""
+            SELECT {select_cols}
+            FROM source_documents
+            WHERE symbol = ?
+        """, (clean_sym,))
+        rows = cur.fetchall()
+        
+        candidates = []
+        for r in rows:
+            all_urls = []
+            primary_u = (r["url"] or "").strip().rstrip("/")
+            if primary_u and primary_u != failed_clean:
+                all_urls.append((primary_u, r["discovery_source"]))
+                
+            raw_aliases = r["source_aliases"] if has_aliases and r["source_aliases"] else None
+            if raw_aliases:
+                try:
+                    alias_list = json.loads(raw_aliases) if isinstance(raw_aliases, str) else list(raw_aliases)
+                    for a in alias_list:
+                        if isinstance(a, str) and (a.startswith("http://") or a.startswith("https://")):
+                            clean_a = a.strip().rstrip("/")
+                            if clean_a != failed_clean:
+                                disc_name = "bse" if "bse" in clean_a else ("ir" if "ir" in clean_a or "company" in clean_a else "alternate")
+                                all_urls.append((clean_a, disc_name))
+                except Exception:
+                    pass
+                    
+            for cand_url, cand_disc in all_urls:
+                if is_document_wrapper(r["title"], cand_url):
+                    continue
+                norm_dt = normalize_document_type(r["doc_type"], r["title"])
+                if norm_dt != doc_type:
+                    continue
+                r_subtype = derive_document_subtype(norm_dt, r["title"])
+                if doc_subtype and r_subtype != doc_subtype:
+                    continue
+                r_ev = derive_announcement_event_key(clean_sym, r["title"], r["period_or_date"]) if norm_dt == "material_announcements" else derive_earnings_event_key(clean_sym, r["period_or_date"], r["title"])
+                if event_key and r_ev and r_ev != event_key:
+                    continue
+                if not event_key and period_or_date and r["period_or_date"] != period_or_date:
+                    continue
+                    
+                disc = (cand_disc or "").lower()
+                host = (r["actual_source_host"] or "").lower()
+                
+                # Score by source preference:
+                # 1. Company IR (score 3)
+                # 2. BSE/NSE (score 2)
+                # 3. Screener (score 1)
+                # 4. Other (score 0)
+                if "company" in disc or "company" in host or "ir" in host:
+                    pref_score = 3
+                elif "bse" in disc or "nse" in disc or "bseindia" in host or "nseindia" in host or "bseindia" in cand_url or "bse.com" in cand_url:
+                    pref_score = 2
+                elif "screener" in disc or "screener" in host:
+                    pref_score = 1
+                else:
+                    pref_score = 0
+                    
+                cand_dict = dict(r)
+                cand_dict["url"] = cand_url
+                candidates.append((pref_score, cand_dict))
+            
+        if candidates:
+            candidates.sort(key=lambda x: x[0], reverse=True)
+            return candidates[0][1]
+        return None
+    finally:
+        conn.close()
+
 def get_document_summary(
     doc_url: str,
     doc_key: Optional[str] = None,
     symbol: Optional[str] = None,
     doc_type: Optional[str] = None,
-    period_or_date: Optional[str] = None
+    period_or_date: Optional[str] = None,
+    expected_content_hash: Optional[str] = None,
+    expected_schema_version: Optional[str] = None,
+    expected_prompt_version: Optional[str] = None
 ) -> Optional[Dict[str, Any]]:
-    """Retrieves a single document's cached AI summary by doc_url, canonical doc_key, or unambiguous semantic identity."""
+    """
+    Retrieves a single document's cached AI summary by doc_url, canonical doc_key, or unambiguous semantic identity.
+    Validates content hash, extraction schema version, and prompt version to ensure freshness.
+    """
     c_url = canonicalize_document_url(doc_url) or doc_url
     conn = get_db_connection()
     try:
         cur = conn.cursor()
         cols = {r[1] for r in cur.execute("PRAGMA table_info(ai_document_summaries);").fetchall()}
         
-        # 1. Look up by exact/canonical URL
-        cur.execute("SELECT summary_json, generated_at FROM ai_document_summaries WHERE doc_url = ? OR doc_url = ?", (doc_url, c_url))
-        row = cur.fetchone()
-        if row:
+        def _check_and_enrich_row(row_dict: Dict[str, Any]) -> Optional[Dict[str, Any]]:
             try:
-                data = json.loads(row["summary_json"])
+                data = json.loads(row_dict["summary_json"])
                 if "analyzed_at" not in data or not data["analyzed_at"]:
-                    data["analyzed_at"] = row["generated_at"]
+                    data["analyzed_at"] = row_dict.get("generated_at")
+                    
+                c_hash = row_dict.get("content_hash") or data.get("content_hash")
+                s_ver = row_dict.get("extraction_schema_version") or data.get("extraction_schema_version")
+                p_ver = row_dict.get("extraction_prompt_version") or data.get("extraction_prompt_version")
+                
+                # Check version and hash freshness constraints
+                if expected_schema_version and (not s_ver or s_ver != expected_schema_version):
+                    return None
+                if expected_prompt_version and (not p_ver or p_ver != expected_prompt_version):
+                    return None
+                if expected_content_hash and (not c_hash or c_hash != expected_content_hash):
+                    return None
+                    
+                data["content_hash"] = c_hash
+                data["extraction_schema_version"] = s_ver
+                data["extraction_prompt_version"] = p_ver
+                data["provider"] = row_dict.get("provider") or data.get("provider")
+                data["model"] = row_dict.get("model") or data.get("model")
+                data["cache_status"] = "CACHED_CURRENT"
                 return data
             except Exception:
-                pass
+                return None
+
+        # 1. Look up by exact/canonical URL
+        select_cols = "summary_json, generated_at"
+        if "content_hash" in cols:
+            select_cols += ", content_hash, extraction_schema_version, extraction_prompt_version, provider, model"
+        if "doc_key" in cols:
+            select_cols += ", doc_key"
+            
+        cur.execute(f"SELECT {select_cols} FROM ai_document_summaries WHERE doc_url = ? OR doc_url = ?", (doc_url, c_url))
+        row = cur.fetchone()
+        if row:
+            res = _check_and_enrich_row(dict(row))
+            if res is not None:
+                return res
                 
         # 2. Look up by canonical doc_key if column exists
         target_key = doc_key
         if not target_key and symbol:
             target_key = compute_canonical_document_key(symbol, doc_type or "general", period_or_date, doc_url)
         if target_key and "doc_key" in cols:
-            cur.execute("SELECT summary_json, generated_at FROM ai_document_summaries WHERE doc_key = ?", (target_key,))
+            cur.execute(f"SELECT {select_cols} FROM ai_document_summaries WHERE doc_key = ?", (target_key,))
             row = cur.fetchone()
             if row:
-                try:
-                    data = json.loads(row["summary_json"])
-                    if "analyzed_at" not in data or not data["analyzed_at"]:
-                        data["analyzed_at"] = row["generated_at"]
-                    return data
-                except Exception:
-                    pass
+                res = _check_and_enrich_row(dict(row))
+                if res is not None:
+                    return res
                     
         # 3. Look up by unambiguous semantic identity (symbol + doc_type + period_or_date)
         if symbol and doc_type and period_or_date:
             sem_key = compute_canonical_semantic_key(symbol, doc_type, period_or_date)
             if sem_key:
-                cur.execute("SELECT summary_json, generated_at FROM ai_document_summaries WHERE symbol = ?", (symbol.upper().strip(),))
+                cur.execute(f"SELECT {select_cols} FROM ai_document_summaries WHERE symbol = ?", (symbol.upper().strip(),))
                 rows = cur.fetchall()
                 for r in rows:
-                    try:
-                        data = json.loads(r["summary_json"])
-                        d_sem = compute_canonical_semantic_key(symbol, data.get("doc_type", ""), data.get("period_or_date", ""))
+                    res = _check_and_enrich_row(dict(r))
+                    if res:
+                        d_sem = compute_canonical_semantic_key(symbol, res.get("doc_type", ""), res.get("period_or_date", ""))
                         if d_sem and d_sem == sem_key:
-                            if "analyzed_at" not in data or not data["analyzed_at"]:
-                                data["analyzed_at"] = r["generated_at"]
-                            return data
-                    except Exception:
-                        pass
+                            return res
         return None
     finally:
         conn.close()
@@ -1432,10 +1617,13 @@ def get_document_summaries(symbol: str) -> Dict[str, Dict[str, Any]]:
         cols = {r[1] for r in cur.execute("PRAGMA table_info(ai_document_summaries);").fetchall()}
         has_doc_key = "doc_key" in cols
         
+        select_cols = "doc_url, summary_json, generated_at"
         if has_doc_key:
-            cur.execute("SELECT doc_url, summary_json, generated_at, doc_key FROM ai_document_summaries WHERE symbol = ?", (clean_sym,))
-        else:
-            cur.execute("SELECT doc_url, summary_json, generated_at FROM ai_document_summaries WHERE symbol = ?", (clean_sym,))
+            select_cols += ", doc_key"
+        if "content_hash" in cols:
+            select_cols += ", content_hash, extraction_schema_version, extraction_prompt_version, provider, model"
+            
+        cur.execute(f"SELECT {select_cols} FROM ai_document_summaries WHERE symbol = ?", (clean_sym,))
         rows = cur.fetchall()
         res = {}
         for r in rows:
@@ -1451,6 +1639,19 @@ def get_document_summaries(symbol: str) -> Dict[str, Dict[str, Any]]:
                 )
                 data["doc_key"] = doc_k
                 data["doc_url"] = raw_url
+                
+                if "content_hash" in cols:
+                    data["content_hash"] = r["content_hash"] or data.get("content_hash")
+                    data["extraction_schema_version"] = r["extraction_schema_version"] or data.get("extraction_schema_version")
+                    data["extraction_prompt_version"] = r["extraction_prompt_version"] or data.get("extraction_prompt_version")
+                    data["provider"] = r["provider"] or data.get("provider")
+                    data["model"] = r["model"] or data.get("model")
+                
+                # Assign status badge for UI
+                if data.get("extraction_schema_version") and data.get("extraction_prompt_version"):
+                    data["cache_status"] = "CACHED_CURRENT"
+                else:
+                    data["cache_status"] = "LEGACY_STALE"
                 
                 # Map by raw URL
                 res[raw_url] = data
@@ -1477,9 +1678,14 @@ def save_document_summary(
     summary_data: Dict[str, Any],
     doc_key: Optional[str] = None,
     doc_type: Optional[str] = None,
-    period_or_date: Optional[str] = None
+    period_or_date: Optional[str] = None,
+    content_hash: Optional[str] = None,
+    extraction_schema_version: Optional[str] = None,
+    extraction_prompt_version: Optional[str] = None,
+    provider: Optional[str] = None,
+    model: Optional[str] = None
 ) -> None:
-    """Saves per-document executive summary in SQLite with canonical document key."""
+    """Saves per-document executive summary in SQLite with canonical document key and full provenance lineage."""
     clean_sym = symbol.upper().strip()
     now_iso = datetime.now(timezone.utc).isoformat()
     if "analyzed_at" not in summary_data or not summary_data["analyzed_at"]:
@@ -1490,9 +1696,21 @@ def save_document_summary(
     p_date = period_or_date or summary_data.get("period_or_date")
     
     k = doc_key or summary_data.get("doc_key") or compute_canonical_document_key(clean_sym, dt, p_date, c_url, doc_title)
+    c_hash = content_hash or summary_data.get("content_hash")
+    s_ver = extraction_schema_version or summary_data.get("extraction_schema_version") or "4.4"
+    p_ver = extraction_prompt_version or summary_data.get("extraction_prompt_version") or "4.4.1"
+    prov = provider or summary_data.get("provider")
+    mod = model or summary_data.get("model") or summary_data.get("model_version")
+    
     summary_data["doc_key"] = k
     summary_data["doc_url"] = c_url
     summary_data["doc_title"] = doc_title
+    summary_data["content_hash"] = c_hash
+    summary_data["extraction_schema_version"] = s_ver
+    summary_data["extraction_prompt_version"] = p_ver
+    summary_data["provider"] = prov
+    summary_data["model"] = mod
+    summary_data["cache_status"] = "NEWLY_EXTRACTED"
     if "doc_type" not in summary_data:
         summary_data["doc_type"] = dt
     if "period_or_date" not in summary_data and p_date:
@@ -1503,7 +1721,18 @@ def save_document_summary(
         with conn:
             cur = conn.cursor()
             cols = {r[1] for r in cur.execute("PRAGMA table_info(ai_document_summaries);").fetchall()}
-            if "doc_key" in cols:
+            if "content_hash" in cols and "doc_key" in cols:
+                conn.execute("""
+                    INSERT OR REPLACE INTO ai_document_summaries (
+                        doc_url, symbol, doc_title, summary_json, generated_at, doc_key,
+                        content_hash, extraction_schema_version, extraction_prompt_version, provider, model
+                    )
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """, (
+                    c_url, clean_sym, doc_title, json.dumps(summary_data, default=_db_json_serializer),
+                    now_iso, k, c_hash, s_ver, p_ver, prov, mod
+                ))
+            elif "doc_key" in cols:
                 conn.execute("""
                     INSERT OR REPLACE INTO ai_document_summaries (doc_url, symbol, doc_title, summary_json, generated_at, doc_key)
                     VALUES (?, ?, ?, ?, ?, ?)

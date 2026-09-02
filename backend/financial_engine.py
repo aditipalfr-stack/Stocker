@@ -1216,7 +1216,7 @@ def verify_promise_vs_delivery_item(
 
     # 6. Check Range Target (Requires explicit unit %, bps, or currency; rejects bare year pairs)
     range_parsed = parse_explicit_guidance_range(prom_lower)
-    m_growth = re.search(r'(\d+(?:\.\d+)?)\s*%\s*(?:revenue|sales|growth|cagr|margin|loan|deposit|advances)', prom_lower)
+    m_growth = re.search(r'(\d+(?:\.\d+)?)\s*%\s*(?:top-line|top line|revenue|sales|growth|cagr|margin|loan|deposit|advances|volume|profit|pat|ebitda)', prom_lower)
 
     outcome_text = f"{item.get('actual_outcome', '')} {item.get('actual_quote', '')}"
     has_milestone_on_track = any(phrase in outcome_text.lower() for phrase in [
@@ -1342,6 +1342,15 @@ def verify_promise_vs_delivery_item(
                     res["stocker_analysis"] = f"Target Missed: Reported {act_growth}% growth fell short of targeted {promised_pct}% (variance {variance_pct:+.1f}%)."
             return res
         else:
+            # Check semantic metric alignment
+            is_topline_promise = any(kw in prom_lower for kw in ["top-line", "top line", "revenue", "sales", "turnover", "total income"])
+            has_only_operating_profit = any(kw in outcome_text.lower() for kw in ["operating profit", "core operating profit", "pbt", "pat"]) and not any(kw in outcome_text.lower() for kw in ["revenue", "sales", "top-line", "top line", "total income", "income"])
+            if is_topline_promise and has_only_operating_profit:
+                res["status"] = "Not Enough Evidence"
+                res["financial_numbers_check"] = "Reported outcome does not contain matching top-line growth data."
+                res["stocker_analysis"] = "Metric Semantic Mismatch: Guidance referenced top-line growth, but reported evidence contains operating profit. Operating profit is not top-line revenue."
+                return res
+
             # Check if outcome text contains explicit reported number
             m_act_text = re.search(r'(\d+(?:\.\d+)?)\s*%', outcome_text)
             if m_act_text:
@@ -1463,6 +1472,46 @@ def match_period_to_statement_column(period_str: str, available_periods: List[st
             
     return None
 
+def compute_fail_closed_execution_verdict(promise_items: List[Any]) -> str:
+    """
+    Computes a fail-closed management execution verdict based strictly on verified historical promises.
+    Possible states:
+    - 'Strong Execution'
+    - 'Mixed Execution'
+    - 'Weak Execution'
+    - 'Provisional'
+    - 'Insufficient History'
+    """
+    if not promise_items:
+        return "Insufficient History"
+        
+    measurable = []
+    for p in promise_items:
+        st = p.get("status") if isinstance(p, dict) else getattr(p, "status", "")
+        if st in ("Delivered", "Partially Delivered", "Delayed", "Missed"):
+            measurable.append(st)
+            
+    if len(measurable) == 0:
+        return "Insufficient History"
+    if len(measurable) == 1:
+        st = measurable[0]
+        return "Provisional" if st == "Delivered" else ("Weak Execution" if st == "Missed" else "Provisional")
+        
+    delivered_count = sum(1 for st in measurable if st == "Delivered")
+    missed_count = sum(1 for st in measurable if st in ("Missed", "Delayed"))
+    
+    ratio = delivered_count / len(measurable)
+    miss_ratio = missed_count / len(measurable)
+    
+    if miss_ratio > 0.50:
+        return "Weak Execution"
+    elif ratio >= 0.70 and missed_count == 0:
+        return "Strong Execution"
+    elif ratio >= 0.40 or (delivered_count > 0 and missed_count > 0):
+        return "Mixed Execution"
+    else:
+        return "Provisional"
+
 def extract_kpi_identity(fact: Dict[str, Any]) -> Dict[str, str]:
     """
     Extracts a rigorous, conservative KPI identity signature to ensure only genuinely
@@ -1476,7 +1525,8 @@ def extract_kpi_identity(fact: Dict[str, Any]) -> Dict[str, str]:
     # 1. Detect geography / segment from metric name or scope
     geos = [
         "india", "africa", "us", "usa", "europe", "middle east", "latam",
-        "global", "domestic", "international", "enterprise", "retail", "wholesale"
+        "global", "domestic", "international", "enterprise", "retail", "wholesale",
+        "rural", "business banking", "corporate", "sme"
     ]
     matched_geo = None
     for g in geos:
@@ -1486,16 +1536,36 @@ def extract_kpi_identity(fact: Dict[str, Any]) -> Dict[str, str]:
     effective_scope = matched_geo if matched_geo else ("standalone" if "standalone" in scope or "standalone" in m_name else "consolidated")
 
     # 2. Extract semantic metric core with strict boundaries
-    # Explicitly separate:
-    # - arpu
-    # - order book vs order intake / order inflow
-    # - subscribers / customer count vs net adds
-    # - installed capacity vs target capacity / expansion capacity
-    # - store count vs new store additions
-    # - revenue vs segment revenue
-    # - ebitda margin vs segment margin
-    
-    if "arpu" in m_name:
+    # Bank-specific KPI cores:
+    if any(k in m_name for k in ["net interest margin", "nim"]):
+        core = "nim"
+    elif any(k in m_name for k in ["gross npa", "gnpa"]):
+        core = "gnpa"
+    elif any(k in m_name for k in ["net npa", "nnpa"]):
+        core = "nnpa"
+    elif any(k in m_name for k in ["credit cost", "cost of risk"]):
+        core = "credit_cost"
+    elif "casa" in m_name:
+        core = "casa_ratio" if ("ratio" in m_name or "%" in m_name or "%" in unit) else "casa_deposits"
+    elif any(k in m_name for k in ["advances growth", "loan growth", "credit growth"]):
+        core = "advances_growth"
+    elif any(k in m_name for k in ["deposit growth", "deposits growth"]):
+        core = "deposits_growth"
+    elif any(k in m_name for k in ["advances", "total advances", "loan book", "loans"]):
+        core = "advances"
+    elif any(k in m_name for k in ["total deposits", "deposits"]):
+        core = "deposits"
+    elif any(k in m_name for k in ["cet1", "cet 1", "common equity tier 1", "tier 1", "car", "capital adequacy"]):
+        core = "capital_adequacy"
+    elif any(k in m_name for k in ["return on assets", "roa"]):
+        core = "roa"
+    elif any(k in m_name for k in ["return on equity", "roe"]):
+        core = "roe"
+    elif any(k in m_name for k in ["cost to income", "cost-to-income"]):
+        core = "cost_to_income"
+    elif any(k in m_name for k in ["slippage", "slippages"]):
+        core = "slippage_ratio"
+    elif "arpu" in m_name:
         core = "arpu"
     elif "order book" in m_name or "backlog" in m_name:
         core = "order_book"
@@ -1589,7 +1659,7 @@ def verify_document_claim_against_financials(
         "statement_verification_status": "Not Enough Evidence",
         "statement_reported_value": None,
         "management_explanation": quote or None,
-        "stocker_assessment": "Unverified against audited financial statements.",
+        "stocker_assessment": "Unverified against standardized financial statements.",
         "source_doc_title": doc_title,
         "source_url": fact.get("doc_url"),
         "source_page": fact.get("source_page"),
@@ -1635,7 +1705,7 @@ def verify_document_claim_against_financials(
                     if is_scope_standalone_or_seg and num_val is not None and abs(num_val - actual_growth) > 1.5 and abs(num_val - curr_sales) > 100.0:
                         comparison["statement_verification_status"] = "Statement Context Only / Not Directly Comparable"
                         comparison["stocker_assessment"] = (
-                            f"Scope Mismatch Context: Filing claim is for '{scope}' while audited financial statements are Consolidated. "
+                            f"Scope Mismatch Context: Filing claim is for '{scope}' while standardized financial statements are Consolidated. "
                             f"Reported consolidated revenue for {pl_matched} stood at ₹{curr_sales:,.0f} Cr (+{actual_growth}% YoY vs {prior_p} ₹{prev_sales:,.0f} Cr)."
                         )
                     elif num_val is not None:
@@ -1644,29 +1714,29 @@ def verify_document_claim_against_financials(
                             if abs(num_val - actual_growth) <= 1.0:
                                 comparison["statement_verification_status"] = "Verified against Reported Financials"
                                 comparison["stocker_assessment"] = (
-                                    f"Verified: Reported audited revenue in {pl_matched} was ₹{curr_sales:,.0f} Cr versus "
+                                    f"Verified: Reported standardized revenue in {pl_matched} was ₹{curr_sales:,.0f} Cr versus "
                                     f"₹{prev_sales:,.0f} Cr in {prior_p} (+{actual_growth}% YoY growth). Matches stated claim of {stated_val_raw}."
                                 )
                             else:
                                 comparison["statement_verification_status"] = "Discrepancy vs Reported Financials"
                                 comparison["stocker_assessment"] = (
-                                    f"Discrepancy: Filing claimed revenue growth of {stated_val_raw}, but audited financial statements show revenue grew "
+                                    f"Discrepancy: Filing claimed revenue growth of {stated_val_raw}, but standardized financial statements show revenue grew "
                                     f"{actual_growth}% YoY (₹{curr_sales:,.0f} Cr in {pl_matched} vs ₹{prev_sales:,.0f} Cr in {prior_p})."
                                 )
                         elif abs(num_val - curr_sales) / max(curr_sales, 1) <= 0.02:
                             comparison["statement_verification_status"] = "Verified against Reported Financials"
                             comparison["stocker_assessment"] = (
-                                f"Verified: Reported audited revenue in {pl_matched} was ₹{curr_sales:,.0f} Cr (+{actual_growth}% YoY). Matches stated claim of {stated_val_raw}."
+                                f"Verified: Reported standardized revenue in {pl_matched} was ₹{curr_sales:,.0f} Cr (+{actual_growth}% YoY). Matches stated claim of {stated_val_raw}."
                             )
                         else:
                             comparison["statement_verification_status"] = "Discrepancy vs Reported Financials"
                             comparison["stocker_assessment"] = (
-                                f"Discrepancy: Filing stated revenue of {stated_val_raw}, but reported audited revenue for {pl_matched} was ₹{curr_sales:,.0f} Cr."
+                                f"Discrepancy: Filing stated revenue of {stated_val_raw}, but reported standardized revenue for {pl_matched} was ₹{curr_sales:,.0f} Cr."
                             )
                     else:
                         comparison["statement_verification_status"] = "Statement Context Only / Not Directly Comparable"
                         comparison["stocker_assessment"] = (
-                            f"Statement Context: Audited revenue for {pl_matched} stood at ₹{curr_sales:,.0f} Cr (+{actual_growth}% YoY vs {prior_p} ₹{prev_sales:,.0f} Cr)."
+                            f"Statement Context: Standardized revenue for {pl_matched} stood at ₹{curr_sales:,.0f} Cr (+{actual_growth}% YoY vs {prior_p} ₹{prev_sales:,.0f} Cr)."
                         )
                     return comparison
 
@@ -1700,13 +1770,13 @@ def verify_document_claim_against_financials(
                             if abs(num_val - delta_bps) <= 50.0:
                                 comparison["statement_verification_status"] = "Verified against Reported Financials"
                                 comparison["stocker_assessment"] = (
-                                    f"Verified: Audited OPM moved {'+' if delta_bps >= 0 else ''}{delta_bps:.0f} bps from {prev_opm:.1f}% ({prior_p}) "
+                                    f"Verified: Standardized OPM moved {'+' if delta_bps >= 0 else ''}{delta_bps:.0f} bps from {prev_opm:.1f}% ({prior_p}) "
                                     f"to {curr_opm:.1f}% ({pl_matched}). Matches stated margin movement claim of {stated_val_raw}."
                                 )
                             else:
                                 comparison["statement_verification_status"] = "Discrepancy vs Reported Financials"
                                 comparison["stocker_assessment"] = (
-                                    f"Discrepancy: Filing claimed margin movement of {stated_val_raw}, but audited statements show OPM moved "
+                                    f"Discrepancy: Filing claimed margin movement of {stated_val_raw}, but standardized statements show OPM moved "
                                     f"{'+' if delta_bps >= 0 else ''}{delta_bps:.0f} bps ({prev_opm:.1f}% to {curr_opm:.1f}%)."
                                 )
                         elif abs(num_val - curr_opm) <= 1.0:
@@ -1719,13 +1789,13 @@ def verify_document_claim_against_financials(
                         else:
                             comparison["statement_verification_status"] = "Discrepancy vs Reported Financials"
                             comparison["stocker_assessment"] = (
-                                f"Discrepancy: Filing claimed margin of {stated_val_raw}, but reported audited OPM was {curr_opm:.1f}% "
+                                f"Discrepancy: Filing claimed margin of {stated_val_raw}, but reported standardized OPM was {curr_opm:.1f}% "
                                 f"({'+' if delta_bps >= 0 else ''}{delta_bps:.0f} bps vs {prior_p} of {prev_opm:.1f}%)."
                             )
                     else:
                         comparison["statement_verification_status"] = "Statement Context Only / Not Directly Comparable"
                         comparison["stocker_assessment"] = (
-                            f"Statement Context: Audited OPM in {pl_matched} was {curr_opm:.1f}% vs {prev_opm:.1f}% in {prior_p}."
+                            f"Statement Context: Standardized OPM in {pl_matched} was {curr_opm:.1f}% vs {prev_opm:.1f}% in {prior_p}."
                         )
                     return comparison
 
@@ -1764,31 +1834,31 @@ def verify_document_claim_against_financials(
                             if abs(num_val - growth_op) <= 1.5:
                                 comparison["statement_verification_status"] = "Verified against Reported Financials"
                                 comparison["stocker_assessment"] = (
-                                    f"Verified: Reported audited Operating Profit (EBITDA) grew {growth_op}% YoY in {pl_matched} "
+                                    f"Verified: Reported standardized Operating Profit (EBITDA) grew {growth_op}% YoY in {pl_matched} "
                                     f"(₹{curr_op:,.0f} Cr vs ₹{prev_op:,.0f} Cr in {prior_p}). Matches stated claim of {stated_val_raw}."
                                 )
                             else:
                                 comparison["statement_verification_status"] = "Discrepancy vs Reported Financials"
                                 comparison["stocker_assessment"] = (
-                                    f"Discrepancy: Filing claimed Operating Profit / EBITDA growth of {stated_val_raw}, but audited statements "
+                                    f"Discrepancy: Filing claimed Operating Profit / EBITDA growth of {stated_val_raw}, but standardized statements "
                                     f"show Operating Profit grew {growth_op}% YoY (₹{curr_op:,.0f} Cr in {pl_matched} vs ₹{prev_op:,.0f} Cr in {prior_p})."
                                 )
                         elif abs(num_val - curr_op) / max(curr_op, 1) <= 0.03:
                             comparison["statement_verification_status"] = "Verified against Reported Financials"
                             comparison["stocker_assessment"] = (
-                                f"Verified: Reported audited Operating Profit (EBITDA) in {pl_matched} was ₹{curr_op:,.0f} Cr "
+                                f"Verified: Reported standardized Operating Profit (EBITDA) in {pl_matched} was ₹{curr_op:,.0f} Cr "
                                 f"(vs ₹{prev_op:,.0f} Cr in {prior_p}, {'+' if growth_op >= 0 else ''}{growth_op}% YoY). Matches stated claim of {stated_val_raw}."
                             )
                         else:
                             comparison["statement_verification_status"] = "Discrepancy vs Reported Financials"
                             comparison["stocker_assessment"] = (
-                                f"Discrepancy: Filing stated Operating Profit / EBITDA of {stated_val_raw}, but reported audited "
+                                f"Discrepancy: Filing stated Operating Profit / EBITDA of {stated_val_raw}, but reported standardized "
                                 f"Operating Profit for {pl_matched} was ₹{curr_op:,.0f} Cr."
                             )
                     else:
                         comparison["statement_verification_status"] = "Statement Context Only / Not Directly Comparable"
                         comparison["stocker_assessment"] = (
-                            f"Statement Context: Audited Operating Profit (EBITDA) for {pl_matched} was ₹{curr_op:,.0f} Cr (+{growth_op}% YoY vs {prior_p} ₹{prev_op:,.0f} Cr)."
+                            f"Statement Context: Standardized Operating Profit (EBITDA) for {pl_matched} was ₹{curr_op:,.0f} Cr (+{growth_op}% YoY vs {prior_p} ₹{prev_op:,.0f} Cr)."
                         )
                     return comparison
             elif curr_op is None:
@@ -1819,19 +1889,19 @@ def verify_document_claim_against_financials(
                         if "%" in unit or abs(num_val - growth_pat) <= 1.5:
                             if abs(num_val - growth_pat) <= 1.5:
                                 comparison["statement_verification_status"] = "Verified against Reported Financials"
-                                comparison["stocker_assessment"] = f"Verified: Audited Net Profit was ₹{curr_pat:,.0f} Cr in {pl_matched} vs ₹{prev_pat:,.0f} Cr in {prior_p} (+{growth_pat}% YoY). Matches stated claim."
+                                comparison["stocker_assessment"] = f"Verified: Standardized Net Profit was ₹{curr_pat:,.0f} Cr in {pl_matched} vs ₹{prev_pat:,.0f} Cr in {prior_p} (+{growth_pat}% YoY). Matches stated claim."
                             else:
                                 comparison["statement_verification_status"] = "Discrepancy vs Reported Financials"
-                                comparison["stocker_assessment"] = f"Discrepancy: Filing claimed PAT growth of {stated_val_raw}, but audited Net Profit grew {growth_pat}% YoY (₹{curr_pat:,.0f} Cr vs ₹{prev_pat:,.0f} Cr)."
+                                comparison["stocker_assessment"] = f"Discrepancy: Filing claimed PAT growth of {stated_val_raw}, but standardized Net Profit grew {growth_pat}% YoY (₹{curr_pat:,.0f} Cr vs ₹{prev_pat:,.0f} Cr)."
                         elif abs(num_val - curr_pat) / max(curr_pat, 1) <= 0.03:
                             comparison["statement_verification_status"] = "Verified against Reported Financials"
-                            comparison["stocker_assessment"] = f"Verified: Audited Net Profit in {pl_matched} was ₹{curr_pat:,.0f} Cr (+{growth_pat}% YoY vs ₹{prev_pat:,.0f} Cr). Matches stated claim."
+                            comparison["stocker_assessment"] = f"Verified: Standardized Net Profit in {pl_matched} was ₹{curr_pat:,.0f} Cr (+{growth_pat}% YoY vs ₹{prev_pat:,.0f} Cr). Matches stated claim."
                         else:
                             comparison["statement_verification_status"] = "Discrepancy vs Reported Financials"
-                            comparison["stocker_assessment"] = f"Discrepancy: Filing stated PAT of {stated_val_raw}, but audited Net Profit for {pl_matched} was ₹{curr_pat:,.0f} Cr."
+                            comparison["stocker_assessment"] = f"Discrepancy: Filing stated PAT of {stated_val_raw}, but standardized Net Profit for {pl_matched} was ₹{curr_pat:,.0f} Cr."
                     else:
                         comparison["statement_verification_status"] = "Statement Context Only / Not Directly Comparable"
-                        comparison["stocker_assessment"] = f"Statement Context: Audited Net Profit for {pl_matched} was ₹{curr_pat:,.0f} Cr (+{growth_pat}% YoY vs {prior_p} ₹{prev_pat:,.0f} Cr)."
+                        comparison["stocker_assessment"] = f"Statement Context: Standardized Net Profit for {pl_matched} was ₹{curr_pat:,.0f} Cr (+{growth_pat}% YoY vs {prior_p} ₹{prev_pat:,.0f} Cr)."
                     return comparison
 
     # 4. DEBT / BORROWINGS CLAIM
@@ -1864,7 +1934,7 @@ def verify_document_claim_against_financials(
                             comparison["stocker_assessment"] = f"Verified: Balance sheet borrowings changed by ₹{delta_debt:,.0f} Cr from ₹{prev_debt:,.0f} Cr to ₹{curr_debt:,.0f} Cr in {bs_matched}. Matches stated debt movement."
                         else:
                             comparison["statement_verification_status"] = "Discrepancy vs Reported Financials"
-                            comparison["stocker_assessment"] = f"Discrepancy: Filing stated debt of {stated_val_raw}, but audited borrowings in {bs_matched} were ₹{curr_debt:,.0f} Cr (vs ₹{prev_debt:,.0f} Cr in {prior_p})."
+                            comparison["stocker_assessment"] = f"Discrepancy: Filing stated debt of {stated_val_raw}, but standardized borrowings in {bs_matched} were ₹{curr_debt:,.0f} Cr (vs ₹{prev_debt:,.0f} Cr in {prior_p})."
                     else:
                         comparison["statement_verification_status"] = "Statement Context Only / Not Directly Comparable"
                         comparison["stocker_assessment"] = f"Balance Sheet Context: Borrowings in {bs_matched} stood at ₹{curr_debt:,.0f} Cr (Δ ₹{delta_debt:,.0f} Cr vs {prior_p} ₹{prev_debt:,.0f} Cr)."
@@ -1915,7 +1985,7 @@ def build_inter_document_kpi_trends(facts_list: List[Dict[str, Any]]) -> List[Di
                 seen_periods.add(p)
                 deduped_series.append(it)
                 
-        if not deduped_series:
+        if not deduped_series or len(deduped_series) < 2:
             continue
             
         canonical_name = deduped_series[-1].get("metric_name", key.replace(":", " - ").title())
@@ -1924,22 +1994,36 @@ def build_inter_document_kpi_trends(facts_list: List[Dict[str, Any]]) -> List[Di
         
         data_points = []
         for it in deduped_series:
+            raw_v = it.get("numeric_value")
+            if raw_v is None:
+                val = it.get("value")
+                if isinstance(val, (int, float)):
+                    raw_v = float(val)
+                elif isinstance(val, str):
+                    m = re.search(r'[-+]?\d+(?:\.\d+)?', val)
+                    if m:
+                        try:
+                            raw_v = float(m.group(0))
+                        except ValueError:
+                            raw_v = None
             data_points.append({
                 "period": it.get("period_or_date") or it.get("period", ""),
                 "stated_value": str(it.get("stated_value_raw") or it.get("value", "")),
-                "numeric_value": it.get("numeric_value"),
+                "numeric_value": raw_v,
                 "doc_title": it.get("doc_title", "Filing"),
                 "doc_url": it.get("doc_url"),
                 "doc_type": it.get("doc_type", "filing")
             })
             
         latest_pt = data_points[-1]
-        prior_pt = data_points[-2] if len(data_points) >= 2 else None
+        prior_pt = data_points[-2]
         
         trajectory = "Evolving"
         latest_vs_prior_change = None
         pct_chg = None
         insight = f"Latest reported {canonical_name}: {latest_pt['stated_value']} ({latest_pt['period']})."
+        
+        is_lower_better = any(kw in key.lower() for kw in ["gnpa", "nnpa", "credit_cost", "cost_to_income", "slippage"])
         
         if prior_pt and latest_pt.get("numeric_value") is not None and prior_pt.get("numeric_value") is not None:
             v_curr = latest_pt["numeric_value"]
@@ -1948,28 +2032,35 @@ def build_inter_document_kpi_trends(facts_list: List[Dict[str, Any]]) -> List[Di
             if v_prev > 0:
                 pct_chg = round(((v_curr - v_prev) / v_prev) * 100.0, 1)
                 
-            if delta > 0:
-                trajectory = "Expanding / Accelerating"
-                latest_vs_prior_change = f"+{delta:,.1f} {unit} (+{pct_chg}%)" if pct_chg is not None else f"+{delta:,.1f} {unit}"
-            elif delta < 0:
-                trajectory = "Contracting"
-                latest_vs_prior_change = f"{delta:,.1f} {unit} ({pct_chg}%)" if pct_chg is not None else f"{delta:,.1f} {unit}"
+            if is_lower_better:
+                if delta < 0:
+                    trajectory = "Improving"
+                    latest_vs_prior_change = f"{delta:,.2f} {unit} ({pct_chg}%)" if pct_chg is not None else f"{delta:,.2f} {unit}"
+                elif delta > 0:
+                    trajectory = "Deteriorating"
+                    latest_vs_prior_change = f"+{delta:,.2f} {unit} (+{pct_chg}%)" if pct_chg is not None else f"+{delta:,.2f} {unit}"
+                else:
+                    trajectory = "Stable"
+                    latest_vs_prior_change = "Flat (0.0% change)"
             else:
-                trajectory = "Stable"
-                latest_vs_prior_change = "Flat (0.0% change)"
+                if delta > 0:
+                    trajectory = "Expanding / Accelerating"
+                    latest_vs_prior_change = f"+{delta:,.1f} {unit} (+{pct_chg}%)" if pct_chg is not None else f"+{delta:,.1f} {unit}"
+                elif delta < 0:
+                    trajectory = "Contracting"
+                    latest_vs_prior_change = f"{delta:,.1f} {unit} ({pct_chg}%)" if pct_chg is not None else f"{delta:,.1f} {unit}"
+                else:
+                    trajectory = "Stable"
+                    latest_vs_prior_change = "Flat (0.0% change)"
                 
             insight = (
-                f"{canonical_name} expanded from {prior_pt['stated_value']} ({prior_pt['period']}) to "
+                f"{canonical_name} moved from {prior_pt['stated_value']} ({prior_pt['period']}) to "
                 f"{latest_pt['stated_value']} ({latest_pt['period']}), representing a {latest_vs_prior_change} shift across official filings."
-            ) if delta > 0 else (
-                f"{canonical_name} contracted from {prior_pt['stated_value']} ({prior_pt['period']}) to "
-                f"{latest_pt['stated_value']} ({latest_pt['period']}), representing a {latest_vs_prior_change} shift across official filings."
-            ) if delta < 0 else (
-                f"{canonical_name} remained stable at {latest_pt['stated_value']} between {prior_pt['period']} and {latest_pt['period']}."
             )
             
         trends.append({
             "metric_name": canonical_name,
+            "normalized_core": key.split(":")[0] if ":" in key else key,
             "category": category,
             "unit": unit,
             "trajectory": trajectory,

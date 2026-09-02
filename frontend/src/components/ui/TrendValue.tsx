@@ -23,6 +23,7 @@ interface ChangeIndicatorProps {
   comparisonLabel?: string;
   visibleComparisonLabel?: string;
   className?: string;
+  businessModel?: string;
 }
 
 export const ChangeIndicator: React.FC<ChangeIndicatorProps> = ({
@@ -33,12 +34,13 @@ export const ChangeIndicator: React.FC<ChangeIndicatorProps> = ({
   previousPeriod,
   comparisonLabel,
   visibleComparisonLabel,
-  className = ''
+  className = '',
+  businessModel
 }) => {
-  const change = calculatePeriodChange(metric, current, previous);
+  const change = calculatePeriodChange(metric, current, previous, businessModel);
   if (!change) return null;
 
-  const direction = getMetricPresentation(metric).direction;
+  const direction = getMetricPresentation(metric, businessModel).direction;
   const contextual = direction === 'context_dependent' || direction === 'neutral';
   const periodDetail = currentPeriod && previousPeriod
     ? `${currentPeriod} (${formatFinancialValue(metric, current)}) compared with ${previousPeriod} (${formatFinancialValue(metric, previous)})`
@@ -105,6 +107,7 @@ interface FinancialMetricCellProps {
   comparisonLabel?: string;
   showChange?: boolean;
   className?: string;
+  businessModel?: string;
 }
 
 export const FinancialMetricCell: React.FC<FinancialMetricCellProps> = ({
@@ -115,9 +118,10 @@ export const FinancialMetricCell: React.FC<FinancialMetricCellProps> = ({
   previousPeriod,
   comparisonLabel,
   showChange = false,
-  className = ''
+  className = '',
+  businessModel
 }) => {
-  const negativeResult = isGenuinelyNegativeResult(metric, value);
+  const negativeResult = isGenuinelyNegativeResult(metric, value, businessModel);
   return (
     <div className={`financial-metric-cell ${className}`}>
       <span className={negativeResult ? 'financial-value-negative' : 'financial-value'}>
@@ -132,11 +136,12 @@ export const FinancialMetricCell: React.FC<FinancialMetricCellProps> = ({
           currentPeriod={currentPeriod}
           previousPeriod={previousPeriod}
           comparisonLabel={comparisonLabel}
+          businessModel={businessModel}
         />
       )}
     </div>
   );
 };
 
-export const trendToneFromValues = (metric: string, current?: number | null, previous?: number | null): TrendTone =>
-  calculatePeriodChange(metric, current, previous)?.tone ?? 'neutral';
+export const trendToneFromValues = (metric: string, current?: number | null, previous?: number | null, businessModel?: string): TrendTone =>
+  calculatePeriodChange(metric, current, previous, businessModel)?.tone ?? 'neutral';

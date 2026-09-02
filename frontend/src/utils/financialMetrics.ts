@@ -81,8 +81,20 @@ const METRIC_RULES: Array<{ matches: (metric: string) => boolean; presentation: 
 
 export const normalizeMetricName = (metric: string) => metric.trim().toLowerCase().replace(/\s+/g, ' ');
 
-export const getMetricPresentation = (metric: string): MetricPresentation => {
+export const getMetricPresentation = (metric: string, businessModel?: string): MetricPresentation => {
   const normalized = normalizeMetricName(metric);
+  const isBank = businessModel === 'BANK' || businessModel === 'FINANCIAL_BUSINESS';
+
+  if (isBank && /^(cash from operating activity|cash from operations|operating cash flow|cfo|cash from investing activity|cash from investing|cfi|cash from financing activity|cash from financing|cff|net cash flow|free cash flow|fcf)$/.test(normalized)) {
+    return {
+      direction: 'neutral',
+      importance: 'supporting',
+      changeUnit: 'percent',
+      negativeResultIsBad: false,
+      showSparkline: false
+    };
+  }
+
   const matched = METRIC_RULES.find(rule => rule.matches(normalized))?.presentation;
   if (matched) return matched;
   if (normalized.includes('%') || normalized.includes('margin')) {
@@ -251,11 +263,12 @@ const isProfitMetric = (metric: string) => /^(operating profit|net profit|pat|pr
 export const calculatePeriodChange = (
   metric: string,
   current: number | null | undefined,
-  previous: number | null | undefined
+  previous: number | null | undefined,
+  businessModel?: string
 ): PeriodChange | null => {
   if (typeof current !== 'number' || !Number.isFinite(current) || typeof previous !== 'number' || !Number.isFinite(previous)) return null;
 
-  const presentation = getMetricPresentation(metric);
+  const presentation = getMetricPresentation(metric, businessModel);
   const rawDelta = current - previous;
   const arrow = Math.abs(rawDelta) < 1e-9 ? '→' : rawDelta > 0 ? '↑' : '↓';
   const tone = toneForDirection(presentation.direction, rawDelta);
@@ -311,8 +324,8 @@ export const calculatePeriodChange = (
   };
 };
 
-export const isGenuinelyNegativeResult = (metric: string, value: number | null | undefined) =>
-  typeof value === 'number' && Number.isFinite(value) && value < 0 && getMetricPresentation(metric).negativeResultIsBad;
+export const isGenuinelyNegativeResult = (metric: string, value: number | null | undefined, businessModel?: string) =>
+  typeof value === 'number' && Number.isFinite(value) && value < 0 && getMetricPresentation(metric, businessModel).negativeResultIsBad;
 
 export const formatFinancialValue = (metric: string, value: number | null | undefined): string => {
   if (typeof value !== 'number' || !Number.isFinite(value)) return '—';

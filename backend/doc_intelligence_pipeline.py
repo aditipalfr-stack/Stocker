@@ -219,13 +219,14 @@ def calculate_announcement_materiality(title: str, text: str = "") -> Tuple[int,
     ]):
         return (0, "Routine procedural / compliance announcement")
         
-    # 2. High Materiality Rules
     if any(k in combined for k in ["acquisition", "amalgamation", "merger", "takeover", "slump sale", "divestment"]):
         return (30, "M&A / Acquisition / Divestment")
     if any(k in combined for k in ["penalty", "regulatory action", "rbi order", "sebi order", "adjudication", "warning letter"]):
         return (25, "Regulatory action / Penalty / Order")
     if any(k in combined for k in ["credit rating", "rating action", "rating upgrade", "rating downgrade"]):
         return (25, "Credit rating action")
+    if any(k in combined for k in ["outcome of board meeting", "outcome of the board meeting", "board meeting outcome"]):
+        return (20, "Board meeting outcome / Key corporate action")
     if any(k in combined for k in ["order win", "contract win", "bagged order", "major contract", "award of contract"]):
         return (20, "Major contract / Order win")
     if any(k in combined for k in ["fund raise", "qip", "bonds", "notes issuance", "senior notes", "capital raise", "rights issue", "preferential issue"]):
@@ -365,7 +366,7 @@ def assign_working_set_metadata(documents: DocumentLinks) -> List[DocumentItem]:
             else:
                 d.selection_reason = "Older than default 4-quarter transcript window"
 
-    # 4. INVESTOR PRESENTATIONS: Latest 4 DISTINCT earnings events
+    # 4. INVESTOR PRESENTATIONS: Latest 4 DISTINCT earnings events (EARNINGS_PRESENTATION only)
     ppts = documents.presentations or []
     sorted_ppts = sorted(ppts, key=lambda x: (getattr(x, "sort_timestamp", None) or "1970-01-01", x.title), reverse=True)
     
@@ -375,6 +376,12 @@ def assign_working_set_metadata(documents: DocumentLinks) -> List[DocumentItem]:
     for d in sorted_ppts:
         if not is_substantive_eligible(d):
             continue
+        subtype = getattr(d, "doc_subtype", None) or database.derive_document_subtype("presentation", d.title)
+        d.doc_subtype = subtype
+        # ONLY earnings_presentation enters the default quarterly working set
+        if subtype != "earnings_presentation":
+            continue
+            
         ev_key = getattr(d, "event_key", None)
         effective_event = ev_key if (ev_key and "GENERIC" not in ev_key) else f"PHYSICAL_PPT_{d.url}"
         
@@ -383,12 +390,22 @@ def assign_working_set_metadata(documents: DocumentLinks) -> List[DocumentItem]:
             selected_ppt_urls.add(d.url)
             
     for d in sorted_ppts:
+        subtype = getattr(d, "doc_subtype", None) or database.derive_document_subtype("presentation", d.title)
+        d.doc_subtype = subtype
         if d.url in selected_ppt_urls:
             d.selected_for_ai = True
             d.ai_priority = priority_counter
             priority_counter += 1
-            d.selection_reason = f"{d.period_or_date or 'Recent'} investor presentation"
+            d.selection_reason = f"{d.period_or_date or 'Recent'} earnings presentation"
             selected_items.append(d)
+        elif subtype == "agm_presentation":
+            d.selected_for_ai = False
+            d.ai_priority = None
+            d.selection_reason = "AGM presentation retained in archive (quarterly earnings presentation prioritized for AI)"
+        elif subtype == "investor_day_presentation":
+            d.selected_for_ai = False
+            d.ai_priority = None
+            d.selection_reason = "Strategy / Investor Day presentation retained in archive"
         elif getattr(d, "is_wrapper", False):
             d.selected_for_ai = False
             d.ai_priority = None
@@ -403,14 +420,24 @@ def assign_working_set_metadata(documents: DocumentLinks) -> List[DocumentItem]:
             else:
                 d.selection_reason = "Older than default 4-quarter presentation window"
 
-    # 5. MATERIAL ANNOUNCEMENTS: Max 3-5 High-Materiality (Ranked deterministically by score desc, date desc, stable key)
+    # 5. ANNOUNCEMENTS: Max 5 High-Materiality DISTINCT EVENTS (Ranked deterministically by score desc, date desc, stable key)
     anns = documents.material_announcements or []
     scored_anns = []
+    seen_ann_events: Set[str] = set()
+    
     for d in anns:
         score, reason = calculate_announcement_materiality(d.title)
         sort_ts = getattr(d, "sort_timestamp", None) or getattr(d, "period_or_date", "") or "1970-01-01"
         stable_key = getattr(d, "doc_key", None) or d.url or d.title or ""
-        scored_anns.append((d, score, reason, sort_ts, stable_key))
+        # Assign materiality metadata on document item
+        d.materiality_score = score
+        d.materiality_level = "HIGH" if score >= 10 else ("MEDIUM" if score >= 5 else "ROUTINE")
+        d.materiality_reason = reason
+        
+        # Determine distinct material event identity
+        sym = getattr(d, "ticker", "") or getattr(d, "symbol", "") or ""
+        event_key = database.derive_announcement_event_key(sym, d.title, d.period_or_date)
+        scored_anns.append((d, score, reason, sort_ts, stable_key, event_key))
 
     # Filter eligible high-materiality announcements (score >= 10)
     high_mat_anns = [
@@ -427,11 +454,18 @@ def assign_working_set_metadata(documents: DocumentLinks) -> List[DocumentItem]:
         reverse=True
     )
     
-    selected_high_mat_docs = [x[0] for x in high_mat_anns[:5]]
-    selected_high_mat_urls = {d.url for d in selected_high_mat_docs}
+    # Event-aware suppression: Pick highest-ranked announcement per distinct material event (up to 5 events)
+    selected_high_mat_docs = []
+    selected_high_mat_urls = set()
+    for item in high_mat_anns:
+        doc_obj, score, reason, sort_ts, stable_key, ev_key = item
+        if ev_key not in seen_ann_events and len(selected_high_mat_docs) < 5:
+            seen_ann_events.add(ev_key)
+            selected_high_mat_docs.append(item)
+            selected_high_mat_urls.add(doc_obj.url)
     
     # Assign priority in ranked materiality order
-    for d, score, reason, sort_ts, stable_key in high_mat_anns[:5]:
+    for d, score, reason, sort_ts, stable_key, ev_key in selected_high_mat_docs:
         d.selected_for_ai = True
         d.ai_priority = priority_counter
         priority_counter += 1
@@ -439,14 +473,16 @@ def assign_working_set_metadata(documents: DocumentLinks) -> List[DocumentItem]:
         selected_items.append(d)
         
     # Mark unselected announcements
-    for d, score, reason, sort_ts, stable_key in scored_anns:
+    for d, score, reason, sort_ts, stable_key, ev_key in scored_anns:
         if d.url not in selected_high_mat_urls:
             d.selected_for_ai = False
             d.ai_priority = None
             if score < 10:
                 d.selection_reason = f"Routine announcement: {reason}"
+            elif ev_key in seen_ann_events:
+                d.selection_reason = "Follow-up disclosure for already selected material event"
             else:
-                d.selection_reason = "Beyond top 5 material announcements window"
+                d.selection_reason = "Beyond top 5 distinct material announcement events"
 
     # 6. BRSR / ESG: 0 by default (archive only)
     brsrs = getattr(documents, "brsr_reports", None) or []
@@ -564,43 +600,76 @@ def fetch_historical_evidence_document(
 def get_or_generate_document_summary(symbol: str, company_name: str, doc: DocumentItem) -> Dict[str, Any]:
     """
     Retrieves the document's cached AI summary from SQLite or extracts and generates it via Gemini.
-    Reuses stored summaries to minimize repeated LLM token costs.
+    Validates cache schema/prompt freshness.
+    Implements deterministic Alternate Source Recovery if convenience PDF download fails.
     """
+    from llm_service import EXTRACTION_SCHEMA_VERSION, EXTRACTION_PROMPT_VERSION
     clean_sym = symbol.upper().strip()
     doc_k = getattr(doc, "doc_key", None) or database.compute_canonical_document_key(clean_sym, doc.doc_type, doc.period_or_date, doc.url, doc.title)
     doc.doc_key = doc_k
     
-    # 1. Check SQLite cache
+    # 1. Check SQLite cache with freshness version verification
     cached = database.get_document_summary(
         doc.url,
         doc_key=doc_k,
         symbol=clean_sym,
         doc_type=doc.doc_type,
-        period_or_date=doc.period_or_date
+        period_or_date=doc.period_or_date,
+        expected_schema_version=EXTRACTION_SCHEMA_VERSION,
+        expected_prompt_version=EXTRACTION_PROMPT_VERSION
     )
     if cached and cached.get("key_takeaways"):
         cached["doc_key"] = doc_k
+        doc.cache_status = "CACHED_CURRENT"
         return cached
         
-    # 2. Download and extract pages
+    # 2. Download and extract pages with Alternate Source Recovery
+    pages = None
+    download_err = None
+    original_url = doc.url
+    active_url = doc.url
+    
     try:
-        pages = download_and_extract_pdf(doc.url, symbol=clean_sym)
+        pages = download_and_extract_pdf(active_url, symbol=clean_sym)
     except Exception as e:
-        print(f"    ⚠️ Could not extract text for {doc.title}: {e}")
-        failed_sum = {
-            "doc_title": doc.title,
-            "doc_url": doc.url,
-            "doc_key": doc_k,
-            "doc_type": doc.doc_type,
-            "period_or_date": doc.period_or_date,
-            "status": "failed",
-            "error": f"Failed to extract document: {e}",
-            "key_takeaways": []
-        }
-        database.save_document_summary(clean_sym, doc.url, doc.title, failed_sum, doc_key=doc_k, doc_type=doc.doc_type, period_or_date=doc.period_or_date)
-        return failed_sum
+        download_err = e
+        print(f"    ⚠️ Could not extract text for {doc.title} from {active_url}: {e}")
         
+    # If initial URL download failed, attempt alternate source recovery
     if not pages:
+        norm_dt = database.normalize_document_type(doc.doc_type, doc.title)
+        subtype = getattr(doc, "doc_subtype", None) or database.derive_document_subtype(norm_dt, doc.title)
+        ev_key = getattr(doc, "event_key", None)
+        alt_doc = database.find_substantive_alternate_source(
+            symbol=clean_sym,
+            doc_type=norm_dt,
+            doc_subtype=subtype,
+            event_key=ev_key,
+            period_or_date=doc.period_or_date,
+            failed_url=original_url
+        )
+        if alt_doc and alt_doc.get("url"):
+            alt_url = alt_doc["url"]
+            print(f"    🔄 Attempting Alternate Source Recovery for {doc.title}: {alt_url}")
+            try:
+                pages = download_and_extract_pdf(alt_url, symbol=clean_sym)
+                if pages:
+                    active_url = alt_url
+                    if not doc.source_aliases:
+                        doc.source_aliases = []
+                    if original_url not in doc.source_aliases:
+                        doc.source_aliases.append(original_url)
+                    if not doc.discovered_sources:
+                        doc.discovered_sources = []
+                    if alt_doc.get("discovery_source") and alt_doc["discovery_source"] not in doc.discovered_sources:
+                        doc.discovered_sources.append(alt_doc["discovery_source"])
+                    print(f"    ✅ Alternate Source Recovery Succeeded for {doc.title} via {alt_url}")
+            except Exception as e_alt:
+                print(f"    ⚠️ Alternate Source Recovery also failed for {doc.title}: {e_alt}")
+                download_err = e_alt
+                
+    if not pages:
+        print(f"    ⚠️ Skipping summary for {doc.title}: No text extracted from {active_url}")
         failed_sum = {
             "doc_title": doc.title,
             "doc_url": doc.url,
@@ -608,7 +677,7 @@ def get_or_generate_document_summary(symbol: str, company_name: str, doc: Docume
             "doc_type": doc.doc_type,
             "period_or_date": doc.period_or_date,
             "status": "failed",
-            "error": "No readable text pages found in filing.",
+            "error": f"Failed to download/extract PDF: {download_err or 'No pages found'}",
             "key_takeaways": []
         }
         database.save_document_summary(clean_sym, doc.url, doc.title, failed_sum, doc_key=doc_k, doc_type=doc.doc_type, period_or_date=doc.period_or_date)
@@ -628,7 +697,7 @@ def get_or_generate_document_summary(symbol: str, company_name: str, doc: Docume
             symbol=clean_sym,
             company_name=company_name,
             doc_title=doc.title,
-            doc_url=doc.url,
+            doc_url=active_url,
             doc_type=doc.doc_type,
             period_or_date=doc.period_or_date,
             pages=selected_pages
@@ -651,6 +720,10 @@ def get_or_generate_document_summary(symbol: str, company_name: str, doc: Docume
     if summary:
         summary["doc_key"] = doc_k
         summary["status"] = "success"
+        if doc.source_aliases:
+            summary["source_aliases"] = list(doc.source_aliases)
+        if doc.discovered_sources:
+            summary["discovered_sources"] = list(doc.discovered_sources)
         database.save_document_summary(clean_sym, doc.url, doc.title, summary, doc_key=doc_k, doc_type=doc.doc_type, period_or_date=doc.period_or_date)
         return summary
         

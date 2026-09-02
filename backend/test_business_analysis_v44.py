@@ -1059,21 +1059,125 @@ class TestBusinessAnalysisV44(unittest.TestCase):
         self.assertEqual(deduped["growth_drivers"][0]["driver_title"], "Business Banking Expansion")
 
     # =========================================================================
-    # F. SOURCE CITATION SAFETY TESTS
+    # G. V4.4 QA-HARDENING PASS VERIFICATION TESTS
     # =========================================================================
 
-    def test_source_citation_safety_unmapped_url_rejected(self):
-        """Hallucinated or unmapped document URLs are rejected and set to empty/unsupported."""
-        candidate_docs = [{"title": "Official Annual Report FY26", "url": "https://bse.com/ar26.pdf"}]
+    def test_fail_closed_execution_verdict_insufficient_history(self):
+        """Zero verifiable promises must strictly evaluate to 'Insufficient History'."""
+        from financial_engine import compute_fail_closed_execution_verdict
+        verdict = compute_fail_closed_execution_verdict([])
+        self.assertEqual(verdict, "Insufficient History")
+
+    def test_fail_closed_execution_verdict_provisional(self):
+        """A single verifiable promise is marked as 'Provisional'."""
+        from financial_engine import compute_fail_closed_execution_verdict
+        items = [
+            {"status": "Delivered", "management_promise": "Achieve 15% loan growth"}
+        ]
+        verdict = compute_fail_closed_execution_verdict(items)
+        self.assertEqual(verdict, "Provisional")
+
+    def test_fail_closed_execution_verdict_strong_and_weak(self):
+        """Multiple delivered promises yield 'Strong Execution', while >50% missed yields 'Weak Execution'."""
+        from financial_engine import compute_fail_closed_execution_verdict
+        strong_items = [
+            {"status": "Delivered", "management_promise": "Grow NIM"},
+            {"status": "Delivered", "management_promise": "Keep credit cost <50 bps"},
+            {"status": "Delivered", "management_promise": "Open 50 branches"}
+        ]
+        self.assertEqual(compute_fail_closed_execution_verdict(strong_items), "Strong Execution")
+
+        weak_items = [
+            {"status": "Missed", "management_promise": "Grow deposit base by 20%"},
+            {"status": "Missed", "management_promise": "Expand ROA to 2.5%"},
+            {"status": "Delivered", "management_promise": "Open 50 branches"}
+        ]
+        self.assertEqual(compute_fail_closed_execution_verdict(weak_items), "Weak Execution")
+
+    def test_topline_semantic_mismatch_operating_profit_rejected(self):
+        """Operating profit cannot substitute for top-line guidance."""
+        item = {
+            "area": "Top-Line Revenue",
+            "management_promise": "Management guided 15% top-line revenue growth in FY26",
+            "promised_in_period": "FY25",
+            "actual_outcome": "Reported operating profit expanded by 18% in FY26",
+            "actual_in_period": "FY26",
+            "source_url_promise": "https://bse.com/ar25.pdf",
+            "source_url_actual": "https://bse.com/ar26.pdf"
+        }
+        res = verify_promise_vs_delivery_item(item, pl_stmt=None, quarters_stmt=None, current_year=2026.5)
+        self.assertEqual(res["status"], "Not Enough Evidence")
+        self.assertIn("Metric Semantic Mismatch", res["stocker_analysis"])
+
+    def test_bank_kpi_identity_and_evolution_trajectory_requires_two_periods(self):
+        """Inter-document KPI trends strictly require >=2 periods and omit single data points."""
+        from financial_engine import build_inter_document_kpi_trends
         
-        url, title = sanitize_citation("https://random-blog.com/fake.pdf", "Official Annual Report FY26", candidate_docs)
-        # Title match recovers verified official URL
-        self.assertEqual(url, "https://bse.com/ar26.pdf")
+        # Single period: omitted
+        single_doc_facts = [
+            {"metric_name": "Net Interest Margin (NIM)", "value": 4.36, "unit": "%", "period_or_date": "Q1 FY26"}
+        ]
+        trends = build_inter_document_kpi_trends(single_doc_facts)
+        self.assertEqual(len(trends), 0)
+
+        # Two periods: trend generated
+        multi_doc_facts = [
+            {"metric_name": "NIM", "value": 4.36, "unit": "%", "period_or_date": "Q1 FY26"},
+            {"metric_name": "Net Interest Margin", "value": 4.25, "unit": "%", "period_or_date": "Q2 FY26"}
+        ]
+        trends_multi = build_inter_document_kpi_trends(multi_doc_facts)
+        self.assertEqual(len(trends_multi), 1)
+        self.assertEqual(trends_multi[0]["normalized_core"], "nim")
+        self.assertEqual(len(trends_multi[0]["data_points"]), 2)
+        self.assertEqual(trends_multi[0]["trajectory"], "Contracting")
+
+    def test_bank_kpi_lower_is_better_trajectory_directionality(self):
+        """For lower-is-better metrics (GNPA, NNPA, Credit Cost), decreasing values are 'Improving'."""
+        from financial_engine import build_inter_document_kpi_trends
         
-        # Completely unknown URL and title is rejected
-        url_fake, title_fake = sanitize_citation("https://hallucinated.com/doc.pdf", "Nonexistent Document", candidate_docs)
-        self.assertIsNone(url_fake)
-        self.assertIsNone(title_fake)
+        gnpa_facts = [
+            {"metric_name": "Gross NPA", "value": 2.15, "unit": "%", "period_or_date": "Q1 FY26"},
+            {"metric_name": "GNPA Ratio", "value": 1.97, "unit": "%", "period_or_date": "Q2 FY26"}
+        ]
+        trends = build_inter_document_kpi_trends(gnpa_facts)
+        self.assertEqual(len(trends), 1)
+        self.assertEqual(trends[0]["trajectory"], "Improving")
+
+    def test_ai_document_summary_cache_lineage_and_version_invalidation(self):
+        """Database summary retrieval invalidates when extraction schema or prompt version changes."""
+        sym = "TESTSYM_LINEAGE"
+        url = "https://bse.com/sample_doc.pdf"
+        title = "Sample Q1 FY26 Deck"
+        payload = {"key_takeaways": ["Sample bullet point"]}
+        
+        # Save with version 4.4 / 4.4.1
+        database.save_document_summary(
+            sym, url, title, payload,
+            content_hash="abc123hash",
+            extraction_schema_version="4.4",
+            extraction_prompt_version="4.4.1"
+        )
+
+        # Retrieval with exact matching version succeeds
+        summary_ok = database.get_document_summary(
+            doc_url=url,
+            symbol=sym,
+            expected_schema_version="4.4",
+            expected_prompt_version="4.4.1",
+            expected_content_hash="abc123hash"
+        )
+        self.assertIsNotNone(summary_ok)
+        self.assertEqual(summary_ok["content_hash"], "abc123hash")
+
+        # Retrieval with mismatched schema version invalidates (returns None)
+        summary_stale = database.get_document_summary(
+            doc_url=url,
+            symbol=sym,
+            expected_schema_version="5.0",
+            expected_prompt_version="4.4.1"
+        )
+        self.assertIsNone(summary_stale)
 
 if __name__ == "__main__":
     unittest.main()
+

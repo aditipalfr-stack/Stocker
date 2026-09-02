@@ -216,7 +216,7 @@ export const SourceFilingsView: React.FC<SourceFilingsViewProps> = ({
             { id: 'regulatory_annual_filing', label: 'Regulatory (20-F)', count: categoryCounts.regulatory_annual_filing },
             { id: 'concall', label: 'Concalls', count: categoryCounts.concall },
             { id: 'presentation', label: 'Presentations', count: categoryCounts.presentation },
-            { id: 'announcement', label: 'Material Announcements', count: categoryCounts.announcement },
+            { id: 'announcement', label: 'Announcements', count: categoryCounts.announcement },
             { id: 'brsr_esg', label: 'BRSR / ESG', count: categoryCounts.brsr_esg },
           ].map(btn => (
             <button
@@ -305,6 +305,16 @@ export const SourceFilingsView: React.FC<SourceFilingsViewProps> = ({
                           <span className="bg-slate-900 text-cyan-300 text-[10px] font-semibold px-2 py-0.5 rounded-full border border-slate-800">
                             {displayType}
                           </span>
+                          {doc.materiality_level === 'HIGH' && (
+                            <span className="bg-rose-500/10 text-rose-300 text-[10px] font-semibold px-2 py-0.5 rounded-full border border-rose-500/20">
+                              HIGH MATERIALITY
+                            </span>
+                          )}
+                          {doc.materiality_level === 'MEDIUM' && (
+                            <span className="bg-amber-500/10 text-amber-300 text-[10px] font-semibold px-2 py-0.5 rounded-full border border-amber-500/20">
+                              MEDIUM MATERIALITY
+                            </span>
+                          )}
                           {doc.selected_for_ai ? (
                             <span className="bg-cyan-500/10 text-cyan-300 text-[10px] font-semibold px-2 py-0.5 rounded-full border border-cyan-500/30 flex items-center gap-1">
                               <Sparkles className="w-2.5 h-2.5 text-cyan-400" />
@@ -326,6 +336,11 @@ export const SourceFilingsView: React.FC<SourceFilingsViewProps> = ({
                               AI Analyzed
                             </span>
                           )}
+                          {summary?.extraction_schema_version && (
+                            <span className="bg-slate-900 text-slate-400 text-[9px] font-mono px-1.5 py-0.5 rounded border border-slate-800" title={`Schema v${summary.extraction_schema_version} | Prompt v${summary.extraction_prompt_version || '4.4.1'}`}>
+                              v{summary.extraction_schema_version}
+                            </span>
+                          )}
                           {isFailed && (
                             <span className="bg-rose-500/10 text-rose-400 text-[10px] font-semibold px-2 py-0.5 rounded-full border border-rose-500/20 flex items-center gap-1">
                               <AlertTriangle className="w-2.5 h-2.5" />
@@ -335,11 +350,6 @@ export const SourceFilingsView: React.FC<SourceFilingsViewProps> = ({
                           {isNotSelected && !doc.selection_reason && (
                             <span className="bg-slate-900 text-slate-400 text-[10px] font-mono px-2 py-0.5 rounded-full border border-slate-800">
                               Not in working set
-                            </span>
-                          )}
-                          {summary?.management_tone && (
-                            <span className="bg-slate-900 text-slate-300 text-[10px] font-mono px-2 py-0.5 rounded-full border border-slate-800">
-                              Tone: {summary.management_tone}
                             </span>
                           )}
                         </h5>

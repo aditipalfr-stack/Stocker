@@ -58,14 +58,14 @@ export const FinancialStatementTable: React.FC<FinancialStatementTableProps> = (
         </thead>
         <tbody>
           {statement.rows.map((row, rowIndex) => {
-            const presentation = getMetricPresentation(row.metric);
+            const presentation = getMetricPresentation(row.metric, businessModel);
             const glossaryTerm = getStatementGlossaryTerm(row.metric);
             const values = statement.periods.map(period => row.values[period]);
             const currentValue = selection.currentIndex === null ? null : values[selection.currentIndex];
             const previousValue = selection.previousIndex === null ? null : values[selection.previousIndex];
             const historyValues = selection.historyIndices.map(index => values[index]);
             const validHistoryCount = historyValues.filter(value => typeof value === 'number' && Number.isFinite(value)).length;
-            const hasExactChange = calculatePeriodChange(row.metric, currentValue, previousValue) !== null;
+            const hasExactChange = calculatePeriodChange(row.metric, currentValue, previousValue, businessModel) !== null;
             const rowClass = presentation.importance === 'core'
               ? 'financial-row-core'
               : presentation.importance === 'supporting' ? 'financial-row-supporting' : '';
@@ -83,6 +83,7 @@ export const FinancialStatementTable: React.FC<FinancialStatementTableProps> = (
                       <FinancialMetricCell
                         metric={row.metric}
                         value={row.values[period]}
+                        businessModel={businessModel}
                       />
                     </td>
                   );
@@ -99,6 +100,7 @@ export const FinancialStatementTable: React.FC<FinancialStatementTableProps> = (
                         comparisonLabel={selection.comparisonLabel}
                         visibleComparisonLabel={selection.comparisonBasisLabel}
                         className="change-trend-indicator"
+                        businessModel={businessModel}
                       />
                     ) : (
                       <span className="change-unavailable">No exact comparison</span>
@@ -107,7 +109,7 @@ export const FinancialStatementTable: React.FC<FinancialStatementTableProps> = (
                       <Sparkline
                         values={historyValues}
                         label={`${row.metric} historical shape (${selection.historyLabel}${statementKind === 'quarterly' ? '' : '; TTM excluded'})`}
-                        tone={trendToneFromValues(row.metric, currentValue, previousValue)}
+                        tone={trendToneFromValues(row.metric, currentValue, previousValue, businessModel)}
                       />
                     ) : <span className="sparkline-empty" aria-label={`${row.metric} history: not enough comparable data`}>—</span>}
                   </div>

@@ -145,7 +145,7 @@ class RisksAndCashIssues(BaseModel):
 
 # 6. STOCKER VIEW
 class StockerView(BaseModel):
-    execution_verdict: Literal["Strong Execution", "Mixed Execution", "Weak Execution", "Evolving / Watchlist"] = Field(default="Evolving / Watchlist")
+    execution_verdict: str = Field(default="Evolving / Watchlist", description="Strong Execution | Mixed Execution | Weak Execution | Provisional | Insufficient History | Evolving / Watchlist")
     business_momentum: Optional[str] = Field(default=None, description="Acceleration | Steady Growth | Moderating | Contracting")
     financial_quality: Optional[str] = Field(default=None, description="High Quality | Adequate | Under Pressure | Distressed")
     evidence_confidence: Optional[str] = Field(default="High", description="High | Moderate | Low / Incomplete")
@@ -330,6 +330,14 @@ class DocumentSummaryItem(BaseModel):
     concall_specific: Optional[ConcallSpecificSummary] = None
     presentation_specific: Optional[PresentationSpecificSummary] = None
     announcement_specific: Optional[AnnouncementSpecificSummary] = None
+    
+    # Cache Lineage & Provenance Metadata
+    content_hash: Optional[str] = None
+    extraction_schema_version: Optional[str] = None
+    extraction_prompt_version: Optional[str] = None
+    provider: Optional[str] = None
+    model: Optional[str] = None
+    cache_status: Optional[str] = None # "CACHED_CURRENT", "LEGACY_STALE", "NEWLY_EXTRACTED"
 
     @model_validator(mode="before")
     @classmethod

@@ -1071,5 +1071,90 @@ class TestCanonicalSourceFilingsV44(unittest.TestCase):
             self.assertEqual(summary["key_takeaways"], ["Capex plan of 500 Cr."])
             self.assertTrue(mock_llm.called)
 
+    def test_29_presentation_subtyping_agm_and_investor_day_excluded_from_working_set(self):
+        """Presentations subtype AGM / Investor Day are excluded from default 4-slot working set."""
+        sym = "TESTSYM_PPT_SUB"
+        docs = [
+            DocumentItem(ticker=sym, title="Earnings Presentation Q1 FY26", url="https://bse.com/ppt_q1.pdf", doc_type="presentation", period_or_date="Q1 FY26"),
+            DocumentItem(ticker=sym, title="Investor Presentation Q2 FY26", url="https://bse.com/ppt_q2.pdf", doc_type="presentation", period_or_date="Q2 FY26"),
+            DocumentItem(ticker=sym, title="Annual General Meeting (AGM) Presentation 2026", url="https://bse.com/agm.pdf", doc_type="presentation", period_or_date="FY26"),
+            DocumentItem(ticker=sym, title="Investor Day & Strategy Presentation", url="https://bse.com/strategy.pdf", doc_type="presentation", period_or_date="2026")
+        ]
+        database.save_source_documents(sym, docs)
+        resp = main.get_stock_source_filings(sym)
+        ppts = resp["documents"]["presentations"]
+        
+        q1 = next(p for p in ppts if p["url"] == "https://bse.com/ppt_q1.pdf")
+        q2 = next(p for p in ppts if p["url"] == "https://bse.com/ppt_q2.pdf")
+        agm = next(p for p in ppts if p["url"] == "https://bse.com/agm.pdf")
+        strat = next(p for p in ppts if p["url"] == "https://bse.com/strategy.pdf")
+        
+        self.assertTrue(q1["selected_for_ai"])
+        self.assertTrue(q2["selected_for_ai"])
+        self.assertFalse(agm["selected_for_ai"])
+        self.assertIn("AGM presentation retained in archive", agm["selection_reason"])
+        self.assertFalse(strat["selected_for_ai"])
+        self.assertIn("Strategy / Investor Day presentation retained in archive", strat["selection_reason"])
+
+    def test_30_announcement_event_clustering_and_deduplication(self):
+        """Announcements cluster by canonical event key and limit to max 5 distinct events in working set."""
+        sym = "TESTSYM_ANN_CLUST"
+        # 3 filings belonging to the same board meeting event
+        docs = [
+            DocumentItem(ticker=sym, title="Outcome Of Board Meeting Held On 20 Oct 2025", url="https://bse.com/bm1.pdf", doc_type="announcement", period_or_date="20 Oct 2025"),
+            DocumentItem(ticker=sym, title="Board Meeting Outcome - Financial Results", url="https://bse.com/bm2.pdf", doc_type="announcement", period_or_date="20 Oct 2025"),
+            DocumentItem(ticker=sym, title="Announcement Under Reg 30: Credit Rating Upgraded", url="https://bse.com/rating.pdf", doc_type="announcement", period_or_date="15 Nov 2025"),
+        ]
+        database.save_source_documents(sym, docs)
+        resp = main.get_stock_source_filings(sym)
+        anns = resp["documents"]["material_announcements"]
+        selected = [a for a in anns if a["selected_for_ai"]]
+        
+        # Only 1 board meeting outcome is selected; credit rating is also selected (2 distinct events)
+        self.assertEqual(len(selected), 2)
+        bm_selected = [a for a in selected if "Board Meeting" in a["title"]]
+        self.assertEqual(len(bm_selected), 1)
+
+    def test_31_alternate_source_recovery_on_failed_convenience_url(self):
+        """When downloading convenience URL fails (e.g. 403), pipeline falls back to substantive alternative."""
+        sym = "TESTSYM_ALT_REC"
+        doc_failed = DocumentItem(
+            ticker=sym,
+            title="Concall Transcript Q2 FY26",
+            url="https://screener.in/fail403.pdf",
+            doc_type="concall_transcript",
+            period_or_date="Q2 FY26",
+            discovery_source="Screener"
+        )
+        doc_substantive = DocumentItem(
+            ticker=sym,
+            title="Official Concall Transcript Q2 FY26",
+            url="https://bse.com/official_substantive.pdf",
+            doc_type="concall_transcript",
+            period_or_date="Q2 FY26",
+            discovery_source="BSE"
+        )
+        database.save_source_documents(sym, [doc_failed, doc_substantive])
+        
+        def mock_download(url, *args, **kwargs):
+            if "fail403" in url:
+                return []
+            return [(1, "Official substantive conference call text. Revenue grew 16%.")]
+            
+        with unittest.mock.patch("doc_intelligence_pipeline.download_and_extract_pdf", side_effect=mock_download), \
+             unittest.mock.patch("doc_intelligence_pipeline.summarize_single_document_with_llm") as mock_llm:
+            mock_llm.return_value = {
+                "doc_title": "Official Concall Transcript Q2 FY26",
+                "doc_url": doc_substantive.url,
+                "doc_type": "concall_transcript",
+                "period_or_date": "Q2 FY26",
+                "key_takeaways": ["Revenue grew 16%"],
+                "management_tone": "Optimistic"
+            }
+            summary = doc_intelligence_pipeline.get_or_generate_document_summary(sym, "Test Corp", doc_failed)
+            self.assertEqual(summary["key_takeaways"], ["Revenue grew 16%"])
+            # Verified that source aliases recorded the failed convenience URL
+            self.assertIn(doc_failed.url, summary.get("source_aliases", []))
+
 if __name__ == '__main__':
     unittest.main()
