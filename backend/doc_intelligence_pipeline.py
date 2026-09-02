@@ -199,7 +199,6 @@ def format_financials_for_prompt(symbol: str, stock_data: Optional[Dict[str, Any
     return "\n".join(lines)
 
 # Backward-compatibility alias
-# Backward-compatibility alias
 format_audited_financials_for_prompt = format_financials_for_prompt
 
 def calculate_announcement_materiality(title: str, text: str = "") -> Tuple[int, str]:
@@ -318,75 +317,130 @@ def assign_working_set_metadata(documents: DocumentLinks) -> List[DocumentItem]:
             else:
                 d.selection_reason = "Older regulatory filing (on-demand archive)"
 
-    # 3. CONCALL TRANSCRIPTS: Latest 4 quarters (prefer analyst/investor)
+    # 3. CONCALL TRANSCRIPTS: Latest 4 DISTINCT earnings events (prefer substantive analyst/investor)
     ccs = documents.concalls or []
-    analyst_ccs = [
-        d for d in ccs 
-        if is_substantive_eligible(d) and getattr(d, "doc_subtype", None) in ("analyst_investor_transcript", "earnings_transcript", None)
-    ]
-    media_ccs = [
-        d for d in ccs 
-        if is_substantive_eligible(d) and getattr(d, "doc_subtype", None) == "media_call_transcript"
-    ]
-    for idx, d in enumerate(ccs):
-        if d in analyst_ccs[:4]:
+    sorted_ccs = sorted(ccs, key=lambda x: (getattr(x, "sort_timestamp", None) or "1970-01-01", x.title), reverse=True)
+    
+    seen_cc_events: Set[str] = set()
+    selected_cc_urls: Set[str] = set()
+    
+    # First pass: pick ONE preferred substantive analyst/investor transcript per distinct event
+    for d in sorted_ccs:
+        if not is_substantive_eligible(d):
+            continue
+        subtype = getattr(d, "doc_subtype", None)
+        if subtype == "media_call_transcript":
+            continue
+            
+        ev_key = getattr(d, "event_key", None)
+        effective_event = ev_key if (ev_key and "GENERIC" not in ev_key) else f"PHYSICAL_EVENT_{d.url}"
+        
+        if effective_event not in seen_cc_events and len(seen_cc_events) < 4:
+            seen_cc_events.add(effective_event)
+            selected_cc_urls.add(d.url)
+
+    # Assign metadata to all concalls preserving chronological order
+    for d in sorted_ccs:
+        if d.url in selected_cc_urls:
             d.selected_for_ai = True
             d.ai_priority = priority_counter
             priority_counter += 1
             d.selection_reason = f"{d.period_or_date or 'Recent'} earnings transcript"
             selected_items.append(d)
-        elif d in media_ccs:
+        elif getattr(d, "doc_subtype", None) == "media_call_transcript":
             d.selected_for_ai = False
             d.ai_priority = None
             d.selection_reason = "Media call retained in archive (analyst transcript prioritized for AI)"
-        else:
+        elif getattr(d, "is_wrapper", False):
             d.selected_for_ai = False
             d.ai_priority = None
-            if getattr(d, "is_wrapper", False):
-                d.selection_reason = "Wrapper notification; substantive transcript resolved"
+            d.selection_reason = "Wrapper notification; substantive transcript resolved"
+        else:
+            ev_key = getattr(d, "event_key", None)
+            effective_event = ev_key if (ev_key and "GENERIC" not in ev_key) else None
+            d.selected_for_ai = False
+            d.ai_priority = None
+            if effective_event and effective_event in seen_cc_events:
+                d.selection_reason = "Secondary transcript for already selected earnings quarter"
             else:
                 d.selection_reason = "Older than default 4-quarter transcript window"
 
-    # 4. INVESTOR PRESENTATIONS: Latest 4 quarters
+    # 4. INVESTOR PRESENTATIONS: Latest 4 DISTINCT earnings events
     ppts = documents.presentations or []
-    substantive_ppts = [d for d in ppts if is_substantive_eligible(d)]
-    for idx, d in enumerate(ppts):
-        if d in substantive_ppts[:4]:
+    sorted_ppts = sorted(ppts, key=lambda x: (getattr(x, "sort_timestamp", None) or "1970-01-01", x.title), reverse=True)
+    
+    seen_ppt_events: Set[str] = set()
+    selected_ppt_urls: Set[str] = set()
+    
+    for d in sorted_ppts:
+        if not is_substantive_eligible(d):
+            continue
+        ev_key = getattr(d, "event_key", None)
+        effective_event = ev_key if (ev_key and "GENERIC" not in ev_key) else f"PHYSICAL_PPT_{d.url}"
+        
+        if effective_event not in seen_ppt_events and len(seen_ppt_events) < 4:
+            seen_ppt_events.add(effective_event)
+            selected_ppt_urls.add(d.url)
+            
+    for d in sorted_ppts:
+        if d.url in selected_ppt_urls:
             d.selected_for_ai = True
             d.ai_priority = priority_counter
             priority_counter += 1
             d.selection_reason = f"{d.period_or_date or 'Recent'} investor presentation"
             selected_items.append(d)
-        else:
+        elif getattr(d, "is_wrapper", False):
             d.selected_for_ai = False
             d.ai_priority = None
-            if getattr(d, "is_wrapper", False):
-                d.selection_reason = "Wrapper notification"
+            d.selection_reason = "Wrapper notification"
+        else:
+            ev_key = getattr(d, "event_key", None)
+            effective_event = ev_key if (ev_key and "GENERIC" not in ev_key) else None
+            d.selected_for_ai = False
+            d.ai_priority = None
+            if effective_event and effective_event in seen_ppt_events:
+                d.selection_reason = "Secondary presentation for already selected earnings quarter"
             else:
                 d.selection_reason = "Older than default 4-quarter presentation window"
 
-    # 5. MATERIAL ANNOUNCEMENTS: Max 3-5 High-Materiality (score >= 10)
+    # 5. MATERIAL ANNOUNCEMENTS: Max 3-5 High-Materiality (Ranked deterministically by score desc, date desc, stable key)
     anns = documents.material_announcements or []
     scored_anns = []
     for d in anns:
         score, reason = calculate_announcement_materiality(d.title)
-        scored_anns.append((d, score, reason))
+        sort_ts = getattr(d, "sort_timestamp", None) or getattr(d, "period_or_date", "") or "1970-01-01"
+        stable_key = getattr(d, "doc_key", None) or d.url or d.title or ""
+        scored_anns.append((d, score, reason, sort_ts, stable_key))
 
+    # Filter eligible high-materiality announcements (score >= 10)
     high_mat_anns = [
-        (d, score, reason) for d, score, reason in scored_anns 
-        if score >= 10 and is_substantive_eligible(d)
+        item for item in scored_anns 
+        if item[1] >= 10 and is_substantive_eligible(item[0])
     ]
     
-    selected_high_mat = {d.url: (score, reason) for d, score, reason in high_mat_anns[:5]}
+    # Sort deterministically:
+    # 1. materiality score descending
+    # 2. publication / sort timestamp descending
+    # 3. stable key tie-break
+    high_mat_anns.sort(
+        key=lambda x: (x[1], x[3], x[4]),
+        reverse=True
+    )
     
-    for d, score, reason in scored_anns:
-        if d.url in selected_high_mat:
-            d.selected_for_ai = True
-            d.ai_priority = priority_counter
-            priority_counter += 1
-            d.selection_reason = f"High-materiality: {reason}"
-            selected_items.append(d)
-        else:
+    selected_high_mat_docs = [x[0] for x in high_mat_anns[:5]]
+    selected_high_mat_urls = {d.url for d in selected_high_mat_docs}
+    
+    # Assign priority in ranked materiality order
+    for d, score, reason, sort_ts, stable_key in high_mat_anns[:5]:
+        d.selected_for_ai = True
+        d.ai_priority = priority_counter
+        priority_counter += 1
+        d.selection_reason = f"High-materiality: {reason}"
+        selected_items.append(d)
+        
+    # Mark unselected announcements
+    for d, score, reason, sort_ts, stable_key in scored_anns:
+        if d.url not in selected_high_mat_urls:
             d.selected_for_ai = False
             d.ai_priority = None
             if score < 10:
@@ -695,8 +749,28 @@ def select_relevant_sections(
             reverse=True
         )
         kept_indices = set(scored_pages[:max_pages_to_select])
+        # If space remains, fill with adjacent context pages
+        for p in list(kept_indices):
+            if len(kept_indices) >= max_pages_to_select:
+                break
+            if (p - 1) in context_pages and (p - 1) not in kept_indices:
+                kept_indices.add(p - 1)
+            if len(kept_indices) < max_pages_to_select and (p + 1) in context_pages and (p + 1) not in kept_indices:
+                kept_indices.add(p + 1)
         final_selected_indices = kept_indices
         
+    if not final_selected_indices:
+        # Fallback: keep first few pages if no keyword matched
+        final_selected_indices = set(range(1, min(total_pages + 1, max_pages_to_select + 1)))
+        for p in final_selected_indices:
+            page_reasons.setdefault(p, []).append("General Document Excerpt")
+
+    sorted_pages = [
+        (p, text) for p, text in all_pages if p in final_selected_indices
+    ]
+    
+    return sorted_pages, page_reasons
+
 def deduplicate_synthesized_findings(output_dict: Dict[str, Any]) -> Dict[str, Any]:
     """
     Ensures company-level synthesis does not repeat duplicate KPI findings or takeaways

@@ -924,5 +924,150 @@ class TestCanonicalSourceFilingsV44(unittest.TestCase):
         self.assertEqual(len(deduped["verified_facts"]), 1)
         self.assertEqual(len(deduped["what_changed_recently"]), 1)
 
+    # =========================================================================
+    # ADDITIONAL TESTS FOR SELECT_RELEVANT_SECTIONS, 4 DISTINCT EVENTS, RANKING
+    # =========================================================================
+
+    def test_21_select_relevant_sections_short_document(self):
+        """Short document (<=50 pages) returns all pages and valid tuple."""
+        short_pages = [(i, f"Page text content {i}") for i in range(1, 30)]
+        pages, reasons = doc_intelligence_pipeline.select_relevant_sections(short_pages, is_full_annual_report=False)
+        self.assertIsInstance(pages, list)
+        self.assertIsInstance(reasons, dict)
+        self.assertEqual(len(pages), 29)
+        self.assertEqual(reasons[1], ["Full Document"])
+
+    def test_22_select_relevant_sections_long_document_with_themes(self):
+        """Long document with matched themes returns matched pages + adjacent context."""
+        long_pages = [(i, f"Routine page text {i}") for i in range(1, 100)]
+        long_pages[24] = (25, "Management Discussion and Analysis. Capital expenditure and margin guidance.")
+        pages, reasons = doc_intelligence_pipeline.select_relevant_sections(long_pages, is_full_annual_report=True, max_pages_to_select=10)
+        self.assertIsInstance(pages, list)
+        self.assertIsInstance(reasons, dict)
+        page_nums = [p for p, _ in pages]
+        self.assertIn(25, page_nums)
+        # Adjacent context pages (24, 26) should be included
+        self.assertIn(24, page_nums)
+        self.assertIn(26, page_nums)
+        self.assertLessEqual(len(pages), 10)
+
+    def test_23_select_relevant_sections_max_pages_cap(self):
+        """Max-pages-to-select cap is strictly enforced on dense documents."""
+        dense_pages = [
+            (i, f"Revenue guidance EBITDA margin Capex growth driver risk factor litigation debt {i}")
+            for i in range(1, 120)
+        ]
+        pages, reasons = doc_intelligence_pipeline.select_relevant_sections(dense_pages, is_full_annual_report=True, max_pages_to_select=15)
+        self.assertLessEqual(len(pages), 15)
+
+    def test_24_select_relevant_sections_no_matches_fallback(self):
+        """Document with no keyword matches falls back gracefully to initial pages without failing."""
+        blank_pages = [(i, f"Lorem ipsum dolor sit amet {i}") for i in range(1, 80)]
+        pages, reasons = doc_intelligence_pipeline.select_relevant_sections(blank_pages, is_full_annual_report=True, max_pages_to_select=20)
+        self.assertIsInstance(pages, list)
+        self.assertIsInstance(reasons, dict)
+        self.assertEqual(len(pages), 20)
+        self.assertEqual(pages[0][0], 1)
+
+    def test_25_concall_selection_latest_4_distinct_events(self):
+        """Two transcripts for same Q1 event + Q2, Q3, Q4, Q5 selects latest 4 DISTINCT events (Q1, Q2, Q3, Q4)."""
+        sym = "TESTSYM_CC4"
+        docs = [
+            DocumentItem(ticker=sym, title="Concall Transcript Q1 FY27 - Version A", url="https://bse.com/cc_q1_a.pdf", doc_type="concall_transcript", period_or_date="Jul 2026"),
+            DocumentItem(ticker=sym, title="Concall Transcript Q1 FY27 - Version B", url="https://bse.com/cc_q1_b.pdf", doc_type="concall_transcript", period_or_date="Jul 2026"),
+            DocumentItem(ticker=sym, title="Concall Transcript Q4 FY26", url="https://bse.com/cc_q4.pdf", doc_type="concall_transcript", period_or_date="Apr 2026"),
+            DocumentItem(ticker=sym, title="Concall Transcript Q3 FY26", url="https://bse.com/cc_q3.pdf", doc_type="concall_transcript", period_or_date="Jan 2026"),
+            DocumentItem(ticker=sym, title="Concall Transcript Q2 FY26", url="https://bse.com/cc_q2.pdf", doc_type="concall_transcript", period_or_date="Oct 2025"),
+            DocumentItem(ticker=sym, title="Concall Transcript Q1 FY26", url="https://bse.com/cc_q1_old.pdf", doc_type="concall_transcript", period_or_date="Jul 2025"),
+        ]
+        database.save_source_documents(sym, docs)
+        resp = main.get_stock_source_filings(sym)
+        ccs = resp["documents"]["concalls"]
+        selected = [c for c in ccs if c["selected_for_ai"]]
+        
+        # Must select exactly 4 distinct quarters: Q1 FY27 (one version), Q4 FY26, Q3 FY26, Q2 FY26
+        self.assertEqual(len(selected), 4)
+        selected_periods = [c["period_or_date"] for c in selected]
+        self.assertEqual(selected_periods.count("Jul 2026"), 1)
+        self.assertIn("Apr 2026", selected_periods)
+        self.assertIn("Jan 2026", selected_periods)
+        self.assertIn("Oct 2025", selected_periods)
+        self.assertNotIn("Jul 2025", selected_periods)
+
+    def test_26_presentation_selection_latest_4_distinct_events(self):
+        """Two presentations for same Q1 event + Q2, Q3, Q4, Q5 selects latest 4 DISTINCT events."""
+        sym = "TESTSYM_PPT4"
+        docs = [
+            DocumentItem(ticker=sym, title="Investor Deck Q1 FY27 - Main", url="https://bse.com/ppt_q1_1.pdf", doc_type="presentation", period_or_date="Jul 2026"),
+            DocumentItem(ticker=sym, title="Investor Deck Q1 FY27 - Factsheet", url="https://bse.com/ppt_q1_2.pdf", doc_type="presentation", period_or_date="Jul 2026"),
+            DocumentItem(ticker=sym, title="Investor Deck Q4 FY26", url="https://bse.com/ppt_q4.pdf", doc_type="presentation", period_or_date="Apr 2026"),
+            DocumentItem(ticker=sym, title="Investor Deck Q3 FY26", url="https://bse.com/ppt_q3.pdf", doc_type="presentation", period_or_date="Jan 2026"),
+            DocumentItem(ticker=sym, title="Investor Deck Q2 FY26", url="https://bse.com/ppt_q2.pdf", doc_type="presentation", period_or_date="Oct 2025"),
+            DocumentItem(ticker=sym, title="Investor Deck Q1 FY26", url="https://bse.com/ppt_q1_old.pdf", doc_type="presentation", period_or_date="Jul 2025"),
+        ]
+        database.save_source_documents(sym, docs)
+        resp = main.get_stock_source_filings(sym)
+        ppts = resp["documents"]["presentations"]
+        selected = [p for p in ppts if p["selected_for_ai"]]
+        
+        self.assertEqual(len(selected), 4)
+        selected_periods = [p["period_or_date"] for p in selected]
+        self.assertEqual(selected_periods.count("Jul 2026"), 1)
+        self.assertIn("Apr 2026", selected_periods)
+        self.assertIn("Jan 2026", selected_periods)
+        self.assertIn("Oct 2025", selected_periods)
+        self.assertNotIn("Jul 2025", selected_periods)
+
+    def test_27_material_announcements_ranked_by_materiality_score(self):
+        """Score 30 M&A outranks score 15 litigation even if litigation appears earlier in input list."""
+        sym = "TESTSYM_ANN_RANK"
+        docs = [
+            DocumentItem(ticker=sym, title="Announcement: Material Litigation Update", url="https://bse.com/litigation.pdf", doc_type="announcement", period_or_date="20 Aug 2026"),
+            DocumentItem(ticker=sym, title="Announcement: Routine Corporate Notice", url="https://bse.com/routine1.pdf", doc_type="announcement", period_or_date="19 Aug 2026"),
+            DocumentItem(ticker=sym, title="Announcement: Major Acquisition and Merger of Subsidiary", url="https://bse.com/mna.pdf", doc_type="announcement", period_or_date="10 Aug 2026"),
+            DocumentItem(ticker=sym, title="Announcement: Credit Rating Upgraded", url="https://bse.com/rating.pdf", doc_type="announcement", period_or_date="05 Aug 2026"),
+        ]
+        database.save_source_documents(sym, docs)
+        resp = main.get_stock_source_filings(sym)
+        anns = resp["documents"]["material_announcements"]
+        selected = [a for a in anns if a["selected_for_ai"]]
+        selected.sort(key=lambda x: x["ai_priority"])
+        
+        # M&A (Score 30) should be prioritized ahead of Credit Rating (Score 25) and Litigation (Score 15)
+        self.assertEqual(selected[0]["url"], "https://bse.com/mna.pdf")
+        self.assertEqual(selected[1]["url"], "https://bse.com/rating.pdf")
+        self.assertEqual(selected[2]["url"], "https://bse.com/litigation.pdf")
+        # Routine notice must not be selected
+        routine = next(a for a in anns if a["url"] == "https://bse.com/routine1.pdf")
+        self.assertFalse(routine["selected_for_ai"])
+
+    def test_28_real_excerpt_path_unpacking(self):
+        """Regression test verifying select_relevant_sections unpacks without error in pipeline flow."""
+        sym = "TESTSYM_UNPACK"
+        test_pages = [(1, "Management Discussion and Analysis. Capex plan of 500 Cr."), (2, "Financial statements balance sheet.")]
+        database.save_cached_document_pages(sym, "https://bse.com/sample_ar.pdf", test_pages)
+        
+        pages, reasons = doc_intelligence_pipeline.select_relevant_sections(test_pages, is_full_annual_report=False)
+        self.assertIsInstance(pages, list)
+        self.assertIsInstance(reasons, dict)
+        self.assertEqual(len(pages), 2)
+        
+        # Test full get_or_generate_document_summary path with mocked LLM to ensure unpacking works end-to-end
+        doc = DocumentItem(ticker=sym, title="Sample AR", url="https://bse.com/sample_ar.pdf", doc_type="annual_report", period_or_date="FY2026")
+        
+        with unittest.mock.patch("doc_intelligence_pipeline.download_and_extract_pdf", return_value=test_pages), \
+             unittest.mock.patch("doc_intelligence_pipeline.summarize_single_document_with_llm") as mock_llm:
+            mock_llm.return_value = {
+                "doc_title": "Sample AR",
+                "doc_url": doc.url,
+                "doc_type": "annual_report",
+                "period_or_date": "FY2026",
+                "key_takeaways": ["Capex plan of 500 Cr."],
+                "management_tone": "Optimistic"
+            }
+            summary = doc_intelligence_pipeline.get_or_generate_document_summary(sym, "Test Corp", doc)
+            self.assertEqual(summary["key_takeaways"], ["Capex plan of 500 Cr."])
+            self.assertTrue(mock_llm.called)
+
 if __name__ == '__main__':
     unittest.main()
