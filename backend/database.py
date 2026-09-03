@@ -746,11 +746,13 @@ def derive_document_subtype(doc_type: str, title: str = "", period_or_date: Opti
             return "agm_presentation"
         if any(k in t_clean for k in ["investor day", "analyst meet", "analyst day", "strategy presentation", "strategy update", "thematic", "corporate presentation"]):
             return "investor_day_presentation"
+        if any(k in t_clean for k in ["debt market", "debt investor", "fixed income", "debt presentation", "debt investors"]):
+            return "debt_presentation"
         # Deterministically check for explicit quarterly/earnings indicators in title or period
         p_clean = (period_or_date or "").lower().strip()
         combined_text = f"{t_clean} {p_clean}"
         has_earnings_indicator = bool(re.search(
-            r'\b(q[1-4]|quarter|financial results|earnings|performance review|quarter ended|half year|h[12]|annual results|fy\s*\d{2,4}|20\d\d[-/]\d{2})\b',
+            r'\b(q[1-4]|quarter|financial results|earnings|performance review|quarter ended|half year|h[12]|annual results|fy\s*\d{2,4}|20\d\d[-/]\d{2}|june 30|september 30|december 31|march 31|30 jun|30 sep|31 dec|31 mar)\b',
             combined_text
         ))
         if has_earnings_indicator:
@@ -784,21 +786,30 @@ def derive_announcement_event_key(symbol: str, title: str, period_or_date: Optio
             if ag in t_clean:
                 agency = ag.replace(" ", "_")
                 break
-        m_date = re.search(r'\b(20\d\d[-/]\d{2}(?:[-/]\d{2})?)\b', p_clean or t_clean)
-        d_part = m_date.group(1) if m_date else p_clean[:7]
-        return f"ANN_EVENT_{clean_sym}_RATING_{agency}_{d_part}"
+        m_date = re.search(r'\b(20\d\d)\b', p_clean or t_clean)
+        yr = m_date.group(1) if m_date else "2026"
+        # Group rating actions by agency & fiscal half to avoid crowding working set
+        m_month = re.search(r'\b(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\b', p_clean or t_clean, re.IGNORECASE)
+        h_part = "H2" if m_month and m_month.group(1).lower() in ["oct", "nov", "dec", "jan", "feb", "mar"] else "H1"
+        return f"ANN_EVENT_{clean_sym}_RATING_{agency}_{yr}_{h_part}"
 
-    # 2. Debt / Bond / NCD Issuance
+    # 2. Fund-raising / Capital Action (Board Intimation + Subsequent Board Outcome)
+    if any(k in t_clean for k in ["fund raising", "fund raise", "raising of funds", "capital raise", "issuance of debt", "issuance of securities"]):
+        m_date = re.search(r'\b(20\d\d)\b', p_clean or t_clean)
+        yr = m_date.group(1) if m_date else "2026"
+        return f"ANN_EVENT_{clean_sym}_FUND_RAISE_{yr}"
+
+    # 3. Debt / Bond / NCD Issuance
     if any(k in t_clean for k in ["bond", "ncd", "debenture", "senior notes", "commercial paper", "issuance"]):
         m_date = re.search(r'\b(20\d\d[-/]\d{2}(?:[-/]\d{2})?)\b', p_clean or t_clean)
         d_part = m_date.group(1) if m_date else p_clean[:7]
         return f"ANN_EVENT_{clean_sym}_DEBT_ISSUE_{d_part}"
 
-    # 3. Dividend / AGM Outcome
+    # 4. Dividend / AGM Outcome
     if "dividend" in t_clean or "agm" in t_clean:
         return f"ANN_EVENT_{clean_sym}_DIVIDEND_AGM_{p_clean[:7]}"
 
-    # 4. Board Meeting Outcome / Results
+    # 5. Board Meeting Outcome / Results
     if "board meeting" in t_clean or "outcome of" in t_clean:
         m_date = re.search(r'\b(\d{1,2}\s+[A-Za-z]{3}\s+20\d\d)\b', p_clean or t_clean)
         d_part = m_date.group(1) if m_date else p_clean[:10]
@@ -853,11 +864,24 @@ def derive_earnings_event_key(symbol: str, period_or_date: Optional[str], title:
         fy_yr = raw_yr if raw_yr > 1000 else 2000 + raw_yr
         return f"event_{clean_sym}_Q{q_num}FY{str(fy_yr)[-2:]}"
 
-    # 2. Match Month + Year for Indian reporting cycle:
-    # Jun/Jul/Aug earnings calls -> Q1 of following FY (e.g. Jul 2026 -> Q1 FY27)
-    # Sep/Oct/Nov earnings calls -> Q2 of following FY (e.g. Oct 2025 -> Q2 FY26)
-    # Dec/Jan/Feb earnings calls -> Q3 of FY (e.g. Jan 2026 -> Q3 FY26)
-    # Mar/Apr/May earnings calls -> Q4 of FY (e.g. Apr 2026 -> Q4 FY26)
+    # 2. Match Month + Year or Month + Day + Year for Indian reporting cycle:
+    # Jun/Jul/Aug earnings calls -> Q1 of following FY (e.g. Jul 2026 -> Q1 FY27, June 30 2026 -> Q1 FY27)
+    # Sep/Oct/Nov earnings calls -> Q2 of following FY (e.g. Oct 2025 -> Q2 FY26, October 18 2025 -> Q2 FY26)
+    # Dec/Jan/Feb earnings calls -> Q3 of FY (e.g. Jan 2026 -> Q3 FY26, December 31 2025 -> Q3 FY26)
+    # Mar/Apr/May earnings calls -> Q4 of FY (e.g. Apr 2026 -> Q4 FY26, March 31 2026 -> Q4 FY26)
+    m_mdy = re.search(r'(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\s+(\d{1,2})[a-z]*[-/ ,]+(\d{4})', combined, re.IGNORECASE)
+    if m_mdy:
+        mon = m_mdy.group(1)[:3].lower()
+        yr = int(m_mdy.group(3))
+        if mon in ["jun", "jul", "aug"]:
+            return f"event_{clean_sym}_Q1FY{str(yr + 1)[-2:]}"
+        elif mon in ["sep", "oct", "nov"]:
+            return f"event_{clean_sym}_Q2FY{str(yr + 1)[-2:]}"
+        elif mon in ["dec", "jan", "feb"]:
+            return f"event_{clean_sym}_Q3FY{str(yr if mon != 'dec' else yr + 1)[-2:]}"
+        elif mon in ["mar", "apr", "may"]:
+            return f"event_{clean_sym}_Q4FY{str(yr)[-2:]}"
+
     m_my = re.search(r'(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*[-/ ,]+(\d{4})', combined, re.IGNORECASE)
     if m_my:
         mon = m_my.group(1)[:3].lower()
@@ -871,7 +895,7 @@ def derive_earnings_event_key(symbol: str, period_or_date: Optional[str], title:
         elif mon in ["mar", "apr", "may"]:
             return f"event_{clean_sym}_Q4FY{str(yr)[-2:]}"
 
-    # 3. Match exact text date: '18 Jul 2026', '23 Jul 2026'
+    # 3. Match exact text date: '18 Jul 2026', '23 Jul 2026', '30 June 2026'
     m_dmy = re.search(r'\d{1,2}[-/ ]+(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*[-/ ,]+(\d{4})', combined, re.IGNORECASE)
     if m_dmy:
         mon = m_dmy.group(1)[:3].lower()
@@ -1426,22 +1450,22 @@ def save_cached_document_pages(symbol: str, doc_url: str, pages: List[Tuple[int,
 # PER-DOCUMENT AI SUMMARIES HELPERS
 # ---------------------------------------------------------
 
-def find_substantive_alternate_source(
+def find_substantive_alternate_sources(
     symbol: str,
     doc_type: str,
     doc_subtype: Optional[str] = None,
     event_key: Optional[str] = None,
     period_or_date: Optional[str] = None,
     failed_url: Optional[str] = None
-) -> Optional[Dict[str, Any]]:
+) -> List[Dict[str, Any]]:
     """
-    Searches the stored/discovered document corpus for an alternative substantive document
+    Searches the stored/discovered document corpus for ALL alternative substantive documents
     for the exact same canonical event & subtype when a convenience URL fails (e.g. HTTP 403).
-    Source priority:
-    1. Company IR direct substantive document
-    2. BSE/NSE substantive document
-    3. Screener convenience transcript
-    4. Other verified source
+    Returns all matching candidates ranked by source preference:
+    1. Current official company IR domain (score 4)
+    2. BSE/NSE substantive document (score 3)
+    3. Other Company IR (score 2)
+    4. Screener convenience transcript (score 1)
     """
     clean_sym = symbol.upper().strip()
     failed_clean = (failed_url or "").strip().rstrip("/")
@@ -1462,6 +1486,7 @@ def find_substantive_alternate_source(
         rows = cur.fetchall()
 
         candidates = []
+        seen_cand_urls = set()
         for r in rows:
             all_urls = []
             primary_u = (r["url"] or "").strip().rstrip("/")
@@ -1476,53 +1501,81 @@ def find_substantive_alternate_source(
                         if isinstance(a, str) and (a.startswith("http://") or a.startswith("https://")):
                             clean_a = a.strip().rstrip("/")
                             if clean_a != failed_clean:
-                                disc_name = "bse" if "bse" in clean_a else ("ir" if "ir" in clean_a or "company" in clean_a else "alternate")
+                                disc_name = "bse" if "bse" in clean_a else ("ir" if "ir" in clean_a or "company" in clean_a or "bank.in" in clean_a else "alternate")
                                 all_urls.append((clean_a, disc_name))
                 except Exception:
                     pass
 
             for cand_url, cand_disc in all_urls:
+                if cand_url in seen_cand_urls or cand_url == failed_clean:
+                    continue
                 if is_document_wrapper(r["title"], cand_url):
                     continue
                 norm_dt = normalize_document_type(r["doc_type"], r["title"])
                 if norm_dt != doc_type:
                     continue
-                r_subtype = derive_document_subtype(norm_dt, r["title"])
+                r_subtype = derive_document_subtype(norm_dt, r["title"], r["period_or_date"])
                 if doc_subtype and r_subtype != doc_subtype:
-                    continue
+                    # Allow compatible concall transcripts
+                    if not (norm_dt == "concall_transcript" and doc_subtype in ("earnings_transcript", "analyst_investor_transcript") and r_subtype in ("earnings_transcript", "analyst_investor_transcript")):
+                        continue
                 r_ev = derive_announcement_event_key(clean_sym, r["title"], r["period_or_date"]) if norm_dt == "material_announcements" else derive_earnings_event_key(clean_sym, r["period_or_date"], r["title"])
-                if event_key and r_ev and r_ev != event_key:
+                if event_key and r_ev and r_ev != event_key and not event_key.endswith("_GENERIC"):
                     continue
                 if not event_key and period_or_date and r["period_or_date"] != period_or_date:
                     continue
 
                 disc = (cand_disc or "").lower()
                 host = (r["actual_source_host"] or "").lower()
+                u_low = cand_url.lower()
 
-                # Score by source preference:
-                # 1. Company IR (score 3)
-                # 2. BSE/NSE (score 2)
-                # 3. Screener (score 1)
-                # 4. Other (score 0)
-                if "company" in disc or "company" in host or "ir" in host:
+                # Source preference scoring:
+                # 1. Current official company IR domain (score 4)
+                # 2. BSE/NSE (score 3)
+                # 3. Other Company IR (score 2)
+                # 4. Screener (score 1)
+                # 5. Other (score 0)
+                if "bank.in" in u_low or "bank.in" in host:
+                    pref_score = 4
+                elif "bseindia" in disc or "nseindia" in disc or "bse" in disc or "bseindia" in host or "nseindia" in host or "bseindia" in u_low or "bse.com" in u_low:
                     pref_score = 3
-                elif "bse" in disc or "nse" in disc or "bseindia" in host or "nseindia" in host or "bseindia" in cand_url or "bse.com" in cand_url:
+                elif "company" in disc or "company" in host or "ir" in host or "icicibank.com" in u_low:
                     pref_score = 2
                 elif "screener" in disc or "screener" in host:
                     pref_score = 1
                 else:
                     pref_score = 0
 
+                seen_cand_urls.add(cand_url)
                 cand_dict = dict(r)
                 cand_dict["url"] = cand_url
                 candidates.append((pref_score, cand_dict))
 
         if candidates:
             candidates.sort(key=lambda x: x[0], reverse=True)
-            return candidates[0][1]
-        return None
+            return [item[1] for item in candidates]
+        return []
     finally:
         conn.close()
+
+def find_substantive_alternate_source(
+    symbol: str,
+    doc_type: str,
+    doc_subtype: Optional[str] = None,
+    event_key: Optional[str] = None,
+    period_or_date: Optional[str] = None,
+    failed_url: Optional[str] = None
+) -> Optional[Dict[str, Any]]:
+    """Backward-compatible helper returning preferred single alternate or None."""
+    results = find_substantive_alternate_sources(
+        symbol=symbol,
+        doc_type=doc_type,
+        doc_subtype=doc_subtype,
+        event_key=event_key,
+        period_or_date=period_or_date,
+        failed_url=failed_url
+    )
+    return results[0] if results else None
 
 def compute_document_content_hash(pages_or_text: Any) -> str:
     """

@@ -89,8 +89,8 @@ import hashlib
 
 # Explicit Extraction & Synthesis Prompt/Schema Versioning
 EXTRACTION_SCHEMA_VERSION = "4.4"
-EXTRACTION_PROMPT_VERSION = "4.4.1"
-COMPANY_SYNTHESIS_PROMPT_VERSION = "4.4.1"
+EXTRACTION_PROMPT_VERSION = "4.4.2"
+COMPANY_SYNTHESIS_PROMPT_VERSION = "4.4.2"
 
 ANNUAL_REPORT_SUMMARY_PROMPT = """You are an institutional fundamental equity analyst extracting an executive summary from a company Annual Report.
 Focus strictly on:
@@ -99,7 +99,20 @@ Focus strictly on:
 - Segment performance & operational highlights
 - Cash flow, net debt & working capital management
 - Major risks, compliance, and long-term management targets
-- Specific quantitative facts, operational KPIs (ARPU, capacity, order book, margins, volumes), and targets
+- Specific quantitative facts, operational KPIs, and forward targets
+
+BANK & LENDING KPI MANDATE (FOR BANKS):
+You MUST prioritize extracting stated instances of:
+1. Net Interest Margin (NIM) & Domestic NIM (%)
+2. Gross NPA (GNPA) & GNPA Ratio (%)
+3. Net NPA (NNPA) & NNPA Ratio (%)
+4. Credit Cost / Cost of Risk (%)
+5. CASA & CASA Ratio (%)
+6. Total Deposits & Deposit Growth (%)
+7. Total Advances & Loan Growth (%)
+8. Return on Assets (ROA) (%)
+9. Capital Adequacy / CET1 Ratio (%)
+10. Slippages / Slippage Ratio (%)
 
 Output MUST be a valid JSON object matching this schema:
 {
@@ -112,9 +125,9 @@ Output MUST be a valid JSON object matching this schema:
   "long_term_targets": "Management's multi-year vision or numerical targets",
   "extracted_facts": [
     {
-      "metric_name": "EBITDA Margin / ARPU / Capacity / Revenue / Order Book / Stores",
-      "stated_value_raw": "52% / ₹245 / 1 GW / ₹14,500 Cr",
-      "numeric_value": 52.0,
+      "metric_name": "EBITDA Margin / NIM / GNPA / CASA / Deposit Growth / Capacity / Revenue",
+      "stated_value_raw": "4.36% / 2.15% / 43.6% / ₹14,500 Cr",
+      "numeric_value": 4.36,
       "unit": "% / ₹ / MW / ₹ Cr / bps / units",
       "period_or_date": "FY26",
       "target_period": null,
@@ -138,6 +151,19 @@ Focus strictly on:
 - Management tone & analyst Q&A sentiment
 - Specific stated KPIs, volume metrics, price movements, and forward guidance numbers
 
+BANK & LENDING KPI MANDATE (FOR BANKS):
+You MUST prioritize extracting stated instances of:
+1. Net Interest Margin (NIM) & Domestic NIM (%)
+2. Gross NPA (GNPA) & GNPA Ratio (%)
+3. Net NPA (NNPA) & NNPA Ratio (%)
+4. Credit Cost / Cost of Risk (%)
+5. CASA & CASA Ratio (%)
+6. Total Deposits & Deposit Growth (%)
+7. Total Advances & Loan Growth (%)
+8. Return on Assets (ROA) (%)
+9. Capital Adequacy / CET1 Ratio (%)
+10. Slippages / Slippage Ratio (%)
+
 Output MUST be a valid JSON object matching this schema:
 {
   "key_takeaways": ["Takeaway 1", "Takeaway 2", "Takeaway 3"],
@@ -149,9 +175,9 @@ Output MUST be a valid JSON object matching this schema:
   "quarterly_shifts": "Key changes vs prior quarters",
   "extracted_facts": [
     {
-      "metric_name": "Metric Name e.g. Guidance Revenue Growth / Order Inflow / Utilization",
-      "stated_value_raw": "14-16% / ₹8,200 Cr / 85%",
-      "numeric_value": 15.0,
+      "metric_name": "NIM / GNPA / Credit Cost / CASA / Loan Growth / Order Inflow",
+      "stated_value_raw": "4.36% / 2.15% / 0.35% / 19.6%",
+      "numeric_value": 4.36,
       "unit": "% / ₹ Cr / bps",
       "period_or_date": "Q3 FY26",
       "target_period": "FY27",
@@ -173,6 +199,19 @@ Focus strictly on:
 - Forward-looking financial and operational targets
 - Quantitative operational milestones (stores, megawatts, subscriber metrics, capacity utilization)
 
+BANK & LENDING KPI MANDATE (FOR BANKS):
+You MUST prioritize extracting stated instances of:
+1. Net Interest Margin (NIM) & Domestic NIM (%)
+2. Gross NPA (GNPA) & GNPA Ratio (%)
+3. Net NPA (NNPA) & NNPA Ratio (%)
+4. Credit Cost / Cost of Risk (%)
+5. CASA & CASA Ratio (%)
+6. Total Deposits & Deposit Growth (%)
+7. Total Advances & Loan Growth (%)
+8. Return on Assets (ROA) (%)
+9. Capital Adequacy / CET1 Ratio (%)
+10. Slippages / Slippage Ratio (%)
+
 Output MUST be a valid JSON object matching this schema:
 {
   "key_takeaways": ["Takeaway 1", "Takeaway 2", "Takeaway 3"],
@@ -183,10 +222,10 @@ Output MUST be a valid JSON object matching this schema:
   "forward_targets": "Target numbers and expected milestones",
   "extracted_facts": [
     {
-      "metric_name": "Solar Capacity / Subscriber Count / Store Count / ARPU",
-      "stated_value_raw": "420 MW / 125M / 1,450 Stores / ₹230",
-      "numeric_value": 420.0,
-      "unit": "MW / Subscribers / Stores / ₹",
+      "metric_name": "NIM / GNPA / CASA / Deposit Growth / Advances Growth / CET1",
+      "stated_value_raw": "4.36% / 2.15% / 43.6% / 19.6% / 15.9%",
+      "numeric_value": 4.36,
+      "unit": "% / ₹ Cr / bps / MW / Stores",
       "period_or_date": "Q2 FY26",
       "target_period": null,
       "category": "operational_kpi" | "management_guidance",
@@ -266,13 +305,43 @@ CRITICAL INSTITUTIONAL RULES:
    D. RISKS & STOCKER VIEW:
       - NOT AN INVESTMENT RECOMMENDATION: Strictly FORBIDDEN from using "Buy", "Strong Buy", "Hold", "Sell".
       - Separate: Critical Risks (3-5 items with severity, current vs potential, metric to watch), Opportunities, Watch Items, and Stocker View (execution verdict, business momentum, financial quality, evidence confidence, investor summary).
-5. TRUTH INTEGRITY & SEPARATION OF RESPONSIBILITIES:
+5. BUSINESS MODEL & ECONOMIC MOAT MANDATE:
+   - BUSINESS MODEL: For Banks, synthesize a grounded business model from filing evidence covering lending/spread economics, deposit funding franchise, fee/non-interest income, and customer verticals. Do NOT output generic boilerplate. If evidence is unsupported, leave business_model_summary empty.
+   - ECONOMIC MOAT: A moat classification strictly requires supported evidence (e.g. deposit franchise / CASA scale, funding cost advantage, branch scale, sustained ROA/ROE advantage, asset-quality advantage, fee franchise).
+   - STRICT PROHIBITION: Do NOT infer a moat simply from brand, customer relationships, or large company status.
+   - If evidence is insufficient: you MUST set moat_type = "INSUFFICIENT_EVIDENCE" and provide no unsupported competitive advantage or threat claims.
+6. SEPARATION OF MANAGEMENT NARRATIVE FROM OBSERVED CAUSALITY:
+   - Strictly distinguish between:
+     * MANAGEMENT_STRATEGY: What management claims as its internal strategy, philosophy, or slogan (e.g. "Customer 360", "One ICICI", "Fair to Customer Fair to Bank").
+     * OBSERVED_RESULT: What reported financial statements and filing data actually show (e.g. "PBT ex-treasury +20.9%, domestic loans +19.6%").
+     * STOCKER_INTERPRETATION: Objective, independent, non-promotional analytical observation.
+   - FORBIDDEN CAUSAL PROMOTION: You must NEVER attribute financial growth or operational performance to management slogans or strategic branding without independent causal proof (e.g. do NOT say "growth demonstrates successful execution of Customer-360 strategy" or "growth was driven by the 360-degree approach").
+   - ALLOWED: "Management identifies Customer-360 as a strategic focus. During Q1 FY27, rural/business banking grew X/Y."
+7. TRUTH INTEGRITY & SEPARATION OF RESPONSIBILITIES:
    - DO NOT attempt mathematical calculations; code computes all financial ratios and achievement rates deterministically.
    - Leave 'financial_numbers_check' null.
    - Preserve 'STANDARDIZED HISTORICAL FINANCIAL STATEMENTS' wording; do NOT call them audited/officially verified unless explicitly verified.
 
 Output MUST be a valid JSON object matching this schema:
 {
+  "business_quality": {
+    "business_model_summary": "Plain-English evidence-backed description of how the company makes money, its lending/spread economics, deposit funding franchise, fee streams, and key verticals. Derived strictly from filings.",
+    "segment_mix": [],
+    "geography_mix": [],
+    "revenue_characteristics": {},
+    "source_page": 12,
+    "source_quote": "Verbatim quote snippet",
+    "source_url": "Exact document URL"
+  },
+  "competitive_position": {
+    "moat_type": "Cost Advantage" | "High Switching Costs" | "Network Effects" | "Scale Advantage" | "INSUFFICIENT_EVIDENCE",
+    "key_advantages": ["Supported advantage 1", "Supported advantage 2"],
+    "competitive_threats": ["Identified threat 1"],
+    "pricing_power_assessment": "Evidence-backed pricing power assessment",
+    "source_page": 14,
+    "source_quote": "Verbatim quote snippet",
+    "source_url": "Exact document URL"
+  },
   "what_changed_recently": [
     {
       "headline": "Short, factual headline of recent material shift",
@@ -1217,6 +1286,76 @@ def sanitize_and_verify_intelligence_result(
         result.management_guidance_items = eval_guidance
     except Exception as e_g:
         print(f"Notice: Guidance evaluation engine error: {e_g}")
+
+    # 9. Business Quality & Economic Moat Sanitization
+    if result.business_quality:
+        result.business_quality.source_url, matched_bq_doc = sanitize_citation(
+            result.business_quality.source_url, None, candidate_documents_meta,
+            latest_doc_url, latest_doc_title, older_doc_url, older_doc_title
+        )
+        if result.business_quality.source_url:
+            bq_page = verify_citation_page(result.business_quality.source_url, result.business_quality.source_quote, result.business_quality.business_model_summary)
+            if bq_page:
+                result.business_quality.source_page = bq_page
+        else:
+            result.business_quality.source_page = None
+            result.business_quality.source_quote = None
+
+    if result.competitive_position:
+        result.competitive_position.source_url, matched_cp_doc = sanitize_citation(
+            result.competitive_position.source_url, None, candidate_documents_meta,
+            latest_doc_url, latest_doc_title, older_doc_url, older_doc_title
+        )
+        if result.competitive_position.source_url:
+            cp_page = verify_citation_page(result.competitive_position.source_url, result.competitive_position.source_quote, None)
+            if cp_page:
+                result.competitive_position.source_page = cp_page
+        else:
+            result.competitive_position.source_page = None
+            result.competitive_position.source_quote = None
+
+        # Filter out generic filler text
+        clean_advs = []
+        for adv in result.competitive_position.key_advantages:
+            if not any(g in adv.lower() for g in ["established market position", "strong brand distribution", "generic brand"]):
+                clean_advs.append(adv)
+        result.competitive_position.key_advantages = clean_advs
+
+        clean_threats = []
+        for th in result.competitive_position.competitive_threats:
+            if not any(g in th.lower() for g in ["monitored for competitive pricing", "generic threat"]):
+                clean_threats.append(th)
+        result.competitive_position.competitive_threats = clean_threats
+
+        # Fail closed: require supported evidence for economic moat
+        if not result.competitive_position.key_advantages and not result.competitive_position.pricing_power_assessment:
+            result.competitive_position.moat_type = "INSUFFICIENT_EVIDENCE"
+
+    # 10. Separation of Management Narrative from Observed Causality
+    def _sanitize_promotional_causality(text: str) -> str:
+        if not text:
+            return text
+        # Neutralize claims that performance "demonstrates successful execution of" management slogans
+        t = re.sub(
+            r'(?:growth|performance)\s+(?:demonstrates|reflects|proves)\s+(?:successful\s+execution\s+of|the\s+success\s+of)\s+(?:the\s+)?([A-Za-z0-9-]+(?:\s+strategy|\s+approach|\s+framework|\s+model))',
+            r'growth occurred alongside management focus on the \1',
+            text,
+            flags=re.IGNORECASE
+        )
+        t = re.sub(
+            r'successful\s+execution\s+of\s+(?:the\s+)?([A-Za-z0-9-]+(?:\s+strategy|\s+approach|\s+framework|\s+model))',
+            r'management-reported \1',
+            t,
+            flags=re.IGNORECASE
+        )
+        return t
+
+    for c in result.what_changed_recently:
+        c.detail = _sanitize_promotional_causality(c.detail)
+    for g in result.growth_drivers:
+        g.description = _sanitize_promotional_causality(g.description)
+    if result.stocker_view and result.stocker_view.investor_summary:
+        result.stocker_view.investor_summary = _sanitize_promotional_causality(result.stocker_view.investor_summary)
 
     result.financial_business_model = financial_business_model
     return result

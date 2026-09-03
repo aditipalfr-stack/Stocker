@@ -1522,40 +1522,33 @@ def extract_kpi_identity(fact: Dict[str, Any]) -> Dict[str, str]:
     claim_type = (fact.get("claim_type") or "reported_fact").strip().lower()
     unit = (fact.get("unit") or "").strip().lower()
     
-    # 1. Detect geography / segment from metric name or scope
-    geos = [
-        "india", "africa", "us", "usa", "europe", "middle east", "latam",
-        "global", "domestic", "international", "enterprise", "retail", "wholesale",
-        "rural", "business banking", "corporate", "sme"
-    ]
-    matched_geo = None
-    for g in geos:
-        if g in m_name or g in scope:
-            matched_geo = g
-            break
-    effective_scope = matched_geo if matched_geo else ("standalone" if "standalone" in scope or "standalone" in m_name else "consolidated")
+    # 1. Detect scope (strict standalone vs consolidated separation)
+    if "standalone" in m_name or "standalone" in scope:
+        effective_scope = "standalone"
+    else:
+        effective_scope = "consolidated"
 
     # 2. Extract semantic metric core with strict boundaries
-    # Bank-specific KPI cores:
+    # Priority Bank KPI identities:
     if any(k in m_name for k in ["net interest margin", "nim"]):
         core = "nim"
-    elif any(k in m_name for k in ["gross npa", "gnpa"]):
+    elif any(k in m_name for k in ["gross npa", "gnpa", "gross non-performing"]):
         core = "gnpa"
-    elif any(k in m_name for k in ["net npa", "nnpa"]):
+    elif any(k in m_name for k in ["net npa", "nnpa", "net non-performing"]):
         core = "nnpa"
-    elif any(k in m_name for k in ["credit cost", "cost of risk"]):
+    elif any(k in m_name for k in ["credit cost", "credit costs", "cost of risk", "provisioning cost"]):
         core = "credit_cost"
     elif "casa" in m_name:
-        core = "casa_ratio" if ("ratio" in m_name or "%" in m_name or "%" in unit) else "casa_deposits"
-    elif any(k in m_name for k in ["advances growth", "loan growth", "credit growth"]):
-        core = "advances_growth"
+        core = "casa"
     elif any(k in m_name for k in ["deposit growth", "deposits growth"]):
-        core = "deposits_growth"
-    elif any(k in m_name for k in ["advances", "total advances", "loan book", "loans"]):
-        core = "advances"
+        core = "deposit_growth"
+    elif any(k in m_name for k in ["advances growth", "loan growth", "credit growth"]):
+        core = "loan_growth"
     elif any(k in m_name for k in ["total deposits", "deposits"]):
         core = "deposits"
-    elif any(k in m_name for k in ["cet1", "cet 1", "common equity tier 1", "tier 1", "car", "capital adequacy"]):
+    elif any(k in m_name for k in ["total advances", "advances", "loan book", "loans"]):
+        core = "advances"
+    elif any(k in m_name for k in ["cet1", "cet 1", "common equity tier 1", "tier 1", "capital adequacy", "crar", "car "]):
         core = "capital_adequacy"
     elif any(k in m_name for k in ["return on assets", "roa"]):
         core = "roa"
@@ -1564,7 +1557,7 @@ def extract_kpi_identity(fact: Dict[str, Any]) -> Dict[str, str]:
     elif any(k in m_name for k in ["cost to income", "cost-to-income"]):
         core = "cost_to_income"
     elif any(k in m_name for k in ["slippage", "slippages"]):
-        core = "slippage_ratio"
+        core = "slippages"
     elif "arpu" in m_name:
         core = "arpu"
     elif "order book" in m_name or "backlog" in m_name:
@@ -1599,20 +1592,26 @@ def extract_kpi_identity(fact: Dict[str, Any]) -> Dict[str, str]:
         core = "capex"
     else:
         core = normalize_metric_key(m_name)
-        
-    norm_unit = unit.replace("₹", "rs").replace("cr", "").replace("crs", "").strip()
-    
+
+    # Normalize units: ratio and percentage metrics all normalize to "%"
+    if core in ("nim", "gnpa", "nnpa", "credit_cost", "casa", "capital_adequacy", "roa", "roe", "slippages", "cost_to_income", "deposit_growth", "loan_growth"):
+        norm_unit = "%"
+        effective_unit = unit or "%"
+    else:
+        norm_unit = unit.replace("₹", "rs").replace("cr", "").replace("crs", "").strip()
+        effective_unit = unit
+
     # Standardize claim intent: 'reported_fact' (actual) vs 'target' / 'guidance'
     is_target = claim_type in ("management_target", "management_guidance") or "target" in m_name or "guidance" in m_name
     intent = "target" if is_target else "actual"
-    
+
     id_key = f"{core}:{effective_scope}:{intent}:{norm_unit}"
     return {
         "id_key": id_key,
         "metric_core": core,
         "scope": effective_scope,
         "intent": intent,
-        "unit": unit
+        "unit": effective_unit
     }
 
 def verify_document_claim_against_financials(
@@ -1988,9 +1987,30 @@ def build_inter_document_kpi_trends(facts_list: List[Dict[str, Any]]) -> List[Di
         if not deduped_series or len(deduped_series) < 2:
             continue
             
-        canonical_name = deduped_series[-1].get("metric_name", key.replace(":", " - ").title())
+        norm_core = key.split(":")[0] if ":" in key else key
+        BANK_KPI_DISPLAY_NAMES = {
+            "nim": "Net Interest Margin (NIM)",
+            "gnpa": "Gross NPA (GNPA)",
+            "nnpa": "Net NPA (NNPA)",
+            "credit_cost": "Credit Cost",
+            "casa": "CASA Ratio",
+            "deposit_growth": "Deposit Growth",
+            "loan_growth": "Advances / Loan Growth",
+            "deposits": "Total Deposits",
+            "advances": "Total Advances",
+            "capital_adequacy": "CET1 / Capital Adequacy",
+            "roa": "Return on Assets (ROA)",
+            "slippages": "Slippages"
+        }
+
+        if norm_core in BANK_KPI_DISPLAY_NAMES:
+            canonical_name = BANK_KPI_DISPLAY_NAMES[norm_core]
+            category = "bank_kpi"
+        else:
+            canonical_name = deduped_series[-1].get("metric_name", key.replace(":", " - ").title())
+            category = deduped_series[-1].get("category", "operational_kpi")
+
         unit = deduped_series[-1].get("unit") or ""
-        category = deduped_series[-1].get("category", "operational_kpi")
         
         data_points = []
         for it in deduped_series:
@@ -2023,7 +2043,7 @@ def build_inter_document_kpi_trends(facts_list: List[Dict[str, Any]]) -> List[Di
         pct_chg = None
         insight = f"Latest reported {canonical_name}: {latest_pt['stated_value']} ({latest_pt['period']})."
         
-        is_lower_better = any(kw in key.lower() for kw in ["gnpa", "nnpa", "credit_cost", "cost_to_income", "slippage"])
+        is_lower_better = norm_core in ("gnpa", "nnpa", "credit_cost", "cost_to_income", "slippages") or any(kw in key.lower() for kw in ["gnpa", "nnpa", "credit_cost", "cost_to_income", "slippage"])
         
         if prior_pt and latest_pt.get("numeric_value") is not None and prior_pt.get("numeric_value") is not None:
             v_curr = latest_pt["numeric_value"]
@@ -2060,7 +2080,7 @@ def build_inter_document_kpi_trends(facts_list: List[Dict[str, Any]]) -> List[Di
             
         trends.append({
             "metric_name": canonical_name,
-            "normalized_core": key.split(":")[0] if ":" in key else key,
+            "normalized_core": norm_core,
             "category": category,
             "unit": unit,
             "trajectory": trajectory,

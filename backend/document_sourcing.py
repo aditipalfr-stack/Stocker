@@ -1171,6 +1171,35 @@ def discover_substantive_alternate_source(
         except Exception:
             pass
 
+def discover_substantive_alternate_candidates(
+    symbol: str,
+    company_name: str,
+    doc_type: str,
+    doc_subtype: Optional[str] = None,
+    period_or_date: Optional[str] = None,
+    event_key: Optional[str] = None,
+    failed_url: Optional[str] = None
+) -> List[DocumentItem]:
+    """
+    On-Demand Live Alternate Filing Discovery:
+    Discovers ALL valid substantive candidates across Company IR, BSE, and NSE
+    for the exact same symbol, doc_type, subtype, and earnings event/quarter.
+    Does not stop at the first candidate, enabling robust retry if the preferred candidate is 404/dead.
+    """
+    clean_sym = symbol.upper().strip()
+    norm_dt = database.normalize_document_type(doc_type)
+    target_event = event_key or database.derive_earnings_event_key(clean_sym, period_or_date)
+    failed_clean = (failed_url or "").strip().rstrip("/")
+
+    scrip_code = BSE_SCRIP_CODES.get(clean_sym)
+    if not scrip_code:
+        try:
+            reg = database.get_company_by_symbol(clean_sym)
+            if reg and reg.get("bse_code"):
+                scrip_code = str(reg["bse_code"]).strip()
+        except Exception:
+            pass
+
     def _is_compatible_subtype(cand_st: str) -> bool:
         if not doc_subtype or cand_st == doc_subtype:
             return True
@@ -1178,12 +1207,15 @@ def discover_substantive_alternate_source(
             return True
         return False
 
-    # 1. Try Company IR discovery adapter
+    candidates: List[DocumentItem] = []
+    seen_urls = set()
+
+    # 1. Company IR discovery adapter
     try:
         cand_list = discover_documents_company_ir_fallback(clean_sym, company_name, [norm_dt])
         for cand in cand_list:
             c_url = (cand.url or "").strip().rstrip("/")
-            if not c_url or c_url == failed_clean:
+            if not c_url or c_url == failed_clean or c_url in seen_urls:
                 continue
             if database.is_document_wrapper(cand.title, cand.url):
                 continue
@@ -1198,18 +1230,17 @@ def discover_substantive_alternate_source(
                 continue
             if not target_event and period_or_date and cand.period_or_date != period_or_date:
                 continue
-            # Found valid Company IR alternate!
-            database.save_source_documents(clean_sym, [cand])
-            return cand
+            seen_urls.add(c_url)
+            candidates.append(cand)
     except Exception:
         pass
 
-    # 2. Try BSE discovery adapter
+    # 2. BSE discovery adapter
     try:
         cand_list = discover_documents_bse_fallback(clean_sym, company_name, [norm_dt], bse_code=scrip_code)
         for cand in cand_list:
             c_url = (cand.url or "").strip().rstrip("/")
-            if not c_url or c_url == failed_clean:
+            if not c_url or c_url == failed_clean or c_url in seen_urls:
                 continue
             if database.is_document_wrapper(cand.title, cand.url):
                 continue
@@ -1224,18 +1255,17 @@ def discover_substantive_alternate_source(
                 continue
             if not target_event and period_or_date and cand.period_or_date != period_or_date:
                 continue
-            # Found valid BSE alternate!
-            database.save_source_documents(clean_sym, [cand])
-            return cand
+            seen_urls.add(c_url)
+            candidates.append(cand)
     except Exception:
         pass
 
-    # 3. Try NSE discovery adapter
+    # 3. NSE discovery adapter
     try:
         cand_list = discover_documents_nse_fallback(clean_sym, company_name, [norm_dt])
         for cand in cand_list:
             c_url = (cand.url or "").strip().rstrip("/")
-            if not c_url or c_url == failed_clean:
+            if not c_url or c_url == failed_clean or c_url in seen_urls:
                 continue
             if database.is_document_wrapper(cand.title, cand.url):
                 continue
@@ -1250,10 +1280,49 @@ def discover_substantive_alternate_source(
                 continue
             if not target_event and period_or_date and cand.period_or_date != period_or_date:
                 continue
-            # Found valid NSE alternate!
-            database.save_source_documents(clean_sym, [cand])
-            return cand
+            seen_urls.add(c_url)
+            candidates.append(cand)
     except Exception:
         pass
 
+    # Rank candidates by preference:
+    # 1. Current official company IR domain (e.g. icici.bank.in) -> score 4
+    # 2. BSE -> score 3
+    # 3. NSE -> score 2
+    # 4. Other IR domain -> score 1
+    def _cand_pref_score(d: DocumentItem) -> int:
+        u = (d.url or "").lower()
+        if "bank.in" in u:
+            return 4
+        if "bseindia" in u or "bse.com" in u:
+            return 3
+        if "nseindia" in u:
+            return 2
+        return 1
+
+    candidates.sort(key=_cand_pref_score, reverse=True)
+    return candidates
+
+def discover_substantive_alternate_source(
+    symbol: str,
+    company_name: str,
+    doc_type: str,
+    doc_subtype: Optional[str] = None,
+    period_or_date: Optional[str] = None,
+    event_key: Optional[str] = None,
+    failed_url: Optional[str] = None
+) -> Optional[DocumentItem]:
+    """Backward-compatible helper returning preferred single alternate or None."""
+    cands = discover_substantive_alternate_candidates(
+        symbol=symbol,
+        company_name=company_name,
+        doc_type=doc_type,
+        doc_subtype=doc_subtype,
+        period_or_date=period_or_date,
+        event_key=event_key,
+        failed_url=failed_url
+    )
+    if cands:
+        database.save_source_documents(symbol.upper().strip(), [cands[0]])
+        return cands[0]
     return None

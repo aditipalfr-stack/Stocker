@@ -167,7 +167,7 @@ class BusinessQuality(BaseModel):
 
 # 8. COMPETITIVE POSITION & ECONOMIC MOAT
 class CompetitivePosition(BaseModel):
-    moat_type: str = Field(default="Narrow / Evolving", description="Cost Advantage | High Switching Costs | Network Effects | Brand / Intangibles | Scale Advantage | Narrow / None")
+    moat_type: str = Field(default="INSUFFICIENT_EVIDENCE", description="Cost Advantage | High Switching Costs | Network Effects | Scale Advantage | INSUFFICIENT_EVIDENCE")
     market_share_trend: Optional[str] = Field(default=None, description="Market share expansion, stability, or loss")
     pricing_power_assessment: Optional[str] = Field(default=None, description="Ability to pass on cost increases without volume loss")
     key_advantages: List[str] = Field(default_factory=list, description="Key competitive moats and differentiation pillars")

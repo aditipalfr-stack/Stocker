@@ -370,6 +370,23 @@ def assign_working_set_metadata(documents: DocumentLinks) -> List[DocumentItem]:
     ppts = documents.presentations or []
     sorted_ppts = sorted(ppts, key=lambda x: (getattr(x, "sort_timestamp", None) or "1970-01-01", x.title), reverse=True)
 
+    # Collect known earnings events from concalls & quarterly results
+    known_earnings_events: Dict[str, str] = {}
+    for cc in (documents.concalls or []):
+        cc_ev = getattr(cc, "event_key", None)
+        if not cc_ev or cc_ev.endswith("_GENERIC"):
+            cc_sym = getattr(cc, "ticker", None) or getattr(cc, "symbol", None) or clean_sym
+            cc_ev = database.derive_earnings_event_key(cc_sym, cc.period_or_date, cc.title)
+        if cc_ev and not cc_ev.endswith("_GENERIC"):
+            known_earnings_events[cc_ev] = cc.period_or_date or ""
+    for reg in (documents.regulatory_filings or []):
+        reg_ev = getattr(reg, "event_key", None)
+        if not reg_ev or reg_ev.endswith("_GENERIC"):
+            reg_sym = getattr(reg, "ticker", None) or getattr(reg, "symbol", None) or clean_sym
+            reg_ev = database.derive_earnings_event_key(reg_sym, reg.period_or_date, reg.title)
+        if reg_ev and not reg_ev.endswith("_GENERIC"):
+            known_earnings_events[reg_ev] = reg.period_or_date or ""
+
     seen_ppt_events: Set[str] = set()
     selected_ppt_urls: Set[str] = set()
 
@@ -378,17 +395,34 @@ def assign_working_set_metadata(documents: DocumentLinks) -> List[DocumentItem]:
             continue
         subtype = getattr(d, "doc_subtype", None) or database.derive_document_subtype("presentation", d.title, d.period_or_date)
         d.doc_subtype = subtype
-        # ONLY earnings_presentation enters the default quarterly working set
-        if subtype != "earnings_presentation":
+        if subtype in ("agm_presentation", "investor_day_presentation", "debt_presentation"):
             continue
 
         ev_key = getattr(d, "event_key", None)
         if not ev_key or ev_key.endswith("_GENERIC"):
-            sym = getattr(d, "ticker", None) or getattr(d, "symbol", None) or ""
+            sym = getattr(d, "ticker", None) or getattr(d, "symbol", None) or clean_sym
             derived_ev = database.derive_earnings_event_key(sym, d.period_or_date, d.title)
             if derived_ev and not derived_ev.endswith("_GENERIC"):
                 ev_key = derived_ev
                 d.event_key = ev_key
+
+        # Presentation qualifies as earnings_presentation under Conditions A, B, or C:
+        # A: explicit earnings / quarter in title/metadata
+        cond_a = (subtype == "earnings_presentation")
+        # B: Official Company IR / exchange quarterly-results context associates document with exact earnings quarter
+        u_low = (getattr(d, "actual_source_url", None) or d.url or "").lower()
+        disc_low = (getattr(d, "discovery_source", None) or "").lower()
+        cond_b = any(kw in u_low for kw in ["quarterly-results", "quarterly_results", "earnings", "results-reports"]) or \
+                 ("company ir" in disc_low and bool(ev_key and not ev_key.endswith("_GENERIC")))
+        # C: Shares resolved exact earnings event with earnings transcript / quarterly results
+        cond_c = bool(ev_key and not ev_key.endswith("_GENERIC") and ev_key in known_earnings_events)
+
+        if cond_a or cond_b or cond_c:
+            d.doc_subtype = "earnings_presentation"
+            if not d.period_or_date and ev_key and ev_key in known_earnings_events:
+                d.period_or_date = known_earnings_events[ev_key]
+        else:
+            continue
 
         # Must strictly have resolved non-generic event key (NO physical URL fallback)
         if not ev_key or ev_key.endswith("_GENERIC"):
@@ -415,6 +449,10 @@ def assign_working_set_metadata(documents: DocumentLinks) -> List[DocumentItem]:
             d.selected_for_ai = False
             d.ai_priority = None
             d.selection_reason = "Strategy / Investor Day presentation retained in archive"
+        elif subtype == "debt_presentation":
+            d.selected_for_ai = False
+            d.ai_priority = None
+            d.selection_reason = "Debt / Fixed Income presentation retained in archive (quarterly earnings presentation prioritized for AI)"
         elif subtype in ("other_presentation", "unknown_presentation"):
             d.selected_for_ai = False
             d.ai_priority = None
@@ -436,9 +474,25 @@ def assign_working_set_metadata(documents: DocumentLinks) -> List[DocumentItem]:
                 d.selection_reason = "Older than default 4-quarter presentation window"
 
     # 5. ANNOUNCEMENTS: Max 5 High-Materiality DISTINCT EVENTS (Ranked deterministically by score desc, date desc, stable key)
+    # Enforce event-family diversity and supersede board intimation with board outcome
     anns = documents.material_announcements or []
     scored_anns = []
-    seen_ann_events: Set[str] = set()
+
+    def _classify_ann_event_family(title: str) -> str:
+        t = (title or "").lower()
+        if "rating" in t or "credit rating" in t:
+            return "RATING_ACTION"
+        if any(k in t for k in ["fund raising", "fund raise", "raising of funds", "capital raise", "ncd", "bond"]):
+            return "FUND_RAISE"
+        if "board meeting" in t or "outcome of" in t:
+            return "BOARD_MEETING"
+        if any(k in t for k in ["acquisition", "amalgamation", "merger", "slump sale", "joint venture"]):
+            return "MA_ACQUISITION"
+        if any(k in t for k in ["order", "contract", "award", "agreement"]):
+            return "ORDER_CONTRACT"
+        if any(k in t for k in ["regulatory", "rbi", "sebi", "penalty", "inspection"]):
+            return "REGULATORY_LEGAL"
+        return "GENERAL_DISCLOSURE"
 
     for d in anns:
         score, reason = calculate_announcement_materiality(d.title)
@@ -450,9 +504,10 @@ def assign_working_set_metadata(documents: DocumentLinks) -> List[DocumentItem]:
         d.materiality_reason = reason
 
         # Determine distinct material event identity
-        sym = getattr(d, "ticker", "") or getattr(d, "symbol", "") or ""
+        sym = getattr(d, "ticker", "") or getattr(d, "symbol", "") or clean_sym
         event_key = database.derive_announcement_event_key(sym, d.title, d.period_or_date)
-        scored_anns.append((d, score, reason, sort_ts, stable_key, event_key))
+        family = _classify_ann_event_family(d.title)
+        scored_anns.append((d, score, reason, sort_ts, stable_key, event_key, family))
 
     # Filter eligible high-materiality announcements (score >= 10)
     high_mat_anns = [
@@ -469,18 +524,41 @@ def assign_working_set_metadata(documents: DocumentLinks) -> List[DocumentItem]:
         reverse=True
     )
 
-    # Event-aware suppression: Pick highest-ranked announcement per distinct material event (up to 5 events)
+    # Event-family diversity and intimation supersession:
+    # - If a board outcome is present for fund-raising or board action, it supersedes earlier prior intimation
+    has_board_outcome = any(
+        "outcome" in item[0].title.lower() for item in high_mat_anns
+    )
+
     selected_high_mat_docs = []
     selected_high_mat_urls = set()
+    seen_ann_events: Set[str] = set()
+    family_counts: Dict[str, int] = {}
+
     for item in high_mat_anns:
-        doc_obj, score, reason, sort_ts, stable_key, ev_key = item
+        doc_obj, score, reason, sort_ts, stable_key, ev_key, family = item
+        t_low = doc_obj.title.lower()
+
+        # Intimation supersession: discard prior intimation if substantive outcome is available
+        if has_board_outcome and any(k in t_low for k in ["prior intimation", "intimation of board", "intimation under regulation 29"]):
+            continue
+
+        # Cap rating actions to at most 1 slot in the 5-slot working set to ensure event diversity
+        if family == "RATING_ACTION" and family_counts.get("RATING_ACTION", 0) >= 1:
+            continue
+
+        # Cap fund raise / board meeting to at most 1 slot
+        if family in ("FUND_RAISE", "BOARD_MEETING") and (family_counts.get("FUND_RAISE", 0) + family_counts.get("BOARD_MEETING", 0)) >= 2:
+            continue
+
         if ev_key not in seen_ann_events and len(selected_high_mat_docs) < 5:
             seen_ann_events.add(ev_key)
+            family_counts[family] = family_counts.get(family, 0) + 1
             selected_high_mat_docs.append(item)
             selected_high_mat_urls.add(doc_obj.url)
 
     # Assign priority in ranked materiality order
-    for d, score, reason, sort_ts, stable_key, ev_key in selected_high_mat_docs:
+    for d, score, reason, sort_ts, stable_key, ev_key, family in selected_high_mat_docs:
         d.selected_for_ai = True
         d.ai_priority = priority_counter
         priority_counter += 1
@@ -488,7 +566,7 @@ def assign_working_set_metadata(documents: DocumentLinks) -> List[DocumentItem]:
         selected_items.append(d)
 
     # Mark unselected announcements
-    for d, score, reason, sort_ts, stable_key, ev_key in scored_anns:
+    for d, score, reason, sort_ts, stable_key, ev_key, family in scored_anns:
         if d.url not in selected_high_mat_urls:
             d.selected_for_ai = False
             d.ai_priority = None
@@ -640,28 +718,91 @@ def get_or_generate_document_summary(symbol: str, company_name: str, doc: Docume
         print(f"    ⚠️ Could not extract text for {doc.title} from {active_url}: {e}")
 
     # If initial URL download failed, attempt Alternate Source Recovery:
-    # 1. First search existing canonical aliases/stored corpus in SQLite
-    # 2. If no valid alternate exists in DB, invoke on-demand adapter discovery for exact symbol+event+subtype
+    # Gather candidates from BOTH stored database corpus and on-demand live discovery.
+    # Try all candidates in preference order, continuing to the next candidate on 404/failure.
     if not pages:
         norm_dt = database.normalize_document_type(doc.doc_type, doc.title)
         subtype = getattr(doc, "doc_subtype", None) or database.derive_document_subtype(norm_dt, doc.title, doc.period_or_date)
         ev_key = getattr(doc, "event_key", None)
 
-        # 1. Check existing stored database corpus
-        alt_doc = database.find_substantive_alternate_source(
-            symbol=clean_sym,
-            doc_type=norm_dt,
-            doc_subtype=subtype,
-            event_key=ev_key,
-            period_or_date=doc.period_or_date,
-            failed_url=original_url
-        )
-        if alt_doc and alt_doc.get("url"):
-            alt_url = alt_doc["url"]
-            print(f"    🔄 Attempting Alternate Source Recovery from stored corpus for {doc.title}: {alt_url}")
+        candidates = []
+        # 1. Stored DB alternates
+        try:
+            stored_alts = database.find_substantive_alternate_sources(
+                symbol=clean_sym,
+                doc_type=norm_dt,
+                doc_subtype=subtype,
+                event_key=ev_key,
+                period_or_date=doc.period_or_date,
+                failed_url=original_url
+            )
+            for sa in stored_alts:
+                candidates.append({
+                    "url": sa["url"],
+                    "title": sa.get("title", doc.title),
+                    "source": sa.get("discovery_source", "Stored Alternate")
+                })
+        except Exception as e_sa:
+            print(f"    ⚠️ Error querying stored alternates: {e_sa}")
+
+        # 2. On-demand live alternate filing discovery
+        try:
+            discovered_alts = document_sourcing.discover_substantive_alternate_candidates(
+                symbol=clean_sym,
+                company_name=company_name,
+                doc_type=norm_dt,
+                doc_subtype=subtype,
+                period_or_date=doc.period_or_date,
+                event_key=ev_key,
+                failed_url=original_url
+            )
+            for da in discovered_alts:
+                candidates.append({
+                    "url": da.url,
+                    "title": da.title,
+                    "source": da.discovery_source or "Discovered Alternate"
+                })
+        except Exception as e_da:
+            print(f"    ⚠️ Error in on-demand alternate discovery: {e_da}")
+
+        # Deduplicate candidates while preserving order
+        seen_cand_urls = set()
+        deduped_candidates = []
+        for c in candidates:
+            c_u = (c["url"] or "").strip().rstrip("/")
+            if c_u and c_u != original_url.strip().rstrip("/") and c_u not in seen_cand_urls:
+                seen_cand_urls.add(c_u)
+                deduped_candidates.append(c)
+
+        # Sort candidates by preference:
+        # 1. Current official company IR domain (e.g. icici.bank.in) -> pref 4
+        # 2. BSE -> pref 3
+        # 3. NSE -> pref 2
+        # 4. Other IR domain -> pref 1
+        def _cand_pref_score(c: Dict[str, Any]) -> int:
+            u = c["url"].lower()
+            if "bank.in" in u:
+                return 4
+            if "bseindia" in u or "bse.com" in u:
+                return 3
+            if "nseindia" in u:
+                return 2
+            if "icicibank.com" in u:
+                return 1
+            return 0
+
+        deduped_candidates.sort(key=_cand_pref_score, reverse=True)
+
+        # Robust loop: try each candidate in order. A 404 on an old URL does NOT stop us from trying BSE!
+        for cand in deduped_candidates:
+            alt_url = cand["url"]
+            print(f"    🔄 Attempting Alternate Source Recovery for {doc.title}: {alt_url}")
             try:
-                pages, content_source, remote_verified = download_and_extract_pdf_with_provenance(alt_url, symbol=clean_sym)
-                if pages:
+                cand_pages, cand_source, cand_remote_verified = download_and_extract_pdf_with_provenance(alt_url, symbol=clean_sym)
+                if cand_pages:
+                    pages = cand_pages
+                    content_source = cand_source
+                    remote_verified = cand_remote_verified
                     active_url = alt_url
                     if not doc.source_aliases:
                         doc.source_aliases = []
@@ -669,44 +810,25 @@ def get_or_generate_document_summary(symbol: str, company_name: str, doc: Docume
                         doc.source_aliases.append(original_url)
                     if not doc.discovered_sources:
                         doc.discovered_sources = []
-                    if alt_doc.get("discovery_source") and alt_doc["discovery_source"] not in doc.discovered_sources:
-                        doc.discovered_sources.append(alt_doc["discovery_source"])
+                    if cand["source"] not in doc.discovered_sources:
+                        doc.discovered_sources.append(cand["source"])
                     print(f"    ✅ Alternate Source Recovery Succeeded for {doc.title} via {alt_url}")
+                    # Persist successful candidate document to SQLite so future runs know the working canonical URL
+                    cand_item = DocumentItem(
+                        ticker=clean_sym,
+                        title=cand.get("title") or doc.title,
+                        url=alt_url,
+                        doc_type=doc.doc_type,
+                        period_or_date=doc.period_or_date,
+                        discovery_source=cand.get("source") or "Alternate Recovery",
+                        actual_source_url=alt_url,
+                        validation_status="Valid"
+                    )
+                    database.save_source_documents(clean_sym, [cand_item])
+                    break
             except Exception as e_alt:
-                print(f"    ⚠️ Alternate Source Recovery from stored corpus failed for {doc.title}: {e_alt}")
+                print(f"    ⚠️ Candidate alternate {alt_url} failed ({e_alt}). Continuing to next candidate...")
                 download_err = e_alt
-
-        # 2. If still no pages, invoke on-demand live alternate filing discovery
-        if not pages:
-            print(f"    🔎 Invoking On-Demand Live Alternate Filing Discovery for {doc.title} ({doc.period_or_date})...")
-            try:
-                disc_alt = document_sourcing.discover_substantive_alternate_source(
-                    symbol=clean_sym,
-                    company_name=company_name,
-                    doc_type=norm_dt,
-                    doc_subtype=subtype,
-                    period_or_date=doc.period_or_date,
-                    event_key=ev_key,
-                    failed_url=original_url
-                )
-                if disc_alt and disc_alt.url:
-                    alt_url = disc_alt.url
-                    print(f"    🔄 Attempting extraction from on-demand discovered alternate for {doc.title}: {alt_url}")
-                    pages, content_source, remote_verified = download_and_extract_pdf_with_provenance(alt_url, symbol=clean_sym)
-                    if pages:
-                        active_url = alt_url
-                        if not doc.source_aliases:
-                            doc.source_aliases = []
-                        if original_url not in doc.source_aliases:
-                            doc.source_aliases.append(original_url)
-                        if not doc.discovered_sources:
-                            doc.discovered_sources = []
-                        if disc_alt.discovery_source and disc_alt.discovery_source not in doc.discovered_sources:
-                            doc.discovered_sources.append(disc_alt.discovery_source)
-                        print(f"    ✅ On-Demand Alternate Recovery Succeeded for {doc.title} via {alt_url}")
-            except Exception as e_disc:
-                print(f"    ⚠️ On-Demand Alternate Discovery failed for {doc.title}: {e_disc}")
-                download_err = e_disc
 
     if not pages:
         print(f"    ⚠️ Skipping summary for {doc.title}: No text extracted from {active_url}")

@@ -4,6 +4,7 @@ import json
 import tempfile
 import shutil
 import unittest
+from unittest.mock import patch, MagicMock
 from pathlib import Path
 from typing import Dict, Any
 from pydantic import ValidationError
@@ -1378,6 +1379,252 @@ class TestBusinessAnalysisV44(unittest.TestCase):
             self.assertEqual(doc.cache_status, "CURRENT_CONTENT_VERIFIED")
             self.assertEqual(summary["cache_status"], "CURRENT_CONTENT_VERIFIED")
 
+    def test_8_earnings_presentation_selection_conditions_and_exclusions(self):
+        """Test Defect 1: Presentation qualifying conditions (A, B, C), event linkage, and strict exclusions."""
+        from doc_intelligence_pipeline import select_default_document_working_set
+        from models import DocumentLinks, DocumentItem
+        import database
+
+        sym = "ICICIBANK"
+        docs = DocumentLinks(
+            annual_reports=[
+                DocumentItem(ticker=sym, title="ICICI Bank Annual Report 2025-26", url="https://icici.bank.in/ar26.pdf", doc_type="annual_report", period_or_date="FY26"),
+                DocumentItem(ticker=sym, title="ICICI Bank Annual Report 2024-25", url="https://icici.bank.in/ar25.pdf", doc_type="annual_report", period_or_date="FY25")
+            ],
+            regulatory_filings=[
+                DocumentItem(ticker=sym, title="ICICI Bank Form 20-F 2026", url="https://sec.gov/20f26.pdf", doc_type="sec_filing", period_or_date="FY26")
+            ],
+            concalls=[
+                DocumentItem(ticker=sym, title="ICICI Bank Concall Q1 FY27 Transcript", url="https://icici.bank.in/cc_q1_fy27.pdf", doc_type="concall_transcript", period_or_date="Q1 FY27"),
+                DocumentItem(ticker=sym, title="ICICI Bank Concall Q4 FY26 Transcript", url="https://icici.bank.in/cc_q4_fy26.pdf", doc_type="concall_transcript", period_or_date="Q4 FY26"),
+                DocumentItem(ticker=sym, title="ICICI Bank Concall Q3 FY26 Transcript", url="https://icici.bank.in/cc_q3_fy26.pdf", doc_type="concall_transcript", period_or_date="Q3 FY26"),
+                DocumentItem(ticker=sym, title="ICICI Bank Concall Q2 FY26 Transcript", url="https://icici.bank.in/cc_q2_fy26.pdf", doc_type="concall_transcript", period_or_date="Q2 FY26")
+            ],
+            presentations=[
+                # 1. Condition A: Explicit quarter ended in title
+                DocumentItem(ticker=sym, title="ICICI Bank: Investor Presentation for quarter ended June 30, 2026", url="https://icici.bank.in/ppt_q1_fy27.pdf", doc_type="presentation", period_or_date="June 30, 2026"),
+                # 2. Condition B: IR quarterly-results context
+                DocumentItem(ticker=sym, title="Performance Review Q4 FY26 Presentation", url="https://icici.bank.in/quarterly-results/ppt_q4_fy26.pdf", doc_type="presentation", period_or_date="Q4 FY26", discovery_source="Company IR"),
+                # 3. Condition C: Event-linked to Q3 FY26
+                DocumentItem(ticker=sym, title="Investor Presentation Q3 FY26", url="https://icici.bank.in/ppt_q3_fy26.pdf", doc_type="presentation", period_or_date="Q3 FY26"),
+                # 4. Condition A/C: Q2 FY26 presentation
+                DocumentItem(ticker=sym, title="Financial Results Presentation for quarter ended September 30, 2025", url="https://icici.bank.in/ppt_q2_fy26.pdf", doc_type="presentation", period_or_date="30 Sep 2025"),
+                # Exclusions:
+                DocumentItem(ticker=sym, title="Notice and Presentation for 32nd AGM", url="https://icici.bank.in/agm_ppt.pdf", doc_type="presentation", period_or_date="FY26"),
+                DocumentItem(ticker=sym, title="Debt Investor Presentation 2026", url="https://icici.bank.in/debt_ppt.pdf", doc_type="presentation", period_or_date="FY26"),
+                DocumentItem(ticker=sym, title="Generic Corporate Profile Presentation", url="https://icici.bank.in/corporate.pdf", doc_type="presentation", period_or_date="")
+            ],
+            material_announcements=[]
+        )
+
+        ws = select_default_document_working_set(docs)
+        selected_ppts = [d for d in ws if database.normalize_document_type(d.doc_type, d.title) == "presentation"]
+        self.assertEqual(len(selected_ppts), 4)
+
+        selected_titles = [d.title for d in selected_ppts]
+        self.assertIn("ICICI Bank: Investor Presentation for quarter ended June 30, 2026", selected_titles)
+        self.assertIn("Performance Review Q4 FY26 Presentation", selected_titles)
+        self.assertIn("Investor Presentation Q3 FY26", selected_titles)
+        self.assertIn("Financial Results Presentation for quarter ended September 30, 2025", selected_titles)
+
+        # Confirm exclusions are NOT selected
+        self.assertNotIn("Notice and Presentation for 32nd AGM", selected_titles)
+        self.assertNotIn("Debt Investor Presentation 2026", selected_titles)
+        self.assertNotIn("Generic Corporate Profile Presentation", selected_titles)
+
+    def test_9_icicibank_oct2025_multi_candidate_alternate_recovery(self):
+        """Test Defect 2: Multi-candidate retry loop skips 404 candidate and uses next valid candidate."""
+        import doc_intelligence_pipeline
+        sym = "ICICIBANK"
+        doc = DocumentItem(
+            ticker=sym,
+            title="Earnings Call Transcript Q2 FY26 - October 18, 2025",
+            url="https://www.icicibank.com/managed-assets/docs/investor/earnings-call-transcript-q2-2026.pdf",
+            doc_type="concall_transcript",
+            period_or_date="October 18, 2025"
+        )
+
+        dead_url = "https://www.icicibank.com/managed-assets/docs/investor/earnings-call-transcript-q2-2026.pdf"
+        bse_url = "https://www.bseindia.com/xml-data/corpfiling/AttachLive/icici_q2_transcript_2025.pdf"
+        valid_official_url = "https://www.icici.bank.in/about-us/investor-relations/q2-fy26-transcript.pdf"
+
+        # Pre-seed DB with BSE alternate candidate
+        database.save_source_documents(sym, [
+            DocumentItem(ticker=sym, title="ICICI Bank Transcript Q2 FY26", url=bse_url, doc_type="concall_transcript", period_or_date="Q2 FY26", discovery_source="BSE India")
+        ])
+
+        def fake_download(url, symbol=None):
+            if "icicibank.com" in url:
+                raise Exception("HTTP 404 Not Found")
+            elif "icici.bank.in" in url:
+                return ([(1, "ICICI Bank Q2 FY26 Earnings Call Transcript Official Text")], "REMOTE_FETCH", True)
+            elif "bseindia.com" in url:
+                return ([(1, "ICICI Bank Q2 FY26 Concall Transcript BSE Text")], "REMOTE_FETCH", True)
+            raise Exception("HTTP 404")
+
+        with patch("doc_intelligence_pipeline.download_and_extract_pdf_with_provenance", side_effect=fake_download), \
+             patch("document_sourcing.discover_substantive_alternate_candidates", return_value=[
+                 DocumentItem(ticker=sym, title="ICICI Concall Q2 FY26", url=valid_official_url, doc_type="concall_transcript", period_or_date="Q2 FY26", discovery_source="Company IR")
+             ]), \
+             patch("doc_intelligence_pipeline.summarize_single_document_with_llm") as mock_sum:
+            mock_sum.return_value = {
+                "doc_title": doc.title,
+                "doc_url": valid_official_url,
+                "doc_type": "concall_transcript",
+                "period_or_date": "Q2 FY26",
+                "key_takeaways": ["Q2 FY26 Concall takeaway"]
+            }
+
+            summary = doc_intelligence_pipeline.get_or_generate_document_summary(sym, "ICICI Bank Limited", doc)
+            self.assertEqual(summary.get("status"), "success")
+            self.assertIn("Q2 FY26 Concall takeaway", summary.get("key_takeaways", []))
+            self.assertIn(dead_url, doc.source_aliases)
+
+    def test_10_bank_kpi_evolution_multi_period_assembly(self):
+        """Test Defect 3: Deterministic bank KPI multi-period normalization and trend assembly."""
+        from financial_engine import extract_kpi_identity, build_inter_document_kpi_trends
+
+        facts = [
+            # NIM
+            {"metric_name": "Domestic NIM", "numeric_value": 4.40, "unit": "%", "period_or_date": "Q1 FY26"},
+            {"metric_name": "Net Interest Margin", "numeric_value": 4.36, "unit": "percent", "period_or_date": "Q2 FY26"},
+            {"metric_name": "NIM", "numeric_value": 4.25, "unit": "%", "period_or_date": "Q3 FY26"},
+            # GNPA
+            {"metric_name": "Gross NPA", "numeric_value": 2.30, "unit": "%", "period_or_date": "Q1 FY26"},
+            {"metric_name": "GNPA Ratio", "numeric_value": 2.15, "unit": "%", "period_or_date": "Q2 FY26"},
+            {"metric_name": "GNPA", "numeric_value": 1.97, "unit": "%", "period_or_date": "Q3 FY26"},
+            # CASA
+            {"metric_name": "CASA Ratio", "numeric_value": 42.5, "unit": "%", "period_or_date": "Q1 FY26"},
+            {"metric_name": "CASA", "numeric_value": 43.6, "unit": "percent", "period_or_date": "Q2 FY26"},
+            # Credit Cost
+            {"metric_name": "Credit Cost", "numeric_value": 0.45, "unit": "%", "period_or_date": "Q1 FY26"},
+            {"metric_name": "Cost of Risk", "numeric_value": 0.35, "unit": "%", "period_or_date": "Q2 FY26"}
+        ]
+
+        trends = build_inter_document_kpi_trends(facts)
+        metric_names = [t["metric_name"] for t in trends]
+        self.assertGreaterEqual(len(trends), 4)
+        self.assertIn("Net Interest Margin (NIM)", metric_names)
+        self.assertIn("Gross NPA (GNPA)", metric_names)
+        self.assertIn("CASA Ratio", metric_names)
+        self.assertIn("Credit Cost", metric_names)
+
+        # Verify GNPA improving (lower is better: 2.30 -> 1.97 is Improving)
+        gnpa_trend = next(t for t in trends if t["metric_name"] == "Gross NPA (GNPA)")
+        self.assertEqual(gnpa_trend["trajectory"], "Improving")
+
+    def test_11_moat_insufficient_evidence_fail_closed(self):
+        """Test Defect 5: Moat type fails closed to INSUFFICIENT_EVIDENCE when evidence is absent."""
+        from doc_intelligence_models import CompetitivePosition
+        from llm_service import sanitize_and_verify_intelligence_result, GenericDocumentIntelligenceResult
+
+        raw_res = GenericDocumentIntelligenceResult(
+            symbol="ICICIBANK",
+            company_name="ICICI Bank",
+            what_changed_recently=[],
+            growth_drivers=[],
+            promise_vs_delivery=[],
+            demand_momentum=None,
+            risks_and_cash=None,
+            stocker_view=None,
+            competitive_position=CompetitivePosition(
+                moat_type="Narrow / Evolving",
+                key_advantages=[],
+                competitive_threats=[]
+            )
+        )
+
+        sanitized = sanitize_and_verify_intelligence_result(
+            result=raw_res,
+            symbol="ICICIBANK",
+            financial_business_model="BANK"
+        )
+        self.assertEqual(sanitized.competitive_position.moat_type, "INSUFFICIENT_EVIDENCE")
+
+    def test_12_separation_of_management_narrative_from_observed_causality(self):
+        """Test Defect 6: Sanitizes promotional causality linking growth to management slogans."""
+        from llm_service import sanitize_and_verify_intelligence_result, GenericDocumentIntelligenceResult
+        from doc_intelligence_models import GrowthDriver, RecentChange, StockerView
+
+        raw_res = GenericDocumentIntelligenceResult(
+            symbol="ICICIBANK",
+            company_name="ICICI Bank",
+            what_changed_recently=[
+                RecentChange(
+                    headline="PBT Growth",
+                    category="Margins / Funding Costs",
+                    direction="POSITIVE",
+                    period_comparison="Q1 FY27 vs Q1 FY26",
+                    detail="Strong operating performance demonstrates successful execution of the 360-degree customer-centric strategy across branch networks."
+                )
+            ],
+            growth_drivers=[
+                GrowthDriver(
+                    driver_title="Customer 360",
+                    driver_type="Management Action",
+                    description="PBT growth of 20.9% demonstrates the success of the 360-degree customer-centric approach."
+                )
+            ],
+            promise_vs_delivery=[],
+            demand_momentum=None,
+            risks_and_cash=None,
+            stocker_view=StockerView(
+                investor_summary="The quarter demonstrates successful execution of the 360-degree customer-centric strategy."
+            )
+        )
+
+        sanitized = sanitize_and_verify_intelligence_result(
+            result=raw_res,
+            symbol="ICICIBANK",
+            financial_business_model="BANK"
+        )
+
+        self.assertNotIn("demonstrates successful execution of", sanitized.what_changed_recently[0].detail)
+        self.assertNotIn("demonstrates the success of", sanitized.growth_drivers[0].description)
+        self.assertNotIn("demonstrates successful execution of", sanitized.stocker_view.investor_summary)
+
+    def test_13_announcement_working_set_event_family_diversity(self):
+        """Test Defect 7: Enforces announcement event-family diversity and supersedes intimation with outcome."""
+        from doc_intelligence_pipeline import select_default_document_working_set
+        from models import DocumentLinks, DocumentItem
+        import database
+
+        sym = "ICICIBANK"
+        docs = DocumentLinks(
+            annual_reports=[],
+            regulatory_filings=[],
+            concalls=[],
+            presentations=[],
+            material_announcements=[
+                # Related credit ratings
+                DocumentItem(ticker=sym, title="Credit Rating update by CRISIL 24 Aug 2026", url="https://bse.com/ann_cr1.pdf", doc_type="announcement", period_or_date="2026-08-24"),
+                DocumentItem(ticker=sym, title="Credit Rating reaffirmation by CRISIL 18 Aug 2026", url="https://bse.com/ann_cr2.pdf", doc_type="announcement", period_or_date="2026-08-18"),
+                DocumentItem(ticker=sym, title="Credit Rating review by CRISIL 24 Jul 2026", url="https://bse.com/ann_cr3.pdf", doc_type="announcement", period_or_date="2026-07-24"),
+                # Related board meeting intimation + outcome for same fund raise
+                DocumentItem(ticker=sym, title="Prior Intimation of Board Meeting for Fund Raising 18 Aug 2026", url="https://bse.com/ann_bm_int.pdf", doc_type="announcement", period_or_date="2026-08-18"),
+                DocumentItem(ticker=sym, title="Outcome of Board Meeting for Fund Raising 21 Aug 2026", url="https://bse.com/ann_bm_out.pdf", doc_type="announcement", period_or_date="2026-08-21"),
+                # Other material events
+                DocumentItem(ticker=sym, title="Acquisition of Equity Stake in FinTech Subsidiary", url="https://bse.com/ann_acq.pdf", doc_type="announcement", period_or_date="2026-08-10"),
+                DocumentItem(ticker=sym, title="Regulatory compliance update from RBI", url="https://bse.com/ann_reg.pdf", doc_type="announcement", period_or_date="2026-08-05")
+            ]
+        )
+
+        ws = select_default_document_working_set(docs)
+        selected_anns = [d for d in ws if database.normalize_document_type(d.doc_type, d.title) == "material_announcements"]
+        self.assertLessEqual(len(selected_anns), 5)
+
+        selected_titles = [d.title for d in selected_anns]
+        # Only 1 credit rating should be selected
+        rating_count = sum(1 for t in selected_titles if "Credit Rating" in t)
+        self.assertEqual(rating_count, 1)
+
+        # Outcome must be selected and supersedes intimation
+        self.assertIn("Outcome of Board Meeting for Fund Raising 21 Aug 2026", selected_titles)
+        self.assertNotIn("Prior Intimation of Board Meeting for Fund Raising 18 Aug 2026", selected_titles)
+
+        # Acquisition and regulatory should be selected due to family diversity
+        self.assertIn("Acquisition of Equity Stake in FinTech Subsidiary", selected_titles)
+        self.assertIn("Regulatory compliance update from RBI", selected_titles)
+
 if __name__ == "__main__":
     unittest.main()
-
