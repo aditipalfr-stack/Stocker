@@ -1516,17 +1516,35 @@ def extract_kpi_identity(fact: Dict[str, Any]) -> Dict[str, str]:
     """
     Extracts a rigorous, conservative KPI identity signature to ensure only genuinely
     comparable metrics across filings are grouped into the same time-series.
+    Enforces Fail-Closed Scope: UNKNOWN SCOPE MUST NEVER BECOME CONSOLIDATED.
     """
     m_name = (fact.get("metric_name") or "").strip().lower()
-    scope = (fact.get("scope") or "Consolidated").strip().lower()
+    raw_scope = fact.get("scope")
+    scope_str = (raw_scope or "").strip().lower()
     claim_type = (fact.get("claim_type") or "reported_fact").strip().lower()
     unit = (fact.get("unit") or "").strip().lower()
     
-    # 1. Detect scope (strict standalone vs consolidated separation)
-    if "standalone" in m_name or "standalone" in scope:
+    # 1. Detect scope with strict boundaries:
+    # - explicit Consolidated -> consolidated
+    # - explicit Standalone -> standalone
+    # - explicit Segment / Geo -> segment_<name>
+    # - missing / ambiguous / unknown -> unknown (never defaulted to consolidated)
+    if "standalone" in scope_str or "standalone" in m_name:
         effective_scope = "standalone"
-    else:
+    elif "consolidated" in scope_str or "consolidated" in m_name:
         effective_scope = "consolidated"
+    elif "segment" in scope_str:
+        geos = [
+            "india", "africa", "us", "usa", "europe", "middle east", "latam",
+            "global", "domestic", "international", "enterprise", "retail", "wholesale",
+            "rural", "business banking", "corporate", "sme"
+        ]
+        matched_geo = next((g for g in geos if g in m_name or g in scope_str), None)
+        effective_scope = f"segment_{matched_geo}" if matched_geo else "segment_unspecified"
+    elif scope_str in ("", "unknown", "none"):
+        effective_scope = "unknown"
+    else:
+        effective_scope = scope_str
 
     # 2. Extract semantic metric core with strict boundaries
     # Priority Bank KPI identities:

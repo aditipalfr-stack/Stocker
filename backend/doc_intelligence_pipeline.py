@@ -379,7 +379,8 @@ def assign_working_set_metadata(documents: DocumentLinks) -> List[DocumentItem]:
             cc_ev = database.derive_earnings_event_key(cc_sym, cc.period_or_date, cc.title)
         if cc_ev and not cc_ev.endswith("_GENERIC"):
             known_earnings_events[cc_ev] = cc.period_or_date or ""
-    for reg in (documents.regulatory_filings or []):
+    regs = getattr(documents, "regulatory_annual_filings", None) or getattr(documents, "regulatory_filings", None) or []
+    for reg in regs:
         reg_ev = getattr(reg, "event_key", None)
         if not reg_ev or reg_ev.endswith("_GENERIC"):
             reg_sym = getattr(reg, "ticker", None) or getattr(reg, "symbol", None) or clean_sym

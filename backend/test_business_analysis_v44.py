@@ -1515,7 +1515,7 @@ class TestBusinessAnalysisV44(unittest.TestCase):
 
     def test_11_moat_insufficient_evidence_fail_closed(self):
         """Test Defect 5: Moat type fails closed to INSUFFICIENT_EVIDENCE when evidence is absent."""
-        from doc_intelligence_models import CompetitivePosition
+        from doc_intelligence_models import CompetitivePosition, DemandMomentum, RisksAndCashIssues
         from llm_service import sanitize_and_verify_intelligence_result, GenericDocumentIntelligenceResult
 
         raw_res = GenericDocumentIntelligenceResult(
@@ -1524,8 +1524,8 @@ class TestBusinessAnalysisV44(unittest.TestCase):
             what_changed_recently=[],
             growth_drivers=[],
             promise_vs_delivery=[],
-            demand_momentum=None,
-            risks_and_cash=None,
+            demand_momentum=DemandMomentum(status="Healthy"),
+            risks_and_cash=RisksAndCashIssues(overall_risk_level="Low"),
             stocker_view=None,
             competitive_position=CompetitivePosition(
                 moat_type="Narrow / Evolving",
@@ -1544,7 +1544,7 @@ class TestBusinessAnalysisV44(unittest.TestCase):
     def test_12_separation_of_management_narrative_from_observed_causality(self):
         """Test Defect 6: Sanitizes promotional causality linking growth to management slogans."""
         from llm_service import sanitize_and_verify_intelligence_result, GenericDocumentIntelligenceResult
-        from doc_intelligence_models import GrowthDriver, RecentChange, StockerView
+        from doc_intelligence_models import GrowthDriver, RecentChange, StockerView, DemandMomentum, RisksAndCashIssues
 
         raw_res = GenericDocumentIntelligenceResult(
             symbol="ICICIBANK",
@@ -1566,8 +1566,8 @@ class TestBusinessAnalysisV44(unittest.TestCase):
                 )
             ],
             promise_vs_delivery=[],
-            demand_momentum=None,
-            risks_and_cash=None,
+            demand_momentum=DemandMomentum(status="Healthy"),
+            risks_and_cash=RisksAndCashIssues(overall_risk_level="Low"),
             stocker_view=StockerView(
                 investor_summary="The quarter demonstrates successful execution of the 360-degree customer-centric strategy."
             )
@@ -1605,12 +1605,12 @@ class TestBusinessAnalysisV44(unittest.TestCase):
                 DocumentItem(ticker=sym, title="Outcome of Board Meeting for Fund Raising 21 Aug 2026", url="https://bse.com/ann_bm_out.pdf", doc_type="announcement", period_or_date="2026-08-21"),
                 # Other material events
                 DocumentItem(ticker=sym, title="Acquisition of Equity Stake in FinTech Subsidiary", url="https://bse.com/ann_acq.pdf", doc_type="announcement", period_or_date="2026-08-10"),
-                DocumentItem(ticker=sym, title="Regulatory compliance update from RBI", url="https://bse.com/ann_reg.pdf", doc_type="announcement", period_or_date="2026-08-05")
+                DocumentItem(ticker=sym, title="Regulatory action and penalty update from RBI", url="https://bse.com/ann_reg.pdf", doc_type="announcement", period_or_date="2026-08-05")
             ]
         )
 
         ws = select_default_document_working_set(docs)
-        selected_anns = [d for d in ws if database.normalize_document_type(d.doc_type, d.title) == "material_announcements"]
+        selected_anns = [d for d in ws if database.normalize_document_type(d.doc_type, d.title) == "announcement"]
         self.assertLessEqual(len(selected_anns), 5)
 
         selected_titles = [d.title for d in selected_anns]
@@ -1624,7 +1624,61 @@ class TestBusinessAnalysisV44(unittest.TestCase):
 
         # Acquisition and regulatory should be selected due to family diversity
         self.assertIn("Acquisition of Equity Stake in FinTech Subsidiary", selected_titles)
-        self.assertIn("Regulatory compliance update from RBI", selected_titles)
+        self.assertIn("Regulatory action and penalty update from RBI", selected_titles)
+
+    def test_14_kpi_scope_fail_closed_unknown_never_becomes_consolidated(self):
+        """Test Blocker 1: Fail-closed KPI scope enforcement. Unknown scope never becomes consolidated."""
+        from financial_engine import extract_kpi_identity, build_inter_document_kpi_trends
+
+        fact_missing_scope = {"metric_name": "NIM", "numeric_value": 4.40, "unit": "%", "period_or_date": "Q1 FY26"}
+        fact_consolidated = {"metric_name": "NIM", "numeric_value": 4.36, "unit": "%", "period_or_date": "Q2 FY26", "scope": "Consolidated"}
+        fact_standalone = {"metric_name": "NIM", "numeric_value": 4.25, "unit": "%", "period_or_date": "Q3 FY26", "scope": "Standalone"}
+        fact_explicit_unknown = {"metric_name": "NIM", "numeric_value": 4.30, "unit": "%", "period_or_date": "Q2 FY26", "scope": "Unknown"}
+
+        id_missing = extract_kpi_identity(fact_missing_scope)
+        id_cons = extract_kpi_identity(fact_consolidated)
+        id_stand = extract_kpi_identity(fact_standalone)
+        id_unknown = extract_kpi_identity(fact_explicit_unknown)
+
+        self.assertEqual(id_missing["scope"], "unknown")
+        self.assertEqual(id_cons["scope"], "consolidated")
+        self.assertEqual(id_stand["scope"], "standalone")
+        self.assertEqual(id_unknown["scope"], "unknown")
+
+        # 1. Missing scope + Consolidated scope must NOT merge into a trajectory
+        trends_missing_cons = build_inter_document_kpi_trends([fact_missing_scope, fact_consolidated])
+        self.assertEqual(len(trends_missing_cons), 0)
+
+        # 2. Standalone + Consolidated must NOT merge
+        trends_stand_cons = build_inter_document_kpi_trends([fact_standalone, fact_consolidated])
+        self.assertEqual(len(trends_stand_cons), 0)
+
+        # 3. Two explicit consolidated points merge correctly
+        fact_cons2 = {"metric_name": "NIM", "numeric_value": 4.25, "unit": "%", "period_or_date": "Q3 FY26", "scope": "Consolidated"}
+        trends_cons = build_inter_document_kpi_trends([fact_consolidated, fact_cons2])
+        self.assertEqual(len(trends_cons), 1)
+        self.assertEqual(trends_cons[0]["metric_name"], "Net Interest Margin (NIM)")
+
+    def test_15_announcement_event_key_no_hardcoded_year_and_instrument_separation(self):
+        """Test Blocker 2: Never hardcode 2026 and keep distinct instruments separated."""
+        import database
+
+        sym = "ICICIBANK"
+
+        # 1. Missing date never produces 2026
+        key_no_date = database.derive_announcement_event_key(sym, "Credit Rating update by CRISIL", None)
+        self.assertNotIn("2026", key_no_date)
+
+        # 2. Two different CRISIL instruments in same date/period remain DISTINCT
+        key_tier2 = database.derive_announcement_event_key(sym, "Credit Rating by CRISIL for Tier 2 Bonds", "2026-08-18")
+        key_fd = database.derive_announcement_event_key(sym, "Credit Rating by CRISIL for Fixed Deposit Programme", "2026-08-18")
+        self.assertNotEqual(key_tier2, key_fd)
+        self.assertIn("tier_2", key_tier2)
+        self.assertIn("fixed_deposit", key_fd)
+
+        # 3. Repeated wrappers/updates for the same exact rating action & instrument match
+        key_tier2_rep = database.derive_announcement_event_key(sym, "Credit Rating Reaffirmation by CRISIL for Tier 2 Bonds", "2026-08-18")
+        self.assertEqual(key_tier2, key_tier2_rep)
 
 if __name__ == "__main__":
     unittest.main()

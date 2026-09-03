@@ -774,10 +774,15 @@ def derive_announcement_event_key(symbol: str, title: str, period_or_date: Optio
     """
     Computes a deterministic canonical event key for announcements to suppress
     near-duplicate disclosure wrappers for the same underlying material event.
+    Never invents or hardcodes years; preserves distinct instruments and event lineages.
     """
     clean_sym = symbol.upper().strip()
     t_clean = (title or "").lower().strip()
     p_clean = (period_or_date or "").strip()
+
+    # Extract date identifier if present (YYYY-MM-DD, YYYY-MM, DD-Mon-YYYY)
+    m_date = re.search(r'\b(20\d\d[-/]\d{2}(?:[-/]\d{2})?|\d{1,2}\s+[A-Za-z]{3}\s+20\d\d|20\d\d)\b', p_clean or t_clean)
+    date_id = m_date.group(1).replace(' ', '_') if m_date else (p_clean[:10].replace(' ', '_') if p_clean else "UNKNOWN_DATE")
 
     # 1. Credit Rating Action (e.g. CRISIL, ICRA, CARE, India Ratings)
     if "rating" in t_clean or "credit rating" in t_clean:
@@ -786,36 +791,57 @@ def derive_announcement_event_key(symbol: str, title: str, period_or_date: Optio
             if ag in t_clean:
                 agency = ag.replace(" ", "_")
                 break
-        m_date = re.search(r'\b(20\d\d)\b', p_clean or t_clean)
-        yr = m_date.group(1) if m_date else "2026"
-        # Group rating actions by agency & fiscal half to avoid crowding working set
-        m_month = re.search(r'\b(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\b', p_clean or t_clean, re.IGNORECASE)
-        h_part = "H2" if m_month and m_month.group(1).lower() in ["oct", "nov", "dec", "jan", "feb", "mar"] else "H1"
-        return f"ANN_EVENT_{clean_sym}_RATING_{agency}_{yr}_{h_part}"
+
+        # Instrument / Programme detection to avoid false merging across distinct facilities
+        instruments = [
+            ("tier_2", ["tier 2", "tier ii", "tier-2", "tier-ii"]),
+            ("tier_1", ["tier 1", "tier i", "tier-1", "tier-i", "at1", "at-1", "additional tier 1"]),
+            ("ncd", ["ncd", "non convertible debenture", "non-convertible debenture"]),
+            ("fixed_deposit", ["fixed deposit", "fd programme", "fd rating"]),
+            ("commercial_paper", ["commercial paper", "cp rating"]),
+            ("infrastructure_bonds", ["infra bond", "infrastructure bond"]),
+            ("bank_loan", ["bank loan", "credit facility", "term loan"])
+        ]
+        inst_type = "general"
+        for inst_name, inst_kw in instruments:
+            if any(k in t_clean for k in inst_kw):
+                inst_type = inst_name
+                break
+
+        if date_id != "UNKNOWN_DATE":
+            return f"ANN_EVENT_{clean_sym}_RATING_{agency}_{inst_type}_{date_id}"
+        return f"ANN_EVENT_{clean_sym}_RATING_{agency}_{inst_type}_{hashlib.md5(f'{t_clean}_{p_clean}'.encode()).hexdigest()[:8]}"
 
     # 2. Fund-raising / Capital Action (Board Intimation + Subsequent Board Outcome)
     if any(k in t_clean for k in ["fund raising", "fund raise", "raising of funds", "capital raise", "issuance of debt", "issuance of securities"]):
-        m_date = re.search(r'\b(20\d\d)\b', p_clean or t_clean)
-        yr = m_date.group(1) if m_date else "2026"
-        return f"ANN_EVENT_{clean_sym}_FUND_RAISE_{yr}"
+        issue_type = "general"
+        if any(k in t_clean for k in ["ncd", "debenture", "debt"]):
+            issue_type = "debt"
+        elif any(k in t_clean for k in ["qip", "equity", "preferential"]):
+            issue_type = "equity"
+        if date_id != "UNKNOWN_DATE":
+            return f"ANN_EVENT_{clean_sym}_FUND_RAISE_{issue_type}_{date_id}"
+        return f"ANN_EVENT_{clean_sym}_FUND_RAISE_{issue_type}_{hashlib.md5(f'{t_clean}_{p_clean}'.encode()).hexdigest()[:8]}"
 
     # 3. Debt / Bond / NCD Issuance
     if any(k in t_clean for k in ["bond", "ncd", "debenture", "senior notes", "commercial paper", "issuance"]):
-        m_date = re.search(r'\b(20\d\d[-/]\d{2}(?:[-/]\d{2})?)\b', p_clean or t_clean)
-        d_part = m_date.group(1) if m_date else p_clean[:7]
-        return f"ANN_EVENT_{clean_sym}_DEBT_ISSUE_{d_part}"
+        if date_id != "UNKNOWN_DATE":
+            return f"ANN_EVENT_{clean_sym}_DEBT_ISSUE_{date_id}"
+        return f"ANN_EVENT_{clean_sym}_DEBT_ISSUE_{hashlib.md5(f'{t_clean}_{p_clean}'.encode()).hexdigest()[:8]}"
 
     # 4. Dividend / AGM Outcome
     if "dividend" in t_clean or "agm" in t_clean:
-        return f"ANN_EVENT_{clean_sym}_DIVIDEND_AGM_{p_clean[:7]}"
+        if date_id != "UNKNOWN_DATE":
+            return f"ANN_EVENT_{clean_sym}_DIVIDEND_AGM_{date_id}"
+        return f"ANN_EVENT_{clean_sym}_DIVIDEND_AGM_{hashlib.md5(f'{t_clean}_{p_clean}'.encode()).hexdigest()[:8]}"
 
     # 5. Board Meeting Outcome / Results
     if "board meeting" in t_clean or "outcome of" in t_clean:
-        m_date = re.search(r'\b(\d{1,2}\s+[A-Za-z]{3}\s+20\d\d)\b', p_clean or t_clean)
-        d_part = m_date.group(1) if m_date else p_clean[:10]
-        return f"ANN_EVENT_{clean_sym}_BOARD_MEETING_{d_part.replace(' ', '_')}"
+        if date_id != "UNKNOWN_DATE":
+            return f"ANN_EVENT_{clean_sym}_BOARD_MEETING_{date_id}"
+        return f"ANN_EVENT_{clean_sym}_BOARD_MEETING_{hashlib.md5(f'{t_clean}_{p_clean}'.encode()).hexdigest()[:8]}"
 
-    # Default: each distinct title/date combination remains distinct
+    # Default: distinct title/date combination remains distinct
     return f"ANN_EVENT_{clean_sym}_{hashlib.md5(f'{t_clean}_{p_clean}'.encode()).hexdigest()[:10]}"
 
 def extract_normalized_fiscal_year(period_or_date: Optional[str], title: str = "") -> str:

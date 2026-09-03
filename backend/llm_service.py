@@ -1335,16 +1335,22 @@ def sanitize_and_verify_intelligence_result(
     def _sanitize_promotional_causality(text: str) -> str:
         if not text:
             return text
-        # Neutralize claims that performance "demonstrates successful execution of" management slogans
+        # Neutralize claims that performance "demonstrates successful execution of" or "demonstrates the success of" management slogans
         t = re.sub(
-            r'(?:growth|performance)\s+(?:demonstrates|reflects|proves)\s+(?:successful\s+execution\s+of|the\s+success\s+of)\s+(?:the\s+)?([A-Za-z0-9-]+(?:\s+strategy|\s+approach|\s+framework|\s+model))',
-            r'growth occurred alongside management focus on the \1',
+            r'(?:growth|performance)\s+(?:demonstrates|reflects|proves)\s+(?:successful\s+execution\s+of|the\s+success\s+of)\s+(?:the\s+)?([^.,;]+?\b(?:strategy|approach|framework|model|initiative|focus)\b)',
+            r'performance occurred alongside management focus on \1',
             text,
             flags=re.IGNORECASE
         )
         t = re.sub(
-            r'successful\s+execution\s+of\s+(?:the\s+)?([A-Za-z0-9-]+(?:\s+strategy|\s+approach|\s+framework|\s+model))',
-            r'management-reported \1',
+            r'demonstrates\s+(?:successful\s+execution\s+of|the\s+success\s+of)\s+(?:the\s+)?',
+            r'aligns with management focus on ',
+            t,
+            flags=re.IGNORECASE
+        )
+        t = re.sub(
+            r'successful\s+execution\s+of\s+(?:the\s+)?',
+            r'management-reported ',
             t,
             flags=re.IGNORECASE
         )
