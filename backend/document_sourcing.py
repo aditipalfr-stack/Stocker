@@ -1207,6 +1207,7 @@ def discover_substantive_alternate_candidates(
             return True
         return False
 
+    # 1. Try Company IR discovery adapter
     candidates: List[DocumentItem] = []
     seen_urls = set()
 
@@ -1230,11 +1231,15 @@ def discover_substantive_alternate_candidates(
                 continue
             if not target_event and period_or_date and cand.period_or_date != period_or_date:
                 continue
+            # Found valid Company IR alternate!
+            database.save_source_documents(clean_sym, [cand])
+            return cand
             seen_urls.add(c_url)
             candidates.append(cand)
     except Exception:
         pass
 
+    # 2. Try BSE discovery adapter
     # 2. BSE discovery adapter
     try:
         cand_list = discover_documents_bse_fallback(clean_sym, company_name, [norm_dt], bse_code=scrip_code)
@@ -1255,11 +1260,15 @@ def discover_substantive_alternate_candidates(
                 continue
             if not target_event and period_or_date and cand.period_or_date != period_or_date:
                 continue
+            # Found valid BSE alternate!
+            database.save_source_documents(clean_sym, [cand])
+            return cand
             seen_urls.add(c_url)
             candidates.append(cand)
     except Exception:
         pass
 
+    # 3. Try NSE discovery adapter
     # 3. NSE discovery adapter
     try:
         cand_list = discover_documents_nse_fallback(clean_sym, company_name, [norm_dt])
@@ -1280,6 +1289,9 @@ def discover_substantive_alternate_candidates(
                 continue
             if not target_event and period_or_date and cand.period_or_date != period_or_date:
                 continue
+            # Found valid NSE alternate!
+            database.save_source_documents(clean_sym, [cand])
+            return cand
             seen_urls.add(c_url)
             candidates.append(cand)
     except Exception:

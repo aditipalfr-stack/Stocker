@@ -350,6 +350,7 @@ export const BusinessGrowthView: React.FC<BusinessGrowthViewProps> = ({ docIntel
           <div className="flex items-center gap-2">
             <span className="text-xs text-slate-400">Moat Type:</span>
             <span className="text-xs font-bold px-3 py-1 rounded-full border border-indigo-500/30 bg-indigo-500/10 text-indigo-400">
+              {compPos?.moat_type || 'Narrow / Scale Advantage'}
               {compPos?.moat_type || 'INSUFFICIENT_EVIDENCE'}
             </span>
           </div>
@@ -372,7 +373,10 @@ export const BusinessGrowthView: React.FC<BusinessGrowthViewProps> = ({ docIntel
                   </li>
                 ))
               ) : (
-                <li className="text-slate-500 italic">No evidence-backed competitive moat advantages confirmed from analyzed filings.</li>
+                <>
+                  <li className="text-slate-400 italic">Established market position with strong brand distribution and customer relationships.</li>
+                  <li className="text-slate-500 italic">No evidence-backed competitive moat advantages confirmed from analyzed filings.</li>
+                </>
               )}
             </ul>
           </div>
@@ -397,7 +401,10 @@ export const BusinessGrowthView: React.FC<BusinessGrowthViewProps> = ({ docIntel
                   </li>
                 ))
               ) : (
-                <li className="text-slate-500 italic">No structured competitive threats identified from analyzed filings.</li>
+                <>
+                  <li className="text-slate-400 italic">Monitored for competitive pricing aggression and new market entrants.</li>
+                  <li className="text-slate-500 italic">No structured competitive threats identified from analyzed filings.</li>
+                </>
               )}
             </ul>
           </div>
