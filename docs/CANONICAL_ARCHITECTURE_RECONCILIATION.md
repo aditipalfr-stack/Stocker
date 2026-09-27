@@ -706,3 +706,26 @@ Stocker does **not** need a greenfield canonical-data rewrite.
 It needs to **finish connecting the canonical architecture that already exists**.
 
 That is the reform path.
+
+
+## 18. Analytical metric normalization boundary implemented
+
+The first controlled lineage bridge is now in place without introducing a duplicate financial-facts table.
+
+### Added
+
+- `backend/financial_metric_registry.py` — explicit analytical metric aliases; no fuzzy/substring canonicalization; unknown or ambiguous labels remain unmapped.
+- `FinancialRow` lineage metadata: `canonical_metric`, `source_label`, `source_provider`, `evidence_status`, `unit`, `currency`.
+- Screener ingestion now populates this metadata.
+- `financial_engine.get_row_values()` now resolves canonical metadata first and keeps legacy matching only for backward compatibility.
+- Focused tests cover Revenue, PAT, CFO, Capex, ambiguity rejection, canonical precedence, and legacy payload compatibility.
+
+### Important boundary
+
+This taxonomy does **not** make a metric authoritative.
+
+- `CFO` may now be canonically identified as a reported financial row, but remains `reported_unverified` unless the existing verification system establishes otherwise.
+- `FCF` is intentionally not mapped as a reported row. It remains a Stocker-derived calculation.
+- Revenue/PAT can continue to obtain authoritative status from `financial_verification_records`.
+
+This is the first connection between the provider-facing statement model and the canonical architecture without duplicating the existing verification store or rewriting the financial engine.
