@@ -2,6 +2,7 @@ from typing import Dict, List, Any, Optional
 import math
 import re
 from models import FinancialStatement, FinancialRow
+from financial_metric_registry import normalize_analysis_metric
 
 def calculate_cagr(start_val: Optional[float], end_val: Optional[float], years: float) -> Optional[float]:
     if start_val is None or end_val is None or start_val <= 0 or end_val <= 0 or years <= 0:
@@ -12,14 +13,22 @@ def calculate_cagr(start_val: Optional[float], end_val: Optional[float], years: 
         return None
 
 def get_row_values(stmt: Optional[FinancialStatement], metric_name: str) -> Dict[str, Optional[float]]:
+    """Resolve through the controlled metric taxonomy, then legacy aliases."""
     if not stmt or not stmt.rows:
         return {}
+
+    canonical_target = normalize_analysis_metric(metric_name)
+    if canonical_target:
+        for row in stmt.rows:
+            if row.canonical_metric == canonical_target:
+                return row.values
+
     target = metric_name.strip().lower()
-    # Exact match first
     for row in stmt.rows:
         if row.metric.strip().lower() == target:
             return row.values
-    # Fuzzy substring match
+
+    # Compatibility path for older payloads that predate canonical_metric.
     for row in stmt.rows:
         r_met = row.metric.strip().lower()
         if target in r_met or r_met in target:
