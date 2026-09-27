@@ -4,7 +4,8 @@ import json
 import io
 import hashlib
 import requests
-from typing import List, Tuple, Dict, Any, Optional, Set
+from typing import List, Tuple, Dict, Any, Optional, Set, Callable
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 import pypdf
 from datetime import datetime, timezone
@@ -1197,11 +1198,12 @@ def run_multi_document_ai_pipeline(
     company_name: str,
     documents: DocumentLinks,
     historical_baseline_doc: Optional[DocumentItem] = None,
-    save_output: bool = True
+    save_output: bool = True,
+    progress_callback: Optional[Callable[[int, str], None]] = None
 ) -> Dict[str, Any]:
     """
     Two-Tier Document Intelligence Pipeline:
-    1. Tier 1: Per-Document Summarization with SQLite Caching.
+    1. Tier 1: Per-Document Summarization with SQLite Caching (Concurrent Execution).
     2. Tier 2: Company-Level Synthesis with strict multi-document attribution,
        10-year standardized financial statement triangulation, and on-demand historical evidence.
     """
@@ -1209,6 +1211,9 @@ def run_multi_document_ai_pipeline(
     print(f"\n==================================================")
     print(f"  RUNNING MULTI-DOCUMENT AI PIPELINE: {company_name} ({clean_sym})")
     print(f"==================================================")
+
+    if progress_callback:
+        progress_callback(10, f"Selecting filing working set for {company_name} ({clean_sym})...")
 
     # 1. Select the target default working set (3Y AR, 6Q CC, 6Q PPT, 8 Ann)
     candidate_docs = select_default_document_working_set(documents)
@@ -1249,16 +1254,43 @@ def run_multi_document_ai_pipeline(
             seen_summary_keys.add(d.url)
             deduped_core_summary_docs.append(d)
 
-    print(f"  • Generating/Retrieving Per-Document AI Summaries for {len(deduped_core_summary_docs)} AI Working Set filings...")
+    total_summary_docs = len(deduped_core_summary_docs)
+    print(f"  • Generating/Retrieving Per-Document AI Summaries for {total_summary_docs} AI Working Set filings...")
     doc_summaries_list: List[Dict[str, Any]] = []
 
-    for doc in deduped_core_summary_docs:
+    def _summarize_single_doc(doc: DocumentItem):
         print(f"    - Processing [{doc.doc_type}]: {doc.title}")
-        doc_sum = get_or_generate_document_summary(clean_sym, company_name, doc)
-        if doc_sum and doc_sum.get("status") != "failed":
-            doc_summaries_list.append(doc_sum)
+        return get_or_generate_document_summary(clean_sym, company_name, doc)
+
+    completed_summaries = 0
+    if total_summary_docs > 1:
+        max_workers = min(4, total_summary_docs)
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            future_to_doc = {executor.submit(_summarize_single_doc, d): d for d in deduped_core_summary_docs}
+            for future in as_completed(future_to_doc):
+                doc_item = future_to_doc[future]
+                completed_summaries += 1
+                if progress_callback:
+                    pct = 15 + int((completed_summaries / total_summary_docs) * 45)
+                    progress_callback(pct, f"Summarized {completed_summaries}/{total_summary_docs} filings ({doc_item.doc_type})")
+                try:
+                    doc_sum = future.result()
+                    if doc_sum and doc_sum.get("status") != "failed":
+                        doc_summaries_list.append(doc_sum)
+                except Exception as e:
+                    print(f"    ⚠️ Error summarizing {doc_item.title}: {e}")
+    else:
+        for doc in deduped_core_summary_docs:
+            doc_sum = _summarize_single_doc(doc)
+            if doc_sum and doc_sum.get("status") != "failed":
+                doc_summaries_list.append(doc_sum)
+            if progress_callback:
+                progress_callback(60, f"Summarized filing: {doc.title[:40]}...")
 
     # 4. Extract and compile tagged excerpt chunks from primary documents
+    if progress_callback:
+        progress_callback(65, "Extracting tagged evidence sections from key filings...")
+
     print(f"  • Assembling Multi-Document Tagged Context...")
     tagged_chunks: List[str] = []
 
@@ -1272,7 +1304,9 @@ def run_multi_document_ai_pipeline(
     ppts_to_include = [d for d in candidate_docs if d.doc_type == "presentation"][:1]
     selected_for_excerpts.extend(ppts_to_include)
 
-    for idx, doc in enumerate(selected_for_excerpts):
+    def _extract_single_excerpt(indexed_item):
+        idx, doc = indexed_item
+        chunks = []
         try:
             pages = download_and_extract_pdf(doc.url, symbol=clean_sym)
             is_ar = (doc.doc_type == "annual_report" or len(pages) > 40)
@@ -1280,11 +1314,20 @@ def run_multi_document_ai_pipeline(
 
             for p_num, p_text in sel_pages:
                 if p_text.strip():
-                    tagged_chunks.append(
+                    chunks.append(
                         f"=== [DOC #{idx+1} | Title: {doc.title} | Type: {doc.doc_type} | Period: {doc.period_or_date or 'N/A'} | URL: {doc.url} | Page {p_num}] ===\n{p_text.strip()}\n"
                     )
         except Exception as e:
             print(f"    ⚠️ Failed to extract excerpts for {doc.title}: {e}")
+        return (idx, chunks)
+
+    if selected_for_excerpts:
+        max_extract_workers = min(3, len(selected_for_excerpts))
+        with ThreadPoolExecutor(max_workers=max_extract_workers) as executor:
+            indexed_results = list(executor.map(_extract_single_excerpt, list(enumerate(selected_for_excerpts))))
+            indexed_results.sort(key=lambda x: x[0])
+            for _, chunks in indexed_results:
+                tagged_chunks.extend(chunks)
 
     tagged_all_documents_text = "\n".join(tagged_chunks)
 
@@ -1348,6 +1391,9 @@ def run_multi_document_ai_pipeline(
         }
         return status_res
 
+    if progress_callback:
+        progress_callback(78, f"Synthesizing institutional insights with Gemini ({biz_model} model)...")
+
     print(f"  • Invoking Gemini for Company-Level Institutional Synthesis (Business Model: {biz_model})...")
     success, result, message = extract_document_intelligence_with_llm(
         symbol=clean_sym,
@@ -1378,6 +1424,9 @@ def run_multi_document_ai_pipeline(
     output_dict = result.model_dump()
     output_dict = deduplicate_synthesized_findings(output_dict)
 
+    if progress_callback:
+        progress_callback(92, "Deduplicating findings & persisting to database...")
+
     # Save to SQLite Database
     if save_output:
         # 1. Save structured evidence items
@@ -1403,6 +1452,9 @@ def run_multi_document_ai_pipeline(
         with open(out_file, "w", encoding="utf-8") as f:
             json.dump(output_dict, f, indent=2)
         print(f"  ✓ Saved multi-document AI extracted intelligence to SQLite & {out_file}")
+
+    if progress_callback:
+        progress_callback(100, f"Analysis complete for {company_name} ({clean_sym})")
 
     return output_dict
 

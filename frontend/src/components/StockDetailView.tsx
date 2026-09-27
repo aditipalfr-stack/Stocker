@@ -8,9 +8,10 @@ import {
   projectStock, fetchBusinessAnalysis, generateDocIntelligence,
   fetchAiStatus, configureAiKey, AiStatusResult, fetchStockDetail
 } from '../api';
+import { useAnalysisJobs } from '../context/AnalysisJobContext';
 import { 
   TrendingUp, BarChart3, Sliders, FileText, ShieldAlert, 
-  ExternalLink, ArrowUpRight, ArrowDownRight, RefreshCw, 
+  ExternalLink, ArrowUpRight, ArrowDownRight, ArrowRight, RefreshCw, 
   CheckCircle2, AlertTriangle, Sparkles, Building, Layers, 
   DollarSign, Activity, FileSpreadsheet, ChevronRight, HelpCircle,
   Clock, Target, Compass, Search, Zap, Info, ChevronDown,
@@ -128,6 +129,12 @@ export const StockDetailView: React.FC<StockDetailViewProps> = ({
   const [docIntelError, setDocIntelError] = useState<string | null>(null);
   const [selectedFormulaKey, setSelectedFormulaKey] = useState<string | null>(null);
 
+  // Background AI Job Integration
+  const { startAnalysis, getJobForSymbol } = useAnalysisJobs();
+  const currentJob = getJobForSymbol(stock.symbol);
+  const isJobActive = Boolean(currentJob && (currentJob.status === 'running' || currentJob.status === 'queued'));
+  const [showProgressModal, setShowProgressModal] = useState<boolean>(false);
+
   // AI Configuration & Progress State
   const [aiStatus, setAiStatus] = useState<AiStatusResult | null>(null);
   const [isKeyModalOpen, setIsKeyModalOpen] = useState<boolean>(false);
@@ -166,6 +173,28 @@ export const StockDetailView: React.FC<StockDetailViewProps> = ({
     loadIntel();
   }, [stock.symbol]);
 
+  // Synchronize when background analysis job status changes
+  useEffect(() => {
+    if (!currentJob) return;
+    if (currentJob.status === 'completed') {
+      setGeneratingDocIntel(false);
+      fetchBusinessAnalysis(stock.symbol)
+        .then(data => { if (data) setDocIntel(data); })
+        .catch(() => {});
+      fetchStockDetail(stock.symbol)
+        .then(updated => { if (onStockUpdated) onStockUpdated(updated); })
+        .catch(() => {});
+      if (onRefreshResearchStatus) void onRefreshResearchStatus().catch(() => {});
+    } else if (currentJob.status === 'failed') {
+      setGeneratingDocIntel(false);
+      if (currentJob.error) {
+        setDocIntelError(currentJob.error);
+      }
+    } else if (currentJob.status === 'running' || currentJob.status === 'queued') {
+      setGeneratingDocIntel(true);
+    }
+  }, [currentJob?.status, currentJob?.error, stock.symbol]);
+
   const handleGenerateIntel = async () => {
     // Check AI connection status first
     try {
@@ -190,28 +219,14 @@ export const StockDetailView: React.FC<StockDetailViewProps> = ({
 
     setGeneratingDocIntel(true);
     setDocIntelError(null);
-    setGenerationStep(1);
-
-    const stepTimer1 = setTimeout(() => setGenerationStep(2), 2500);
-    const stepTimer2 = setTimeout(() => setGenerationStep(3), 6000);
+    setShowProgressModal(true);
 
     try {
-      const res = await generateDocIntelligence(stock.symbol);
-      setGenerationStep(4);
-      setDocIntel(res);
-      try {
-        const updatedStock = await fetchStockDetail(stock.symbol);
-        onStockUpdated(updatedStock);
-      } catch (refreshError: any) {
-        setDocIntelError(`Business analysis completed, but dependent projection and score data could not be refreshed: ${refreshError.message || 'refresh failed'}`);
-      }
-      if (onRefreshResearchStatus) void onRefreshResearchStatus().catch(() => {});
+      await startAnalysis(stock.symbol);
     } catch (err: any) {
-      setDocIntelError(err.message || 'Failed to run AI document extraction. Please check your Gemini API key in .env.');
-    } finally {
-      clearTimeout(stepTimer1);
-      clearTimeout(stepTimer2);
+      setDocIntelError(err.message || 'Failed to start AI document extraction.');
       setGeneratingDocIntel(false);
+      setShowProgressModal(false);
     }
   };
 
@@ -1972,80 +1987,130 @@ export const StockDetailView: React.FC<StockDetailViewProps> = ({
 
 
       {/* Live Pipeline Execution Progress Modal */}
-      {generatingDocIntel && (
+      {/* Live Pipeline Execution Progress Modal */}
+      {(generatingDocIntel || isJobActive) && showProgressModal && (
         <div className="fixed inset-0 bg-slate-950/85 backdrop-blur-md z-50 flex items-center justify-center p-4">
           <div className="bg-slate-900 border border-slate-700 rounded-3xl p-6 md:p-8 max-w-lg w-full space-y-6 shadow-2xl animate-in fade-in zoom-in duration-200">
-            <div className="flex items-center gap-3.5">
-              <div className="w-11 h-11 rounded-2xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center border border-emerald-500/30 shrink-0">
-                <Sparkles className="w-6 h-6 animate-pulse text-emerald-400" />
+            <div className="flex items-center justify-between gap-3.5">
+              <div className="flex items-center gap-3.5">
+                <div className="w-11 h-11 rounded-2xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center border border-emerald-500/30 shrink-0">
+                  <Sparkles className="w-6 h-6 animate-pulse text-emerald-400" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-white">Live AI Analysis Running</h3>
+                  <p className="text-xs text-slate-400">Scanning source documents for {stock.name} ({stock.symbol})</p>
+                </div>
               </div>
-              <div>
-                <h3 className="text-base font-bold text-white">Running Live AI Analysis</h3>
-                <p className="text-xs text-slate-400">Scanning source documents for {stock.name} ({stock.symbol})</p>
+              <button
+                type="button"
+                onClick={() => setShowProgressModal(false)}
+                className="text-slate-400 hover:text-white p-1.5 rounded-lg hover:bg-slate-800 transition-colors text-sm"
+                title="Minimize to background"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Live Progress Bar & Stage Status */}
+            <div className="space-y-2 bg-slate-950/80 p-4 rounded-2xl border border-slate-800">
+              <div className="flex items-center justify-between text-xs font-mono">
+                <span className="text-slate-300 font-medium truncate max-w-[75%]">
+                  {currentJob?.stage_message || 'Processing filings in parallel...'}
+                </span>
+                <span className="text-emerald-400 font-bold">
+                  {currentJob?.progress_pct ? `${currentJob.progress_pct}%` : '20%'}
+                </span>
+              </div>
+              <div className="w-full bg-slate-900 rounded-full h-2.5 overflow-hidden border border-slate-800">
+                <div
+                  className="bg-gradient-to-r from-emerald-500 via-teal-400 to-cyan-400 h-2.5 rounded-full transition-all duration-500"
+                  style={{ width: `${Math.max(currentJob?.progress_pct || 20, 8)}%` }}
+                />
               </div>
             </div>
 
-            {/* Step-by-Step Pipeline Progress */}
-            <div className="space-y-3 bg-slate-950/70 p-4 rounded-2xl border border-slate-800">
+            {/* Pipeline Stage Indicators */}
+            <div className="space-y-3 bg-slate-950/50 p-4 rounded-2xl border border-slate-800/80">
               <div className="flex items-center gap-3 text-xs">
                 <div className={`w-5 h-5 rounded-full flex items-center justify-center font-bold text-[10px] ${
-                  generationStep >= 1 ? 'bg-emerald-500 text-slate-950' : 'bg-slate-800 text-slate-400'
+                  (currentJob?.progress_pct || 0) >= 15 ? 'bg-emerald-500 text-slate-950' : 'bg-slate-800 text-slate-400'
                 }`}>
-                  {generationStep > 1 ? '✓' : '1'}
+                  {(currentJob?.progress_pct || 0) > 15 ? '✓' : '1'}
                 </div>
                 <div className="flex-1">
-                  <p className={`font-semibold ${generationStep >= 1 ? 'text-slate-200' : 'text-slate-500'}`}>
+                  <p className="font-semibold text-slate-200">
                     Discovering Verified Filings
                   </p>
                   <p className="text-[11px] text-slate-500">Screener.in + BSE India + NSE India feeds</p>
                 </div>
-                {generationStep === 1 && <RefreshCw className="w-3.5 h-3.5 text-emerald-400 animate-spin" />}
+                {(currentJob?.progress_pct || 0) <= 15 && <RefreshCw className="w-3.5 h-3.5 text-emerald-400 animate-spin" />}
               </div>
 
               <div className="flex items-center gap-3 text-xs">
                 <div className={`w-5 h-5 rounded-full flex items-center justify-center font-bold text-[10px] ${
-                  generationStep >= 2 ? 'bg-emerald-500 text-slate-950' : 'bg-slate-800 text-slate-400'
+                  (currentJob?.progress_pct || 0) >= 60 ? 'bg-emerald-500 text-slate-950' : 'bg-slate-800 text-slate-400'
                 }`}>
-                  {generationStep > 2 ? '✓' : '2'}
+                  {(currentJob?.progress_pct || 0) > 60 ? '✓' : '2'}
                 </div>
                 <div className="flex-1">
-                  <p className={`font-semibold ${generationStep >= 2 ? 'text-slate-200' : 'text-slate-500'}`}>
-                    Reading Source PDFs
+                  <p className="font-semibold text-slate-200">
+                    Parallel PDF & Transcript Summarization
                   </p>
-                  <p className="text-[11px] text-slate-500">Extracting page-by-page text & table markers</p>
+                  <p className="text-[11px] text-slate-500">Concurrent multi-filing extraction with SQLite caching</p>
                 </div>
-                {generationStep === 2 && <RefreshCw className="w-3.5 h-3.5 text-emerald-400 animate-spin" />}
+                {(currentJob?.progress_pct || 0) > 15 && (currentJob?.progress_pct || 0) < 65 && (
+                  <RefreshCw className="w-3.5 h-3.5 text-emerald-400 animate-spin" />
+                )}
               </div>
 
               <div className="flex items-center gap-3 text-xs">
                 <div className={`w-5 h-5 rounded-full flex items-center justify-center font-bold text-[10px] ${
-                  generationStep >= 3 ? 'bg-emerald-500 text-slate-950' : 'bg-slate-800 text-slate-400'
+                  (currentJob?.progress_pct || 0) >= 80 ? 'bg-emerald-500 text-slate-950' : 'bg-slate-800 text-slate-400'
                 }`}>
-                  {generationStep > 3 ? '✓' : '3'}
+                  {(currentJob?.progress_pct || 0) > 80 ? '✓' : '3'}
                 </div>
                 <div className="flex-1">
-                  <p className={`font-semibold ${generationStep >= 3 ? 'text-slate-200' : 'text-slate-500'}`}>
-                    Gemini 2.0 Institutional Extraction
+                  <p className="font-semibold text-slate-200">
+                    Gemini Institutional Synthesis
                   </p>
-                  <p className="text-[11px] text-slate-500">Promise vs Delivery, Growth Drivers & Risks</p>
+                  <p className="text-[11px] text-slate-500">Promise vs Delivery, Growth Drivers & Moat Audits</p>
                 </div>
-                {generationStep === 3 && <RefreshCw className="w-3.5 h-3.5 text-emerald-400 animate-spin" />}
+                {(currentJob?.progress_pct || 0) >= 65 && (currentJob?.progress_pct || 0) < 95 && (
+                  <RefreshCw className="w-3.5 h-3.5 text-emerald-400 animate-spin" />
+                )}
               </div>
 
               <div className="flex items-center gap-3 text-xs">
                 <div className={`w-5 h-5 rounded-full flex items-center justify-center font-bold text-[10px] ${
-                  generationStep >= 4 ? 'bg-emerald-500 text-slate-950' : 'bg-slate-800 text-slate-400'
+                  (currentJob?.progress_pct || 0) >= 100 ? 'bg-emerald-500 text-slate-950' : 'bg-slate-800 text-slate-400'
                 }`}>
-                  {generationStep >= 4 ? '✓' : '4'}
+                  {(currentJob?.progress_pct || 0) >= 100 ? '✓' : '4'}
                 </div>
                 <div className="flex-1">
-                  <p className={`font-semibold ${generationStep >= 4 ? 'text-slate-200' : 'text-slate-500'}`}>
-                    Fact Grounding & Citation Audit
+                  <p className="font-semibold text-slate-200">
+                    Fact Grounding & Verification
                   </p>
-                  <p className="text-[11px] text-slate-500">Linking quotes to exact source pages</p>
+                  <p className="text-[11px] text-slate-500">Linking quotes and saving to persistent database</p>
                 </div>
-                {generationStep >= 4 && <Check className="w-3.5 h-3.5 text-emerald-400" />}
+                {(currentJob?.progress_pct || 0) >= 95 && (currentJob?.progress_pct || 0) < 100 && (
+                  <RefreshCw className="w-3.5 h-3.5 text-emerald-400 animate-spin" />
+                )}
               </div>
+            </div>
+
+            {/* Non-blocking Background Action */}
+            <div className="space-y-2 pt-1">
+              <button
+                type="button"
+                onClick={() => setShowProgressModal(false)}
+                className="w-full bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold px-4 py-2.5 rounded-xl text-xs flex items-center justify-center gap-2 shadow-lg shadow-emerald-500/20 transition-all"
+              >
+                <span>Run in Background & Keep Browsing</span>
+                <ArrowRight className="w-3.5 h-3.5" />
+              </button>
+              <p className="text-[11px] text-slate-400 text-center">
+                You can freely navigate anywhere in Stocker. A notification will pop up when the analysis is ready.
+              </p>
             </div>
           </div>
         </div>

@@ -38,6 +38,7 @@ from scraper import fetch_stock_from_screener
 from financial_engine import compute_financial_analytics
 from projection_engine import run_projections
 from ranking_engine import compute_stock_score
+from analysis_job_manager import job_manager, AnalysisJobStatus
 from company_resolver import resolve_and_search_companies, resolve_canonical_company, normalize_symbol
 from official_financial_service import run_official_financial_verification
 from research_lifecycle_service import get_research_lifecycle_status
@@ -969,7 +970,7 @@ def configure_ai_credentials(payload: Dict[str, str]):
     return test_ai_key_connectivity()
 
 @app.post("/api/stocks/{symbol}/generate-doc-intelligence")
-def generate_stock_doc_intelligence(symbol: str):
+def generate_stock_doc_intelligence(symbol: str, async_mode: bool = Query(default=True)):
     clean_sym = symbol.upper().strip()
     from llm_service import is_llm_available, get_available_llm_provider, test_ai_key_connectivity
     if not is_llm_available():
@@ -1048,7 +1049,32 @@ def generate_stock_doc_intelligence(symbol: str):
             
     doc_intelligence_pipeline.assign_working_set_metadata(doc_links)
     documents_to_analyze = doc_links
+
+    # Asynchronous background execution (default for non-blocking UI)
+    if async_mode:
+        from doc_intelligence_pipeline import run_multi_document_ai_pipeline
+        def _task_worker(progress_cb):
+            return run_multi_document_ai_pipeline(
+                symbol=clean_sym,
+                company_name=detail.name,
+                documents=documents_to_analyze,
+                save_output=True,
+                progress_callback=progress_cb
+            )
+
+        job = job_manager.start_job(clean_sym, detail.name, _task_worker)
+        return {
+            "job_id": job.job_id,
+            "symbol": clean_sym,
+            "company_name": detail.name,
+            "status": job.status,
+            "progress_pct": job.progress_pct,
+            "stage_message": job.stage_message,
+            "started_at": job.started_at,
+            "message": "AI analysis running in background"
+        }
         
+    # Synchronous execution fallback (e.g. for deterministic unit test suites)
     try:
         from doc_intelligence_pipeline import run_multi_document_ai_pipeline
         res = run_multi_document_ai_pipeline(
@@ -1071,6 +1097,19 @@ def generate_stock_doc_intelligence(symbol: str):
             safe_detail = format_ai_error_for_user(e)
             raise HTTPException(status_code=status_code, detail=f"AI Document Intelligence generation failed: {safe_detail}")
         raise HTTPException(status_code=500, detail=f"AI Document Intelligence generation failed: {str(e)}")
+
+@app.get("/api/stocks/{symbol}/analysis-job")
+def get_stock_analysis_job(symbol: str):
+    clean_sym = symbol.upper().strip()
+    job = job_manager.get_job_by_symbol(clean_sym)
+    if not job:
+        return {"symbol": clean_sym, "status": "idle", "progress_pct": 0, "stage_message": "No active analysis"}
+    return job.model_dump()
+
+@app.get("/api/analysis-jobs")
+def get_all_analysis_jobs():
+    jobs = job_manager.get_all_jobs()
+    return [j.model_dump() for j in jobs]
 
 @app.post("/api/stocks/{symbol}/project", response_model=ProjectionResult)
 def project_stock_future(symbol: str, assumptions: ProjectionAssumption):

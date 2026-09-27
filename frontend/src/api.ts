@@ -112,8 +112,43 @@ export async function fetchSourceFilings(symbol: string): Promise<SourceFilingsR
   return res.json();
 }
 
+export interface AnalysisJob {
+  job_id: string;
+  symbol: string;
+  company_name: string;
+  status: 'idle' | 'queued' | 'running' | 'completed' | 'failed';
+  progress_pct: number;
+  stage_message: string;
+  started_at: string;
+  completed_at?: string | null;
+  error?: string | null;
+}
+
+export async function startDocIntelligenceJob(symbol: string): Promise<AnalysisJob> {
+  const res = await fetch(`${API_BASE}/stocks/${encodeURIComponent(symbol)}/generate-doc-intelligence?async_mode=true`, {
+    method: 'POST'
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: 'Failed to start AI analysis' }));
+    throw new Error(err.detail || 'Failed to start AI analysis');
+  }
+  return res.json();
+}
+
+export async function fetchAnalysisJob(symbol: string): Promise<AnalysisJob> {
+  const res = await fetch(`${API_BASE}/stocks/${encodeURIComponent(symbol)}/analysis-job`);
+  if (!res.ok) throw new Error(`Failed to fetch analysis job for ${symbol}`);
+  return res.json();
+}
+
+export async function fetchAllAnalysisJobs(): Promise<AnalysisJob[]> {
+  const res = await fetch(`${API_BASE}/analysis-jobs`);
+  if (!res.ok) throw new Error('Failed to fetch analysis jobs');
+  return res.json();
+}
+
 export async function generateDocIntelligence(symbol: string): Promise<BusinessOutlookIntelligence> {
-  const res = await fetch(`${API_BASE}/stocks/${symbol}/generate-doc-intelligence`, {
+  const res = await fetch(`${API_BASE}/stocks/${symbol}/generate-doc-intelligence?async_mode=false`, {
     method: 'POST'
   });
   if (!res.ok) {

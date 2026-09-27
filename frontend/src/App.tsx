@@ -11,6 +11,8 @@ import { DashboardOverview } from './components/DashboardOverview';
 import { StockDetailView } from './components/StockDetailView';
 import { StockComparison } from './components/StockComparison';
 import { GlossaryDrawer } from './components/ui/GlossaryDrawer';
+import { AnalysisJobProvider } from './context/AnalysisJobContext';
+import { AnalysisNotificationToast } from './components/ui/AnalysisNotificationToast';
 import { RefreshCw, AlertCircle, CheckCircle2 } from 'lucide-react';
 
 export function App() {
@@ -232,6 +234,7 @@ export function App() {
   };
 
   return (
+    <AnalysisJobProvider>
     <div className="min-h-screen bg-page text-primary flex flex-col selection:bg-emerald-500 selection:text-white">
       
       {/* Toast Notification Banner */}
@@ -343,7 +346,9 @@ export function App() {
         </div>
       </footer>
 
+      <AnalysisNotificationToast onOpenStock={(sym) => { loadStockDetail(sym); setActiveTab('detail'); }} />
     </div>
+    </AnalysisJobProvider>
   );
 }
 
