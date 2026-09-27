@@ -625,7 +625,32 @@ Do not:
 
 ---
 
-## 16. Next implementation slice
+## 16. Verified-metric coverage finding
+
+The existing `official_financial_service.py` confirms that Stocker already has a serious fail-closed canonical verification pipeline. However, its current `SAFE_CANONICAL_METRICS` is deliberately limited to:
+
+- REVENUE
+- PBT
+- PAT
+- BASIC_EPS
+- DILUTED_EPS
+
+This matters for the planned Revenue / PAT / CFO / FCF slice:
+
+- **Revenue** → existing verified canonical path exists.
+- **PAT** → existing verified canonical path exists.
+- **CFO** → currently remains primarily a Screener statement fact; it is not covered by the official verification layer.
+- **FCF** → currently is a Stocker-derived calculation from CFO minus capex; it is not a reported fact and should not be treated as one.
+
+Therefore we should **not pretend all four metrics can immediately use the same canonical authority**. The correct architecture is to distinguish:
+
+1. **Verified reported facts** — e.g. Revenue/PAT where official reconciliation exists.
+2. **Reported-but-not-yet-cross-verified facts** — e.g. CFO when only the Screener statement is available.
+3. **Derived metrics** — e.g. FCF, whose inputs and methodology must be explicit.
+
+This is a more precise implementation target than creating a generic canonical table and labeling every number "canonical."
+
+## 17. Next implementation slice
 
 Use one representative company and four metrics:
 
@@ -634,26 +659,31 @@ Use one representative company and four metrics:
 3. CFO
 4. FCF
 
-Trace:
+Trace each metric according to its actual evidence class:
 
 ```text
-Screener / official source
-        ↓
-existing raw snapshot
+Revenue / PAT:
+Screener + official filing
         ↓
 existing verification record
         ↓
-canonical metric mapping
+verified fact
         ↓
-typed analytical input
+financial analytics
+
+CFO:
+Screener cash-flow statement
         ↓
-financial_engine
+reported-but-unverified fact
         ↓
-lineage-aware analytical result
+financial analytics
+
+FCF:
+CFO + capex inputs
         ↓
-API
+deterministic Stocker calculation
         ↓
-UI
+derived metric
 ```
 
 The slice must preserve current outputs while proving:
