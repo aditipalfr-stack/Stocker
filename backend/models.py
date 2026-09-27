@@ -20,7 +20,14 @@ class KeyRatios(BaseModel):
 
 class FinancialRow(BaseModel):
     metric: str
-    values: Dict[str, Optional[float]]  # e.g. {"Jun 2023": 207559.0, "Sep 2023": 231886.0, ...}
+    values: Dict[str, Optional[float]]
+    # Controlled metric lineage metadata; optional for legacy persisted payloads.
+    canonical_metric: Optional[str] = None
+    source_label: Optional[str] = None
+    source_provider: str = "Screener.in"
+    evidence_status: str = "reported_unverified"
+    unit: str = "₹ Cr"
+    currency: str = "INR"
 
 class FinancialStatement(BaseModel):
     periods: List[str]  # e.g. ["Jun 2023", "Sep 2023", ..., "Jun 2026"]
