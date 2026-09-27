@@ -9,6 +9,11 @@ echo "========================================================="
 echo "   Starting Stocker - Fundamental Stock Decision App   "
 echo "========================================================="
 
+# Clean up any stale process on target ports before starting
+fuser -k ${BACKEND_PORT}/tcp 2>/dev/null || true
+fuser -k ${FRONTEND_PORT}/tcp 2>/dev/null || true
+sleep 0.5
+
 # 1. Start Python FastAPI Backend
 echo "Starting Backend API server on port $BACKEND_PORT..."
 export PYTHONPATH="/home/dev/Projects/stocker/libs:/home/dev/Projects/stocker/backend:$PYTHONPATH"
