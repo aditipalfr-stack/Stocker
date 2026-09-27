@@ -6,9 +6,9 @@ Trace representative Stocker data from source ingestion through persistence, det
 
 ## Executive finding
 
-The current system has the beginnings of a provenance-aware architecture, but the canonical lineage is not yet strong enough for a production-grade research system.
+The current system already contains substantial canonicalization and provenance infrastructure. The earlier version of this audit understated that work; repository re-audit confirms that Stocker has a canonical company registry, source-precedence logic, financial verification records, source-document records, and a persistent qualitative evidence layer.
 
-The largest issue is not that Stocker lacks sources. It is that one financial payload is copied through multiple representations and then consumed by analytics, projections, ranking, and UI without a formal immutable fact/evidence layer.
+The remaining architectural problem is narrower and more important: the core financial analytics path still consumes the denormalized stock payload / `FinancialStatement` representation rather than consistently consuming the existing verified/canonical structures as its analytical system of record.
 
 ## Trace A — Revenue / Sales
 
@@ -133,15 +133,13 @@ Existing DataOriginBadge and FormulaTransparencyModal components are useful foun
 
 ## Findings
 
-### P0 — No canonical financial fact layer
+### P0 — Existing canonical verification layer is not yet the analytical system of record
 
-Raw financial statements remain embedded in stock JSON.
+Stocker already has `financial_verification_records` keyed by company + canonical metric + canonical period + scope, with Screener and official values, variance, status, source URLs, document ID and verification timestamps.
 
-There is no normalized canonical fact model such as:
+The gap is downstream adoption: `financial_engine.py`, projections and ranking still primarily consume `stocks_cache.data_json` hydrated into `FinancialStatement` objects. The verification layer therefore exists alongside the analytical path instead of sitting in it.
 
-company + statement + metric + period + scope + unit + value + source + source_version + verification_status
-
-This makes reconciliation, deduplication, historical snapshots, and source precedence harder than necessary.
+This is an integration/authority problem, not a missing-schema problem. Do not create a second canonical financial-facts system until this existing structure has been evaluated against all required use cases.
 
 ### P0 — Duplicate persistence
 
@@ -247,8 +245,10 @@ Only after that should the old JSON-cache path be retired.
 
 ## Phase 1 conclusion
 
-The current Stocker pipeline is payload-centric rather than evidence-centric.
+Stocker is **partly evidence-centric already**, but the architecture is split between a strong evidence/verification subsystem and a payload-centric analytical subsystem.
 
-That is the central architectural finding of this phase.
+That split is the central architectural finding of this phase.
 
-The correct next step is not to add more scoring or valuation logic. It is to establish a canonical, traceable evidence/fact layer and migrate one complete financial lineage through it without breaking the existing application.
+The correct next step is **canonical architecture reconciliation**: define which existing structure is authoritative for each class of data, then migrate the analytical path to consume those structures. Do not rebuild the canonical layer from scratch.
+
+The first migration slice should prove the existing architecture end-to-end using Revenue, PAT, CFO and FCF, while preserving the current application behavior and adding lineage/regression tests.
