@@ -65,6 +65,13 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+@app.on_event("startup")
+def on_startup() -> None:
+    try:
+        database.init_db()
+    except Exception as e:
+        print(f"Warning: database.init_db failed during startup: {e}")
+
 def build_full_stock_detail(stock_data: Dict[str, Any], custom_assumptions: Optional[ProjectionAssumption] = None) -> StockDetail:
     if isinstance(stock_data.get("ratios"), dict) or isinstance(stock_data.get("quarters"), dict):
         from scraper import hydrate_stock_data
