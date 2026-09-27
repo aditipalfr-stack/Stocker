@@ -53,7 +53,7 @@ import doc_intelligence_pipeline
 app = FastAPI(
     title="Stocker - Fundamental Stock Analysis & Decision Engine",
     description="Raw Screener Financials, QoQ/YoY Trends, Projections, Concall AI, and High-Conviction Stock Picking",
-    version="4.4.0"
+    version="4.5"
 )
 
 # Enable CORS for frontend
