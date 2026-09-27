@@ -12,6 +12,7 @@ from models import (
     KeyRatios, FinancialStatement, FinancialRow,
     ConcallInsight, AnnualReportInsight, DocumentLinks, DocumentItem
 )
+from financial_metric_registry import normalize_analysis_metric
 from data_seed import COMPANY_METADATA
 
 CACHE_DIR = os.path.join(os.path.dirname(__file__), "data")
@@ -97,7 +98,16 @@ def parse_screener_table(soup: BeautifulSoup, section_id: str) -> Optional[Finan
                 p = periods[idx]
                 values[p] = parse_num(td.text)
                 
-        rows.append(FinancialRow(metric=metric_name, values=values))
+        rows.append(FinancialRow(
+            metric=metric_name,
+            source_label=metric_name,
+            values=values,
+            canonical_metric=normalize_analysis_metric(metric_name),
+            source_provider="Screener.in",
+            evidence_status="reported_unverified",
+            unit="₹ Cr",
+            currency="INR",
+        ))
         
     return FinancialStatement(periods=periods, rows=rows)
 
